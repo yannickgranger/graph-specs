@@ -8,9 +8,15 @@ reader.
 
 ## Graph
 
-A collection of concept nodes extracted from one side of the equivalence
-check (specs or code). Two graphs are equivalent at concept level iff
-their node sets carry the same names. Lives in `domain`.
+A collection of concept nodes and declared relationship edges extracted
+from one side of the equivalence check (specs or code). Two graphs are
+equivalent at concept level iff their node sets carry the same names;
+equivalent at relationship level iff their edge sets also align after
+the v0.3 opt-in rules apply. Lives in `domain`.
+
+- depends on: ConceptNode
+- depends on: Edge
+- returns: Graph
 
 ## ConceptNode
 
@@ -18,6 +24,9 @@ A single named concept located at a specific source site. Carries the
 concept's name, a [Source](#source) pointing back to where the reader
 found it, and an optional [SignatureState](#signaturestate) payload for
 v0.2 signature-level equivalence.
+
+- depends on: Source
+- depends on: SignatureState
 
 ## SignatureState
 
@@ -36,10 +45,21 @@ came from.
 
 ## Violation
 
-A single equivalence violation between spec and code graphs. At concept
-level, there are two shapes: one for concepts declared in specs but
-absent from code, and one for the inverse. The variants carry the name
-and the source location so the CLI can print actionable messages.
+A single equivalence violation between spec and code graphs. Concept-,
+signature-, and relationship-level variants share the convention that
+the first-carried field is the concept or owner name, so CLI output can
+be sorted deterministically regardless of violation kind.
+
+## Edge
+
+A declared relationship between two concepts (v0.3): `implements`,
+`depends on`, or `returns`. Each edge owns a tokenised matching target
+plus the raw textual form preserved for display in drift messages.
+
+## EdgeKind
+
+The relationship kind of an [Edge](#edge). Closed set for v0.3;
+future dialect growth adds variants here.
 
 ## Reader
 
@@ -65,13 +85,24 @@ port boundary.
 
 Concrete [Reader](#reader) implementation for markdown spec files. Uses
 `pulldown-cmark`. Emits a [ConceptNode](#conceptnode) for every `##` or
-`###` heading it encounters, ignoring prose, tables, bullets, and
-fenced blocks. Lives in `adapters/markdown`.
+`###` heading it encounters, collects fenced `rust` blocks for
+signature-level comparison, and recognises the v0.3 bullet prefixes
+(`- implements:`, `- depends on:`, `- returns:`) as declared edges.
+Lives in `adapters/markdown`.
+
+- implements: Reader
+- depends on: Graph
+- depends on: ReaderError
 
 ## RustReader
 
 Concrete [Reader](#reader) implementation for Rust source files. Uses
 `syn`. Emits a [ConceptNode](#conceptnode) for every top-level
-`pub struct`, `pub enum`, `pub trait`, `pub type` it encounters,
-ignoring private items, tests, benches, examples, and nested
-declarations. Lives in `adapters/rust`.
+`pub struct`, `pub enum`, `pub trait`, `pub type`, plus v0.2 signature
+normalisation via `adapter-rust::normalize` and v0.3 relationship edges
+from struct fields, impl blocks, and trait method signatures. Lives in
+`adapters/rust`.
+
+- implements: Reader
+- depends on: Graph
+- depends on: ReaderError

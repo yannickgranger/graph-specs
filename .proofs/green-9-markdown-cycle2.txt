@@ -1,0 +1,50 @@
+   Compiling libc v0.2.185
+   Compiling syn v2.0.117
+   Compiling thiserror-impl v2.0.18
+   Compiling getrandom v0.4.2
+   Compiling tempfile v3.27.0
+   Compiling thiserror v2.0.18
+   Compiling ports v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/9-relationships/ports)
+   Compiling adapter-rust v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/9-relationships/adapters/rust)
+   Compiling adapter-markdown v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/9-relationships/adapters/markdown)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.41s
+     Running unittests src/lib.rs (target/debug/deps/adapter_markdown-39bf26c60c3b84ef)
+
+running 28 tests
+test tests::bullet_edge_source_line_is_recorded ... ok
+test tests::bullet_before_any_heading_is_ignored ... ok
+test tests::bullet_without_matching_prefix_is_prose ... ok
+test tests::bullet_with_inline_backticks_yields_edge ... ok
+test tests::captures_h2_and_h3_headings ... ok
+test tests::concept_without_rust_block_has_absent_signature ... ok
+test tests::depends_on_bullet_yields_edge ... ok
+test tests::edges_are_scoped_to_current_concept_section ... ok
+test tests::empty_bullet_target_is_ignored ... ok
+test tests::handles_inline_backticks_in_heading ... ok
+test tests::bullets_coexist_with_rust_block_in_same_section ... ok
+test tests::concept_with_rust_block_has_normalized_signature ... ok
+test tests::ignores_fenced_code_blocks_for_concept_names ... ok
+test tests::ignores_prose_and_nonmatching_bullets ... ok
+test tests::ignores_h1_and_deeper_than_h3 ... ok
+test tests::implements_bullet_yields_edge ... ok
+test tests::module_path_target_is_tokenised ... ok
+test tests::multiple_bullets_yield_multiple_edges ... ok
+test tests::non_rust_fenced_blocks_do_not_populate_signature ... ok
+test tests::multiple_rust_blocks_in_one_concept_is_unparseable ... ok
+test tests::prefix_match_is_case_sensitive ... ok
+test tests::non_md_files_are_ignored ... ok
+test tests::records_correct_line_number ... ok
+test tests::returns_bullet_yields_edge_and_tokenises_target ... ok
+test tests::rust_block_before_first_heading_is_ignored ... ok
+test tests::strips_generics_from_heading ... ok
+test tests::unparseable_rust_block_becomes_unparseable_signature ... ok
+test tests::rust_block_scoped_to_current_concept_only ... ok
+
+test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests adapter_markdown
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

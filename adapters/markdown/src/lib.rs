@@ -2,14 +2,27 @@
 //!
 //! Walks a directory tree, parses each `*.md` file with `pulldown-cmark`,
 //! and emits a [`ConceptNode`] for every `##` or `###` heading. Per the
-//! dialect spec (`specs/dialect.md`), prose, tables, images, links,
-//! bullets, and fenced blocks are all ignored — only `h2`/`h3` heading
-//! text participates in the concept graph.
+//! dialect spec (`specs/dialect.md`), prose, tables, images, and links
+//! are ignored — only `h2`/`h3` heading text, fenced `rust` blocks
+//! (v0.2), and recognised bullet prefixes (v0.3) participate.
 //!
 //! Headings containing generic parameters are normalised: `## Graph<T>`
 //! records the concept as `Graph`.
+//!
+//! ## v0.3 bullet edges
+//!
+//! Inside a concept section, bullet lines beginning with one of the
+//! recognised relationship prefixes are collected as declared edges:
+//!
+//! - `- implements: <Target>` → [`EdgeKind::Implements`]
+//! - `- depends on: <Target>` → [`EdgeKind::DependsOn`]
+//! - `- returns: <Target>` → [`EdgeKind::Returns`]
+//!
+//! Prefix matching is case-sensitive. Bullets that do not match any
+//! prefix are prose and are ignored. Empty targets (`- implements:`)
+//! are also ignored.
 
-use domain::{ConceptNode, Graph, SignatureState, Source};
+use domain::{tokenise_target, ConceptNode, Edge, EdgeKind, Graph, SignatureState, Source};
 use ports::{Reader, ReaderError};
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Parser, Tag, TagEnd};
 use std::path::Path;
@@ -21,6 +34,7 @@ pub struct MarkdownReader;
 impl Reader for MarkdownReader {
     fn extract(&self, root: &Path) -> Result<Graph, ReaderError> {
         let mut nodes = Vec::new();
+        let mut edges = Vec::new();
 
         for entry in WalkDir::new(root) {
             let entry = entry.map_err(|e| ReaderError::WalkFailed {
@@ -40,65 +54,173 @@ impl Reader for MarkdownReader {
                 cause: e.to_string(),
             })?;
 
-            extract_from_source(&source, path, &mut nodes);
+            extract_from_source(&source, path, &mut nodes, &mut edges);
         }
 
-        Ok(Graph { nodes })
+        Ok(Graph { nodes, edges })
     }
 }
 
-fn extract_from_source(source: &str, path: &Path, out: &mut Vec<ConceptNode>) {
-    let line_starts = compute_line_starts(source);
-    let parser = Parser::new(source).into_offset_iter();
+/// Per-file extraction state. Grouping the state into a struct keeps
+/// [`extract_from_source`] under the cognitive-complexity ceiling once
+/// the v0.3 bullet-edge pass is woven in alongside the existing heading
+/// and fenced-block handling.
+struct SectionState<'a> {
+    line_starts: Vec<usize>,
+    path: &'a Path,
+    // Heading collection.
+    heading_buf: String,
+    in_heading_at: Option<usize>,
+    // Pending concept: held until the NEXT heading (or EOF) so the
+    // accumulated rust blocks for the section can be attached.
+    pending: Option<(String, usize)>,
+    // Signature collection.
+    rust_blocks: Vec<String>,
+    in_rust_block: bool,
+    block_buf: String,
+    // Bullet collection (v0.3).
+    in_bullet: Option<usize>,
+    bullet_buf: String,
+}
 
-    let mut heading_buf = String::new();
-    let mut in_heading_at: Option<usize> = None;
-    // After a heading closes, `pending` holds the concept name+line until
-    // the next heading (or EOF) — at which point we flush it with whatever
-    // rust blocks were collected for that section.
-    let mut pending: Option<(String, usize)> = None;
-    let mut rust_blocks: Vec<String> = Vec::new();
-    let mut in_rust_block = false;
-    let mut block_buf = String::new();
-
-    for (event, range) in parser {
-        match event {
-            Event::Start(Tag::Heading {
-                level: HeadingLevel::H2 | HeadingLevel::H3,
-                ..
-            }) => {
-                // New section boundary — flush the previous section's concept.
-                flush_pending(&mut pending, &rust_blocks, path, out);
-                rust_blocks.clear();
-                heading_buf.clear();
-                in_heading_at = Some(line_of_offset(&line_starts, range.start));
-            }
-            Event::Text(s) if in_heading_at.is_some() => heading_buf.push_str(&s),
-            Event::Code(s) if in_heading_at.is_some() => heading_buf.push_str(&s),
-            Event::End(TagEnd::Heading(HeadingLevel::H2 | HeadingLevel::H3)) => {
-                if let Some(line) = in_heading_at.take() {
-                    let name = normalize_heading(&heading_buf);
-                    if !name.is_empty() {
-                        pending = Some((name, line));
-                    }
-                }
-            }
-            Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(lang)))
-                if pending.is_some() && lang.as_ref() == "rust" =>
-            {
-                in_rust_block = true;
-                block_buf.clear();
-            }
-            Event::Text(s) if in_rust_block => block_buf.push_str(&s),
-            Event::End(TagEnd::CodeBlock) if in_rust_block => {
-                rust_blocks.push(std::mem::take(&mut block_buf));
-                in_rust_block = false;
-            }
-            _ => {}
+impl<'a> SectionState<'a> {
+    fn new(source: &str, path: &'a Path) -> Self {
+        Self {
+            line_starts: compute_line_starts(source),
+            path,
+            heading_buf: String::new(),
+            in_heading_at: None,
+            pending: None,
+            rust_blocks: Vec::new(),
+            in_rust_block: false,
+            block_buf: String::new(),
+            in_bullet: None,
+            bullet_buf: String::new(),
         }
     }
 
-    flush_pending(&mut pending, &rust_blocks, path, out);
+    fn current_concept(&self) -> Option<&str> {
+        self.pending.as_ref().map(|(n, _)| n.as_str())
+    }
+}
+
+fn extract_from_source(
+    source: &str,
+    path: &Path,
+    nodes: &mut Vec<ConceptNode>,
+    edges: &mut Vec<Edge>,
+) {
+    let mut st = SectionState::new(source, path);
+    let parser = Parser::new(source).into_offset_iter();
+
+    for (event, range) in parser {
+        handle_event(&mut st, event, range, nodes, edges);
+    }
+
+    flush_pending(&mut st.pending, &st.rust_blocks, st.path, nodes);
+}
+
+fn handle_event(
+    st: &mut SectionState,
+    event: Event,
+    range: std::ops::Range<usize>,
+    nodes: &mut Vec<ConceptNode>,
+    edges: &mut Vec<Edge>,
+) {
+    match event {
+        Event::Start(Tag::Heading {
+            level: HeadingLevel::H2 | HeadingLevel::H3,
+            ..
+        }) => {
+            flush_pending(&mut st.pending, &st.rust_blocks, st.path, nodes);
+            st.rust_blocks.clear();
+            st.heading_buf.clear();
+            st.in_heading_at = Some(line_of_offset(&st.line_starts, range.start));
+        }
+        Event::End(TagEnd::Heading(HeadingLevel::H2 | HeadingLevel::H3)) => {
+            if let Some(line) = st.in_heading_at.take() {
+                let name = normalize_heading(&st.heading_buf);
+                if !name.is_empty() {
+                    st.pending = Some((name, line));
+                }
+            }
+        }
+        Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(lang)))
+            if st.pending.is_some() && lang.as_ref() == "rust" =>
+        {
+            st.in_rust_block = true;
+            st.block_buf.clear();
+        }
+        Event::End(TagEnd::CodeBlock) if st.in_rust_block => {
+            st.rust_blocks.push(std::mem::take(&mut st.block_buf));
+            st.in_rust_block = false;
+        }
+        Event::Start(Tag::Item) if st.pending.is_some() => {
+            st.in_bullet = Some(line_of_offset(&st.line_starts, range.start));
+            st.bullet_buf.clear();
+        }
+        Event::End(TagEnd::Item) if st.in_bullet.is_some() => {
+            if let Some(line) = st.in_bullet.take() {
+                finish_bullet(st, line, edges);
+            }
+        }
+        Event::Text(s) | Event::Code(s) => absorb_text(st, &s),
+        _ => {}
+    }
+}
+
+fn absorb_text(st: &mut SectionState, s: &str) {
+    if st.in_heading_at.is_some() {
+        st.heading_buf.push_str(s);
+    } else if st.in_rust_block {
+        st.block_buf.push_str(s);
+    } else if st.in_bullet.is_some() {
+        st.bullet_buf.push_str(s);
+    }
+}
+
+fn finish_bullet(st: &mut SectionState, line: usize, edges: &mut Vec<Edge>) {
+    let Some(concept) = st.current_concept().map(str::to_owned) else {
+        st.bullet_buf.clear();
+        return;
+    };
+    let text = std::mem::take(&mut st.bullet_buf);
+    if let Some((kind, token, raw)) = parse_bullet_edge(text.as_str()) {
+        edges.push(Edge {
+            source_concept: concept,
+            kind,
+            target: token,
+            raw_target: raw,
+            source: Source::Spec {
+                path: st.path.to_path_buf(),
+                line,
+            },
+        });
+    }
+}
+
+const BULLET_PREFIXES: &[(&str, EdgeKind)] = &[
+    ("implements:", EdgeKind::Implements),
+    ("depends on:", EdgeKind::DependsOn),
+    ("returns:", EdgeKind::Returns),
+];
+
+/// Parse a bullet's accumulated text into an (`EdgeKind`, tokenised, raw)
+/// triple, if it matches a recognised prefix. Returns `None` for prose
+/// bullets and for recognised prefixes with an empty target.
+fn parse_bullet_edge(text: &str) -> Option<(EdgeKind, String, String)> {
+    let trimmed = text.trim();
+    for (prefix, kind) in BULLET_PREFIXES {
+        if let Some(rest) = trimmed.strip_prefix(prefix) {
+            let raw = rest.trim().to_string();
+            if raw.is_empty() {
+                return None;
+            }
+            let token = tokenise_target(&raw);
+            return Some((*kind, token, raw));
+        }
+    }
+    None
 }
 
 fn flush_pending(
@@ -193,6 +315,10 @@ mod tests {
         names
     }
 
+    fn extract_graph(dir: &Path) -> Graph {
+        MarkdownReader.extract(dir).unwrap()
+    }
+
     #[test]
     fn captures_h2_and_h3_headings() {
         let d = TempDir::new().unwrap();
@@ -212,18 +338,23 @@ mod tests {
     }
 
     #[test]
-    fn ignores_prose_and_lists() {
+    fn ignores_prose_and_nonmatching_bullets() {
         let d = TempDir::new().unwrap();
         write(
             d.path(),
             "a.md",
             "## Concept\n\nSome prose about Concept.\n\n- a bullet mentioning Other\n- another\n\nMore prose.\n",
         );
-        assert_eq!(extract(d.path()), vec!["Concept"]);
+        let g = extract_graph(d.path());
+        assert_eq!(
+            g.nodes.iter().map(|n| n.name.as_str()).collect::<Vec<_>>(),
+            vec!["Concept"]
+        );
+        assert!(g.edges.is_empty(), "prose bullets must not yield edges");
     }
 
     #[test]
-    fn ignores_fenced_code_blocks() {
+    fn ignores_fenced_code_blocks_for_concept_names() {
         let d = TempDir::new().unwrap();
         write(
             d.path(),
@@ -368,10 +499,206 @@ mod tests {
             "a.md",
             "```rust\npub struct Orphan;\n```\n\n## Foo\n",
         );
-        // Orphan must not be extracted as a concept; Foo exists with no signature.
         let g = MarkdownReader.extract(d.path()).unwrap();
         let names: Vec<&str> = g.nodes.iter().map(|n| n.name.as_str()).collect();
         assert_eq!(names, vec!["Foo"]);
         assert_eq!(g.nodes[0].signature, SignatureState::Absent);
+    }
+
+    // --- v0.3 bullet-edge tests ---
+
+    fn find_edges_for<'a>(edges: &'a [Edge], concept: &str) -> Vec<&'a Edge> {
+        edges
+            .iter()
+            .filter(|e| e.source_concept == concept)
+            .collect()
+    }
+
+    #[test]
+    fn implements_bullet_yields_edge() {
+        let d = TempDir::new().unwrap();
+        write(
+            d.path(),
+            "a.md",
+            "## MarkdownReader\n\n- implements: Reader\n",
+        );
+        let g = extract_graph(d.path());
+        let edges = find_edges_for(&g.edges, "MarkdownReader");
+        assert_eq!(edges.len(), 1);
+        assert_eq!(edges[0].kind, EdgeKind::Implements);
+        assert_eq!(edges[0].target, "Reader");
+        assert_eq!(edges[0].raw_target, "Reader");
+    }
+
+    #[test]
+    fn depends_on_bullet_yields_edge() {
+        let d = TempDir::new().unwrap();
+        write(
+            d.path(),
+            "a.md",
+            "## MarkdownReader\n\n- depends on: pulldown_cmark\n",
+        );
+        let g = extract_graph(d.path());
+        let edges = find_edges_for(&g.edges, "MarkdownReader");
+        assert_eq!(edges.len(), 1);
+        assert_eq!(edges[0].kind, EdgeKind::DependsOn);
+        assert_eq!(edges[0].target, "pulldown_cmark");
+    }
+
+    #[test]
+    fn returns_bullet_yields_edge_and_tokenises_target() {
+        let d = TempDir::new().unwrap();
+        write(
+            d.path(),
+            "a.md",
+            "## Reader\n\n- returns: Result<Graph, ReaderError>\n",
+        );
+        let g = extract_graph(d.path());
+        let edges = find_edges_for(&g.edges, "Reader");
+        assert_eq!(edges.len(), 1);
+        assert_eq!(edges[0].kind, EdgeKind::Returns);
+        assert_eq!(edges[0].target, "Result");
+        assert_eq!(edges[0].raw_target, "Result<Graph, ReaderError>");
+    }
+
+    #[test]
+    fn multiple_bullets_yield_multiple_edges() {
+        let d = TempDir::new().unwrap();
+        write(
+            d.path(),
+            "a.md",
+            "## MarkdownReader\n\n- implements: Reader\n- depends on: pulldown_cmark\n- depends on: walkdir\n",
+        );
+        let g = extract_graph(d.path());
+        let edges = find_edges_for(&g.edges, "MarkdownReader");
+        assert_eq!(edges.len(), 3);
+        let kinds: Vec<EdgeKind> = edges.iter().map(|e| e.kind).collect();
+        assert!(kinds.contains(&EdgeKind::Implements));
+        assert_eq!(
+            kinds.iter().filter(|k| **k == EdgeKind::DependsOn).count(),
+            2
+        );
+    }
+
+    #[test]
+    fn bullet_without_matching_prefix_is_prose() {
+        let d = TempDir::new().unwrap();
+        write(
+            d.path(),
+            "a.md",
+            "## MarkdownReader\n\n- some narrative bullet\n- another prose line\n",
+        );
+        let g = extract_graph(d.path());
+        assert!(g.edges.is_empty());
+    }
+
+    #[test]
+    fn empty_bullet_target_is_ignored() {
+        let d = TempDir::new().unwrap();
+        write(
+            d.path(),
+            "a.md",
+            "## MarkdownReader\n\n- implements:\n- depends on:    \n",
+        );
+        let g = extract_graph(d.path());
+        assert!(g.edges.is_empty());
+    }
+
+    #[test]
+    fn prefix_match_is_case_sensitive() {
+        let d = TempDir::new().unwrap();
+        write(
+            d.path(),
+            "a.md",
+            "## Thing\n\n- Implements: Foo\n- DEPENDS ON: Bar\n",
+        );
+        let g = extract_graph(d.path());
+        assert!(g.edges.is_empty());
+    }
+
+    #[test]
+    fn bullet_before_any_heading_is_ignored() {
+        let d = TempDir::new().unwrap();
+        write(d.path(), "a.md", "- implements: Ghost\n\n## Foo\n");
+        let g = extract_graph(d.path());
+        assert!(g.edges.is_empty());
+    }
+
+    #[test]
+    fn edges_are_scoped_to_current_concept_section() {
+        let d = TempDir::new().unwrap();
+        write(
+            d.path(),
+            "a.md",
+            "## Foo\n\n- implements: X\n\n## Bar\n\n- depends on: Y\n",
+        );
+        let g = extract_graph(d.path());
+        let foo = find_edges_for(&g.edges, "Foo");
+        let bar = find_edges_for(&g.edges, "Bar");
+        assert_eq!(foo.len(), 1);
+        assert_eq!(foo[0].kind, EdgeKind::Implements);
+        assert_eq!(foo[0].target, "X");
+        assert_eq!(bar.len(), 1);
+        assert_eq!(bar[0].kind, EdgeKind::DependsOn);
+        assert_eq!(bar[0].target, "Y");
+    }
+
+    #[test]
+    fn bullet_with_inline_backticks_yields_edge() {
+        let d = TempDir::new().unwrap();
+        write(d.path(), "a.md", "## Foo\n\n- implements: `Reader`\n");
+        let g = extract_graph(d.path());
+        let edges = find_edges_for(&g.edges, "Foo");
+        assert_eq!(edges.len(), 1);
+        assert_eq!(edges[0].target, "Reader");
+    }
+
+    #[test]
+    fn bullets_coexist_with_rust_block_in_same_section() {
+        let d = TempDir::new().unwrap();
+        write(
+            d.path(),
+            "a.md",
+            "## Reader\n\n- implements: Trait\n\n```rust\npub trait Reader { fn extract(&self); }\n```\n\n- depends on: Graph\n",
+        );
+        let g = extract_graph(d.path());
+        let edges = find_edges_for(&g.edges, "Reader");
+        assert_eq!(edges.len(), 2);
+        let reader_node = g.nodes.iter().find(|n| n.name == "Reader").unwrap();
+        assert!(matches!(
+            reader_node.signature,
+            SignatureState::Normalized(_)
+        ));
+    }
+
+    #[test]
+    fn bullet_edge_source_line_is_recorded() {
+        let d = TempDir::new().unwrap();
+        write(
+            d.path(),
+            "a.md",
+            "## Foo\n\nProse line.\n\n- implements: Reader\n",
+        );
+        let g = extract_graph(d.path());
+        let edges = find_edges_for(&g.edges, "Foo");
+        assert_eq!(edges.len(), 1);
+        match &edges[0].source {
+            Source::Spec { line, .. } => assert!(
+                *line >= 3,
+                "bullet line should point somewhere past the heading, got {line}"
+            ),
+            Source::Code { .. } => panic!("expected Spec source"),
+        }
+    }
+
+    #[test]
+    fn module_path_target_is_tokenised() {
+        let d = TempDir::new().unwrap();
+        write(d.path(), "a.md", "## Foo\n\n- depends on: domain::Graph\n");
+        let g = extract_graph(d.path());
+        let edges = find_edges_for(&g.edges, "Foo");
+        assert_eq!(edges.len(), 1);
+        assert_eq!(edges[0].target, "Graph");
+        assert_eq!(edges[0].raw_target, "domain::Graph");
     }
 }

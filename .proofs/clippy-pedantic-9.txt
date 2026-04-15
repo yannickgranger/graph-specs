@@ -1,0 +1,6 @@
+    Checking domain v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/review-9-nits/domain)
+    Checking ports v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/review-9-nits/ports)
+    Checking adapter-rust v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/review-9-nits/adapters/rust)
+    Checking adapter-markdown v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/review-9-nits/adapters/markdown)
+    Checking application v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/review-9-nits/application)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.51s

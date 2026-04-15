@@ -10,11 +10,12 @@
 //! Scope: only top-level items in each file are visited. Concepts nested
 //! inside `pub mod foo { ... }` are not extracted at this level.
 
+mod edges;
 mod normalize;
 
 pub use normalize::normalize;
 
-use domain::{ConceptNode, Graph, SignatureState, Source};
+use domain::{ConceptNode, Edge, Graph, SignatureState, Source};
 use ports::{Reader, ReaderError};
 use std::path::Path;
 use syn::{Attribute, File, Visibility};
@@ -37,6 +38,7 @@ pub struct RustReader;
 impl Reader for RustReader {
     fn extract(&self, root: &Path) -> Result<Graph, ReaderError> {
         let mut nodes = Vec::new();
+        let mut raw_edges: Vec<Edge> = Vec::new();
 
         let walker = WalkDir::new(root)
             .into_iter()
@@ -55,10 +57,11 @@ impl Reader for RustReader {
             }
 
             let (parsed, path) = read_and_parse(entry.path().to_path_buf())?;
-            extract_from_file(&parsed, &path, &mut nodes);
+            extract_from_file(&parsed, &path, &mut nodes, &mut raw_edges);
         }
 
-        Ok(Graph { nodes })
+        let edges = edges::filter_by_known_concepts(raw_edges, &nodes);
+        Ok(Graph { nodes, edges })
     }
 }
 
@@ -96,9 +99,15 @@ fn is_excluded_dir(entry: &DirEntry) -> bool {
     EXCLUDED_DIRS.iter().any(|ex| name.as_ref() == *ex)
 }
 
-fn extract_from_file(file: &File, path: &Path, out: &mut Vec<ConceptNode>) {
+fn extract_from_file(
+    file: &File,
+    path: &Path,
+    out: &mut Vec<ConceptNode>,
+    edges_out: &mut Vec<Edge>,
+) {
     for item in &file.items {
         visit_top_level_item(item, path, out);
+        edges::emit_for_item(item, path, edges_out);
     }
 }
 

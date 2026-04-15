@@ -250,6 +250,166 @@ fn concept_only_spec_does_not_emit_signature_violation() {
         .stdout(predicate::str::contains("0 violations"));
 }
 
+// --- v0.3 relationship-level inject-bite (AC #6) ---
+
+#[test]
+fn injectbite_spec_implements_without_code_impl_emits_edge_missing_in_code() {
+    // Spec: MarkdownReader section declares `- implements: Reader`.
+    // Code: MarkdownReader is a pub struct, but Reader is a trait with no
+    // `impl Reader for MarkdownReader` block. Result: EdgeMissingInCode.
+    let specs = TempDir::new().unwrap();
+    let code = TempDir::new().unwrap();
+    write_file(
+        specs.path(),
+        "core.md",
+        "## Reader\n\n## MarkdownReader\n\n- implements: Reader\n",
+    );
+    write_file(
+        code.path(),
+        "src/lib.rs",
+        "pub struct MarkdownReader; pub trait Reader {}",
+    );
+
+    bin()
+        .args([
+            "check",
+            "--specs",
+            specs.path().to_str().unwrap(),
+            "--code",
+            code.path().to_str().unwrap(),
+        ])
+        .assert()
+        .code(1)
+        .stdout(predicate::str::contains(
+            "edge missing in code: MarkdownReader --IMPLEMENTS--> Reader",
+        ));
+}
+
+#[test]
+fn injectbite_code_impl_without_spec_bullet_emits_edge_missing_in_spec() {
+    // Spec: MarkdownReader has at least one bullet (opts in) but omits
+    // the Writer one. Code: `impl Writer for MarkdownReader` exists.
+    let specs = TempDir::new().unwrap();
+    let code = TempDir::new().unwrap();
+    write_file(
+        specs.path(),
+        "core.md",
+        "## Reader\n\n## Writer\n\n## MarkdownReader\n\n- implements: Reader\n",
+    );
+    write_file(
+        code.path(),
+        "src/lib.rs",
+        "pub struct MarkdownReader; pub trait Reader {} pub trait Writer {} impl Reader for MarkdownReader {} impl Writer for MarkdownReader {}",
+    );
+
+    bin()
+        .args([
+            "check",
+            "--specs",
+            specs.path().to_str().unwrap(),
+            "--code",
+            code.path().to_str().unwrap(),
+        ])
+        .assert()
+        .code(1)
+        .stdout(predicate::str::contains(
+            "edge missing in spec: MarkdownReader --IMPLEMENTS--> Writer",
+        ));
+}
+
+#[test]
+fn injectbite_spec_edge_target_unknown_concept_emits_target_unknown() {
+    // Spec references a concept that exists on neither side.
+    let specs = TempDir::new().unwrap();
+    let code = TempDir::new().unwrap();
+    write_file(
+        specs.path(),
+        "core.md",
+        "## MarkdownReader\n\n- implements: NotAConcept\n",
+    );
+    write_file(code.path(), "src/lib.rs", "pub struct MarkdownReader;");
+
+    bin()
+        .args([
+            "check",
+            "--specs",
+            specs.path().to_str().unwrap(),
+            "--code",
+            code.path().to_str().unwrap(),
+        ])
+        .assert()
+        .code(1)
+        .stdout(predicate::str::contains(
+            "edge target unknown: MarkdownReader --IMPLEMENTS--> NotAConcept",
+        ));
+}
+
+#[test]
+fn injectbite_field_rename_pair_emits_missing_in_code_and_spec() {
+    // Spec: Container depends on Graph. Code: Container's field is Node,
+    // not Graph. Both EdgeMissingInCode (Graph) and EdgeMissingInSpec (Node)
+    // fire for the same concept.
+    let specs = TempDir::new().unwrap();
+    let code = TempDir::new().unwrap();
+    write_file(
+        specs.path(),
+        "core.md",
+        "## Graph\n\n## Node\n\n## Container\n\n- depends on: Graph\n",
+    );
+    write_file(
+        code.path(),
+        "src/lib.rs",
+        "pub struct Graph; pub struct Node; pub struct Container { pub n: Node }",
+    );
+
+    bin()
+        .args([
+            "check",
+            "--specs",
+            specs.path().to_str().unwrap(),
+            "--code",
+            code.path().to_str().unwrap(),
+        ])
+        .assert()
+        .code(1)
+        .stdout(predicate::str::contains(
+            "edge missing in code: Container --DEPENDS_ON--> Graph",
+        ))
+        .stdout(predicate::str::contains(
+            "edge missing in spec: Container --DEPENDS_ON--> Node",
+        ));
+}
+
+#[test]
+fn v03_matching_edges_produce_no_violations() {
+    // Regression: a spec that declares the same edges the code has must
+    // still produce 0 violations.
+    let specs = TempDir::new().unwrap();
+    let code = TempDir::new().unwrap();
+    write_file(
+        specs.path(),
+        "core.md",
+        "## Reader\n\n## MarkdownReader\n\n- implements: Reader\n",
+    );
+    write_file(
+        code.path(),
+        "src/lib.rs",
+        "pub struct MarkdownReader; pub trait Reader {} impl Reader for MarkdownReader {}",
+    );
+
+    bin()
+        .args([
+            "check",
+            "--specs",
+            specs.path().to_str().unwrap(),
+            "--code",
+            code.path().to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("0 violations"));
+}
+
 #[test]
 fn code_only_concept_exits_1_with_missing_in_specs() {
     let specs = TempDir::new().unwrap();
