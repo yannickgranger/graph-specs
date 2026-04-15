@@ -1,1 +1,9 @@
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.52s
+=== $ cargo clippy --workspace --all-targets -- -D warnings -W clippy::pedantic -W clippy::nursery ===
+     Removed 283 files, 316.6MiB total
+    Checking domain v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/7-signature-level/domain)
+    Checking ports v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/7-signature-level/ports)
+    Checking adapter-rust v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/7-signature-level/adapters/rust)
+    Checking adapter-markdown v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/7-signature-level/adapters/markdown)
+    Checking application v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/7-signature-level/application)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.62s
+=== exit=0 ===
