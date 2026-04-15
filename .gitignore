@@ -1,7 +1,6 @@
 /target
 *.db
-.env
-.env.*
+.env*
 .cargo/config.toml
 .claude/
 .test-results/
