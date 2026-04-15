@@ -43,7 +43,7 @@ Every bounded context named in the specs maps to exactly one declared set of cra
 
 ## Dogfooding from day zero
 
-The tool validates its own specs from the first commit. The tool's `docs/` directory contains markdown specs for the tool itself; the tool reads those specs and its own source and diffs them. Every PR to this repository passes the same four-level check it imposes on downstream consumers.
+The tool validates its own specs from the first commit. The tool's `specs/` directory contains markdown specifications for the tool itself; the tool reads those specs and its own source and diffs them. Every PR to this repository passes the same four-level check it imposes on downstream consumers.
 
 ## Consumer projects
 
@@ -59,4 +59,8 @@ Every feature PR in a consumer project runs the four-level check as a CI gate. A
 
 ## Status
 
-Early scaffolding. Specs for the tool's own behavior are being authored now; the Rust reader and markdown reader are not yet implemented.
+Concept-level check implemented end-to-end and dogfooded against this repository. Signature, relationship, and bounded-context levels are planned. See the open issues for the roadmap.
+
+## Authorship
+
+100% written by **Claude** (Anthropic's AI coding assistant) under the proud supervision of its human lead. Every commit, test, and line of documentation — including this README — originates from a Claude session. The human reviews and ratifies; Claude builds. Issues and pull requests are welcome from anyone.
