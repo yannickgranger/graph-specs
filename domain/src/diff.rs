@@ -9,31 +9,32 @@ use crate::{ConceptNode, Graph, SignatureState, Violation};
 use std::collections::HashMap;
 
 #[must_use]
-pub fn diff(specs: &Graph, code: &Graph) -> Vec<Violation> {
-    let spec_by_name: HashMap<&str, &ConceptNode> =
-        specs.nodes.iter().map(|n| (n.name.as_str(), n)).collect();
-    let code_by_name: HashMap<&str, &ConceptNode> =
-        code.nodes.iter().map(|n| (n.name.as_str(), n)).collect();
+pub fn diff(specs: Graph, code: Graph) -> Vec<Violation> {
+    // Index code by name, consuming code.nodes — later lookups remove the
+    // match so the remainder is "code-only" (missing in specs).
+    let mut code_by_name: HashMap<String, ConceptNode> = code
+        .nodes
+        .into_iter()
+        .map(|n| (n.name.clone(), n))
+        .collect();
 
     let mut violations = Vec::new();
 
-    for node in &specs.nodes {
-        if let Some(code_node) = code_by_name.get(node.name.as_str()) {
-            compare_signatures(node, code_node, &mut violations);
+    for spec_node in specs.nodes {
+        if let Some(code_node) = code_by_name.remove(&spec_node.name) {
+            compare_signatures(spec_node, code_node, &mut violations);
         } else {
             violations.push(Violation::MissingInCode {
-                name: node.name.clone(),
-                spec_source: node.source.clone(),
+                name: spec_node.name,
+                spec_source: spec_node.source,
             });
         }
     }
-    for node in &code.nodes {
-        if !spec_by_name.contains_key(node.name.as_str()) {
-            violations.push(Violation::MissingInSpecs {
-                name: node.name.clone(),
-                code_source: node.source.clone(),
-            });
-        }
+    for (_, code_node) in code_by_name {
+        violations.push(Violation::MissingInSpecs {
+            name: code_node.name,
+            code_source: code_node.source,
+        });
     }
 
     // Deterministic ordering by (name, variant_rank).
@@ -47,39 +48,45 @@ pub fn diff(specs: &Graph, code: &Graph) -> Vec<Violation> {
 }
 
 /// Compare the signature payloads on a matched (spec, code) concept pair.
-/// Pushes zero or one signature-level violation.
-fn compare_signatures(spec: &ConceptNode, code: &ConceptNode, out: &mut Vec<Violation>) {
+/// Consumes both sides — each field is moved into the emitted violation
+/// rather than cloned.
+fn compare_signatures(spec: ConceptNode, code: ConceptNode, out: &mut Vec<Violation>) {
     // Unparseable on either side surfaces first — we can't compare against
-    // a broken payload, and the author needs to fix the syntax.
-    if let SignatureState::Unparseable { raw, error } = &spec.signature {
-        out.push(Violation::SignatureUnparseable {
-            name: spec.name.clone(),
-            raw: raw.clone(),
-            error: error.clone(),
-            source: spec.source.clone(),
-        });
+    // a broken payload, and the author needs to fix the syntax. Spec side
+    // wins the race because broken spec markup is the more common cause.
+    if matches!(spec.signature, SignatureState::Unparseable { .. }) {
+        if let SignatureState::Unparseable { raw, error } = spec.signature {
+            out.push(Violation::SignatureUnparseable {
+                name: spec.name,
+                raw,
+                error,
+                source: spec.source,
+            });
+        }
         return;
     }
-    if let SignatureState::Unparseable { raw, error } = &code.signature {
-        out.push(Violation::SignatureUnparseable {
-            name: code.name.clone(),
-            raw: raw.clone(),
-            error: error.clone(),
-            source: code.source.clone(),
-        });
+    if matches!(code.signature, SignatureState::Unparseable { .. }) {
+        if let SignatureState::Unparseable { raw, error } = code.signature {
+            out.push(Violation::SignatureUnparseable {
+                name: code.name,
+                raw,
+                error,
+                source: code.source,
+            });
+        }
         return;
     }
 
-    match (&spec.signature, &code.signature) {
+    match (spec.signature, code.signature) {
         (SignatureState::Normalized(spec_sig), SignatureState::Normalized(code_sig))
             if spec_sig != code_sig =>
         {
             out.push(Violation::SignatureDrift {
-                name: spec.name.clone(),
-                spec_sig: spec_sig.clone(),
-                code_sig: code_sig.clone(),
-                spec_source: spec.source.clone(),
-                code_source: code.source.clone(),
+                name: spec.name,
+                spec_sig,
+                code_sig,
+                spec_source: spec.source,
+                code_source: code.source,
             });
         }
         // No-op cases:
@@ -171,7 +178,7 @@ mod tests {
 
     #[test]
     fn empty_graphs_yield_no_violations() {
-        let v = diff(&Graph::default(), &Graph::default());
+        let v = diff(Graph::default(), Graph::default());
         assert!(v.is_empty());
     }
 
@@ -183,7 +190,7 @@ mod tests {
         let code = Graph {
             nodes: vec![code("Graph"), code("Reader")],
         };
-        assert!(diff(&specs, &code).is_empty());
+        assert!(diff(specs, code).is_empty());
     }
 
     #[test]
@@ -194,7 +201,7 @@ mod tests {
         let code = Graph {
             nodes: vec![code("Graph")],
         };
-        let v = diff(&specs, &code);
+        let v = diff(specs, code);
         assert_eq!(v.len(), 1);
         assert!(matches!(&v[0], Violation::MissingInCode { name, .. } if name == "Orphan"));
     }
@@ -207,7 +214,7 @@ mod tests {
         let code = Graph {
             nodes: vec![code("Graph"), code("Undeclared")],
         };
-        let v = diff(&specs, &code);
+        let v = diff(specs, code);
         assert_eq!(v.len(), 1);
         assert!(matches!(&v[0], Violation::MissingInSpecs { name, .. } if name == "Undeclared"));
     }
@@ -218,7 +225,7 @@ mod tests {
             nodes: vec![spec("Zebra"), spec("Alpha")],
         };
         let code = Graph::default();
-        let v = diff(&specs, &code);
+        let v = diff(specs, code);
         let names: Vec<&str> = v
             .iter()
             .filter_map(|vi| match vi {
@@ -240,7 +247,7 @@ mod tests {
         let code = Graph {
             nodes: vec![code_with_sig("OrderId", sig)],
         };
-        assert!(diff(&specs, &code).is_empty());
+        assert!(diff(specs, code).is_empty());
     }
 
     #[test]
@@ -251,7 +258,7 @@ mod tests {
         let code = Graph {
             nodes: vec![code_with_sig("OrderId", "pub struct OrderId(pub u64);")],
         };
-        let v = diff(&specs, &code);
+        let v = diff(specs, code);
         assert_eq!(v.len(), 1);
         assert!(matches!(
             &v[0],
@@ -274,7 +281,7 @@ mod tests {
         let code = Graph {
             nodes: vec![code_with_sig("OrderId", "pub struct OrderId(pub Uuid);")],
         };
-        assert!(diff(&specs, &code).is_empty());
+        assert!(diff(specs, code).is_empty());
     }
 
     #[test]
@@ -289,7 +296,7 @@ mod tests {
         let code = Graph {
             nodes: vec![code_with_sig("OrderId", "pub struct OrderId(pub Uuid);")],
         };
-        let v = diff(&specs, &code);
+        let v = diff(specs, code);
         assert_eq!(v.len(), 1);
         assert!(matches!(
             &v[0],
@@ -307,7 +314,7 @@ mod tests {
         let code = Graph {
             nodes: vec![code("Foo")],
         };
-        assert!(diff(&specs, &code).is_empty());
+        assert!(diff(specs, code).is_empty());
     }
 
     #[test]
@@ -316,7 +323,7 @@ mod tests {
             nodes: vec![spec("Graph"), spec("Graph")],
         };
         let code = Graph::default();
-        let v = diff(&specs, &code);
+        let v = diff(specs, code);
         // Both occurrences in specs are missing in code — the diff reports both,
         // but neither is spuriously reported as a violation twice with different sources.
         assert!(v
