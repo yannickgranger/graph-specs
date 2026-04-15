@@ -1,0 +1,10 @@
+=== QUALITY: METRICS ===
+HOLE: adapter-markdown, adapter-rust, application, domain
+RING1: ports
+RING2: 
+FILES_SCANNED: 8
+
+=== SUMMARY ===
+TOTAL_VIOLATIONS: 0
+RESULT: PASS
+[quality-metrics] WORKSPACE=/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/7-signature-level RESULT=PASS VIOLATIONS=0
