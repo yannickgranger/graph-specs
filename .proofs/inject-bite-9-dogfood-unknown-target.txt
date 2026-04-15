@@ -1,0 +1,3 @@
+edge target unknown: MarkdownReader --IMPLEMENTS--> NotAConcept (not a concept in either graph) (specs/concepts/core.md:94)
+1 violation(s) found.
+Exit: 1

@@ -1,0 +1,65 @@
+    Checking domain v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/9-relationships/domain)
+    Checking ports v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/9-relationships/ports)
+    Checking adapter-rust v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/9-relationships/adapters/rust)
+error: item in documentation is missing backticks
+  --> adapters/rust/src/edges.rs:13:9
+   |
+13 | //! the DEPENDS_ON / RETURNS edges derived from their method signatures.
+   |         ^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.93.0/index.html#doc_markdown
+   = note: `-D clippy::doc-markdown` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::doc_markdown)]`
+help: try
+   |
+13 - //! the DEPENDS_ON / RETURNS edges derived from their method signatures.
+13 + //! the `DEPENDS_ON` / RETURNS edges derived from their method signatures.
+   |
+
+error: it is more concise to loop over references to containers instead of using explicit iteration methods
+  --> adapters/rust/src/edges.rs:61:18
+   |
+61 |     for field in s.fields.iter() {
+   |                  ^^^^^^^^^^^^^^^ help: to write this more concisely, try: `&s.fields`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.93.0/index.html#explicit_iter_loop
+   = note: `-D clippy::explicit-iter-loop` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::explicit_iter_loop)]`
+
+error: it is more concise to loop over references to containers instead of using explicit iteration methods
+  --> adapters/rust/src/edges.rs:72:22
+   |
+72 |         for field in variant.fields.iter() {
+   |                      ^^^^^^^^^^^^^^^^^^^^^ help: to write this more concisely, try: `&variant.fields`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.93.0/index.html#explicit_iter_loop
+
+error: item in documentation is missing backticks
+   --> adapters/rust/src/edges.rs:138:31
+    |
+138 | /// outer head (`Result`) and DEPENDS_ON edges on every inner generic
+    |                               ^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.93.0/index.html#doc_markdown
+help: try
+    |
+138 - /// outer head (`Result`) and DEPENDS_ON edges on every inner generic
+138 + /// outer head (`Result`) and `DEPENDS_ON` edges on every inner generic
+    |
+
+error: item in documentation is missing backticks
+   --> adapters/rust/src/edges.rs:165:5
+    |
+165 | /// DEPENDS_ON emits one edge per type-path head discovered recursively
+    |     ^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.93.0/index.html#doc_markdown
+help: try
+    |
+165 - /// DEPENDS_ON emits one edge per type-path head discovered recursively
+165 + /// `DEPENDS_ON` emits one edge per type-path head discovered recursively
+    |
+
+error: could not compile `adapter-rust` (lib) due to 5 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `adapter-rust` (lib test) due to 5 previous errors

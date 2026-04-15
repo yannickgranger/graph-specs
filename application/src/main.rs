@@ -119,6 +119,42 @@ fn print_violation(v: &Violation) {
                 path.display()
             );
         }
+        Violation::EdgeMissingInCode {
+            concept,
+            edge_kind,
+            target,
+            spec_source,
+        } => {
+            let (path, line) = source_pair(spec_source);
+            println!(
+                "edge missing in code: {concept} --{edge_kind}--> {target} ({}:{line})",
+                path.display()
+            );
+        }
+        Violation::EdgeMissingInSpec {
+            concept,
+            edge_kind,
+            target,
+            code_source,
+        } => {
+            let (path, line) = source_pair(code_source);
+            println!(
+                "edge missing in spec: {concept} --{edge_kind}--> {target} ({}:{line})",
+                path.display()
+            );
+        }
+        Violation::EdgeTargetUnknown {
+            concept,
+            edge_kind,
+            target,
+            spec_source,
+        } => {
+            let (path, line) = source_pair(spec_source);
+            println!(
+                "edge target unknown: {concept} --{edge_kind}--> {target} (not a concept in either graph) ({}:{line})",
+                path.display()
+            );
+        }
     }
 }
 
