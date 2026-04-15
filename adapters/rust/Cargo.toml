@@ -8,6 +8,7 @@ license.workspace = true
 domain = { workspace = true }
 ports = { workspace = true }
 syn = { workspace = true }
+quote = { workspace = true }
 proc-macro2 = { workspace = true }
 walkdir = { workspace = true }
 

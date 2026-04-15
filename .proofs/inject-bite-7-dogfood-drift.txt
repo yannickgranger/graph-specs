@@ -1,0 +1,4 @@
+signature drift: Reader
+  spec (specs/concepts/core.md:44): pub trait Reader { fn extract (& self , root : & PathBuf) -> Result < Graph , ReaderError > ; }
+  code (./ports/src/lib.rs:15): pub trait Reader { fn extract (& self , root : & Path) -> Result < Graph , ReaderError > ; }
+1 violation(s) found.

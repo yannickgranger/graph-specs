@@ -24,7 +24,7 @@ use std::path::Path;
 pub fn run_check(specs_dir: &Path, code_dir: &Path) -> Result<Vec<Violation>, ReaderError> {
     let specs_graph = MarkdownReader.extract(specs_dir)?;
     let code_graph = RustReader.extract(code_dir)?;
-    Ok(diff(&specs_graph, &code_graph))
+    Ok(diff(specs_graph, code_graph))
 }
 
 #[cfg(test)]

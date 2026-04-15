@@ -10,7 +10,11 @@
 //! Scope: only top-level items in each file are visited. Concepts nested
 //! inside `pub mod foo { ... }` are not extracted at this level.
 
-use domain::{ConceptNode, Graph, Source};
+mod normalize;
+
+pub use normalize::normalize;
+
+use domain::{ConceptNode, Graph, SignatureState, Source};
 use ports::{Reader, ReaderError};
 use std::path::Path;
 use syn::{Attribute, File, Visibility};
@@ -50,21 +54,37 @@ impl Reader for RustReader {
                 continue;
             }
 
-            let path = entry.path().to_path_buf();
-            let source = std::fs::read_to_string(&path).map_err(|e| ReaderError::IoFailed {
-                path: path.clone(),
-                cause: e.to_string(),
-            })?;
-            let parsed = syn::parse_file(&source).map_err(|e| ReaderError::ParseFailed {
-                path: path.clone(),
-                line: e.span().start().line,
-                message: e.to_string(),
-            })?;
-
+            let (parsed, path) = read_and_parse(entry.path().to_path_buf())?;
             extract_from_file(&parsed, &path, &mut nodes);
         }
 
         Ok(Graph { nodes })
+    }
+}
+
+/// Read a Rust source file and parse it. Consumes `path` — on error the
+/// path is moved into the resulting [`ReaderError`] variant; on success it
+/// is handed back alongside the parsed file. This lets the caller avoid
+/// cloning the path twice inside its walk loop (one clone per error
+/// variant) and keeps the heavy-work of per-file I/O + parsing off the
+/// hot path of the walker.
+fn read_and_parse(path: std::path::PathBuf) -> Result<(File, std::path::PathBuf), ReaderError> {
+    let source = match std::fs::read_to_string(&path) {
+        Ok(s) => s,
+        Err(e) => {
+            return Err(ReaderError::IoFailed {
+                path,
+                cause: e.to_string(),
+            });
+        }
+    };
+    match syn::parse_file(&source) {
+        Ok(f) => Ok((f, path)),
+        Err(e) => Err(ReaderError::ParseFailed {
+            path,
+            line: e.span().start().line,
+            message: e.to_string(),
+        }),
     }
 }
 
@@ -85,10 +105,10 @@ fn extract_from_file(file: &File, path: &Path, out: &mut Vec<ConceptNode>) {
 fn visit_top_level_item(item: &syn::Item, path: &Path, out: &mut Vec<ConceptNode>) {
     use syn::Item;
     match item {
-        Item::Struct(s) => emit(&s.vis, &s.ident, &s.attrs, path, out),
-        Item::Enum(e) => emit(&e.vis, &e.ident, &e.attrs, path, out),
-        Item::Trait(t) => emit(&t.vis, &t.ident, &t.attrs, path, out),
-        Item::Type(t) => emit(&t.vis, &t.ident, &t.attrs, path, out),
+        Item::Struct(s) => emit(&s.vis, &s.ident, &s.attrs, item, path, out),
+        Item::Enum(e) => emit(&e.vis, &e.ident, &e.attrs, item, path, out),
+        Item::Trait(t) => emit(&t.vis, &t.ident, &t.attrs, item, path, out),
+        Item::Type(t) => emit(&t.vis, &t.ident, &t.attrs, item, path, out),
         // All other items (Mod, Fn, Impl, Const, Static, Use, Macro, etc.) are
         // not top-level concepts. Inline `mod` contents are intentionally not
         // recursed — per-file top-level only.
@@ -100,6 +120,7 @@ fn emit(
     vis: &Visibility,
     ident: &syn::Ident,
     attrs: &[Attribute],
+    item: &syn::Item,
     path: &Path,
     out: &mut Vec<ConceptNode>,
 ) {
@@ -116,6 +137,7 @@ fn emit(
             path: path.to_path_buf(),
             line,
         },
+        signature: SignatureState::Normalized(normalize(item)),
     });
 }
 

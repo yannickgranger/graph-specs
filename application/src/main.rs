@@ -5,8 +5,10 @@
 //!
 //! Exit codes:
 //! - `0` — zero violations (specs and code agree)
-//! - `1` — one or more violations found
-//! - `2` — reader error (I/O, parse, or walk failure)
+//! - `1` — one or more violations found (drift, missing-in-code, missing-in-specs)
+//! - `2` — reader error OR any spec-side `SignatureUnparseable`. Both
+//!   mean "input can't be parsed" — the author must fix the input before
+//!   any equivalence check is meaningful.
 
 use clap::{Parser, Subcommand};
 use domain::{Source, Violation};
@@ -53,7 +55,14 @@ fn run_check_command(specs: &std::path::Path, code: &std::path::Path) -> ExitCod
                 print_violation(v);
             }
             println!("{} violation(s) found.", violations.len());
-            ExitCode::from(1)
+            if violations
+                .iter()
+                .any(|v| matches!(v, Violation::SignatureUnparseable { .. }))
+            {
+                ExitCode::from(2)
+            } else {
+                ExitCode::from(1)
+            }
         }
         Err(e) => {
             eprintln!("reader error: {e}");
@@ -71,6 +80,44 @@ fn print_violation(v: &Violation) {
         Violation::MissingInSpecs { name, code_source } => {
             let (path, line) = source_pair(code_source);
             println!("missing in specs: {name} ({}:{line})", path.display());
+        }
+        Violation::SignatureDrift {
+            name,
+            spec_sig,
+            code_sig,
+            spec_source,
+            code_source,
+        } => {
+            let (spec_path, spec_line) = source_pair(spec_source);
+            let (code_path, code_line) = source_pair(code_source);
+            println!(
+                "signature drift: {name}\n  spec ({}:{spec_line}): {spec_sig}\n  code ({}:{code_line}): {code_sig}",
+                spec_path.display(),
+                code_path.display()
+            );
+        }
+        Violation::SignatureMissingInSpec {
+            name,
+            code_sig,
+            code_source,
+        } => {
+            let (path, line) = source_pair(code_source);
+            println!(
+                "signature missing in spec: {name} ({}:{line})\n  code: {code_sig}",
+                path.display()
+            );
+        }
+        Violation::SignatureUnparseable {
+            name,
+            raw,
+            error,
+            source,
+        } => {
+            let (path, line) = source_pair(source);
+            println!(
+                "signature unparseable: {name} ({}:{line})\n  raw: {raw}\n  error: {error}",
+                path.display()
+            );
         }
     }
 }

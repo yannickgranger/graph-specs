@@ -15,8 +15,18 @@ their node sets carry the same names. Lives in `domain`.
 ## ConceptNode
 
 A single named concept located at a specific source site. Carries the
-concept's name and a [Source](#source) pointing back to where the
-reader found it.
+concept's name, a [Source](#source) pointing back to where the reader
+found it, and an optional [SignatureState](#signaturestate) payload for
+v0.2 signature-level equivalence.
+
+## SignatureState
+
+The signature-level payload on a [ConceptNode](#conceptnode). `Absent`
+means the reader produced no signature (v0.1 concept-only mode).
+`Normalized` carries the byte-equal comparison target — the output of
+`adapter-rust::normalize` on a `syn::Item`. `Unparseable` surfaces a
+spec-side fenced `rust` block that failed to parse, or a section with
+more than one fenced `rust` block.
 
 ## Source
 
@@ -36,6 +46,12 @@ and the source location so the CLI can print actionable messages.
 The language-neutral port trait. Concrete readers (markdown specs,
 Rust code, later PHP / TypeScript) implement it and produce graphs with
 identical shape. Lives in `ports`.
+
+```rust
+pub trait Reader {
+    fn extract(&self, root: &Path) -> Result<Graph, ReaderError>;
+}
+```
 
 ## ReaderError
 
