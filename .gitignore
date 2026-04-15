@@ -1,0 +1,9 @@
+/target
+*.db
+.env
+.env.*
+.cargo/config.toml
+.claude/
+.test-results/
+*.swp
+.DS_Store
