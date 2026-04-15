@@ -139,7 +139,11 @@ fn emit_fn_edges(sig: &Signature, owner: &str, path: &Path, out: &mut Vec<Edge>)
 /// empty() -> Self }` produces an edge to `Graph`, not to the unresolved
 /// literal `Self`.
 fn resolve_self<'a>(head: &'a str, owner: &'a str) -> &'a str {
-    if head == "Self" { owner } else { head }
+    if head == "Self" {
+        owner
+    } else {
+        head
+    }
 }
 
 /// A `pub fn` returning `Result<Graph, E>` declares a RETURNS edge on the
