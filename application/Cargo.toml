@@ -1,0 +1,15 @@
+[package]
+name = "application"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+clap = { workspace = true }
+
+[[bin]]
+name = "graph-specs"
+path = "src/main.rs"
+
+[lints]
+workspace = true

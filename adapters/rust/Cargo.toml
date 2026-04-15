@@ -1,0 +1,12 @@
+[package]
+name = "adapter-rust"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+domain = { workspace = true }
+ports = { workspace = true }
+
+[lints]
+workspace = true

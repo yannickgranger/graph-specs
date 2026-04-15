@@ -1,0 +1,25 @@
+[workspace]
+resolver = "2"
+members = [
+    "domain",
+    "ports",
+    "adapters/markdown",
+    "adapters/rust",
+    "application",
+]
+
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+license = "MIT OR Apache-2.0"
+repository = "https://agency.lab:3000/yg/graph-specs-rust"
+
+[workspace.dependencies]
+clap = { version = "4.5", features = ["derive"] }
+domain = { path = "domain" }
+ports = { path = "ports" }
+adapter-markdown = { path = "adapters/markdown" }
+adapter-rust = { path = "adapters/rust" }
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
