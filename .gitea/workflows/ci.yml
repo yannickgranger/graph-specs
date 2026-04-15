@@ -22,13 +22,19 @@ env:
   RUSTFLAGS: -Dwarnings
   CARGO_INCREMENTAL: "0"
   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
-  # Thin debuginfo keeps test-binary size under control on small runners.
+  CARGO_HOME: /cache/cargo
   CARGO_PROFILE_DEV_DEBUG: line-tables-only
   CARGO_PROFILE_TEST_DEBUG: line-tables-only
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
+
+# NOTE: jobs do not use `actions/checkout` or `actions/cache` because the
+# rust:1.93 base image has no Node.js runtime (required by those actions).
+# Instead, each job clones the repo manually and shares `/cache/cargo`
+# via the runner's `/data/ci-cache:/cache` mount — mirroring qbot-core's
+# proven pattern on the same Gitea Actions infrastructure.
 
 jobs:
   # ----------------------------------------------------------------
@@ -40,11 +46,28 @@ jobs:
     container:
       image: docker.io/library/rust:1.93
     steps:
-      - uses: actions/checkout@v4
-      - name: Install rustfmt
-        run: rustup component add rustfmt
+      - name: Setup
+        run: |
+          set -e
+          apt-get update && apt-get install -y --no-install-recommends git ca-certificates
+          mkdir -p /cache/cargo/registry /cache/cargo/git ~/.cargo
+          ln -sf /cache/cargo/registry ~/.cargo/registry
+          ln -sf /cache/cargo/git ~/.cargo/git
+          rustup component add rustfmt
+
+      - name: Clone
+        env:
+          GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          SERVER_HOST=$(echo "${GITHUB_SERVER_URL}" | sed -E 's|https?://||')
+          git config --global "url.https://oauth2:${GITEA_TOKEN}@${SERVER_HOST}/.insteadOf" "${GITHUB_SERVER_URL}/"
+          git clone --depth=1 --branch="$BRANCH" "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" repo
+
       - name: cargo fmt --check
-        run: cargo fmt --check --all
+        run: |
+          cd repo
+          cargo fmt --check --all
 
   # ----------------------------------------------------------------
   # 2. Clippy (strict) — standard lints, -D warnings
@@ -55,23 +78,31 @@ jobs:
     container:
       image: docker.io/library/rust:1.93
     steps:
-      - uses: actions/checkout@v4
-      - name: Install clippy
-        run: rustup component add clippy
-      - name: Restore cargo cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: clippy-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
-          restore-keys: clippy-${{ runner.os }}-
+      - name: Setup
+        run: |
+          set -e
+          apt-get update && apt-get install -y --no-install-recommends git ca-certificates
+          mkdir -p /cache/cargo/registry /cache/cargo/git ~/.cargo
+          ln -sf /cache/cargo/registry ~/.cargo/registry
+          ln -sf /cache/cargo/git ~/.cargo/git
+          rustup component add clippy
+
+      - name: Clone
+        env:
+          GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          SERVER_HOST=$(echo "${GITHUB_SERVER_URL}" | sed -E 's|https?://||')
+          git config --global "url.https://oauth2:${GITEA_TOKEN}@${SERVER_HOST}/.insteadOf" "${GITHUB_SERVER_URL}/"
+          git clone --depth=1 --branch="$BRANCH" "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" repo
+
       - name: cargo clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: |
+          cd repo
+          cargo clippy --workspace --all-targets -- -D warnings
 
   # ----------------------------------------------------------------
-  # 3. Clippy (pedantic) — enforces "cleanup every PR" standard
+  # 3. Clippy (pedantic) — enforces the "cleanup every PR" standard
   # ----------------------------------------------------------------
   clippy-pedantic:
     name: Clippy (pedantic)
@@ -79,20 +110,28 @@ jobs:
     container:
       image: docker.io/library/rust:1.93
     steps:
-      - uses: actions/checkout@v4
-      - name: Install clippy
-        run: rustup component add clippy
-      - name: Restore cargo cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: pedantic-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
-          restore-keys: pedantic-${{ runner.os }}-
+      - name: Setup
+        run: |
+          set -e
+          apt-get update && apt-get install -y --no-install-recommends git ca-certificates
+          mkdir -p /cache/cargo/registry /cache/cargo/git ~/.cargo
+          ln -sf /cache/cargo/registry ~/.cargo/registry
+          ln -sf /cache/cargo/git ~/.cargo/git
+          rustup component add clippy
+
+      - name: Clone
+        env:
+          GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          SERVER_HOST=$(echo "${GITHUB_SERVER_URL}" | sed -E 's|https?://||')
+          git config --global "url.https://oauth2:${GITEA_TOKEN}@${SERVER_HOST}/.insteadOf" "${GITHUB_SERVER_URL}/"
+          git clone --depth=1 --branch="$BRANCH" "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" repo
+
       - name: cargo clippy (pedantic + nursery)
-        run: cargo clippy --workspace --all-targets -- -D warnings -W clippy::pedantic -W clippy::nursery
+        run: |
+          cd repo
+          cargo clippy --workspace --all-targets -- -D warnings -W clippy::pedantic -W clippy::nursery
 
   # ----------------------------------------------------------------
   # 4. Build — cargo build --workspace
@@ -103,18 +142,27 @@ jobs:
     container:
       image: docker.io/library/rust:1.93
     steps:
-      - uses: actions/checkout@v4
-      - name: Restore cargo cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: build-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
-          restore-keys: build-${{ runner.os }}-
-      - name: cargo build
-        run: cargo build --workspace
+      - name: Setup
+        run: |
+          set -e
+          apt-get update && apt-get install -y --no-install-recommends git ca-certificates
+          mkdir -p /cache/cargo/registry /cache/cargo/git ~/.cargo
+          ln -sf /cache/cargo/registry ~/.cargo/registry
+          ln -sf /cache/cargo/git ~/.cargo/git
+
+      - name: Clone
+        env:
+          GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          SERVER_HOST=$(echo "${GITHUB_SERVER_URL}" | sed -E 's|https?://||')
+          git config --global "url.https://oauth2:${GITEA_TOKEN}@${SERVER_HOST}/.insteadOf" "${GITHUB_SERVER_URL}/"
+          git clone --depth=1 --branch="$BRANCH" "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" repo
+
+      - name: cargo build --workspace
+        run: |
+          cd repo
+          cargo build --workspace
 
   # ----------------------------------------------------------------
   # 5. Test — cargo test --workspace
@@ -125,18 +173,27 @@ jobs:
     container:
       image: docker.io/library/rust:1.93
     steps:
-      - uses: actions/checkout@v4
-      - name: Restore cargo cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: test-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
-          restore-keys: test-${{ runner.os }}-
-      - name: cargo test
-        run: cargo test --workspace
+      - name: Setup
+        run: |
+          set -e
+          apt-get update && apt-get install -y --no-install-recommends git ca-certificates
+          mkdir -p /cache/cargo/registry /cache/cargo/git ~/.cargo
+          ln -sf /cache/cargo/registry ~/.cargo/registry
+          ln -sf /cache/cargo/git ~/.cargo/git
+
+      - name: Clone
+        env:
+          GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          SERVER_HOST=$(echo "${GITHUB_SERVER_URL}" | sed -E 's|https?://||')
+          git config --global "url.https://oauth2:${GITEA_TOKEN}@${SERVER_HOST}/.insteadOf" "${GITHUB_SERVER_URL}/"
+          git clone --depth=1 --branch="$BRANCH" "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" repo
+
+      - name: cargo test --workspace
+        run: |
+          cd repo
+          cargo test --workspace
 
   # ----------------------------------------------------------------
   # 6. Dogfood — the unique gate this tool provides.
@@ -149,20 +206,32 @@ jobs:
     container:
       image: docker.io/library/rust:1.93
     steps:
-      - uses: actions/checkout@v4
-      - name: Restore cargo cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: dogfood-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
-          restore-keys: dogfood-${{ runner.os }}-
+      - name: Setup
+        run: |
+          set -e
+          apt-get update && apt-get install -y --no-install-recommends git ca-certificates
+          mkdir -p /cache/cargo/registry /cache/cargo/git ~/.cargo
+          ln -sf /cache/cargo/registry ~/.cargo/registry
+          ln -sf /cache/cargo/git ~/.cargo/git
+
+      - name: Clone
+        env:
+          GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          SERVER_HOST=$(echo "${GITHUB_SERVER_URL}" | sed -E 's|https?://||')
+          git config --global "url.https://oauth2:${GITEA_TOKEN}@${SERVER_HOST}/.insteadOf" "${GITHUB_SERVER_URL}/"
+          git clone --depth=1 --branch="$BRANCH" "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" repo
+
       - name: Build graph-specs binary
-        run: cargo build -p application --release
+        run: |
+          cd repo
+          cargo build -p application --release
+
       - name: Run dogfood check
-        run: ./target/release/graph-specs check --specs specs/concepts/ --code .
+        run: |
+          cd repo
+          ./target/release/graph-specs check --specs specs/concepts/ --code .
 
   # ----------------------------------------------------------------
   # 7. Audit — RUSTSEC advisory scan over the dep graph
@@ -173,11 +242,31 @@ jobs:
     container:
       image: docker.io/library/rust:1.93
     steps:
-      - uses: actions/checkout@v4
-      - name: Install cargo-audit
+      - name: Setup
         run: |
-          if ! command -v cargo-audit >/dev/null 2>&1; then
-            cargo install cargo-audit --locked
+          set -e
+          apt-get update && apt-get install -y --no-install-recommends git ca-certificates
+          mkdir -p /cache/cargo/registry /cache/cargo/git /cache/cargo/bin ~/.cargo
+          ln -sf /cache/cargo/registry ~/.cargo/registry
+          ln -sf /cache/cargo/git ~/.cargo/git
+
+      - name: Clone
+        env:
+          GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          SERVER_HOST=$(echo "${GITHUB_SERVER_URL}" | sed -E 's|https?://||')
+          git config --global "url.https://oauth2:${GITEA_TOKEN}@${SERVER_HOST}/.insteadOf" "${GITHUB_SERVER_URL}/"
+          git clone --depth=1 --branch="$BRANCH" "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" repo
+
+      - name: Install cargo-audit (cached under /cache/cargo/bin)
+        run: |
+          if [ ! -x /cache/cargo/bin/cargo-audit ]; then
+            cargo install cargo-audit --locked --root /cache/cargo
           fi
+          echo "PATH=/cache/cargo/bin:${PATH}" >> "$GITHUB_ENV"
+
       - name: cargo audit
-        run: cargo audit
+        run: |
+          cd repo
+          /cache/cargo/bin/cargo-audit audit
