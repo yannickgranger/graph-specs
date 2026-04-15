@@ -1,20 +1,20 @@
    Compiling domain v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/work-3-concept-dogfood/domain)
    Compiling ports v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/work-3-concept-dogfood/ports)
-   Compiling adapter-markdown v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/work-3-concept-dogfood/adapters/markdown)
    Compiling adapter-rust v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/work-3-concept-dogfood/adapters/rust)
+   Compiling adapter-markdown v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/work-3-concept-dogfood/adapters/markdown)
    Compiling application v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/work-3-concept-dogfood/application)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.57s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.88s
      Running unittests src/lib.rs (target/debug/deps/adapter_markdown-36c112f7a18b7b40)
 
 running 8 tests
-test tests::ignores_h1_and_deeper_than_h3 ... ok
-test tests::captures_h2_and_h3_headings ... ok
 test tests::handles_inline_backticks_in_heading ... ok
+test tests::captures_h2_and_h3_headings ... ok
 test tests::ignores_fenced_code_blocks ... ok
+test tests::ignores_h1_and_deeper_than_h3 ... ok
 test tests::ignores_prose_and_lists ... ok
 test tests::non_md_files_are_ignored ... ok
-test tests::records_correct_line_number ... ok
 test tests::strips_generics_from_heading ... ok
+test tests::records_correct_line_number ... ok
 
 test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 
@@ -22,11 +22,11 @@ test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 
 running 7 tests
 test tests::ignores_private_items ... ok
-test tests::ignores_items_inside_inline_mod ... ok
-test tests::ignores_cfg_test_items ... ok
 test tests::line_numbers_are_recorded ... ok
-test tests::captures_pub_struct_enum_trait_type ... ok
+test tests::ignores_cfg_test_items ... ok
+test tests::ignores_items_inside_inline_mod ... ok
 test tests::ignores_target_and_claude_dirs ... ok
+test tests::captures_pub_struct_enum_trait_type ... ok
 test tests::ignores_tests_benches_examples_dirs ... ok
 
 test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
@@ -50,8 +50,8 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 running 4 tests
 test empty_specs_and_empty_code_pass ... ok
 test spec_only_concept_exits_1_with_missing_in_code ... ok
-test code_only_concept_exits_1_with_missing_in_specs ... ok
 test matching_specs_and_code_pass ... ok
+test code_only_concept_exits_1_with_missing_in_specs ... ok
 
 test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 

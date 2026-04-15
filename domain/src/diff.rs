@@ -8,6 +8,7 @@
 use crate::{ConceptNode, Graph, Violation};
 use std::collections::HashMap;
 
+#[must_use]
 pub fn diff(specs: &Graph, code: &Graph) -> Vec<Violation> {
     let spec_by_name: HashMap<&str, &ConceptNode> =
         specs.nodes.iter().map(|n| (n.name.as_str(), n)).collect();
@@ -43,7 +44,7 @@ pub fn diff(specs: &Graph, code: &Graph) -> Vec<Violation> {
     violations
 }
 
-fn violation_key(v: &Violation) -> (&str, u8) {
+const fn violation_key(v: &Violation) -> (&str, u8) {
     match v {
         Violation::MissingInCode { name, .. } => (name.as_str(), 0),
         Violation::MissingInSpecs { name, .. } => (name.as_str(), 1),
@@ -130,7 +131,7 @@ mod tests {
             .iter()
             .filter_map(|vi| match vi {
                 Violation::MissingInCode { name, .. } => Some(name.as_str()),
-                _ => None,
+                Violation::MissingInSpecs { .. } => None,
             })
             .collect();
         assert_eq!(names, vec!["Alpha", "Zebra"]);

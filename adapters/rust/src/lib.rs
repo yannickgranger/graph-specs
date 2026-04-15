@@ -233,7 +233,7 @@ mod tests {
         let g = RustReader.extract(d.path()).unwrap();
         match &g.nodes[0].source {
             Source::Code { line, .. } => assert_eq!(*line, 3),
-            _ => panic!("expected Code source"),
+            Source::Spec { .. } => panic!("expected Code source"),
         }
     }
 }

@@ -2,8 +2,8 @@
 //!
 //! Builds the real `graph-specs` binary and drives it against temporary
 //! fixture directories. Covers the four AC scenarios for issue #3:
-//! empty, matching, spec-only concept (MissingInCode), code-only concept
-//! (MissingInSpecs).
+//! empty, matching, spec-only concept (`MissingInCode`), code-only concept
+//! (`MissingInSpecs`).
 
 use assert_cmd::Command;
 use predicates::prelude::*;

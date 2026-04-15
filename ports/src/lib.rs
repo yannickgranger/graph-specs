@@ -13,6 +13,13 @@ use thiserror::Error;
 /// Adapters map their language-specific failures onto [`ReaderError`] at
 /// the port boundary. No infrastructure types leak into this signature.
 pub trait Reader {
+    /// Walk `root` and produce a [`Graph`] of the concepts found.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ReaderError::IoFailed`] if a source file cannot be read,
+    /// [`ReaderError::ParseFailed`] if the reader's parser rejects a file,
+    /// or [`ReaderError::WalkFailed`] if the directory traversal fails.
     fn extract(&self, root: &Path) -> Result<Graph, ReaderError>;
 }
 

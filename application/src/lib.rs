@@ -16,6 +16,11 @@ use std::path::Path;
 /// Reads all `*.md` files under `specs_dir` and all `*.rs` files under
 /// `code_dir` (honouring the adapter-specific filter rules), then emits
 /// the set-difference as a list of [`Violation`]s.
+///
+/// # Errors
+///
+/// Propagates any [`ReaderError`] from the underlying markdown or Rust
+/// reader — typically I/O, parse, or directory-walk failures.
 pub fn run_check(specs_dir: &Path, code_dir: &Path) -> Result<Vec<Violation>, ReaderError> {
     let specs_graph = MarkdownReader.extract(specs_dir)?;
     let code_graph = RustReader.extract(code_dir)?;

@@ -22,7 +22,7 @@ impl Reader for MarkdownReader {
     fn extract(&self, root: &Path) -> Result<Graph, ReaderError> {
         let mut nodes = Vec::new();
 
-        for entry in WalkDir::new(root).into_iter() {
+        for entry in WalkDir::new(root) {
             let entry = entry.map_err(|e| ReaderError::WalkFailed {
                 root: root.to_path_buf(),
                 cause: e.to_string(),
@@ -88,10 +88,9 @@ fn extract_from_source(source: &str, path: &Path, out: &mut Vec<ConceptNode>) {
 /// Strips generics (`Foo<T>` → `Foo`) and trims whitespace.
 fn normalize_heading(raw: &str) -> String {
     let trimmed = raw.trim();
-    match trimmed.find('<') {
-        Some(i) => trimmed[..i].trim().to_string(),
-        None => trimmed.to_string(),
-    }
+    trimmed
+        .find('<')
+        .map_or_else(|| trimmed.to_string(), |i| trimmed[..i].trim().to_string())
 }
 
 fn compute_line_starts(source: &str) -> Vec<usize> {
@@ -194,7 +193,7 @@ mod tests {
         let g = MarkdownReader.extract(d.path()).unwrap();
         match &g.nodes[0].source {
             Source::Spec { line, .. } => assert_eq!(*line, 3),
-            _ => panic!("expected Spec source"),
+            Source::Code { .. } => panic!("expected Spec source"),
         }
     }
 
