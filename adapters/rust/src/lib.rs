@@ -10,6 +10,10 @@
 //! Scope: only top-level items in each file are visited. Concepts nested
 //! inside `pub mod foo { ... }` are not extracted at this level.
 
+mod normalize;
+
+pub use normalize::normalize;
+
 use domain::{ConceptNode, Graph, SignatureState, Source};
 use ports::{Reader, ReaderError};
 use std::path::Path;
@@ -85,10 +89,10 @@ fn extract_from_file(file: &File, path: &Path, out: &mut Vec<ConceptNode>) {
 fn visit_top_level_item(item: &syn::Item, path: &Path, out: &mut Vec<ConceptNode>) {
     use syn::Item;
     match item {
-        Item::Struct(s) => emit(&s.vis, &s.ident, &s.attrs, path, out),
-        Item::Enum(e) => emit(&e.vis, &e.ident, &e.attrs, path, out),
-        Item::Trait(t) => emit(&t.vis, &t.ident, &t.attrs, path, out),
-        Item::Type(t) => emit(&t.vis, &t.ident, &t.attrs, path, out),
+        Item::Struct(s) => emit(&s.vis, &s.ident, &s.attrs, item, path, out),
+        Item::Enum(e) => emit(&e.vis, &e.ident, &e.attrs, item, path, out),
+        Item::Trait(t) => emit(&t.vis, &t.ident, &t.attrs, item, path, out),
+        Item::Type(t) => emit(&t.vis, &t.ident, &t.attrs, item, path, out),
         // All other items (Mod, Fn, Impl, Const, Static, Use, Macro, etc.) are
         // not top-level concepts. Inline `mod` contents are intentionally not
         // recursed — per-file top-level only.
@@ -100,6 +104,7 @@ fn emit(
     vis: &Visibility,
     ident: &syn::Ident,
     attrs: &[Attribute],
+    item: &syn::Item,
     path: &Path,
     out: &mut Vec<ConceptNode>,
 ) {
@@ -116,7 +121,7 @@ fn emit(
             path: path.to_path_buf(),
             line,
         },
-        signature: SignatureState::Absent,
+        signature: SignatureState::Normalized(normalize(item)),
     });
 }
 

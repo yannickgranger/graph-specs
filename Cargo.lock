@@ -6,9 +6,11 @@ version = 4
 name = "adapter-markdown"
 version = "0.1.0"
 dependencies = [
+ "adapter-rust",
  "domain",
  "ports",
  "pulldown-cmark",
+ "syn",
  "tempfile",
  "walkdir",
 ]
@@ -20,6 +22,7 @@ dependencies = [
  "domain",
  "ports",
  "proc-macro2",
+ "quote",
  "syn",
  "tempfile",
  "walkdir",

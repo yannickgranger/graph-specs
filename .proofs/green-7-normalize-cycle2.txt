@@ -1,0 +1,52 @@
+   Compiling quote v1.0.45
+   Compiling libc v0.2.185
+   Compiling syn v2.0.117
+   Compiling getrandom v0.4.2
+   Compiling thiserror-impl v2.0.18
+   Compiling thiserror v2.0.18
+   Compiling tempfile v3.27.0
+   Compiling ports v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/7-signature-level/ports)
+   Compiling adapter-rust v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/7-signature-level/adapters/rust)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 40.10s
+     Running unittests src/lib.rs (target/debug/deps/adapter_rust-c4cb04eff6bdd8c4)
+
+running 21 tests
+test normalize::tests::added_enum_variant_drifts ... ok
+test normalize::tests::cfg_attributes_are_stripped ... ok
+test normalize::tests::derives_are_stripped ... ok
+test normalize::tests::differing_field_types_drift ... ok
+test normalize::tests::doc_comments_are_stripped ... ok
+test normalize::tests::differing_whitespace_normalizes_identical ... ok
+test normalize::tests::enum_variant_docs_are_stripped ... ok
+test normalize::tests::generic_bound_change_drifts ... ok
+test normalize::tests::field_doc_comments_are_stripped ... FAILED
+test normalize::tests::pub_crate_collapses_to_non_pub ... ok
+test normalize::tests::identical_items_normalize_identical ... ok
+test normalize::tests::must_use_and_inline_are_stripped ... ok
+test normalize::tests::pub_stays_pub ... ok
+test normalize::tests::trait_method_doc_comments_are_stripped ... ok
+test tests::ignores_private_items ... ok
+test tests::ignores_cfg_test_items ... ok
+test tests::ignores_items_inside_inline_mod ... ok
+test tests::captures_pub_struct_enum_trait_type ... ok
+test tests::ignores_target_and_claude_dirs ... ok
+test tests::line_numbers_are_recorded ... ok
+test tests::ignores_tests_benches_examples_dirs ... ok
+
+failures:
+
+---- normalize::tests::field_doc_comments_are_stripped stdout ----
+
+thread 'normalize::tests::field_doc_comments_are_stripped' (2967258) panicked at adapters/rust/src/normalize.rs:179:9:
+assertion `left == right` failed
+  left: "pub struct Foo { pub bar : u32 }"
+ right: "pub struct Foo { pub bar : u32 , }"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    normalize::tests::field_doc_comments_are_stripped
+
+test result: FAILED. 20 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p adapter-rust --lib`

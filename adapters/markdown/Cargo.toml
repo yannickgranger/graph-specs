@@ -5,9 +5,11 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+adapter-rust = { workspace = true }
 domain = { workspace = true }
 ports = { workspace = true }
 pulldown-cmark = { workspace = true }
+syn = { workspace = true }
 walkdir = { workspace = true }
 
 [dev-dependencies]

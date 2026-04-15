@@ -71,13 +71,6 @@ fn compare_signatures(spec: &ConceptNode, code: &ConceptNode, out: &mut Vec<Viol
     }
 
     match (&spec.signature, &code.signature) {
-        (SignatureState::Absent, SignatureState::Normalized(code_sig)) => {
-            out.push(Violation::SignatureMissingInSpec {
-                name: code.name.clone(),
-                code_sig: code_sig.clone(),
-                code_source: code.source.clone(),
-            });
-        }
         (SignatureState::Normalized(spec_sig), SignatureState::Normalized(code_sig))
             if spec_sig != code_sig =>
         {
@@ -89,8 +82,13 @@ fn compare_signatures(spec: &ConceptNode, code: &ConceptNode, out: &mut Vec<Viol
                 code_source: code.source.clone(),
             });
         }
-        // Both Absent, or both Normalized and equal, or Normalized-vs-Absent
-        // on the code side (reader produced no signature): no violation.
+        // No-op cases:
+        //   - Both Absent → concept-only match, v0.1 semantics preserved.
+        //   - Both Normalized and equal → signature match.
+        //   - Absent vs Normalized (either direction) → spec has not opted
+        //     into signature-level for this concept. No comparison is
+        //     performed. `SignatureMissingInSpec` is reserved for v0.4
+        //     strict / bounded-context mode and is not emitted in v0.2.
         _ => {}
     }
 }
@@ -265,20 +263,18 @@ mod tests {
     }
 
     #[test]
-    fn code_sig_without_spec_sig_yields_missing_in_spec() {
+    fn code_sig_without_spec_sig_is_not_a_v02_violation() {
+        // v0.2 semantics: specs opt-in per-concept via a fenced `rust`
+        // block. Absence on the spec side means "do not compare" — not
+        // a violation. `SignatureMissingInSpec` is reserved for v0.4
+        // strict / bounded-context mode.
         let specs = Graph {
             nodes: vec![spec("OrderId")], // concept heading only, no rust block
         };
         let code = Graph {
             nodes: vec![code_with_sig("OrderId", "pub struct OrderId(pub Uuid);")],
         };
-        let v = diff(&specs, &code);
-        assert_eq!(v.len(), 1);
-        assert!(matches!(
-            &v[0],
-            Violation::SignatureMissingInSpec { name, code_sig, .. }
-                if name == "OrderId" && code_sig == "pub struct OrderId(pub Uuid);"
-        ));
+        assert!(diff(&specs, &code).is_empty());
     }
 
     #[test]
