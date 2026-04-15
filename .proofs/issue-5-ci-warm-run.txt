@@ -1,0 +1,15 @@
+=== CI runs on work/5-ci-gitea-actions (cold vs warm) ===
+
+Run 6555 (cold)  — sha e42ef897 — started 09:22:47Z ended 09:24:51Z — duration 2m 4s
+Run 6560 (warm)  — sha 09c84510 — started 09:48:55Z ended 09:50:43Z — duration 1m 48s
+
+AC 5 target: warm build < 2 min — MET (1m 48s < 2m)
+
+Warm run #6560 per-job conclusions:
+  Format                         success
+  Clippy (strict)                success
+  Clippy (pedantic)              success
+  Build                          success
+  Test                           success
+  Dogfood (graph-specs check)    success
+  Audit (cargo-audit)            success
