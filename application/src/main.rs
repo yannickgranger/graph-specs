@@ -6,9 +6,9 @@
 //! Exit codes:
 //! - `0` — zero violations (specs and code agree)
 //! - `1` — one or more violations found (drift, missing-in-code, missing-in-specs)
-//! - `2` — reader error OR any spec-side `SignatureUnparseable`. Both mean
-//!         "input can't be parsed" — the author must fix the input before
-//!         any equivalence check is meaningful.
+//! - `2` — reader error OR any spec-side `SignatureUnparseable`. Both
+//!   mean "input can't be parsed" — the author must fix the input before
+//!   any equivalence check is meaningful.
 
 use clap::{Parser, Subcommand};
 use domain::{Source, Violation};

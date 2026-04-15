@@ -339,7 +339,7 @@ mod tests {
         );
         match extract_sig(d.path(), "Foo") {
             SignatureState::Unparseable { error, .. } => {
-                assert!(error.to_lowercase().contains("multiple") || error.contains("2"));
+                assert!(error.to_lowercase().contains("multiple") || error.contains('2'));
             }
             other => panic!("expected Unparseable (multiple rust blocks), got {other:?}"),
         }
