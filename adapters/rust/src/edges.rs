@@ -134,6 +134,14 @@ fn emit_fn_edges(sig: &Signature, owner: &str, path: &Path, out: &mut Vec<Edge>)
     }
 }
 
+/// Resolve `Self` against the enclosing impl/trait owner. All other tokens
+/// pass through untouched. Used by every edge emitter so `impl Graph { fn
+/// empty() -> Self }` produces an edge to `Graph`, not to the unresolved
+/// literal `Self`.
+fn resolve_self<'a>(head: &'a str, owner: &'a str) -> &'a str {
+    if head == "Self" { owner } else { head }
+}
+
 /// A `pub fn` returning `Result<Graph, E>` declares a RETURNS edge on the
 /// outer head (`Result`) and `DEPENDS_ON` edges on every inner generic
 /// argument (`Graph`, `E`). Without the inner pass, the concept graph
@@ -155,7 +163,7 @@ fn push_return_inner_as_depends_on(ty: &Type, owner: &str, path: &Path, out: &mu
         out.push(Edge {
             source_concept: owner.to_string(),
             kind: EdgeKind::DependsOn,
-            target: head,
+            target: resolve_self(&head, owner).to_string(),
             raw_target: raw,
             source: line_source.clone(),
         });
@@ -176,7 +184,7 @@ fn push_depends_on_from_type(ty: &Type, owner: &str, path: &Path, out: &mut Vec<
         out.push(Edge {
             source_concept: owner.to_string(),
             kind: EdgeKind::DependsOn,
-            target: head,
+            target: resolve_self(&head, owner).to_string(),
             raw_target: raw,
             source: line_source.clone(),
         });
@@ -195,7 +203,7 @@ fn push_returns_from_type(ty: &Type, owner: &str, path: &Path, out: &mut Vec<Edg
     out.push(Edge {
         source_concept: owner.to_string(),
         kind: EdgeKind::Returns,
-        target: head,
+        target: resolve_self(&head, owner).to_string(),
         raw_target: raw,
         source: code_source(path, ty.span()),
     });
@@ -438,5 +446,31 @@ mod tests {
         let edges = edges_of("pub struct Target; struct Hidden { f: Target }");
         let filtered = filter_by_known_concepts(edges, &nodes(&["Target", "Hidden"]));
         assert!(filtered.iter().all(|e| e.source_concept != "Hidden"));
+    }
+
+    #[test]
+    fn self_return_resolves_to_enclosing_impl_owner() {
+        // `impl Graph { pub fn empty() -> Self }` must emit
+        // RETURNS(Graph, Graph), not RETURNS(Graph, Self). Clippy's
+        // `use_self` lint pushes authors toward `Self`; the extractor
+        // must resolve it to keep the dogfood honest.
+        let edges = edges_of("pub struct Graph; impl Graph { pub fn empty() -> Self { Graph } }");
+        let filtered = filter_by_known_concepts(edges, &nodes(&["Graph"]));
+        assert!(filtered.iter().any(|e| e.source_concept == "Graph"
+            && e.kind == EdgeKind::Returns
+            && e.target == "Graph"));
+        assert!(!filtered.iter().any(|e| e.target == "Self"));
+    }
+
+    #[test]
+    fn self_param_resolves_to_enclosing_owner() {
+        let edges = edges_of(
+            "pub struct Graph; impl Graph { pub fn merge(&self, other: Self) -> Self { other } }",
+        );
+        let filtered = filter_by_known_concepts(edges, &nodes(&["Graph"]));
+        assert!(filtered.iter().any(|e| e.source_concept == "Graph"
+            && e.kind == EdgeKind::DependsOn
+            && e.target == "Graph"));
+        assert!(!filtered.iter().any(|e| e.target == "Self"));
     }
 }
