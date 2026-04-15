@@ -1,0 +1,183 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feat/*'
+      - 'work/*'
+      - 'fix/*'
+      - 'docs/*'
+      - 'ci/*'
+      - 'infra/*'
+      - 'chore/*'
+  pull_request:
+    branches:
+      - main
+      - develop
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -Dwarnings
+  CARGO_INCREMENTAL: "0"
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+  # Thin debuginfo keeps test-binary size under control on small runners.
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  CARGO_PROFILE_TEST_DEBUG: line-tables-only
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  # ----------------------------------------------------------------
+  # 1. Format — rustfmt, fast-fail
+  # ----------------------------------------------------------------
+  fmt:
+    name: Format
+    runs-on: rust
+    container:
+      image: docker.io/library/rust:1.93
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install rustfmt
+        run: rustup component add rustfmt
+      - name: cargo fmt --check
+        run: cargo fmt --check --all
+
+  # ----------------------------------------------------------------
+  # 2. Clippy (strict) — standard lints, -D warnings
+  # ----------------------------------------------------------------
+  clippy:
+    name: Clippy (strict)
+    runs-on: rust
+    container:
+      image: docker.io/library/rust:1.93
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install clippy
+        run: rustup component add clippy
+      - name: Restore cargo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: clippy-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: clippy-${{ runner.os }}-
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+  # ----------------------------------------------------------------
+  # 3. Clippy (pedantic) — enforces "cleanup every PR" standard
+  # ----------------------------------------------------------------
+  clippy-pedantic:
+    name: Clippy (pedantic)
+    runs-on: rust
+    container:
+      image: docker.io/library/rust:1.93
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install clippy
+        run: rustup component add clippy
+      - name: Restore cargo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: pedantic-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: pedantic-${{ runner.os }}-
+      - name: cargo clippy (pedantic + nursery)
+        run: cargo clippy --workspace --all-targets -- -D warnings -W clippy::pedantic -W clippy::nursery
+
+  # ----------------------------------------------------------------
+  # 4. Build — cargo build --workspace
+  # ----------------------------------------------------------------
+  build:
+    name: Build
+    runs-on: rust
+    container:
+      image: docker.io/library/rust:1.93
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore cargo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: build-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: build-${{ runner.os }}-
+      - name: cargo build
+        run: cargo build --workspace
+
+  # ----------------------------------------------------------------
+  # 5. Test — cargo test --workspace
+  # ----------------------------------------------------------------
+  test:
+    name: Test
+    runs-on: rust
+    container:
+      image: docker.io/library/rust:1.93
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore cargo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: test-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: test-${{ runner.os }}-
+      - name: cargo test
+        run: cargo test --workspace
+
+  # ----------------------------------------------------------------
+  # 6. Dogfood — the unique gate this tool provides.
+  #    Runs `graph-specs check` against its own specs+code.
+  #    Fails the CI run if specs and code disagree at concept level.
+  # ----------------------------------------------------------------
+  dogfood:
+    name: Dogfood (graph-specs check)
+    runs-on: rust
+    container:
+      image: docker.io/library/rust:1.93
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore cargo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: dogfood-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: dogfood-${{ runner.os }}-
+      - name: Build graph-specs binary
+        run: cargo build -p application --release
+      - name: Run dogfood check
+        run: ./target/release/graph-specs check --specs specs/concepts/ --code .
+
+  # ----------------------------------------------------------------
+  # 7. Audit — RUSTSEC advisory scan over the dep graph
+  # ----------------------------------------------------------------
+  audit:
+    name: Audit (cargo-audit)
+    runs-on: rust
+    container:
+      image: docker.io/library/rust:1.93
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cargo-audit
+        run: |
+          if ! command -v cargo-audit >/dev/null 2>&1; then
+            cargo install cargo-audit --locked
+          fi
+      - name: cargo audit
+        run: cargo audit
