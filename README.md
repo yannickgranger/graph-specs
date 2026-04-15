@@ -1,5 +1,7 @@
 # graph-specs-rust
 
+[![CI](https://agency.lab:3000/yg/graph-specs-rust/actions/workflows/ci.yml/badge.svg?branch=develop)](https://agency.lab:3000/yg/graph-specs-rust/actions)
+
 A graph-based equivalence checker between markdown specifications and Rust code.
 
 ## Purpose
