@@ -12,10 +12,12 @@ mod tokens;
 pub use diff::diff;
 pub use tokens::tokenise_target;
 
-/// A graph of concepts extracted from one side of the equivalence check
-/// (either a spec tree or a code tree). Two graphs are equivalent at
-/// concept level iff their `nodes` carry the same set of names; equivalent
-/// at relationship level iff their `edges` also align (see [`Edge`]).
+/// A graph of concepts extracted from one side of the equivalence check.
+///
+/// Either a spec tree or a code tree. Two graphs are equivalent at
+/// concept level iff their `nodes` carry the same set of names;
+/// equivalent at relationship level iff their `edges` also align (see
+/// [`Edge`]).
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Graph {
     pub nodes: Vec<ConceptNode>,
@@ -28,8 +30,8 @@ impl Graph {
     /// and where the v0.3 relationship-level dogfood wants a code-side
     /// RETURNS edge targeting a concept.
     #[must_use]
-    pub fn empty() -> Graph {
-        Graph::default()
+    pub fn empty() -> Self {
+        Self::default()
     }
 }
 

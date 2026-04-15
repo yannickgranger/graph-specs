@@ -249,12 +249,6 @@ fn code_source(path: &Path, span: Span) -> Source {
     }
 }
 
-// Exposed for tests: this crate is `pub` but these helpers are internal.
-#[cfg(test)]
-pub(crate) fn test_code_source(path: PathBuf, line: usize) -> Source {
-    Source::Code { path, line }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -275,7 +269,10 @@ mod tests {
             .iter()
             .map(|n| ConceptNode {
                 name: (*n).to_string(),
-                source: test_code_source(PathBuf::from("test.rs"), 1),
+                source: Source::Code {
+                    path: PathBuf::from("test.rs"),
+                    line: 1,
+                },
                 signature: domain::SignatureState::Absent,
             })
             .collect()
