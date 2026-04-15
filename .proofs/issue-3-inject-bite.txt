@@ -1,0 +1,17 @@
+=== Baseline: dogfood passes ===
+0 violations.
+Exit: 0
+
+=== Inject 1: spec heading without matching code ===
+missing in code: BogusInjectedConcept (specs/concepts/core.md:63)
+1 violation(s) found.
+Exit: 1 (expected 1)
+
+=== Inject 2: code type without matching spec ===
+missing in specs: UnspeccedType (./domain/src/lib.rs:44)
+1 violation(s) found.
+Exit: 1 (expected 1)
+
+=== Restored: dogfood passes again ===
+0 violations.
+Exit: 0

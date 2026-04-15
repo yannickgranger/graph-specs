@@ -1,15 +1,37 @@
 //! Language-neutral port traits.
 //!
 //! Concrete readers (markdown specs, Rust code, later PHP / TypeScript)
-//! implement these traits and produce graphs of identical shape. The diff
-//! engine operates on graphs, not on source languages.
+//! implement [`Reader`] and produce graphs of identical shape. The diff
+//! engine in [`domain`] operates on graphs, not on source languages.
 
 use domain::Graph;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use thiserror::Error;
 
 /// Reader contract: extract a graph from a source root.
 ///
-/// Real error types and glob abstractions land in follow-up issues.
+/// Adapters map their language-specific failures onto [`ReaderError`] at
+/// the port boundary. No infrastructure types leak into this signature.
 pub trait Reader {
-    fn extract(&self, root: &Path, globs: &[String]) -> Graph;
+    fn extract(&self, root: &Path) -> Result<Graph, ReaderError>;
+}
+
+/// Failure modes of a [`Reader`] implementation.
+///
+/// Variants describe *reading operations*, not domain concerns — which is
+/// why this type lives in the port layer rather than in [`domain`].
+#[derive(Debug, Error)]
+pub enum ReaderError {
+    #[error("i/o failed on {path}: {cause}")]
+    IoFailed { path: PathBuf, cause: String },
+
+    #[error("parse failed at {path}:{line}: {message}")]
+    ParseFailed {
+        path: PathBuf,
+        line: usize,
+        message: String,
+    },
+
+    #[error("walk failed at {root}: {cause}")]
+    WalkFailed { root: PathBuf, cause: String },
 }
