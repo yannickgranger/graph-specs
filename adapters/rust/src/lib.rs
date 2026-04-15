@@ -10,7 +10,7 @@
 //! Scope: only top-level items in each file are visited. Concepts nested
 //! inside `pub mod foo { ... }` are not extracted at this level.
 
-use domain::{ConceptNode, Graph, Source};
+use domain::{ConceptNode, Graph, SignatureState, Source};
 use ports::{Reader, ReaderError};
 use std::path::Path;
 use syn::{Attribute, File, Visibility};
@@ -116,6 +116,7 @@ fn emit(
             path: path.to_path_buf(),
             line,
         },
+        signature: SignatureState::Absent,
     });
 }
 

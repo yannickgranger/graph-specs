@@ -9,7 +9,7 @@
 //! Headings containing generic parameters are normalised: `## Graph<T>`
 //! records the concept as `Graph`.
 
-use domain::{ConceptNode, Graph, Source};
+use domain::{ConceptNode, Graph, SignatureState, Source};
 use ports::{Reader, ReaderError};
 use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
 use std::path::Path;
@@ -75,6 +75,7 @@ fn extract_from_source(source: &str, path: &Path, out: &mut Vec<ConceptNode>) {
                                 path: path.to_path_buf(),
                                 line,
                             },
+                            signature: SignatureState::Absent,
                         });
                     }
                 }
