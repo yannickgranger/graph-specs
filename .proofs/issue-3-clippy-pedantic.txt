@@ -1,0 +1,7 @@
+=== Tool versions ===
+cargo 1.93.1 (083ac5135 2025-12-15)
+clippy 0.1.93 (01f6ddf758 2026-02-11)
+=== Command: cargo clippy --workspace --all-targets -- -D warnings -W clippy::pedantic -W clippy::nursery ===
+    Checking application v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/work-3-concept-dogfood/application)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.08s
+=== Exit: 0 ===

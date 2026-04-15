@@ -1,0 +1,5 @@
+=== Tool versions ===
+graph-specs 0.1.0
+=== Command: graph-specs check --specs specs/concepts/ --code . ===
+0 violations.
+=== Exit: 0 ===

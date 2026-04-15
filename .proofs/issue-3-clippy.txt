@@ -1,0 +1,6 @@
+    Checking domain v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/work-3-concept-dogfood/domain)
+    Checking ports v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/work-3-concept-dogfood/ports)
+    Checking adapter-markdown v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/work-3-concept-dogfood/adapters/markdown)
+    Checking adapter-rust v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/work-3-concept-dogfood/adapters/rust)
+    Checking application v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/work-3-concept-dogfood/application)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.32s

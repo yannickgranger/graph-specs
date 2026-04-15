@@ -7,6 +7,11 @@ license.workspace = true
 [dependencies]
 domain = { workspace = true }
 ports = { workspace = true }
+pulldown-cmark = { workspace = true }
+walkdir = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
 
 [lints]
 workspace = true

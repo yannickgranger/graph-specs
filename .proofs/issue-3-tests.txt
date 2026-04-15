@@ -1,0 +1,105 @@
+   Compiling domain v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/work-3-concept-dogfood/domain)
+   Compiling ports v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/work-3-concept-dogfood/ports)
+   Compiling adapter-rust v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/work-3-concept-dogfood/adapters/rust)
+   Compiling adapter-markdown v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/work-3-concept-dogfood/adapters/markdown)
+   Compiling application v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/work-3-concept-dogfood/application)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.88s
+     Running unittests src/lib.rs (target/debug/deps/adapter_markdown-36c112f7a18b7b40)
+
+running 8 tests
+test tests::handles_inline_backticks_in_heading ... ok
+test tests::captures_h2_and_h3_headings ... ok
+test tests::ignores_fenced_code_blocks ... ok
+test tests::ignores_h1_and_deeper_than_h3 ... ok
+test tests::ignores_prose_and_lists ... ok
+test tests::non_md_files_are_ignored ... ok
+test tests::strips_generics_from_heading ... ok
+test tests::records_correct_line_number ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/adapter_rust-30e20b0214623e56)
+
+running 7 tests
+test tests::ignores_private_items ... ok
+test tests::line_numbers_are_recorded ... ok
+test tests::ignores_cfg_test_items ... ok
+test tests::ignores_items_inside_inline_mod ... ok
+test tests::ignores_target_and_claude_dirs ... ok
+test tests::captures_pub_struct_enum_trait_type ... ok
+test tests::ignores_tests_benches_examples_dirs ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/application-12345dc699b733b5)
+
+running 2 tests
+test tests::empty_trees_yield_no_violations ... ok
+test tests::matching_tree_yields_no_violations ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/deps/graph_specs-251da7ef30728799)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/cli.rs (target/debug/deps/cli-09c5774ee2b0dae9)
+
+running 4 tests
+test empty_specs_and_empty_code_pass ... ok
+test spec_only_concept_exits_1_with_missing_in_code ... ok
+test matching_specs_and_code_pass ... ok
+test code_only_concept_exits_1_with_missing_in_specs ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/domain-1d1da506e1107ac9)
+
+running 6 tests
+test diff::tests::code_only_concept_is_missing_in_specs ... ok
+test diff::tests::matching_graphs_yield_no_violations ... ok
+test diff::tests::duplicate_spec_names_collapse ... ok
+test diff::tests::empty_graphs_yield_no_violations ... ok
+test diff::tests::spec_only_concept_is_missing_in_code ... ok
+test diff::tests::violations_are_sorted_by_name_deterministically ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/ports-031726d043da6801)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests adapter_markdown
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests adapter_rust
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests application
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests domain
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests ports
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
