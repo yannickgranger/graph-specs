@@ -189,11 +189,7 @@ fn matching_signatures_yield_no_violations() {
         "core.md",
         "## OrderId\n\n```rust\npub struct OrderId(pub u32);\n```\n",
     );
-    write_file(
-        code.path(),
-        "src/lib.rs",
-        "pub struct OrderId(pub u32);",
-    );
+    write_file(code.path(), "src/lib.rs", "pub struct OrderId(pub u32);");
 
     bin()
         .args([

@@ -178,9 +178,7 @@ mod tests {
 
     #[test]
     fn field_doc_comments_are_stripped() {
-        let a = normalize(&parse(
-            "pub struct Foo { pub bar: u32 }",
-        ));
+        let a = normalize(&parse("pub struct Foo { pub bar: u32 }"));
         let b = normalize(&parse(
             "pub struct Foo {\n    /// a field\n    pub bar: u32,\n}",
         ));
@@ -210,9 +208,7 @@ mod tests {
 
     #[test]
     fn trait_method_doc_comments_are_stripped() {
-        let a = normalize(&parse(
-            "pub trait T { fn f(&self) -> u32; }",
-        ));
+        let a = normalize(&parse("pub trait T { fn f(&self) -> u32; }"));
         let b = normalize(&parse(
             "pub trait T {\n    /// method doc\n    fn f(&self) -> u32;\n}",
         ));
