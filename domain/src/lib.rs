@@ -6,9 +6,14 @@
 
 use std::path::PathBuf;
 
+mod context;
 mod diff;
 mod tokens;
 
+pub use context::{
+    CheckInput, ContextDecl, ContextExport, ContextImport, ContextPattern, ContextViolation,
+    OwnedUnit,
+};
 pub use diff::diff;
 pub use tokens::tokenise_target;
 
@@ -19,12 +24,23 @@ pub use tokens::tokenise_target;
 /// equivalent at relationship level iff their `edges` also align (see
 /// [`Edge`]).
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Graph {
     pub nodes: Vec<ConceptNode>,
     pub edges: Vec<Edge>,
 }
 
 impl Graph {
+    /// Build a graph from its node and edge sets. Required constructor
+    /// outside the defining crate — `#[non_exhaustive]` prevents the
+    /// struct-literal form `Graph { nodes, edges }` in external crates
+    /// so that future field additions remain non-breaking (RFC-001
+    /// rust-systems lens RC-3).
+    #[must_use]
+    pub const fn new(nodes: Vec<ConceptNode>, edges: Vec<Edge>) -> Self {
+        Self { nodes, edges }
+    }
+
     /// Build an empty graph. Alias for [`Graph::default`] — useful at call
     /// sites where the zero-value is more readable than `Graph::default()`
     /// and where the v0.3 relationship-level dogfood wants a code-side
@@ -186,4 +202,8 @@ pub enum Violation {
         target: String,
         spec_source: Source,
     },
+    /// A v0.4 bounded-context violation. Wraps the three
+    /// [`ContextViolation`] variants so consumers that do not opt
+    /// into context checking match one arm rather than three.
+    Context(ContextViolation),
 }

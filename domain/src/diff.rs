@@ -102,5 +102,6 @@ const fn violation_key(v: &Violation) -> (&str, u8) {
         Violation::EdgeMissingInCode { concept, .. } => (concept.as_str(), 5),
         Violation::EdgeMissingInSpec { concept, .. } => (concept.as_str(), 6),
         Violation::EdgeTargetUnknown { concept, .. } => (concept.as_str(), 7),
+        Violation::Context(ctx) => (ctx.concept(), 8),
     }
 }

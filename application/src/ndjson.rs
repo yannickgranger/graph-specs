@@ -125,6 +125,12 @@ fn violation_to_record(v: &Violation) -> Value {
             "target": target,
             "spec_source": source_to_json(spec_source),
         }),
+        Violation::Context(_) => {
+            // v0.4 context violations are only emitted by the diff context
+            // pass — not yet implemented (see #25). The NDJSON schema-v2
+            // variants for context violations land in #25 as well.
+            unreachable!("v0.4 context violations: emission and schema v2 land in #25");
+        }
     }
 }
 

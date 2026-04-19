@@ -57,7 +57,7 @@ impl Reader for MarkdownReader {
             extract_from_source(&source, path, &mut nodes, &mut edges);
         }
 
-        Ok(Graph { nodes, edges })
+        Ok(Graph::new(nodes, edges))
     }
 }
 
