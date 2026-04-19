@@ -48,34 +48,33 @@ pub(super) fn context_pass(spec_contexts: Vec<ContextDecl>, code: Graph, out: &m
 }
 
 fn build_unit_index(contexts: &[ContextDecl]) -> HashMap<String, String> {
-    let mut m = HashMap::new();
-    for ctx in contexts {
-        for unit in &ctx.owned_units {
-            m.insert(unit.0.clone(), ctx.name.clone());
-        }
-    }
-    m
+    contexts
+        .iter()
+        .flat_map(|ctx| {
+            let name = ctx.name.as_str();
+            ctx.owned_units
+                .iter()
+                .map(move |u| (u.0.clone(), name.to_owned()))
+        })
+        .collect()
 }
 
 fn build_concept_index(
     nodes: &[ConceptNode],
     unit_to_context: &HashMap<String, String>,
 ) -> HashMap<String, String> {
-    let mut m = HashMap::new();
-    for node in nodes {
-        let Some(unit_str) = owning_unit_str(&node.source) else {
-            continue;
-        };
-        let Some(ctx_name) = unit_to_context.get(&unit_str) else {
-            continue;
-        };
-        m.insert(node.name.clone(), ctx_name.clone());
-    }
-    m
+    nodes
+        .iter()
+        .filter_map(|node| {
+            let unit_str = owning_unit_str(&node.source)?;
+            let ctx_name = unit_to_context.get(&unit_str)?;
+            Some((node.name.clone(), ctx_name.to_owned()))
+        })
+        .collect()
 }
 
 /// Consume `contexts` into three indexes so the edge pass can make O(1)
-/// lookups without cloning `ContextDecl` / `ContextImport` fields.
+/// lookups without re-visiting the `ContextDecl` vector.
 fn index_contexts(
     contexts: Vec<ContextDecl>,
 ) -> (
@@ -87,15 +86,31 @@ fn index_contexts(
     let mut exports = HashSet::new();
     let mut sources = HashMap::new();
     for ctx in contexts {
-        for im in ctx.imports {
-            imports.insert((ctx.name.clone(), im.from_context, im.concept));
-        }
-        for ex in ctx.exports {
-            exports.insert((ctx.name.clone(), ex.concept));
-        }
-        sources.insert(ctx.name, ctx.source);
+        absorb_one_context(ctx, &mut imports, &mut exports, &mut sources);
     }
     (imports, exports, sources)
+}
+
+fn absorb_one_context(
+    ctx: ContextDecl,
+    imports: &mut HashSet<ImportKey>,
+    exports: &mut HashSet<ExportKey>,
+    sources: &mut HashMap<String, Source>,
+) {
+    let ContextDecl {
+        name,
+        imports: im_vec,
+        exports: ex_vec,
+        source,
+        ..
+    } = ctx;
+    imports.extend(
+        im_vec
+            .into_iter()
+            .map(|im| (name.clone(), im.from_context, im.concept)),
+    );
+    exports.extend(ex_vec.into_iter().map(|ex| (name.clone(), ex.concept)));
+    sources.insert(name, source);
 }
 
 fn emit_membership_unknown(
