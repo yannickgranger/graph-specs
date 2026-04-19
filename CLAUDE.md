@@ -31,7 +31,7 @@ Every RFC answers, in this order:
 4. **Invariants.** What must still hold after the change — test corpus, stable wire schema, backward compatibility.
 5. **Architect lenses.** Dedicated subsections for each architect perspective (see §2.3). Architects' verdicts are captured inline.
 6. **Non-goals.** What this RFC explicitly does not address.
-7. **Issue decomposition.** Vertical slices, one issue each.
+7. **Issue decomposition.** Vertical slices, one issue each. Each entry carries an explicit `Tests:` line naming the test surface per §2.5 — architects prescribe, implementers execute.
 
 Schema-v1 of the NDJSON output at `specs/ndjson-output.md` is the model for how an RFC graduates into an authoritative specification once ratified.
 
@@ -50,9 +50,33 @@ Every RFC is reviewed by a team of architect sub-agents, one teammate per lens:
 
 Invocation is via `Agent(subagent_type=...)` or agent teams — whichever affords the review. Each lens returns a verdict (RATIFY / REJECT / REQUEST CHANGES) with evidence. The RFC is not ratified until all four verdicts are RATIFY, or a single author-documented override is recorded inline.
 
+**Architects also prescribe tests** (§2.5). The verdict is not complete until each issue in the decomposition carries a named test surface — unit, integration, dogfood assertion (`graph-specs check` against this repo's own `specs/concepts/`), or a documented `Tests: none` rationale. Implementers do not choose the test shape; they deliver against the prescription.
+
 ### §2.4 — Ratification → issues
 
-Once ratified, the RFC's "Issue decomposition" section becomes the concrete backlog. Each vertical slice is filed as a `forge_create_issue` with body linking back to the RFC (`Refs: docs/rfc/NNN-...md`). Issues are worked via `/work-issue-lib`.
+Once ratified, the RFC's "Issue decomposition" section becomes the concrete backlog. Each vertical slice is filed as a `forge_create_issue` with body linking back to the RFC (`Refs: docs/rfc/NNN-...md`) and carrying the prescribed `Tests:` section from the RFC verbatim. Issues are worked via `/work-issue-lib`. A PR against an issue without the prescribed test is not merged.
+
+### §2.5 — Tests and real infra
+
+**Tests are always mandatory when possible.** "When possible" = there is an executable path the change touches that can be exercised deterministically. "Mandatory" = the PR implementing the issue lands the prescribed test; a PR without it is not merged. Architects prescribe in the RFC + issue body (§2.3 + §2.4); implementers pass.
+
+**Real infra is always preferred over mocks.** The hierarchy:
+
+1. **Dogfood / self-integration.** Exercise the change against this repo's own source tree via `graph-specs check --specs specs/concepts/ --code .` and assert on the observable output (e.g. "the new output variant appears in NDJSON", or "violations count is still zero after the refactor"). Strongest signal — real data, real pipeline.
+2. **Integration against real inputs.** Construct a small real-shaped fixture (a synthetic `specs/` directory, a crafted Rust source file) and run the markdown and rust readers end-to-end. Assert on the resulting `Graph` / `Violation` output.
+3. **Unit tests on pure functions.** Fine when the function is genuinely pure. Do not stub out reader I/O that could be exercised via option 2.
+4. **Mocks / doubles.** Last resort. Must carry an inline comment naming why real infra was unavailable.
+
+**Prescribed test categories by work type:**
+
+| Work type | Required test |
+|---|---|
+| New capability (output variant, equivalence level, CLI subcommand, schema bump) | Dogfood against this repo's own specs/code **AND** unit tests for extracted pure functions **AND** integration fixture covering the new surface |
+| Bug fix | Regression test that reproduces the bug first (red → green in the same PR) |
+| Mechanical refactor | No new tests; the existing suite must pass byte-identically |
+| Docs / CI / chore | No test required; the change is its own verification surface |
+
+**Escape hatch.** An issue that is genuinely untestable carries `Tests: none — rationale: <why>` in its body. "I didn't bother" is not a valid rationale.
 
 ## §3 — Dual control
 
