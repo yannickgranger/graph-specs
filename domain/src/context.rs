@@ -27,6 +27,28 @@ pub struct ContextDecl {
     pub source: Source,
 }
 
+impl ContextDecl {
+    /// Required constructor outside the defining crate — `#[non_exhaustive]`
+    /// prevents the struct-literal form in external callers (markdown
+    /// adapter, downstream consumers).
+    #[must_use]
+    pub const fn new(
+        name: String,
+        owned_units: Vec<OwnedUnit>,
+        exports: Vec<ContextExport>,
+        imports: Vec<ContextImport>,
+        source: Source,
+    ) -> Self {
+        Self {
+            name,
+            owned_units,
+            exports,
+            imports,
+            source,
+        }
+    }
+}
+
 /// Export-centric framing (Evans Ch. 14): the supplying context is
 /// authoritative about what it publishes. Asymmetric declarations fire
 /// [`ContextViolation::CrossEdgeUndeclared`].
@@ -65,6 +87,19 @@ impl ContextPattern {
             Self::Conformist => "Conformist",
             Self::PublishedLanguage => "PublishedLanguage",
         }
+    }
+
+    /// Canonical iterator over v0.4 variants — the single source of truth
+    /// for parsers and error-message enumeration. Adding a v0.5 variant
+    /// only requires updating this list and `as_label`.
+    #[must_use]
+    pub const fn variants() -> &'static [Self] {
+        &[
+            Self::SharedKernel,
+            Self::CustomerSupplier,
+            Self::Conformist,
+            Self::PublishedLanguage,
+        ]
     }
 }
 
