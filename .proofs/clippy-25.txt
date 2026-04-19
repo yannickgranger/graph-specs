@@ -1,13 +1,7 @@
     Checking domain v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/25/domain)
-   Compiling thiserror-impl v2.0.18
-   Compiling clap_derive v4.6.0
-    Checking predicates v3.1.4
-    Checking assert_cmd v2.2.0
-    Checking thiserror v2.0.18
-    Checking clap v4.6.0
     Checking ports v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/25/ports)
     Checking adapter-rust v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/25/adapters/rust)
     Checking adapter-markdown v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/25/adapters/markdown)
     Checking application v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/25/application)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.23s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.67s
 clippy exit: 0
