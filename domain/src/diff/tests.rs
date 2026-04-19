@@ -1,9 +1,16 @@
-use super::{diff, violation_key};
+use super::violation_key;
 use crate::{
-    ConceptNode, ContextViolation, Edge, EdgeKind, Graph, OwnedUnit, SignatureState, Source,
-    Violation,
+    CheckInput, ConceptNode, ContextViolation, Edge, EdgeKind, Graph, OwnedUnit, SignatureState,
+    Source, Violation,
 };
 use std::path::PathBuf;
+
+/// v0.3-style wrapper — local tests predate [`CheckInput`] and pass a
+/// bare [`Graph`] for specs. The wrapper adds an empty contexts list so
+/// the context pass is a no-op, preserving tests' semantics.
+fn diff(specs: Graph, code: Graph) -> Vec<Violation> {
+    super::diff(CheckInput::new(specs, Vec::new()), code)
+}
 
 fn spec_path() -> PathBuf {
     PathBuf::from("specs/concepts/core.md")

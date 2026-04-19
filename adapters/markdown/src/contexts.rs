@@ -7,7 +7,10 @@
 //! Only the line-offset helpers are shared via [`crate::markdown_utils`].
 
 use crate::markdown_utils::{compute_line_starts, line_of_offset};
-use domain::{ContextDecl, ContextExport, ContextImport, ContextPattern, OwnedUnit, Source};
+use domain::{
+    detect_import_cycle, ContextDecl, ContextExport, ContextImport, ContextPattern, OwnedUnit,
+    Source,
+};
 use ports::ReaderError;
 use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
 use std::path::Path;
@@ -312,6 +315,15 @@ pub fn walk_contexts(root: &Path) -> Result<Vec<ContextDecl>, ReaderError> {
             cause: e.to_string(),
         })?;
         out.push(parse_context_file(p, &source)?);
+    }
+    // Invariant 7: cyclic import declarations are a reader error
+    // (SharedKernel is the one legal form of mutual reference).
+    if let Some(cycle) = detect_import_cycle(&out) {
+        return Err(ReaderError::ParseFailed {
+            path: root.to_path_buf(),
+            line: 0,
+            message: format!("cyclic import declarations detected: {}", cycle.join(" → ")),
+        });
     }
     Ok(out)
 }

@@ -1,31 +1,30 @@
-//! Equivalence diff — concept, signature, and relationship levels.
+//! Equivalence diff — concept, signature, relationship, and bounded-context.
 //!
-//! Three passes over the spec and code graphs:
+//! Four passes over the spec and code graphs:
 //!
-//! 1. **Concept** — set-difference over concept names. A concept present
-//!    in specs but not in code yields [`Violation::MissingInCode`]; the
-//!    inverse yields [`Violation::MissingInSpecs`]. Duplicates within a
-//!    side are collapsed by name — the first occurrence carries the
-//!    source location.
-//! 2. **Signature** — per matched concept, the v0.2 signature payload is
-//!    compared via [`signature::compare_signatures`]. Absent on the spec
-//!    side is *opt-out* (no comparison). `SignatureUnparseable`
-//!    short-circuits a concept's comparison.
-//! 3. **Edge** (v0.3) — per matched concept that has ≥1 spec-side edge,
-//!    edge sets are compared. Opt-in per concept: no spec edges means no
-//!    edge check for that concept.
+//! 1. **Concept** — set-difference over concept names.
+//! 2. **Signature** (v0.2) — per matched concept, compare signatures.
+//! 3. **Edge** (v0.3) — per matched concept with ≥1 spec edge, compare edges.
+//! 4. **Context** (v0.4) — if `CheckInput.contexts` is non-empty, emit
+//!    [`crate::Violation::Context`] variants for membership + cross-context
+//!    edges. Order-independent from passes 1–3 (RFC-001 §4 invariant 9).
 
+mod context;
 mod edge;
 mod signature;
 
 #[cfg(test)]
 mod tests;
 
-use crate::{ConceptNode, Graph, Violation};
+use crate::{CheckInput, ConceptNode, Graph, Violation};
 use std::collections::{HashMap, HashSet};
 
 #[must_use]
-pub fn diff(specs: Graph, code: Graph) -> Vec<Violation> {
+pub fn diff(spec: CheckInput, code: Graph) -> Vec<Violation> {
+    let CheckInput {
+        graph: specs,
+        contexts: spec_contexts,
+    } = spec;
     let Graph {
         nodes: spec_nodes,
         edges: spec_edges,
@@ -34,6 +33,15 @@ pub fn diff(specs: Graph, code: Graph) -> Vec<Violation> {
         nodes: code_nodes,
         edges: code_edges,
     } = code;
+
+    // Snapshot for the context pass before code_nodes is moved into the
+    // name-indexed map — pass 4 needs the full code graph, not the
+    // drained residual.
+    let code_for_context = if spec_contexts.is_empty() {
+        Graph::default()
+    } else {
+        Graph::new(code_nodes.clone(), code_edges.clone())
+    };
 
     // Index code by name, consuming code_nodes — later lookups remove the
     // match so the remainder is "code-only" (missing in specs).
@@ -82,6 +90,8 @@ pub fn diff(specs: Graph, code: Graph) -> Vec<Violation> {
         &matched_concepts,
         &mut violations,
     );
+
+    context::context_pass(&spec_contexts, &code_for_context, &mut violations);
 
     violations.sort_by(|a, b| {
         let (ka, da) = violation_key(a);
