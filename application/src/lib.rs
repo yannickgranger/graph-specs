@@ -7,7 +7,7 @@
 
 use adapter_markdown::MarkdownReader;
 use adapter_rust::RustReader;
-use domain::{diff, Violation};
+use domain::{diff, CheckInput, Violation};
 use ports::{Reader, ReaderError};
 use std::path::Path;
 
@@ -26,7 +26,9 @@ pub mod ndjson;
 pub fn run_check(specs_dir: &Path, code_dir: &Path) -> Result<Vec<Violation>, ReaderError> {
     let specs_graph = MarkdownReader.extract(specs_dir)?;
     let code_graph = RustReader.extract(code_dir)?;
-    Ok(diff(specs_graph, code_graph))
+    // Context loading is wired in #27 (self-dogfood). For now an empty
+    // contexts list preserves v0.3 behaviour — the context pass is a no-op.
+    Ok(diff(CheckInput::new(specs_graph, Vec::new()), code_graph))
 }
 
 #[cfg(test)]

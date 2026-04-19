@@ -11,8 +11,8 @@ mod diff;
 mod tokens;
 
 pub use context::{
-    CheckInput, ContextDecl, ContextExport, ContextImport, ContextPattern, ContextViolation,
-    OwnedUnit,
+    detect_import_cycle, CheckInput, ContextDecl, ContextExport, ContextImport, ContextPattern,
+    ContextViolation, OwnedUnit,
 };
 pub use diff::diff;
 pub use tokens::tokenise_target;
