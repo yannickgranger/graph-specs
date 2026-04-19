@@ -10,19 +10,13 @@
 
 use crate::{EdgeKind, Graph, Source};
 
-/// A crate, npm package, Go module, or equivalent — the thing a context "owns."
-///
-/// Named deliberately to keep the domain model language-agnostic. The Rust
-/// adapter interprets this as a Cargo crate name; future language adapters
-/// (PHP, TypeScript) supply their own equivalent.
+/// A crate, npm package, Go module, or equivalent — named deliberately to
+/// keep the domain model language-agnostic across future adapters.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct OwnedUnit(pub String);
 
-/// Declaration of a bounded context as parsed from `specs/contexts/<name>.md`.
-///
-/// `exports` and `imports` model DDD context-mapping patterns; see
-/// [`ContextPattern`] for the supported subset (v0.4 ships Shared Kernel,
-/// Customer-Supplier, Conformist, Published Language).
+/// Parsed from `specs/contexts/<name>.md`. `exports` and `imports` model
+/// the DDD context-mapping patterns in [`ContextPattern`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ContextDecl {
@@ -33,18 +27,15 @@ pub struct ContextDecl {
     pub source: Source,
 }
 
-/// A concept a context publishes under a named DDD pattern.
-///
 /// Export-centric framing (Evans Ch. 14): the supplying context is
-/// authoritative about what it publishes. Importers reference exported
-/// concepts; asymmetric declarations fire [`ContextViolation::CrossEdgeUndeclared`].
+/// authoritative about what it publishes. Asymmetric declarations fire
+/// [`ContextViolation::CrossEdgeUndeclared`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContextExport {
     pub concept: String,
     pub pattern: ContextPattern,
 }
 
-/// A cross-context reference this context declares as sanctioned.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContextImport {
     pub from_context: String,
@@ -124,9 +115,9 @@ pub enum ContextViolation {
 }
 
 impl ContextViolation {
-    /// Extract the `concept` field common to every variant. Used by
-    /// `violation_key()` to key deterministic ordering without needing
-    /// per-variant destructure.
+    /// Sort key used by `violation_key()` — every variant carries a
+    /// `concept` field, and this accessor avoids per-variant destructure
+    /// at every call site.
     #[must_use]
     pub const fn concept(&self) -> &str {
         match self {
@@ -150,9 +141,8 @@ pub struct CheckInput {
 }
 
 impl CheckInput {
-    /// Build a check input from a concept graph and a list of context
-    /// declarations. Either may be empty; an empty `contexts` list
-    /// reduces v0.4 diff to v0.3 behavior (the context pass is a no-op).
+    /// An empty `contexts` list reduces v0.4 diff to v0.3 behavior (the
+    /// context pass is a no-op).
     #[must_use]
     pub const fn new(graph: Graph, contexts: Vec<ContextDecl>) -> Self {
         Self { graph, contexts }

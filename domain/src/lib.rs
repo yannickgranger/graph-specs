@@ -31,20 +31,13 @@ pub struct Graph {
 }
 
 impl Graph {
-    /// Build a graph from its node and edge sets. Required constructor
-    /// outside the defining crate — `#[non_exhaustive]` prevents the
-    /// struct-literal form `Graph { nodes, edges }` in external crates
-    /// so that future field additions remain non-breaking (RFC-001
-    /// rust-systems lens RC-3).
     #[must_use]
     pub const fn new(nodes: Vec<ConceptNode>, edges: Vec<Edge>) -> Self {
         Self { nodes, edges }
     }
 
-    /// Build an empty graph. Alias for [`Graph::default`] — useful at call
-    /// sites where the zero-value is more readable than `Graph::default()`
-    /// and where the v0.3 relationship-level dogfood wants a code-side
-    /// RETURNS edge targeting a concept.
+    /// Alias for [`Graph::default`] — the v0.3 relationship-level dogfood
+    /// wants a code-side RETURNS edge targeting a concept.
     #[must_use]
     pub fn empty() -> Self {
         Self::default()
