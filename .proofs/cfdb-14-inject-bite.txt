@@ -1,0 +1,12 @@
+violations: 1 (rule: .cfdb/queries/arch-ban-unwrap-domain-ports.cypher)
+{
+  "rows": [
+    {
+      "caller.crate": "domain",
+      "caller.qname": "domain::diff::diff",
+      "cs.callee_path": "unwrap",
+      "cs.file": "/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/cfdb-adopt/domain/src/diff.rs"
+    }
+  ]
+}
+cfdb exit: 1
