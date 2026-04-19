@@ -270,3 +270,65 @@ jobs:
         run: |
           cd repo
           /cache/cargo/bin/cargo-audit audit
+
+  # ----------------------------------------------------------------
+  # 8. cfdb — architectural ban rules (Cypher-over-syn-facts).
+  #    Complements `dogfood`: dogfood checks specs↔code equivalence;
+  #    cfdb checks that code does not violate forbidden patterns.
+  #    Pinned rev — see .cfdb/cfdb.rev for version control.
+  # ----------------------------------------------------------------
+  cfdb-check:
+    name: cfdb (arch ban rules)
+    runs-on: rust
+    container:
+      image: docker.io/library/rust:1.93
+    steps:
+      - name: Setup
+        run: |
+          set -e
+          apt-get update && apt-get install -y --no-install-recommends git ca-certificates
+          mkdir -p /cache/cargo/registry /cache/cargo/git /cache/cargo/bin ~/.cargo
+          ln -sf /cache/cargo/registry ~/.cargo/registry
+          ln -sf /cache/cargo/git ~/.cargo/git
+
+      - name: Clone
+        env:
+          GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          SERVER_HOST=$(echo "${GITHUB_SERVER_URL}" | sed -E 's|https?://||')
+          git config --global "url.https://oauth2:${GITEA_TOKEN}@${SERVER_HOST}/.insteadOf" "${GITHUB_SERVER_URL}/"
+          git clone --depth=1 --branch="$BRANCH" "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" repo
+
+      - name: Install cfdb (pinned rev, cached under /cache/cargo/bin)
+        run: |
+          CFDB_REV=$(cat repo/.cfdb/cfdb.rev)
+          CFDB_STAMP=/cache/cargo/bin/.cfdb.rev
+          if [ ! -x /cache/cargo/bin/cfdb ] || [ "$(cat $CFDB_STAMP 2>/dev/null)" != "$CFDB_REV" ]; then
+            SERVER_HOST=$(echo "${GITHUB_SERVER_URL}" | sed -E 's|https?://||')
+            cargo install --git "${GITHUB_SERVER_URL}/yg/cfdb.git" --rev "$CFDB_REV" --locked --force \
+              --root /cache/cargo cfdb-cli --bin cfdb
+            echo "$CFDB_REV" > "$CFDB_STAMP"
+          fi
+          echo "PATH=/cache/cargo/bin:${PATH}" >> "$GITHUB_ENV"
+
+      - name: Extract facts
+        run: |
+          cd repo
+          mkdir -p .cfdb/db
+          /cache/cargo/bin/cfdb extract --workspace . --db .cfdb/db --keyspace graph-specs
+
+      - name: Determinism check
+        run: |
+          cd repo
+          ./ci/cfdb-determinism-check.sh
+
+      - name: Run ban rules
+        run: |
+          cd repo
+          FAILED=0
+          for RULE in .cfdb/queries/*.cypher; do
+            echo "=== $RULE ==="
+            /cache/cargo/bin/cfdb violations --db .cfdb/db --keyspace graph-specs --rule "$RULE" || FAILED=1
+          done
+          exit $FAILED

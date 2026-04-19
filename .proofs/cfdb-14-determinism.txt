@@ -1,0 +1,7 @@
+extract: walking .
+extract: 1607 nodes, 1592 edges
+extract: saved keyspace `graph-specs` to /tmp/tmp.Qnk4Oyho7F/graph-specs.json
+extract: walking .
+extract: 1607 nodes, 1592 edges
+extract: saved keyspace `graph-specs` to /tmp/tmp.OPqMFnsGEh/graph-specs.json
+cfdb determinism OK (e573575c2ceac6aba052ade775d2406f7d5e2b4837951984c34657c80305d120)

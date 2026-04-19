@@ -45,6 +45,15 @@ Every bounded context named in the specs maps to exactly one declared set of cra
 
 The tool validates its own specs from the first commit. The tool's `specs/` directory contains markdown specifications for the tool itself; the tool reads those specs and its own source and diffs them. Every PR to this repository passes the same four-level check it imposes on downstream consumers.
 
+Two self-control layers ship in CI:
+
+| Layer | Tool | Question answered |
+|---|---|---|
+| Equivalence | `graph-specs check` | Do the specs match the code? |
+| Architectural bans | [`cfdb`](https://agency.lab:3000/yg/cfdb) violations | Does the code use forbidden patterns? |
+
+The cfdb layer runs pinned Cypher rules under `.cfdb/queries/` — e.g. `arch-ban-unwrap-domain-ports.cypher` forbids `.unwrap()` in non-test items inside the hexagonal core. The cfdb commit is pinned in `.cfdb/cfdb.rev`.
+
 ## Anti-drift gate
 
 Every feature PR runs the four-level check as a CI gate. A violation at any level blocks the merge. There is no baseline file, no ratchet, no allowlist — violations are fixed in the same PR that introduces them, or the PR does not land.
@@ -82,6 +91,8 @@ The division of labor:
 | **graph-specs** | Prevent new drift — block PRs that violate the spec contract | Every PR, in CI |
 
 cfdb is the **X-ray** (finds the disease). graph-specs is the **vaccine** (prevents reinfection). Use cfdb to clean up, then spec-lock the cleaned context so it stays clean.
+
+This repository uses both tools on itself — see `.cfdb/queries/` for the live ban rules.
 
 ### Agent-in-the-middle workflow
 

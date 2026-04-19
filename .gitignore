@@ -4,5 +4,6 @@
 .cargo/config.toml
 .claude/
 .test-results/
+/.cfdb/db/
 *.swp
 .DS_Store

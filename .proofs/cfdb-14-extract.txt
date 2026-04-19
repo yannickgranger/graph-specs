@@ -1,0 +1,3 @@
+extract: walking .
+extract: 1607 nodes, 1592 edges
+extract: saved keyspace `graph-specs` to .cfdb/db/graph-specs.json
