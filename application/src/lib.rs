@@ -12,6 +12,7 @@ use ports::{Reader, ReaderError};
 use std::path::Path;
 
 pub mod ndjson;
+pub mod text;
 
 /// Run the full concept-level equivalence check.
 ///

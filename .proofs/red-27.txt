@@ -1,0 +1,50 @@
+   Compiling application v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/27/application)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.59s
+     Running unittests src/lib.rs (target/debug/deps/application-74e52af9febebffe)
+
+running 17 tests
+test ndjson::tests::edge_missing_in_code_record ... ok
+test ndjson::tests::each_record_has_schema_version_one ... ok
+test ndjson::tests::edge_missing_in_spec_record ... ok
+test ndjson::tests::edge_target_unknown_record ... ok
+test ndjson::tests::empty_violations_writes_nothing ... ok
+test ndjson::tests::missing_in_specs_record ... ok
+test ndjson::tests::missing_in_code_record ... ok
+test ndjson::tests::signature_drift_record ... ok
+test ndjson::tests::signature_missing_in_spec_record ... ok
+test ndjson::tests::signature_unparseable_record ... ok
+test ndjson::tests::multiple_violations_are_newline_delimited ... ok
+test text::tests::context_membership_unknown_text ... FAILED
+test text::tests::cross_context_edge_unauthorized_text ... FAILED
+test text::tests::cross_context_edge_undeclared_text ... FAILED
+test text::tests::v03_missing_in_code_unchanged ... ok
+test tests::empty_trees_yield_no_violations ... ok
+test tests::matching_tree_yields_no_violations ... ok
+
+failures:
+
+---- text::tests::context_membership_unknown_text stdout ----
+
+thread 'text::tests::context_membership_unknown_text' (1936846) panicked at application/src/text.rs:116:9:
+not yet implemented: RED — GREEN impl restored after capture
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- text::tests::cross_context_edge_unauthorized_text stdout ----
+
+thread 'text::tests::cross_context_edge_unauthorized_text' (1936847) panicked at application/src/text.rs:116:9:
+not yet implemented: RED — GREEN impl restored after capture
+
+---- text::tests::cross_context_edge_undeclared_text stdout ----
+
+thread 'text::tests::cross_context_edge_undeclared_text' (1936848) panicked at application/src/text.rs:116:9:
+not yet implemented: RED — GREEN impl restored after capture
+
+
+failures:
+    text::tests::context_membership_unknown_text
+    text::tests::cross_context_edge_unauthorized_text
+    text::tests::cross_context_edge_undeclared_text
+
+test result: FAILED. 14 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p application --lib`

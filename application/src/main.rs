@@ -11,7 +11,7 @@
 //!   any equivalence check is meaningful.
 
 use clap::{Parser, Subcommand, ValueEnum};
-use domain::{Source, Violation};
+use domain::Violation;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -82,9 +82,15 @@ fn emit_text(violations: &[Violation]) -> ExitCode {
         println!("0 violations.");
         return ExitCode::SUCCESS;
     }
+    let stdout = std::io::stdout();
+    let mut handle = stdout.lock();
     for v in violations {
-        print_violation(v);
+        if let Err(e) = application::text::format_violation(v, &mut handle) {
+            eprintln!("text write error: {e}");
+            return ExitCode::from(2);
+        }
     }
+    drop(handle);
     println!("{} violation(s) found.", violations.len());
     exit_code_for(violations)
 }
@@ -111,105 +117,5 @@ fn exit_code_for(violations: &[Violation]) -> ExitCode {
         ExitCode::from(2)
     } else {
         ExitCode::from(1)
-    }
-}
-
-fn print_violation(v: &Violation) {
-    match v {
-        Violation::MissingInCode { name, spec_source } => {
-            let (path, line) = source_pair(spec_source);
-            println!("missing in code: {name} ({}:{line})", path.display());
-        }
-        Violation::MissingInSpecs { name, code_source } => {
-            let (path, line) = source_pair(code_source);
-            println!("missing in specs: {name} ({}:{line})", path.display());
-        }
-        Violation::SignatureDrift {
-            name,
-            spec_sig,
-            code_sig,
-            spec_source,
-            code_source,
-        } => {
-            let (spec_path, spec_line) = source_pair(spec_source);
-            let (code_path, code_line) = source_pair(code_source);
-            println!(
-                "signature drift: {name}\n  spec ({}:{spec_line}): {spec_sig}\n  code ({}:{code_line}): {code_sig}",
-                spec_path.display(),
-                code_path.display()
-            );
-        }
-        Violation::SignatureMissingInSpec {
-            name,
-            code_sig,
-            code_source,
-        } => {
-            let (path, line) = source_pair(code_source);
-            println!(
-                "signature missing in spec: {name} ({}:{line})\n  code: {code_sig}",
-                path.display()
-            );
-        }
-        Violation::SignatureUnparseable {
-            name,
-            raw,
-            error,
-            source,
-        } => {
-            let (path, line) = source_pair(source);
-            println!(
-                "signature unparseable: {name} ({}:{line})\n  raw: {raw}\n  error: {error}",
-                path.display()
-            );
-        }
-        Violation::EdgeMissingInCode {
-            concept,
-            edge_kind,
-            target,
-            spec_source,
-        } => {
-            let (path, line) = source_pair(spec_source);
-            println!(
-                "edge missing in code: {concept} --{edge_kind}--> {target} ({}:{line})",
-                path.display()
-            );
-        }
-        Violation::EdgeMissingInSpec {
-            concept,
-            edge_kind,
-            target,
-            code_source,
-        } => {
-            let (path, line) = source_pair(code_source);
-            println!(
-                "edge missing in spec: {concept} --{edge_kind}--> {target} ({}:{line})",
-                path.display()
-            );
-        }
-        Violation::EdgeTargetUnknown {
-            concept,
-            edge_kind,
-            target,
-            spec_source,
-        } => {
-            let (path, line) = source_pair(spec_source);
-            println!(
-                "edge target unknown: {concept} --{edge_kind}--> {target} (not a concept in either graph) ({}:{line})",
-                path.display()
-            );
-        }
-        Violation::Context(_) => {
-            // v0.4 context violations are only emitted by the diff context
-            // pass — not yet implemented (see #25). Until the pass lands,
-            // this arm is unreachable in practice. #26 wires the proper
-            // text rendering.
-            unreachable!("v0.4 context violations: emission lands in #25, text rendering in #26");
-        }
-    }
-}
-
-fn source_pair(s: &Source) -> (&std::path::Path, usize) {
-    match s {
-        Source::Spec { path, line } | Source::Code { path, line } => (path.as_path(), *line),
     }
 }
