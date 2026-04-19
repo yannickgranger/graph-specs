@@ -287,7 +287,10 @@ pub fn walk_contexts(root: &Path) -> Result<Vec<ContextDecl>, ReaderError> {
     for entry in walker {
         let entry = match entry {
             Ok(e) => e,
-            Err(e) if e.io_error().is_some_and(|io| io.kind() == std::io::ErrorKind::NotFound) => {
+            Err(e)
+                if e.io_error()
+                    .is_some_and(|io| io.kind() == std::io::ErrorKind::NotFound) =>
+            {
                 return Ok(out);
             }
             Err(e) => {
