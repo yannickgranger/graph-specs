@@ -1,0 +1,12 @@
+violations: 1 (rule: .cfdb/queries/arch-context-no-cross-layer-unwrap.cypher)
+{
+  "rows": [
+    {
+      "caller.crate": "adapter-markdown",
+      "caller.qname": "adapter_markdown::markdown_utils::_inject_bite_unwrap",
+      "cs.callee_path": "unwrap",
+      "cs.file": "/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/29/adapters/markdown/src/markdown_utils.rs"
+    }
+  ]
+}
+cfdb exit: 1

@@ -1,0 +1,11 @@
+violations: 1 (rule: .cfdb/queries/arch-context-no-application-in-domain.cypher)
+{
+  "rows": [
+    {
+      "caller.qname": "domain::_inject_bite_application_call",
+      "cs.callee_path": "application::run_check",
+      "cs.file": "/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/29/domain/src/lib.rs"
+    }
+  ]
+}
+cfdb exit: 1
