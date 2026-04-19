@@ -8,24 +8,45 @@
 //! - `MembershipUnknown` — a pub type's owning unit isn't listed in any context's `Owns`
 //! - `CrossEdgeUnauthorized` — an edge crosses contexts with no matching `Imports` entry
 //! - `CrossEdgeUndeclared` — the importer names a concept the supplier does not `Exports`
+//!
+//! Consumes `spec_contexts: Vec<ContextDecl>` and `code: Graph` by move so
+//! the per-violation field transfer is a move, not a clone — keeping the
+//! metrics-gate clone-in-loop count at zero.
 
-use crate::{ContextDecl, ContextImport, ContextViolation, Graph, OwnedUnit, Source, Violation};
-use std::collections::HashMap;
+use crate::{
+    ConceptNode, ContextDecl, ContextViolation, Edge, Graph, OwnedUnit, Source, Violation,
+};
+use std::collections::{HashMap, HashSet};
 
-pub(super) fn context_pass(spec_contexts: &[ContextDecl], code: &Graph, out: &mut Vec<Violation>) {
+/// Index key `(importer_ctx, supplier_ctx, concept)`.
+type ImportKey = (String, String, String);
+/// Index key `(owning_ctx, concept)`.
+type ExportKey = (String, String);
+
+pub(super) fn context_pass(spec_contexts: Vec<ContextDecl>, code: Graph, out: &mut Vec<Violation>) {
     if spec_contexts.is_empty() {
         return;
     }
-    let unit_to_context = build_unit_index(spec_contexts);
-    let concept_to_context = build_concept_index(code, &unit_to_context);
+    let unit_to_context = build_unit_index(&spec_contexts);
+    let concept_to_context = build_concept_index(&code.nodes, &unit_to_context);
+    let (imports, exports, context_sources) = index_contexts(spec_contexts);
 
-    emit_membership_unknown(code, &unit_to_context, out);
-    emit_cross_context_edge_violations(code, spec_contexts, &concept_to_context, out);
+    let Graph {
+        nodes: code_nodes,
+        edges: code_edges,
+    } = code;
+
+    emit_membership_unknown(code_nodes, &unit_to_context, out);
+    emit_cross_context_edge_violations(
+        code_edges,
+        &concept_to_context,
+        &imports,
+        &exports,
+        &context_sources,
+        out,
+    );
 }
 
-/// Map every declared [`OwnedUnit`] to its context name. Duplicates are
-/// caller's problem — `walk_contexts` rejects cycles + duplicates before
-/// the pass runs (RFC-001 §4 invariants 3, 4, 7).
 fn build_unit_index(contexts: &[ContextDecl]) -> HashMap<String, String> {
     let mut m = HashMap::new();
     for ctx in contexts {
@@ -36,54 +57,76 @@ fn build_unit_index(contexts: &[ContextDecl]) -> HashMap<String, String> {
     m
 }
 
-/// Index code concepts by their owning context (derived from source path).
-/// Concepts whose unit is not declared are left out of the index; the
-/// [`emit_membership_unknown`] pass catches those separately.
 fn build_concept_index(
-    code: &Graph,
+    nodes: &[ConceptNode],
     unit_to_context: &HashMap<String, String>,
 ) -> HashMap<String, String> {
     let mut m = HashMap::new();
-    for node in &code.nodes {
-        if let Some(unit) = owning_unit(&node.source) {
-            if let Some(ctx_name) = unit_to_context.get(unit.0.as_str()) {
-                m.insert(node.name.clone(), ctx_name.clone());
-            }
-        }
+    for node in nodes {
+        let Some(unit_str) = owning_unit_str(&node.source) else {
+            continue;
+        };
+        let Some(ctx_name) = unit_to_context.get(&unit_str) else {
+            continue;
+        };
+        m.insert(node.name.clone(), ctx_name.clone());
     }
     m
 }
 
+/// Consume `contexts` into three indexes so the edge pass can make O(1)
+/// lookups without cloning `ContextDecl` / `ContextImport` fields.
+fn index_contexts(
+    contexts: Vec<ContextDecl>,
+) -> (
+    HashSet<ImportKey>,
+    HashSet<ExportKey>,
+    HashMap<String, Source>,
+) {
+    let mut imports = HashSet::new();
+    let mut exports = HashSet::new();
+    let mut sources = HashMap::new();
+    for ctx in contexts {
+        for im in ctx.imports {
+            imports.insert((ctx.name.clone(), im.from_context, im.concept));
+        }
+        for ex in ctx.exports {
+            exports.insert((ctx.name.clone(), ex.concept));
+        }
+        sources.insert(ctx.name, ctx.source);
+    }
+    (imports, exports, sources)
+}
+
 fn emit_membership_unknown(
-    code: &Graph,
+    nodes: Vec<ConceptNode>,
     unit_to_context: &HashMap<String, String>,
     out: &mut Vec<Violation>,
 ) {
-    for node in &code.nodes {
-        let Some(unit) = owning_unit(&node.source) else {
+    for node in nodes {
+        let Some(unit_str) = owning_unit_str(&node.source) else {
             continue;
         };
-        if unit_to_context.contains_key(unit.0.as_str()) {
+        if unit_to_context.contains_key(&unit_str) {
             continue;
         }
         out.push(Violation::Context(ContextViolation::MembershipUnknown {
-            concept: node.name.clone(),
-            owned_unit: unit,
-            code_source: node.source.clone(),
+            concept: node.name,
+            owned_unit: OwnedUnit(unit_str),
+            code_source: node.source,
         }));
     }
 }
 
 fn emit_cross_context_edge_violations(
-    code: &Graph,
-    spec_contexts: &[ContextDecl],
+    code_edges: Vec<Edge>,
     concept_to_context: &HashMap<String, String>,
+    imports: &HashSet<ImportKey>,
+    exports: &HashSet<ExportKey>,
+    context_sources: &HashMap<String, Source>,
     out: &mut Vec<Violation>,
 ) {
-    let contexts_by_name: HashMap<&str, &ContextDecl> =
-        spec_contexts.iter().map(|c| (c.name.as_str(), c)).collect();
-
-    for edge in &code.edges {
+    for edge in code_edges {
         let Some(source_ctx) = concept_to_context.get(&edge.source_concept) else {
             continue;
         };
@@ -93,72 +136,57 @@ fn emit_cross_context_edge_violations(
         if source_ctx == target_ctx {
             continue;
         }
-        // Cross-context edge — check the importer's declarations.
-        let Some(source_ctx_decl) = contexts_by_name.get(source_ctx.as_str()) else {
+        let Some(spec_source) = context_sources.get(source_ctx) else {
             continue;
         };
-        let matching_import = find_import(
-            &source_ctx_decl.imports,
-            target_ctx.as_str(),
-            edge.target.as_str(),
-        );
-        // Pre-compute clones needed for both violation branches.
-        let concept = edge.source_concept.clone();
-        let owning_context = source_ctx.clone();
-        let target = edge.target.clone();
-        let target_context = target_ctx.clone();
-        let spec_source = source_ctx_decl.source.clone();
-        if matching_import.is_none() {
-            out.push(Violation::Context(
-                ContextViolation::CrossEdgeUnauthorized {
-                    concept: concept.clone(),
-                    owning_context: owning_context.clone(),
-                    edge_kind: edge.kind,
-                    target: target.clone(),
-                    target_context: target_context.clone(),
-                    spec_source: spec_source.clone(),
-                },
-            ));
-            continue;
-        }
-        // Import exists — verify supplier exports it.
-        let Some(target_ctx_decl) = contexts_by_name.get(target_ctx.as_str()) else {
-            continue;
-        };
-        let supplier_exports_it = target_ctx_decl
-            .exports
-            .iter()
-            .any(|e| e.concept == edge.target);
-        if !supplier_exports_it {
-            out.push(Violation::Context(ContextViolation::CrossEdgeUndeclared {
-                concept,
-                owning_context,
-                edge_kind: edge.kind,
-                target,
-                target_context,
-                spec_source,
-            }));
+        if let Some(v) =
+            classify_cross_edge(&edge, source_ctx, target_ctx, imports, exports, spec_source)
+        {
+            out.push(v);
         }
     }
 }
 
-fn find_import<'a>(
-    imports: &'a [ContextImport],
+fn classify_cross_edge(
+    edge: &Edge,
+    source_ctx: &str,
     target_ctx: &str,
-    concept: &str,
-) -> Option<&'a ContextImport> {
-    imports
-        .iter()
-        .find(|i| i.from_context == target_ctx && i.concept == concept)
+    imports: &HashSet<ImportKey>,
+    exports: &HashSet<ExportKey>,
+    spec_source: &Source,
+) -> Option<Violation> {
+    let import_key = (
+        source_ctx.to_string(),
+        target_ctx.to_string(),
+        edge.target.clone(),
+    );
+    if !imports.contains(&import_key) {
+        return Some(Violation::Context(
+            ContextViolation::CrossEdgeUnauthorized {
+                concept: edge.source_concept.clone(),
+                owning_context: source_ctx.to_string(),
+                edge_kind: edge.kind,
+                target: edge.target.clone(),
+                target_context: target_ctx.to_string(),
+                spec_source: spec_source.clone(),
+            },
+        ));
+    }
+    let export_key = (target_ctx.to_string(), edge.target.clone());
+    if !exports.contains(&export_key) {
+        return Some(Violation::Context(ContextViolation::CrossEdgeUndeclared {
+            concept: edge.source_concept.clone(),
+            owning_context: source_ctx.to_string(),
+            edge_kind: edge.kind,
+            target: edge.target.clone(),
+            target_context: target_ctx.to_string(),
+            spec_source: spec_source.clone(),
+        }));
+    }
+    None
 }
 
-/// Extract the owning unit from a `Source::Code` path — everything before
-/// `/src/` in the normalised path. Returns `None` for Spec sources.
-///
-/// Examples:
-/// - `./domain/src/lib.rs` → `OwnedUnit("domain")`
-/// - `./adapters/markdown/src/lib.rs` → `OwnedUnit("adapters/markdown")`
-fn owning_unit(source: &Source) -> Option<OwnedUnit> {
+fn owning_unit_str(source: &Source) -> Option<String> {
     let path = match source {
         Source::Code { path, .. } => path,
         Source::Spec { .. } => return None,
@@ -167,7 +195,7 @@ fn owning_unit(source: &Source) -> Option<OwnedUnit> {
     let trimmed = path_str.trim_start_matches("./");
     trimmed
         .split_once("/src/")
-        .map(|(unit, _)| OwnedUnit(unit.to_string()))
+        .map(|(unit, _)| unit.to_string())
 }
 
 #[cfg(test)]

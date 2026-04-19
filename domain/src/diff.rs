@@ -91,7 +91,7 @@ pub fn diff(spec: CheckInput, code: Graph) -> Vec<Violation> {
         &mut violations,
     );
 
-    context::context_pass(&spec_contexts, &code_for_context, &mut violations);
+    context::context_pass(spec_contexts, code_for_context, &mut violations);
 
     violations.sort_by(|a, b| {
         let (ka, da) = violation_key(a);
