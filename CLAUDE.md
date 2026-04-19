@@ -80,12 +80,13 @@ Once ratified, the RFC's "Issue decomposition" section becomes the concrete back
 
 ## §3 — Dual control
 
-Every PR passes both gates. CI enforces them (`.gitea/workflows/ci.yml` jobs `dogfood` and `cfdb-check`).
+Every PR passes these gates. CI enforces them (`.gitea/workflows/ci.yml` jobs `dogfood`, `cfdb-check`, and `cross-dogfood`).
 
 | Gate | Tool | Question answered | Failure mode |
 |---|---|---|---|
 | Equivalence | `graph-specs check --specs specs/concepts/ --code .` | "Do the markdown specs match the code?" | Adding a `pub` type without a spec entry, or changing a signature without updating the spec |
 | Architectural bans | `cfdb violations` over `.cfdb/queries/*.cypher` | "Does the code use forbidden patterns?" | Introducing `.unwrap()` in `domain/` or `ports/`; future rules added per new RFC |
+| Cross-dogfood | `ci/cross-dogfood.sh` against companion at pinned SHA | "Does graph-specs still produce zero findings on cfdb?" | Any violation on companion → exit 30; see [docs/cross-fixture-bump.md](docs/cross-fixture-bump.md) |
 
 **Adding a new ban rule is an RFC-gated change.** The rule goes into the same PR as the code motivating it, with `schema_version: 1` proof that develop is zero-violation before the rule lands.
 
