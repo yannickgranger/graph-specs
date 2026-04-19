@@ -2,3 +2,4 @@
       Loaded 1049 security advisories (from /var/home/yg/.cargo/advisory-db)
     Updating crates.io index
     Scanning Cargo.lock for vulnerabilities (90 crate dependencies)
+audit exit: 0
