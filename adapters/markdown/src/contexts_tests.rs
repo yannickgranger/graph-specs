@@ -109,7 +109,7 @@ fn unknown_pattern_in_exports_yields_parse_error() {
                 "error should name the offending token, got: {message}"
             );
         }
-        other => panic!("expected ParseFailed, got {other:?}"),
+        other => unreachable!("expected ParseFailed, got {other:?}"),
     }
 }
 
@@ -143,7 +143,7 @@ fn missing_h1_yields_parse_error() {
         ReaderError::ParseFailed { message, .. } => {
             assert!(message.contains("# ContextName"));
         }
-        other => panic!("expected ParseFailed, got {other:?}"),
+        other => unreachable!("expected ParseFailed, got {other:?}"),
     }
 }
 
@@ -176,7 +176,7 @@ fn source_line_points_at_h1() {
     let decl = parse(src).expect("parse");
     match decl.source {
         Source::Spec { line, .. } => assert_eq!(line, 3),
-        Source::Code { .. } => panic!("expected Spec source"),
+        Source::Code { .. } => unreachable!("expected Spec source"),
     }
 }
 
