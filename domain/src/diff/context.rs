@@ -12,11 +12,7 @@
 use crate::{ContextDecl, ContextImport, ContextViolation, Graph, OwnedUnit, Source, Violation};
 use std::collections::HashMap;
 
-pub(super) fn context_pass(
-    spec_contexts: &[ContextDecl],
-    code: &Graph,
-    out: &mut Vec<Violation>,
-) {
+pub(super) fn context_pass(spec_contexts: &[ContextDecl], code: &Graph, out: &mut Vec<Violation>) {
     if spec_contexts.is_empty() {
         return;
     }
@@ -107,14 +103,16 @@ fn emit_cross_context_edge_violations(
             edge.target.as_str(),
         );
         if matching_import.is_none() {
-            out.push(Violation::Context(ContextViolation::CrossEdgeUnauthorized {
-                concept: edge.source_concept.clone(),
-                owning_context: source_ctx.clone(),
-                edge_kind: edge.kind,
-                target: edge.target.clone(),
-                target_context: target_ctx.clone(),
-                spec_source: source_ctx_decl.source.clone(),
-            }));
+            out.push(Violation::Context(
+                ContextViolation::CrossEdgeUnauthorized {
+                    concept: edge.source_concept.clone(),
+                    owning_context: source_ctx.clone(),
+                    edge_kind: edge.kind,
+                    target: edge.target.clone(),
+                    target_context: target_ctx.clone(),
+                    spec_source: source_ctx_decl.source.clone(),
+                },
+            ));
             continue;
         }
         // Import exists — verify supplier exports it.

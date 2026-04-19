@@ -76,15 +76,9 @@ fn ci(graph: Graph, contexts: Vec<ContextDecl>) -> CheckInput {
 
 #[test]
 fn empty_contexts_skip_context_pass() {
-    let spec = Graph::new(
-        vec![code_node("Foo", "domain")],
-        vec![],
-    );
+    let spec = Graph::new(vec![code_node("Foo", "domain")], vec![]);
     // Same Foo on code side — no concept violation.
-    let code = Graph::new(
-        vec![code_node("Foo", "domain")],
-        vec![],
-    );
+    let code = Graph::new(vec![code_node("Foo", "domain")], vec![]);
     let v = diff(ci(spec, vec![]), code);
     assert!(
         v.iter().all(|v| !matches!(v, Violation::Context(_))),
@@ -106,8 +100,12 @@ fn v03_regression_preserved_when_contexts_empty() {
     let spec = Graph::new(vec![spec_node], vec![]);
     let code = Graph::new(vec![code_node("CodeOnly", "domain")], vec![]);
     let v = diff(ci(spec, vec![]), code);
-    assert!(v.iter().any(|v| matches!(v, Violation::MissingInCode { .. })));
-    assert!(v.iter().any(|v| matches!(v, Violation::MissingInSpecs { .. })));
+    assert!(v
+        .iter()
+        .any(|v| matches!(v, Violation::MissingInCode { .. })));
+    assert!(v
+        .iter()
+        .any(|v| matches!(v, Violation::MissingInSpecs { .. })));
 }
 
 // --- MembershipUnknown ---------------------------------------------
@@ -133,8 +131,10 @@ fn membership_unknown_does_not_fire_for_declared_unit() {
     let contexts = vec![ctx("eq", &["domain"], vec![], vec![])];
     let v = diff(ci(Graph::default(), contexts), code);
     assert!(
-        !v.iter()
-            .any(|v| matches!(v, Violation::Context(ContextViolation::MembershipUnknown { .. }))),
+        !v.iter().any(|v| matches!(
+            v,
+            Violation::Context(ContextViolation::MembershipUnknown { .. })
+        )),
         "no MembershipUnknown expected"
     );
 }
@@ -142,12 +142,17 @@ fn membership_unknown_does_not_fire_for_declared_unit() {
 #[test]
 fn multi_level_unit_is_matched_by_path() {
     // `adapters/markdown` as OwnedUnit matches `./adapters/markdown/src/...`.
-    let code = Graph::new(vec![code_node("MarkdownReader", "adapters/markdown")], vec![]);
+    let code = Graph::new(
+        vec![code_node("MarkdownReader", "adapters/markdown")],
+        vec![],
+    );
     let contexts = vec![ctx("reading", &["adapters/markdown"], vec![], vec![])];
     let v = diff(ci(Graph::default(), contexts), code);
     assert!(
-        !v.iter()
-            .any(|v| matches!(v, Violation::Context(ContextViolation::MembershipUnknown { .. }))),
+        !v.iter().any(|v| matches!(
+            v,
+            Violation::Context(ContextViolation::MembershipUnknown { .. })
+        )),
         "multi-segment unit should be matched"
     );
 }
@@ -162,15 +167,19 @@ fn intra_context_edge_is_not_cross_context() {
     );
     let contexts = vec![ctx("eq", &["domain"], vec![], vec![])];
     let v = diff(ci(Graph::default(), contexts), code);
-    assert!(v
-        .iter()
-        .all(|v| !matches!(v, Violation::Context(ContextViolation::CrossEdgeUnauthorized { .. }))));
+    assert!(v.iter().all(|v| !matches!(
+        v,
+        Violation::Context(ContextViolation::CrossEdgeUnauthorized { .. })
+    )));
 }
 
 #[test]
 fn cross_context_edge_unauthorized_without_matching_import() {
     let code = Graph::new(
-        vec![code_node("Reader", "ports"), code_node("MR", "adapters/markdown")],
+        vec![
+            code_node("Reader", "ports"),
+            code_node("MR", "adapters/markdown"),
+        ],
         vec![code_edge("MR", EdgeKind::Implements, "Reader")],
     );
     let contexts = vec![
@@ -191,7 +200,10 @@ fn cross_context_edge_unauthorized_without_matching_import() {
 #[test]
 fn cross_context_edge_authorized_via_import_and_export() {
     let code = Graph::new(
-        vec![code_node("Reader", "ports"), code_node("MR", "adapters/markdown")],
+        vec![
+            code_node("Reader", "ports"),
+            code_node("MR", "adapters/markdown"),
+        ],
         vec![code_edge("MR", EdgeKind::Implements, "Reader")],
     );
     let contexts = vec![
@@ -210,8 +222,7 @@ fn cross_context_edge_authorized_via_import_and_export() {
     ];
     let v = diff(ci(Graph::default(), contexts), code);
     assert!(
-        v.iter()
-            .all(|v| !matches!(v, Violation::Context(_))),
+        v.iter().all(|v| !matches!(v, Violation::Context(_))),
         "authorized cross-context edge should produce no Context violations, got {v:?}"
     );
 }
@@ -219,7 +230,10 @@ fn cross_context_edge_authorized_via_import_and_export() {
 #[test]
 fn cross_context_edge_undeclared_when_supplier_does_not_export() {
     let code = Graph::new(
-        vec![code_node("Secret", "ports"), code_node("MR", "adapters/markdown")],
+        vec![
+            code_node("Secret", "ports"),
+            code_node("MR", "adapters/markdown"),
+        ],
         vec![code_edge("MR", EdgeKind::DependsOn, "Secret")],
     );
     let contexts = vec![

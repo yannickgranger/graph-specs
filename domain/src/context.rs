@@ -269,7 +269,6 @@ fn visit_neighbour<'a>(
     dfs_cycle(next, adj, visited, stack, path)
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
