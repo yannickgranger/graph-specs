@@ -73,6 +73,24 @@ pub trait Reader {
 }
 ```
 
+## ContextReader
+
+The v0.4 bounded-context port trait. Separate from [Reader](#reader)
+because not every adapter parses context files — the rust adapter
+implements only [Reader](#reader); the markdown adapter implements
+both. Returns a list of [ContextDecl](#contextdecl) values or a
+[ReaderError](#readererror) on malformed input. An empty list is a
+valid result on v0.3 spec trees. Lives in `ports`.
+
+```rust
+pub trait ContextReader {
+    fn extract_contexts(&self, root: &Path) -> Result<Vec<ContextDecl>, ReaderError>;
+}
+```
+
+- depends on: ContextDecl
+- depends on: ReaderError
+
 ## ReaderError
 
 Failure modes of a [Reader](#reader) implementation. Describes
