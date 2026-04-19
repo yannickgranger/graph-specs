@@ -5,15 +5,20 @@
 //! (e.g. qbot-core's Study 002 Phase A1 pipeline). See
 //! `specs/ndjson-output.md` for the authoritative schema.
 //!
-//! Schema v1 invariants:
-//! - every record carries `"schema_version":"1"` at the top level
+//! Schema v2 invariants:
+//! - every record carries `"schema_version":"2"` at the top level
 //! - `violation` is the `snake_case` variant discriminator
 //! - record order matches the `violations` argument order
 //! - no trailing comma, no final newline suppression — each record
 //!   ends in `\n`
 //! - path strings are emitted via [`std::path::Path::to_string_lossy`]
+//!
+//! v2 adds three variants over v1: `context_membership_unknown`,
+//! `cross_context_edge_unauthorized`, `cross_context_edge_undeclared`.
+//! All v1 records are structurally unchanged except for the version
+//! bump. Consumers pin on `schema_version` and select a variant set.
 
-use domain::{Source, Violation};
+use domain::{ContextViolation, Source, Violation};
 use serde_json::{json, Value};
 use std::io::Write;
 use std::path::Path;
@@ -36,13 +41,13 @@ pub fn write_ndjson(violations: &[Violation], out: &mut impl Write) -> std::io::
 fn violation_to_record(v: &Violation) -> Value {
     match v {
         Violation::MissingInCode { name, spec_source } => json!({
-            "schema_version": "1",
+            "schema_version": "2",
             "violation": "missing_in_code",
             "concept": name,
             "source": source_to_json(spec_source),
         }),
         Violation::MissingInSpecs { name, code_source } => json!({
-            "schema_version": "1",
+            "schema_version": "2",
             "violation": "missing_in_specs",
             "concept": name,
             "source": source_to_json(code_source),
@@ -54,7 +59,7 @@ fn violation_to_record(v: &Violation) -> Value {
             spec_source,
             code_source,
         } => json!({
-            "schema_version": "1",
+            "schema_version": "2",
             "violation": "signature_drift",
             "concept": name,
             "spec_sig": spec_sig,
@@ -67,7 +72,7 @@ fn violation_to_record(v: &Violation) -> Value {
             code_sig,
             code_source,
         } => json!({
-            "schema_version": "1",
+            "schema_version": "2",
             "violation": "signature_missing_in_spec",
             "concept": name,
             "code_sig": code_sig,
@@ -79,7 +84,7 @@ fn violation_to_record(v: &Violation) -> Value {
             error,
             source,
         } => json!({
-            "schema_version": "1",
+            "schema_version": "2",
             "violation": "signature_unparseable",
             "concept": name,
             "raw": raw,
@@ -92,7 +97,7 @@ fn violation_to_record(v: &Violation) -> Value {
             target,
             spec_source,
         } => json!({
-            "schema_version": "1",
+            "schema_version": "2",
             "violation": "edge_missing_in_code",
             "concept": concept,
             "edge_kind": edge_kind.as_label(),
@@ -105,7 +110,7 @@ fn violation_to_record(v: &Violation) -> Value {
             target,
             code_source,
         } => json!({
-            "schema_version": "1",
+            "schema_version": "2",
             "violation": "edge_missing_in_spec",
             "concept": concept,
             "edge_kind": edge_kind.as_label(),
@@ -118,19 +123,72 @@ fn violation_to_record(v: &Violation) -> Value {
             target,
             spec_source,
         } => json!({
-            "schema_version": "1",
+            "schema_version": "2",
             "violation": "edge_target_unknown",
             "concept": concept,
             "edge_kind": edge_kind.as_label(),
             "target": target,
             "spec_source": source_to_json(spec_source),
         }),
-        Violation::Context(_) => {
-            // v0.4 context violations are only emitted by the diff context
-            // pass — not yet implemented (see #25). The NDJSON schema-v2
-            // variants for context violations land in #25 as well.
-            unreachable!("v0.4 context violations: emission and schema v2 land in #25");
-        }
+        Violation::Context(ctx) => context_violation_to_record(ctx),
+    }
+}
+
+fn context_violation_to_record(v: &ContextViolation) -> Value {
+    match v {
+        ContextViolation::MembershipUnknown {
+            concept,
+            owned_unit,
+            code_source,
+        } => json!({
+            "schema_version": "2",
+            "violation": "context_membership_unknown",
+            "concept": concept,
+            "owned_unit": owned_unit.0,
+            "source": source_to_json(code_source),
+        }),
+        ContextViolation::CrossEdgeUnauthorized {
+            concept,
+            owning_context,
+            edge_kind,
+            target,
+            target_context,
+            spec_source,
+        } => json!({
+            "schema_version": "2",
+            "violation": "cross_context_edge_unauthorized",
+            "concept": concept,
+            "owning_context": owning_context,
+            "edge_kind": edge_kind.as_label(),
+            "target": target,
+            "target_context": target_context,
+            "spec_source": source_to_json(spec_source),
+        }),
+        ContextViolation::CrossEdgeUndeclared {
+            concept,
+            owning_context,
+            edge_kind,
+            target,
+            target_context,
+            spec_source,
+        } => json!({
+            "schema_version": "2",
+            "violation": "cross_context_edge_undeclared",
+            "concept": concept,
+            "owning_context": owning_context,
+            "edge_kind": edge_kind.as_label(),
+            "target": target,
+            "target_context": target_context,
+            "spec_source": source_to_json(spec_source),
+        }),
+        // Forward-compat: a v0.5 variant added upstream emits a generic
+        // record rather than panicking. `#[non_exhaustive]` on
+        // `ContextViolation` mandates this arm.
+        _ => json!({
+            "schema_version": "2",
+            "violation": "unknown_context_violation",
+            "concept": v.concept(),
+        }),
     }
 }
 
@@ -179,7 +237,7 @@ mod tests {
         let out = render_one(v);
         assert!(out.ends_with('\n'));
         let r = record(&out);
-        assert_eq!(r["schema_version"], "1");
+        assert_eq!(r["schema_version"], "2");
         assert_eq!(r["violation"], "missing_in_code");
         assert_eq!(r["concept"], "Foo");
         assert_eq!(r["source"]["kind"], "spec");
@@ -360,7 +418,7 @@ mod tests {
     }
 
     #[test]
-    fn each_record_has_schema_version_one() {
+    fn each_record_has_schema_version_two() {
         let v = Violation::MissingInCode {
             name: "X".into(),
             spec_source: Source::Spec {
@@ -369,6 +427,71 @@ mod tests {
             },
         };
         let r = record(&render_one(v));
-        assert_eq!(r["schema_version"], "1");
+        assert_eq!(r["schema_version"], "2");
+    }
+
+    // --- v0.4 context violation records (#26) -------------------------
+
+    use domain::OwnedUnit;
+
+    #[test]
+    fn context_membership_unknown_record() {
+        let v = Violation::Context(ContextViolation::MembershipUnknown {
+            concept: "Orphan".into(),
+            owned_unit: OwnedUnit("stray-crate".into()),
+            code_source: Source::Code {
+                path: PathBuf::from("stray-crate/src/lib.rs"),
+                line: 3,
+            },
+        });
+        let r = record(&render_one(v));
+        assert_eq!(r["schema_version"], "2");
+        assert_eq!(r["violation"], "context_membership_unknown");
+        assert_eq!(r["concept"], "Orphan");
+        assert_eq!(r["owned_unit"], "stray-crate");
+        assert_eq!(r["source"]["kind"], "code");
+    }
+
+    #[test]
+    fn cross_context_edge_unauthorized_record() {
+        let v = Violation::Context(ContextViolation::CrossEdgeUnauthorized {
+            concept: "MarkdownReader".into(),
+            owning_context: "reading".into(),
+            edge_kind: EdgeKind::DependsOn,
+            target: "TradingPort".into(),
+            target_context: "trading".into(),
+            spec_source: Source::Spec {
+                path: PathBuf::from("specs/contexts/reading.md"),
+                line: 12,
+            },
+        });
+        let r = record(&render_one(v));
+        assert_eq!(r["violation"], "cross_context_edge_unauthorized");
+        assert_eq!(r["concept"], "MarkdownReader");
+        assert_eq!(r["owning_context"], "reading");
+        assert_eq!(r["edge_kind"], "DEPENDS_ON");
+        assert_eq!(r["target"], "TradingPort");
+        assert_eq!(r["target_context"], "trading");
+        assert_eq!(r["spec_source"]["kind"], "spec");
+    }
+
+    #[test]
+    fn cross_context_edge_undeclared_record() {
+        let v = Violation::Context(ContextViolation::CrossEdgeUndeclared {
+            concept: "MarkdownReader".into(),
+            owning_context: "reading".into(),
+            edge_kind: EdgeKind::Implements,
+            target: "Reader".into(),
+            target_context: "equivalence".into(),
+            spec_source: Source::Spec {
+                path: PathBuf::from("specs/contexts/reading.md"),
+                line: 12,
+            },
+        });
+        let r = record(&render_one(v));
+        assert_eq!(r["violation"], "cross_context_edge_undeclared");
+        assert_eq!(r["edge_kind"], "IMPLEMENTS");
+        assert_eq!(r["target"], "Reader");
+        assert_eq!(r["target_context"], "equivalence");
     }
 }
