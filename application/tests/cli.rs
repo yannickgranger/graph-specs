@@ -487,7 +487,7 @@ fn ndjson_missing_in_code_emits_one_record_exit_one() {
     assert_eq!(out.status.code(), Some(1));
     let records = parse_ndjson(&out.stdout);
     assert_eq!(records.len(), 1);
-    assert_eq!(records[0]["schema_version"], "1");
+    assert_eq!(records[0]["schema_version"], "2");
     assert_eq!(records[0]["violation"], "missing_in_code");
     assert_eq!(records[0]["concept"], "OnlySpec");
     assert_eq!(records[0]["source"]["kind"], "spec");
