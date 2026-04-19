@@ -1,41 +1,28 @@
-//! Integration test for the [`ContextReader`] port contract.
-//!
-//! The port is a pure contract — no production adapter ships in this
-//! slice (markdown implements `ContextReader` in #24). The stub here
-//! exists only to exercise the trait's shape: can it be implemented,
-//! is it object-safe, does the return type thread a `Vec<ContextDecl>`
-//! without allocation surprises?
-//!
-//! Rationale per RFC-001 round-1 clean-arch lens: every port addition
-//! must be exercised by at least one implementer proof-of-life, even
-//! when no production adapter lands in the same slice.
+//! Compile-time proof that [`ContextReader`] is implementable and
+//! object-safe. No production stub ships — #24 lands the markdown impl.
 
 use domain::ContextDecl;
 use ports::{ContextReader, ReaderError};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-/// Test-only no-op implementor. Returns an empty context list regardless
-/// of input — proves the trait's call signature and return type compile.
-struct NoOpStub;
+/// Returns `Err` deliberately — a double that can't fail proves nothing
+/// about error propagation (CLAUDE.md §6 rule 3).
+struct ErrStub;
 
-impl ContextReader for NoOpStub {
-    fn extract_contexts(&self, _root: &Path) -> Result<Vec<ContextDecl>, ReaderError> {
-        Ok(Vec::new())
+impl ContextReader for ErrStub {
+    fn extract_contexts(&self, _: &Path) -> Result<Vec<ContextDecl>, ReaderError> {
+        Err(ReaderError::IoFailed {
+            path: PathBuf::from("<compile-proof>"),
+            cause: "compile proof — not a real reader".into(),
+        })
     }
 }
 
 #[test]
-fn context_reader_contract_is_implementable() {
-    let r = NoOpStub;
-    let result = r.extract_contexts(Path::new("."));
-    let contexts = result.expect("NoOpStub cannot fail");
-    assert!(contexts.is_empty());
-}
-
-#[test]
-fn context_reader_is_object_safe() {
-    // Trait-object ergonomics — callers holding the reader behind a
-    // Box / Arc must not hit a "not object-safe" compile error.
-    let r: Box<dyn ContextReader> = Box::new(NoOpStub);
-    let _: Result<Vec<ContextDecl>, ReaderError> = r.extract_contexts(Path::new("."));
+fn context_reader_contract_is_implementable_and_object_safe() {
+    let r: Box<dyn ContextReader> = Box::new(ErrStub);
+    let err = r
+        .extract_contexts(Path::new("."))
+        .expect_err("ErrStub always fails");
+    assert!(matches!(err, ReaderError::IoFailed { .. }));
 }
