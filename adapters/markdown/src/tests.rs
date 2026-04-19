@@ -5,33 +5,33 @@ use tempfile::TempDir;
 fn write(dir: &Path, rel: &str, content: &str) {
     let full = dir.join(rel);
     if let Some(parent) = full.parent() {
-        std::fs::create_dir_all(parent).unwrap();
+        std::fs::create_dir_all(parent).expect("test");
     }
-    let mut f = std::fs::File::create(&full).unwrap();
-    f.write_all(content.as_bytes()).unwrap();
+    let mut f = std::fs::File::create(&full).expect("test");
+    f.write_all(content.as_bytes()).expect("test");
 }
 
 fn extract(dir: &Path) -> Vec<String> {
-    let g = MarkdownReader.extract(dir).unwrap();
+    let g = MarkdownReader.extract(dir).expect("test");
     let mut names: Vec<String> = g.nodes.into_iter().map(|n| n.name).collect();
     names.sort();
     names
 }
 
 fn extract_graph(dir: &Path) -> Graph {
-    MarkdownReader.extract(dir).unwrap()
+    MarkdownReader.extract(dir).expect("test")
 }
 
 #[test]
 fn captures_h2_and_h3_headings() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("test");
     write(d.path(), "a.md", "## Foo\n### Bar\n");
     assert_eq!(extract(d.path()), vec!["Bar", "Foo"]);
 }
 
 #[test]
 fn ignores_h1_and_deeper_than_h3() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("test");
     write(
         d.path(),
         "a.md",
@@ -42,7 +42,7 @@ fn ignores_h1_and_deeper_than_h3() {
 
 #[test]
 fn ignores_prose_and_nonmatching_bullets() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("test");
     write(
         d.path(),
         "a.md",
@@ -58,7 +58,7 @@ fn ignores_prose_and_nonmatching_bullets() {
 
 #[test]
 fn ignores_fenced_code_blocks_for_concept_names() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("test");
     write(
         d.path(),
         "a.md",
@@ -69,23 +69,23 @@ fn ignores_fenced_code_blocks_for_concept_names() {
 
 #[test]
 fn strips_generics_from_heading() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("test");
     write(d.path(), "a.md", "## Graph<T>\n");
     assert_eq!(extract(d.path()), vec!["Graph"]);
 }
 
 #[test]
 fn handles_inline_backticks_in_heading() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("test");
     write(d.path(), "a.md", "## `Reader`\n");
     assert_eq!(extract(d.path()), vec!["Reader"]);
 }
 
 #[test]
 fn records_correct_line_number() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("test");
     write(d.path(), "a.md", "# Title\n\n## OnLine3\n");
-    let g = MarkdownReader.extract(d.path()).unwrap();
+    let g = MarkdownReader.extract(d.path()).expect("test");
     match &g.nodes[0].source {
         Source::Spec { line, .. } => assert_eq!(*line, 3),
         Source::Code { .. } => panic!("expected Spec source"),
@@ -94,7 +94,7 @@ fn records_correct_line_number() {
 
 #[test]
 fn non_md_files_are_ignored() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("test");
     write(d.path(), "a.md", "## FromMd\n");
     write(d.path(), "a.txt", "## FromTxt\n");
     assert_eq!(extract(d.path()), vec!["FromMd"]);
@@ -103,7 +103,7 @@ fn non_md_files_are_ignored() {
 // --- v0.2 signature-level tests ---
 
 fn extract_sig(dir: &Path, concept: &str) -> SignatureState {
-    let g = MarkdownReader.extract(dir).unwrap();
+    let g = MarkdownReader.extract(dir).expect("test");
     g.nodes
         .into_iter()
         .find(|n| n.name == concept)
@@ -113,14 +113,14 @@ fn extract_sig(dir: &Path, concept: &str) -> SignatureState {
 
 #[test]
 fn concept_without_rust_block_has_absent_signature() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("test");
     write(d.path(), "a.md", "## Foo\n\nJust prose.\n");
     assert_eq!(extract_sig(d.path(), "Foo"), SignatureState::Absent);
 }
 
 #[test]
 fn concept_with_rust_block_has_normalized_signature() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("test");
     write(
         d.path(),
         "a.md",
@@ -137,7 +137,7 @@ fn concept_with_rust_block_has_normalized_signature() {
 
 #[test]
 fn non_rust_fenced_blocks_do_not_populate_signature() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("test");
     write(
         d.path(),
         "a.md",
@@ -148,7 +148,7 @@ fn non_rust_fenced_blocks_do_not_populate_signature() {
 
 #[test]
 fn unparseable_rust_block_becomes_unparseable_signature() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("test");
     write(
         d.path(),
         "a.md",
@@ -165,7 +165,7 @@ fn unparseable_rust_block_becomes_unparseable_signature() {
 
 #[test]
 fn multiple_rust_blocks_in_one_concept_is_unparseable() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("test");
     write(
         d.path(),
         "a.md",
@@ -181,7 +181,7 @@ fn multiple_rust_blocks_in_one_concept_is_unparseable() {
 
 #[test]
 fn rust_block_scoped_to_current_concept_only() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("test");
     write(
         d.path(),
         "a.md",
@@ -196,13 +196,13 @@ fn rust_block_scoped_to_current_concept_only() {
 
 #[test]
 fn rust_block_before_first_heading_is_ignored() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("test");
     write(
         d.path(),
         "a.md",
         "```rust\npub struct Orphan;\n```\n\n## Foo\n",
     );
-    let g = MarkdownReader.extract(d.path()).unwrap();
+    let g = MarkdownReader.extract(d.path()).expect("test");
     let names: Vec<&str> = g.nodes.iter().map(|n| n.name.as_str()).collect();
     assert_eq!(names, vec!["Foo"]);
     assert_eq!(g.nodes[0].signature, SignatureState::Absent);
@@ -219,7 +219,7 @@ fn find_edges_for<'a>(edges: &'a [Edge], concept: &str) -> Vec<&'a Edge> {
 
 #[test]
 fn implements_bullet_yields_edge() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("test");
     write(
         d.path(),
         "a.md",
@@ -235,7 +235,7 @@ fn implements_bullet_yields_edge() {
 
 #[test]
 fn depends_on_bullet_yields_edge() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("test");
     write(
         d.path(),
         "a.md",
@@ -250,7 +250,7 @@ fn depends_on_bullet_yields_edge() {
 
 #[test]
 fn returns_bullet_yields_edge_and_tokenises_target() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("test");
     write(
         d.path(),
         "a.md",
@@ -266,7 +266,7 @@ fn returns_bullet_yields_edge_and_tokenises_target() {
 
 #[test]
 fn multiple_bullets_yield_multiple_edges() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("test");
     write(
         d.path(),
         "a.md",
@@ -285,7 +285,7 @@ fn multiple_bullets_yield_multiple_edges() {
 
 #[test]
 fn bullet_without_matching_prefix_is_prose() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("test");
     write(
         d.path(),
         "a.md",
@@ -297,7 +297,7 @@ fn bullet_without_matching_prefix_is_prose() {
 
 #[test]
 fn empty_bullet_target_is_ignored() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("test");
     write(
         d.path(),
         "a.md",
@@ -309,7 +309,7 @@ fn empty_bullet_target_is_ignored() {
 
 #[test]
 fn prefix_match_is_case_sensitive() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("test");
     write(
         d.path(),
         "a.md",
@@ -321,7 +321,7 @@ fn prefix_match_is_case_sensitive() {
 
 #[test]
 fn bullet_before_any_heading_is_ignored() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("test");
     write(d.path(), "a.md", "- implements: Ghost\n\n## Foo\n");
     let g = extract_graph(d.path());
     assert!(g.edges.is_empty());
@@ -329,7 +329,7 @@ fn bullet_before_any_heading_is_ignored() {
 
 #[test]
 fn edges_are_scoped_to_current_concept_section() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("test");
     write(
         d.path(),
         "a.md",
@@ -348,7 +348,7 @@ fn edges_are_scoped_to_current_concept_section() {
 
 #[test]
 fn bullet_with_inline_backticks_yields_edge() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("test");
     write(d.path(), "a.md", "## Foo\n\n- implements: `Reader`\n");
     let g = extract_graph(d.path());
     let edges = find_edges_for(&g.edges, "Foo");
@@ -358,7 +358,7 @@ fn bullet_with_inline_backticks_yields_edge() {
 
 #[test]
 fn bullets_coexist_with_rust_block_in_same_section() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("test");
     write(
         d.path(),
         "a.md",
@@ -367,7 +367,7 @@ fn bullets_coexist_with_rust_block_in_same_section() {
     let g = extract_graph(d.path());
     let edges = find_edges_for(&g.edges, "Reader");
     assert_eq!(edges.len(), 2);
-    let reader_node = g.nodes.iter().find(|n| n.name == "Reader").unwrap();
+    let reader_node = g.nodes.iter().find(|n| n.name == "Reader").expect("test");
     assert!(matches!(
         reader_node.signature,
         SignatureState::Normalized(_)
@@ -376,7 +376,7 @@ fn bullets_coexist_with_rust_block_in_same_section() {
 
 #[test]
 fn bullet_edge_source_line_is_recorded() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("test");
     write(
         d.path(),
         "a.md",
@@ -396,7 +396,7 @@ fn bullet_edge_source_line_is_recorded() {
 
 #[test]
 fn module_path_target_is_tokenised() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("test");
     write(d.path(), "a.md", "## Foo\n\n- depends on: domain::Graph\n");
     let g = extract_graph(d.path());
     let edges = find_edges_for(&g.edges, "Foo");

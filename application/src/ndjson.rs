@@ -7,8 +7,8 @@
 //!
 //! Schema v1 invariants:
 //! - every record carries `"schema_version":"1"` at the top level
-//! - `violation` is the snake_case variant discriminator
-//! - record order matches the `violations` slice order
+//! - `violation` is the `snake_case` variant discriminator
+//! - record order matches the `violations` argument order
 //! - no trailing comma, no final newline suppression — each record
 //!   ends in `\n`
 //! - path strings are emitted via [`std::path::Path::to_string_lossy`]
@@ -19,6 +19,11 @@ use std::io::Write;
 use std::path::Path;
 
 /// Write violations as NDJSON to `out`.
+///
+/// # Errors
+///
+/// Propagates any [`std::io::Error`] from the underlying writer —
+/// typically a broken pipe when stdout is closed downstream.
 pub fn write_ndjson(violations: &[Violation], out: &mut impl Write) -> std::io::Result<()> {
     for v in violations {
         let record = violation_to_record(v);
