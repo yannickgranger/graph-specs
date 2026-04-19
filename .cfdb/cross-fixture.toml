@@ -1,0 +1,25 @@
+# .cfdb/cross-fixture.toml — cross-dogfood fixture pin per RFC-002 §3.1.
+#
+# Pins the companion repository (cfdb) at a known-good SHA. Bumped by the
+# weekly cross-bump job (RFC-002 §3.3, Monday 06:30 UTC) or manually in an
+# RFC-002-gated PR with a one-line rationale. The pinned SHA is expected to
+# be clean on both tools — the zero-false-positive invariant (§3.4) forbids
+# allowlists.
+#
+# Parse discipline: `ci/read-cross-fixture-sha.sh` is the single source of
+# truth for extracting `sha`. Both PR-time cross-dogfood (§3.2) and the
+# weekly bump / closed-loop jobs (§3.3, §3.6) call the same helper.
+#
+# This is NOT the same SHA universe as `.cfdb/cfdb.rev`. That file pins the
+# cfdb binary used by graph-specs' own cfdb-check CI job ("does graph-specs'
+# code satisfy a known-good cfdb's ban rules?"). This file pins the cfdb
+# source tree tested AGAINST by graph-specs' current binary ("does my
+# current graph-specs handle the companion's code?"). rust-systems C1 —
+# do not unify these SHAs.
+
+[companion]
+repo      = "yg/cfdb"
+branch    = "develop"
+sha       = "b39bf622e3baee48f2a1383177507b3e3952ae58"
+bumped_at = "2026-04-19T00:00:00Z"
+bumped_by = "initial"
