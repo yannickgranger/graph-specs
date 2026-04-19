@@ -1,0 +1,116 @@
+   Compiling application v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/13-ndjson/application)
+warning: function `violation_to_record` is never used
+  --> application/src/ndjson.rs:29:4
+   |
+29 | fn violation_to_record(v: &Violation) -> Value {
+   |    ^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `source_to_json` is never used
+   --> application/src/ndjson.rs:124:4
+    |
+124 | fn source_to_json(s: &Source) -> Value {
+    |    ^^^^^^^^^^^^^^
+
+warning: function `path_to_string` is never used
+   --> application/src/ndjson.rs:136:4
+    |
+136 | fn path_to_string(p: &Path) -> String {
+    |    ^^^^^^^^^^^^^^
+
+warning: `application` (lib test) generated 3 warnings
+warning: `application` (lib) generated 3 warnings (3 duplicates)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.59s
+     Running unittests src/lib.rs (target/debug/deps/application-74e52af9febebffe)
+
+running 13 tests
+test ndjson::tests::each_record_has_schema_version_one ... FAILED
+test ndjson::tests::edge_missing_in_code_record ... FAILED
+test ndjson::tests::signature_drift_record ... FAILED
+test ndjson::tests::signature_missing_in_spec_record ... FAILED
+test ndjson::tests::empty_violations_writes_nothing ... FAILED
+test tests::empty_trees_yield_no_violations ... ok
+test ndjson::tests::signature_unparseable_record ... FAILED
+test ndjson::tests::missing_in_code_record ... FAILED
+test ndjson::tests::edge_missing_in_spec_record ... FAILED
+test tests::matching_tree_yields_no_violations ... ok
+test ndjson::tests::edge_target_unknown_record ... FAILED
+test ndjson::tests::missing_in_specs_record ... FAILED
+test ndjson::tests::multiple_violations_are_newline_delimited ... FAILED
+
+failures:
+
+---- ndjson::tests::each_record_has_schema_version_one stdout ----
+
+thread 'ndjson::tests::each_record_has_schema_version_one' (575984) panicked at application/src/ndjson.rs:26:5:
+not yet implemented: RED phase — not yet implemented
+
+---- ndjson::tests::edge_missing_in_code_record stdout ----
+
+thread 'ndjson::tests::edge_missing_in_code_record' (575985) panicked at application/src/ndjson.rs:26:5:
+not yet implemented: RED phase — not yet implemented
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- ndjson::tests::signature_drift_record stdout ----
+
+thread 'ndjson::tests::signature_drift_record' (575992) panicked at application/src/ndjson.rs:26:5:
+not yet implemented: RED phase — not yet implemented
+
+---- ndjson::tests::signature_missing_in_spec_record stdout ----
+
+thread 'ndjson::tests::signature_missing_in_spec_record' (575993) panicked at application/src/ndjson.rs:26:5:
+not yet implemented: RED phase — not yet implemented
+
+---- ndjson::tests::empty_violations_writes_nothing stdout ----
+
+thread 'ndjson::tests::empty_violations_writes_nothing' (575988) panicked at application/src/ndjson.rs:26:5:
+not yet implemented: RED phase — not yet implemented
+
+---- ndjson::tests::signature_unparseable_record stdout ----
+
+thread 'ndjson::tests::signature_unparseable_record' (575994) panicked at application/src/ndjson.rs:26:5:
+not yet implemented: RED phase — not yet implemented
+
+---- ndjson::tests::missing_in_code_record stdout ----
+
+thread 'ndjson::tests::missing_in_code_record' (575989) panicked at application/src/ndjson.rs:26:5:
+not yet implemented: RED phase — not yet implemented
+
+---- ndjson::tests::edge_missing_in_spec_record stdout ----
+
+thread 'ndjson::tests::edge_missing_in_spec_record' (575986) panicked at application/src/ndjson.rs:26:5:
+not yet implemented: RED phase — not yet implemented
+
+---- ndjson::tests::edge_target_unknown_record stdout ----
+
+thread 'ndjson::tests::edge_target_unknown_record' (575987) panicked at application/src/ndjson.rs:26:5:
+not yet implemented: RED phase — not yet implemented
+
+---- ndjson::tests::missing_in_specs_record stdout ----
+
+thread 'ndjson::tests::missing_in_specs_record' (575990) panicked at application/src/ndjson.rs:26:5:
+not yet implemented: RED phase — not yet implemented
+
+---- ndjson::tests::multiple_violations_are_newline_delimited stdout ----
+
+thread 'ndjson::tests::multiple_violations_are_newline_delimited' (575991) panicked at application/src/ndjson.rs:26:5:
+not yet implemented: RED phase — not yet implemented
+
+
+failures:
+    ndjson::tests::each_record_has_schema_version_one
+    ndjson::tests::edge_missing_in_code_record
+    ndjson::tests::edge_missing_in_spec_record
+    ndjson::tests::edge_target_unknown_record
+    ndjson::tests::empty_violations_writes_nothing
+    ndjson::tests::missing_in_code_record
+    ndjson::tests::missing_in_specs_record
+    ndjson::tests::multiple_violations_are_newline_delimited
+    ndjson::tests::signature_drift_record
+    ndjson::tests::signature_missing_in_spec_record
+    ndjson::tests::signature_unparseable_record
+
+test result: FAILED. 2 passed; 11 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p application --lib`

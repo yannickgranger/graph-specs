@@ -434,3 +434,137 @@ fn code_only_concept_exits_1_with_missing_in_specs() {
         .stdout(predicate::str::contains("missing in specs: Undeclared"))
         .stdout(predicate::str::contains("1 violation"));
 }
+
+// --- NDJSON output (issue #13) --------------------------------------------
+
+fn run_ndjson(specs: &Path, code: &Path) -> std::process::Output {
+    bin()
+        .args([
+            "check",
+            "--specs",
+            specs.to_str().unwrap(),
+            "--code",
+            code.to_str().unwrap(),
+            "--format",
+            "ndjson",
+        ])
+        .output()
+        .expect("run")
+}
+
+fn parse_ndjson(stdout: &[u8]) -> Vec<serde_json::Value> {
+    let s = std::str::from_utf8(stdout).expect("utf8");
+    s.lines()
+        .filter(|l| !l.is_empty())
+        .map(|l| serde_json::from_str(l).expect("valid json line"))
+        .collect()
+}
+
+#[test]
+fn ndjson_on_clean_tree_emits_empty_stdout_and_exit_zero() {
+    let specs = TempDir::new().unwrap();
+    let code = TempDir::new().unwrap();
+    write_file(specs.path(), "core.md", "## Foo\n");
+    write_file(code.path(), "src/lib.rs", "pub struct Foo;");
+
+    let out = run_ndjson(specs.path(), code.path());
+    assert_eq!(out.status.code(), Some(0));
+    assert!(
+        out.stdout.is_empty(),
+        "ndjson on clean tree must emit no stdout; got: {}",
+        String::from_utf8_lossy(&out.stdout)
+    );
+}
+
+#[test]
+fn ndjson_missing_in_code_emits_one_record_exit_one() {
+    let specs = TempDir::new().unwrap();
+    let code = TempDir::new().unwrap();
+    write_file(specs.path(), "core.md", "## OnlySpec\n");
+    write_file(code.path(), "src/lib.rs", "");
+
+    let out = run_ndjson(specs.path(), code.path());
+    assert_eq!(out.status.code(), Some(1));
+    let records = parse_ndjson(&out.stdout);
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0]["schema_version"], "1");
+    assert_eq!(records[0]["violation"], "missing_in_code");
+    assert_eq!(records[0]["concept"], "OnlySpec");
+    assert_eq!(records[0]["source"]["kind"], "spec");
+}
+
+#[test]
+fn ndjson_missing_in_specs_emits_one_record_exit_one() {
+    let specs = TempDir::new().unwrap();
+    let code = TempDir::new().unwrap();
+    write_file(specs.path(), "core.md", "");
+    write_file(code.path(), "src/lib.rs", "pub struct OnlyCode;");
+
+    let out = run_ndjson(specs.path(), code.path());
+    assert_eq!(out.status.code(), Some(1));
+    let records = parse_ndjson(&out.stdout);
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0]["violation"], "missing_in_specs");
+    assert_eq!(records[0]["concept"], "OnlyCode");
+    assert_eq!(records[0]["source"]["kind"], "code");
+}
+
+#[test]
+fn ndjson_signature_unparseable_exits_two() {
+    let specs = TempDir::new().unwrap();
+    let code = TempDir::new().unwrap();
+    write_file(specs.path(), "core.md", "## Foo\n\n```rust\nfn foo(\n```\n");
+    write_file(code.path(), "src/lib.rs", "pub struct Foo;");
+
+    let out = run_ndjson(specs.path(), code.path());
+    assert_eq!(out.status.code(), Some(2));
+    let records = parse_ndjson(&out.stdout);
+    assert!(
+        records
+            .iter()
+            .any(|r| r["violation"] == "signature_unparseable"),
+        "expected signature_unparseable record, got: {records:?}"
+    );
+}
+
+#[test]
+fn ndjson_multiple_violations_newline_delimited_each_parseable() {
+    let specs = TempDir::new().unwrap();
+    let code = TempDir::new().unwrap();
+    write_file(specs.path(), "core.md", "## SpecOnly\n");
+    write_file(code.path(), "src/lib.rs", "pub struct CodeOnly;");
+
+    let out = run_ndjson(specs.path(), code.path());
+    assert_eq!(out.status.code(), Some(1));
+    let records = parse_ndjson(&out.stdout);
+    assert_eq!(records.len(), 2);
+    // Each record must parse independently — the invariant of NDJSON.
+    // parse_ndjson already asserts this (it would panic on invalid line).
+    let violations: Vec<&str> = records
+        .iter()
+        .map(|r| r["violation"].as_str().unwrap())
+        .collect();
+    assert!(violations.contains(&"missing_in_code"));
+    assert!(violations.contains(&"missing_in_specs"));
+}
+
+#[test]
+fn ndjson_text_format_unchanged_by_flag_absence() {
+    // Regression: default output (no --format) must match legacy text.
+    let specs = TempDir::new().unwrap();
+    let code = TempDir::new().unwrap();
+    write_file(specs.path(), "core.md", "## Foo\n");
+    write_file(code.path(), "src/lib.rs", "pub struct Foo;");
+
+    bin()
+        .args([
+            "check",
+            "--specs",
+            specs.path().to_str().unwrap(),
+            "--code",
+            code.path().to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("0 violations"));
+}
