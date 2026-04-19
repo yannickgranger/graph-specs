@@ -61,7 +61,7 @@ impl Reader for RustReader {
         }
 
         let edges = edges::filter_by_known_concepts(raw_edges, &nodes);
-        Ok(Graph { nodes, edges })
+        Ok(Graph::new(nodes, edges))
     }
 }
 

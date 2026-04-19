@@ -1,5 +1,8 @@
-use super::diff;
-use crate::{ConceptNode, Edge, EdgeKind, Graph, SignatureState, Source, Violation};
+use super::{diff, violation_key};
+use crate::{
+    ConceptNode, ContextViolation, Edge, EdgeKind, Graph, OwnedUnit, SignatureState, Source,
+    Violation,
+};
 use std::path::PathBuf;
 
 fn spec_path() -> PathBuf {
@@ -439,4 +442,45 @@ fn same_kind_different_targets_treated_as_separate_edges() {
         ],
     };
     assert!(diff(specs, code).is_empty());
+}
+
+// --- v0.4 violation_key ordering tests (#22) ---
+
+fn context_violation(name: &str) -> Violation {
+    Violation::Context(ContextViolation::MembershipUnknown {
+        concept: name.to_string(),
+        owned_unit: OwnedUnit("some-crate".to_string()),
+        code_source: Source::Code {
+            path: code_path(),
+            line: 1,
+        },
+    })
+}
+
+#[test]
+fn violation_key_context_returns_rank_8() {
+    let v = context_violation("Foo");
+    let (concept, rank) = violation_key(&v);
+    assert_eq!(concept, "Foo");
+    assert_eq!(rank, 8);
+}
+
+#[test]
+fn violation_key_context_sorts_after_edge_target_unknown() {
+    let a = Violation::EdgeTargetUnknown {
+        concept: "Foo".to_string(),
+        edge_kind: EdgeKind::Implements,
+        target: "X".to_string(),
+        spec_source: Source::Spec {
+            path: spec_path(),
+            line: 1,
+        },
+    };
+    let b = context_violation("Foo");
+    // Same concept name ("Foo") tied — rank determines order. Edge
+    // variants are rank 5-7, context is rank 8 — context sorts after.
+    let (ka, da) = violation_key(&a);
+    let (kb, db) = violation_key(&b);
+    assert_eq!(ka, kb);
+    assert!(da < db);
 }

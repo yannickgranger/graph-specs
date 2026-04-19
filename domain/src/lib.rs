@@ -6,9 +6,14 @@
 
 use std::path::PathBuf;
 
+mod context;
 mod diff;
 mod tokens;
 
+pub use context::{
+    CheckInput, ContextDecl, ContextExport, ContextImport, ContextPattern, ContextViolation,
+    OwnedUnit,
+};
 pub use diff::diff;
 pub use tokens::tokenise_target;
 
@@ -19,16 +24,20 @@ pub use tokens::tokenise_target;
 /// equivalent at relationship level iff their `edges` also align (see
 /// [`Edge`]).
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Graph {
     pub nodes: Vec<ConceptNode>,
     pub edges: Vec<Edge>,
 }
 
 impl Graph {
-    /// Build an empty graph. Alias for [`Graph::default`] — useful at call
-    /// sites where the zero-value is more readable than `Graph::default()`
-    /// and where the v0.3 relationship-level dogfood wants a code-side
-    /// RETURNS edge targeting a concept.
+    #[must_use]
+    pub const fn new(nodes: Vec<ConceptNode>, edges: Vec<Edge>) -> Self {
+        Self { nodes, edges }
+    }
+
+    /// Alias for [`Graph::default`] — the v0.3 relationship-level dogfood
+    /// wants a code-side RETURNS edge targeting a concept.
     #[must_use]
     pub fn empty() -> Self {
         Self::default()
@@ -186,4 +195,8 @@ pub enum Violation {
         target: String,
         spec_source: Source,
     },
+    /// A v0.4 bounded-context violation. Wraps the three
+    /// [`ContextViolation`] variants so consumers that do not opt
+    /// into context checking match one arm rather than three.
+    Context(ContextViolation),
 }

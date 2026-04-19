@@ -198,6 +198,13 @@ fn print_violation(v: &Violation) {
                 path.display()
             );
         }
+        Violation::Context(_) => {
+            // v0.4 context violations are only emitted by the diff context
+            // pass — not yet implemented (see #25). Until the pass lands,
+            // this arm is unreachable in practice. #26 wires the proper
+            // text rendering.
+            unreachable!("v0.4 context violations: emission lands in #25, text rendering in #26");
+        }
     }
 }
 

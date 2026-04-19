@@ -106,3 +106,76 @@ from struct fields, impl blocks, and trait method signatures. Lives in
 - implements: Reader
 - depends on: Graph
 - depends on: ReaderError
+
+## OwnedUnit
+
+A crate, npm package, Go module, or equivalent — the thing a bounded
+context "owns" in the v0.4 context-mapping vocabulary per
+[RFC-001](../../docs/rfc/001-bounded-context-equivalence.md).
+Language-agnostic name so non-Rust adapters can interpret it under their
+own build system. Lives in `domain`.
+
+## ContextDecl
+
+Declaration of a bounded context as parsed from `specs/contexts/<name>.md`.
+Carries the context name, its [OwnedUnit](#ownedunit) set, its exports
+(published concepts), its imports (sanctioned cross-context references),
+and the source location the declaration came from. Exports and imports
+both reference [ContextPattern](#contextpattern) for the DDD mapping
+pattern that applies. Lives in `domain`.
+
+- depends on: OwnedUnit
+- depends on: ContextExport
+- depends on: ContextImport
+- depends on: Source
+
+## ContextExport
+
+A concept a context publishes under a named DDD pattern. Export-centric
+framing (Evans Ch. 14) — the supplying context is authoritative about
+what it publishes; importers reference exported concepts. Lives in
+`domain`.
+
+- depends on: ContextPattern
+
+## ContextImport
+
+A cross-context reference a context declares as sanctioned. Names the
+supplier context, the [ContextPattern](#contextpattern) under which the
+relationship is classified, and the concept being referenced. Lives in
+`domain`.
+
+- depends on: ContextPattern
+
+## ContextPattern
+
+A DDD context-mapping pattern. v0.4 ships four variants: Shared Kernel,
+Customer-Supplier, Conformist, Published Language. Anti-Corruption
+Layer, Separate Ways, and Open Host Service are deferred to v0.5 per
+RFC-001 §2. Marked `#[non_exhaustive]` so future-variant additions are
+non-breaking for downstream consumers. Lives in `domain`.
+
+## ContextViolation
+
+The three bounded-context-level violation variants, wrapped by
+[Violation](#violation)'s `Context` arm so consumers that do not opt
+into context checking match one arm rather than three. Each variant
+carries a `concept` field so deterministic violation ordering continues
+to work across all four equivalence levels. Marked `#[non_exhaustive]`.
+Lives in `domain`.
+
+- depends on: OwnedUnit
+- depends on: EdgeKind
+- depends on: Source
+
+## CheckInput
+
+Input envelope to the v0.4 diff on the spec side — concept graph plus
+declared bounded-context map. Keeps [Graph](#graph) focused on concepts
+and edges (SOLID SRP, per RFC-001 round-1 architect review); contexts
+are carried alongside. An empty `contexts` list reduces v0.4 diff
+behavior to v0.3 (context pass is a no-op). Lives in `domain`.
+
+- depends on: Graph
+- depends on: ContextDecl
+- returns: CheckInput
