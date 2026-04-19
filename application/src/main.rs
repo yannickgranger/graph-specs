@@ -60,11 +60,7 @@ fn main() -> ExitCode {
     }
 }
 
-fn run_check_command(
-    specs: &std::path::Path,
-    code: &std::path::Path,
-    format: Format,
-) -> ExitCode {
+fn run_check_command(specs: &std::path::Path, code: &std::path::Path, format: Format) -> ExitCode {
     match application::run_check(specs, code) {
         Ok(violations) => emit(&violations, format),
         Err(e) => {

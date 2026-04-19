@@ -19,10 +19,7 @@ use std::io::Write;
 use std::path::Path;
 
 /// Write violations as NDJSON to `out`.
-pub fn write_ndjson(
-    violations: &[Violation],
-    out: &mut impl Write,
-) -> std::io::Result<()> {
+pub fn write_ndjson(violations: &[Violation], out: &mut impl Write) -> std::io::Result<()> {
     for v in violations {
         let record = violation_to_record(v);
         serde_json::to_writer(&mut *out, &record)?;

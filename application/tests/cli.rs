@@ -513,11 +513,7 @@ fn ndjson_missing_in_specs_emits_one_record_exit_one() {
 fn ndjson_signature_unparseable_exits_two() {
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
-    write_file(
-        specs.path(),
-        "core.md",
-        "## Foo\n\n```rust\nfn foo(\n```\n",
-    );
+    write_file(specs.path(), "core.md", "## Foo\n\n```rust\nfn foo(\n```\n");
     write_file(code.path(), "src/lib.rs", "pub struct Foo;");
 
     let out = run_ndjson(specs.path(), code.path());
