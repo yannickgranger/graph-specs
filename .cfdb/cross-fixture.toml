@@ -20,6 +20,6 @@
 [companion]
 repo      = "yg/cfdb"
 branch    = "develop"
-sha       = "ed2825f869bf6bca3ef73fa3f2835019e8d6454a"
-bumped_at = "2026-04-19T20:30:00Z"
-bumped_by = "lockstep — cfdb #94 SchemaVersion V0_1_3 → V0_1_4 (CALLS.resolved + first HIR-resolved emission)"
+sha       = "bcf31bb8737904ea64a7095885725c6e3e80941d"
+bumped_at = "2026-04-19T22:00:00Z"
+bumped_by = "lockstep — cfdb #86 SchemaVersion V0_1_4 → V0_2_0 (:EntryPoint + EXPOSES + cfdb-cli --features hir — closes v0.2 keystone)"
