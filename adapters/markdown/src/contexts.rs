@@ -27,20 +27,16 @@ enum Section {
 struct State<'a> {
     path: &'a Path,
     line_starts: Vec<usize>,
-    // Accumulators.
     ctx_name: Option<(String, usize)>,
     owned_units: Vec<OwnedUnit>,
     exports: Vec<ContextExport>,
     imports: Vec<ContextImport>,
-    // Transient.
     section: Section,
-    in_h1: bool,
-    in_h2: bool,
+    heading: Option<HeadingLevel>,
     heading_buf: String,
     item_depth: u32,
     in_top_item_at: Option<usize>,
     item_buf: String,
-    // First error wins.
     error: Option<ReaderError>,
 }
 
@@ -54,8 +50,7 @@ impl<'a> State<'a> {
             exports: Vec::new(),
             imports: Vec::new(),
             section: Section::None,
-            in_h1: false,
-            in_h2: false,
+            heading: None,
             heading_buf: String::new(),
             item_depth: 0,
             in_top_item_at: None,
@@ -118,13 +113,13 @@ fn handle_event(st: &mut State, event: Event, range: std::ops::Range<usize>) {
                 ));
                 return;
             }
-            st.in_h1 = true;
+            st.heading = Some(HeadingLevel::H1);
             st.heading_buf.clear();
         }
         Event::End(TagEnd::Heading(HeadingLevel::H1)) => {
             let name = st.heading_buf.trim().to_string();
             let line = line_of_offset(&st.line_starts, range.start);
-            st.in_h1 = false;
+            st.heading = None;
             if name.is_empty() {
                 st.error = Some(parse_err(st.path, line, "H1 heading text is empty"));
                 return;
@@ -135,11 +130,11 @@ fn handle_event(st: &mut State, event: Event, range: std::ops::Range<usize>) {
             level: HeadingLevel::H2,
             ..
         }) => {
-            st.in_h2 = true;
+            st.heading = Some(HeadingLevel::H2);
             st.heading_buf.clear();
         }
         Event::End(TagEnd::Heading(HeadingLevel::H2)) => {
-            st.in_h2 = false;
+            st.heading = None;
             st.section = classify_section(&st.heading_buf);
         }
         Event::Start(Tag::Item) => {
@@ -158,7 +153,7 @@ fn handle_event(st: &mut State, event: Event, range: std::ops::Range<usize>) {
             st.item_depth = st.item_depth.saturating_sub(1);
         }
         Event::Text(s) | Event::Code(s) => {
-            if st.in_h1 || st.in_h2 {
+            if st.heading.is_some() {
                 st.heading_buf.push_str(&s);
             } else if st.item_depth == 1 {
                 st.item_buf.push_str(&s);
@@ -240,17 +235,24 @@ fn parse_import(text: &str, path: &Path, line: usize) -> Result<ContextImport, R
 }
 
 fn parse_pattern(raw: &str, path: &Path, line: usize) -> Result<ContextPattern, ReaderError> {
-    match raw.trim() {
-        "SharedKernel" => Ok(ContextPattern::SharedKernel),
-        "CustomerSupplier" => Ok(ContextPattern::CustomerSupplier),
-        "Conformist" => Ok(ContextPattern::Conformist),
-        "PublishedLanguage" => Ok(ContextPattern::PublishedLanguage),
-        other => Err(parse_err(
-            path,
-            line,
-            &format!("unknown ContextPattern `{other}` — expected one of SharedKernel, CustomerSupplier, Conformist, PublishedLanguage"),
-        )),
+    let trimmed = raw.trim();
+    for v in ContextPattern::variants() {
+        if v.as_label() == trimmed {
+            return Ok(*v);
+        }
     }
+    let known: Vec<&str> = ContextPattern::variants()
+        .iter()
+        .map(|v| v.as_label())
+        .collect();
+    Err(parse_err(
+        path,
+        line,
+        &format!(
+            "unknown ContextPattern `{trimmed}` — expected one of {}",
+            known.join(", ")
+        ),
+    ))
 }
 
 /// Split `"Foo (Bar)"` into `("Foo", "Bar")`.
@@ -277,18 +279,24 @@ fn parse_err(path: &Path, line: usize, message: &str) -> ReaderError {
 }
 
 /// Walk `root` for `*.md` files and parse each as a context declaration.
-/// Missing directory yields `Ok(Vec::new())` — v0.3 spec trees have no
-/// `specs/contexts/`.
+/// Output is sorted by path for deterministic downstream ordering. Missing
+/// root yields `Ok(Vec::new())` — v0.3 spec trees have no `specs/contexts/`.
 pub fn walk_contexts(root: &Path) -> Result<Vec<ContextDecl>, ReaderError> {
     let mut out = Vec::new();
-    if !root.exists() {
-        return Ok(out);
-    }
-    for entry in walkdir::WalkDir::new(root) {
-        let entry = entry.map_err(|e| ReaderError::WalkFailed {
-            root: root.to_path_buf(),
-            cause: e.to_string(),
-        })?;
+    let walker = walkdir::WalkDir::new(root).sort_by_file_name();
+    for entry in walker {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(e) if e.io_error().is_some_and(|io| io.kind() == std::io::ErrorKind::NotFound) => {
+                return Ok(out);
+            }
+            Err(e) => {
+                return Err(ReaderError::WalkFailed {
+                    root: root.to_path_buf(),
+                    cause: e.to_string(),
+                })
+            }
+        };
         if !entry.file_type().is_file() {
             continue;
         }

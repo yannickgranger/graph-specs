@@ -88,6 +88,19 @@ impl ContextPattern {
             Self::PublishedLanguage => "PublishedLanguage",
         }
     }
+
+    /// Canonical iterator over v0.4 variants — the single source of truth
+    /// for parsers and error-message enumeration. Adding a v0.5 variant
+    /// only requires updating this list and `as_label`.
+    #[must_use]
+    pub const fn variants() -> &'static [Self] {
+        &[
+            Self::SharedKernel,
+            Self::CustomerSupplier,
+            Self::Conformist,
+            Self::PublishedLanguage,
+        ]
+    }
 }
 
 impl std::fmt::Display for ContextPattern {
