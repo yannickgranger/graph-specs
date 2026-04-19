@@ -106,11 +106,15 @@ Concrete [Reader](#reader) implementation for markdown spec files. Uses
 `###` heading it encounters, collects fenced `rust` blocks for
 signature-level comparison, and recognises the v0.3 bullet prefixes
 (`- implements:`, `- depends on:`, `- returns:`) as declared edges.
-Lives in `adapters/markdown`.
+Also implements [ContextReader](#contextreader) for v0.4 — parses
+`specs/contexts/<name>.md` files into [ContextDecl](#contextdecl)
+values. Lives in `adapters/markdown`.
 
 - implements: Reader
+- implements: ContextReader
 - depends on: Graph
 - depends on: ReaderError
+- depends on: ContextDecl
 
 ## RustReader
 
@@ -146,6 +150,7 @@ pattern that applies. Lives in `domain`.
 - depends on: ContextExport
 - depends on: ContextImport
 - depends on: Source
+- returns: ContextDecl
 
 ## ContextExport
 

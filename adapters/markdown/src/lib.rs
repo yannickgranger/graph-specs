@@ -22,8 +22,14 @@
 //! prefix are prose and are ignored. Empty targets (`- implements:`)
 //! are also ignored.
 
-use domain::{tokenise_target, ConceptNode, Edge, EdgeKind, Graph, SignatureState, Source};
-use ports::{Reader, ReaderError};
+mod contexts;
+mod markdown_utils;
+
+use crate::markdown_utils::{compute_line_starts, line_of_offset};
+use domain::{
+    tokenise_target, ConceptNode, ContextDecl, Edge, EdgeKind, Graph, SignatureState, Source,
+};
+use ports::{ContextReader, Reader, ReaderError};
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Parser, Tag, TagEnd};
 use std::path::Path;
 use walkdir::WalkDir;
@@ -58,6 +64,12 @@ impl Reader for MarkdownReader {
         }
 
         Ok(Graph::new(nodes, edges))
+    }
+}
+
+impl ContextReader for MarkdownReader {
+    fn extract_contexts(&self, root: &Path) -> Result<Vec<ContextDecl>, ReaderError> {
+        contexts::walk_contexts(root)
     }
 }
 
@@ -274,23 +286,6 @@ fn normalize_heading(raw: &str) -> String {
     trimmed
         .find('<')
         .map_or_else(|| trimmed.to_string(), |i| trimmed[..i].trim().to_string())
-}
-
-fn compute_line_starts(source: &str) -> Vec<usize> {
-    let mut starts = vec![0usize];
-    for (i, byte) in source.bytes().enumerate() {
-        if byte == b'\n' {
-            starts.push(i + 1);
-        }
-    }
-    starts
-}
-
-fn line_of_offset(starts: &[usize], offset: usize) -> usize {
-    match starts.binary_search(&offset) {
-        Ok(i) => i + 1,
-        Err(i) => i.max(1),
-    }
 }
 
 #[cfg(test)]

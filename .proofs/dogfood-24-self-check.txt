@@ -1,0 +1,5 @@
+edge missing in spec: ContextDecl --RETURNS--> ContextDecl (./domain/src/context.rs:41)
+edge missing in spec: MarkdownReader --IMPLEMENTS--> ContextReader (./adapters/markdown/src/lib.rs:70)
+edge missing in spec: MarkdownReader --DEPENDS_ON--> ContextDecl (./adapters/markdown/src/lib.rs:71)
+3 violation(s) found.
+dogfood exit: 1

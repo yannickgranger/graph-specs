@@ -27,6 +27,28 @@ pub struct ContextDecl {
     pub source: Source,
 }
 
+impl ContextDecl {
+    /// Required constructor outside the defining crate — `#[non_exhaustive]`
+    /// prevents the struct-literal form in external callers (markdown
+    /// adapter, downstream consumers).
+    #[must_use]
+    pub const fn new(
+        name: String,
+        owned_units: Vec<OwnedUnit>,
+        exports: Vec<ContextExport>,
+        imports: Vec<ContextImport>,
+        source: Source,
+    ) -> Self {
+        Self {
+            name,
+            owned_units,
+            exports,
+            imports,
+            source,
+        }
+    }
+}
+
 /// Export-centric framing (Evans Ch. 14): the supplying context is
 /// authoritative about what it publishes. Asymmetric declarations fire
 /// [`ContextViolation::CrossEdgeUndeclared`].
