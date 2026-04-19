@@ -7,9 +7,7 @@
 //! Only the line-offset helpers are shared via [`crate::markdown_utils`].
 
 use crate::markdown_utils::{compute_line_starts, line_of_offset};
-use domain::{
-    ContextDecl, ContextExport, ContextImport, ContextPattern, OwnedUnit, Source,
-};
+use domain::{ContextDecl, ContextExport, ContextImport, ContextPattern, OwnedUnit, Source};
 use ports::ReaderError;
 use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
 use std::path::Path;
@@ -75,10 +73,7 @@ impl<'a> State<'a> {
 /// name, contains multiple H1 headings, uses an unknown
 /// [`ContextPattern`] token, or a bullet in a recognised section does
 /// not match the expected shape (see module-level docs for the shapes).
-pub fn parse_context_file(
-    path: &Path,
-    source: &str,
-) -> Result<ContextDecl, ReaderError> {
+pub fn parse_context_file(path: &Path, source: &str) -> Result<ContextDecl, ReaderError> {
     let mut st = State::new(path, source);
     let parser = Parser::new(source).into_offset_iter();
     for (event, range) in parser {
@@ -207,13 +202,8 @@ fn classify_section(heading: &str) -> Section {
 
 /// Export bullet: `<Concept> (<Pattern>)` — e.g. `Graph (PublishedLanguage)`.
 fn parse_export(text: &str, path: &Path, line: usize) -> Result<ContextExport, ReaderError> {
-    let (concept, pattern_raw) = split_paren(text).ok_or_else(|| {
-        parse_err(
-            path,
-            line,
-            "Exports bullet must be `<Concept> (<Pattern>)`",
-        )
-    })?;
+    let (concept, pattern_raw) = split_paren(text)
+        .ok_or_else(|| parse_err(path, line, "Exports bullet must be `<Concept> (<Pattern>)`"))?;
     let pattern = parse_pattern(pattern_raw, path, line)?;
     Ok(ContextExport {
         concept: concept.to_string(),
