@@ -6,7 +6,7 @@
 //! with flat list syntax vs H2/H3 + fenced rust + bullet-edge syntax).
 //! Only the line-offset helpers are shared via [`crate::markdown_utils`].
 
-use crate::markdown_utils::{compute_line_starts, line_of_offset};
+use crate::markdown_utils::{compute_line_starts, line_of_offset, path_under_dir};
 use domain::{
     detect_import_cycle, ContextDecl, ContextExport, ContextImport, ContextPattern, OwnedUnit,
     Source,
@@ -308,6 +308,13 @@ pub fn walk_contexts(root: &Path) -> Result<Vec<ContextDecl>, ReaderError> {
         }
         let p = entry.path();
         if p.extension().is_none_or(|ext| ext != "md") {
+            continue;
+        }
+        // Context files live under `contexts/`. This reader is scoped
+        // so that `--specs specs/` (v0.4) and `--specs specs/concepts/`
+        // (v0.3 legacy) both Do The Right Thing: only files under a
+        // `contexts/` ancestor are parsed as context declarations.
+        if !path_under_dir(p, "contexts") {
             continue;
         }
         let source = std::fs::read_to_string(p).map_err(|e| ReaderError::IoFailed {

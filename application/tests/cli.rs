@@ -568,3 +568,171 @@ fn ndjson_text_format_unchanged_by_flag_absence() {
         .success()
         .stdout(predicate::str::contains("0 violations"));
 }
+
+// --- v0.4 bounded-context inject-bite (issue #28 AC) ---------------------
+//
+// Runs the CLI with `--specs <tmp>/specs --code <tmp>/code` and asserts
+// each `ContextViolation` variant surfaces end-to-end. These tests were
+// deferred from #26 (NDJSON) and #27 (text) because `run_check` did not
+// yet load context declarations. With #28 wiring both readers, the three
+// variants can finally be exercised through the real CLI.
+
+/// Build a canonical v0.4 layout under a tmpdir:
+///   <root>/specs/concepts/core.md  (v0.1 concept headings)
+///   <root>/specs/contexts/*.md     (v0.4 context declarations)
+///   <root>/<unit>/src/lib.rs       (code — `--code .` picks it up)
+///
+/// Returns the `TempDir` guard; the caller runs the binary with
+/// `current_dir(root)` so the source paths resolve to `./<unit>/src/...`,
+/// which after `trim_start_matches("./")` + `split("/src/")` yields
+/// unit strings that can be matched against context `Owns` entries.
+fn v04_fixture(concepts: &str, contexts: &[(&str, &str)], code_files: &[(&str, &str)]) -> TempDir {
+    let root = TempDir::new().unwrap();
+    write_file(root.path(), "specs/concepts/core.md", concepts);
+    for (name, body) in contexts {
+        write_file(root.path(), &format!("specs/contexts/{name}.md"), body);
+    }
+    for (rel, body) in code_files {
+        write_file(root.path(), rel, body);
+    }
+    root
+}
+
+fn run_v04_ndjson(root: &Path) -> std::process::Output {
+    bin()
+        .current_dir(root)
+        .args([
+            "check", "--specs", "specs/", "--code", ".", "--format", "ndjson",
+        ])
+        .output()
+        .expect("run")
+}
+
+fn run_v04_text(root: &Path) -> std::process::Output {
+    bin()
+        .current_dir(root)
+        .args(["check", "--specs", "specs/", "--code", "."])
+        .output()
+        .expect("run")
+}
+
+#[test]
+fn injectbite_v04_membership_unknown_surfaces_in_text_and_ndjson() {
+    // Code has a concept in `beta-unit/src/...`, but no context declares
+    // `beta-unit` under `Owns` — alpha only owns `alpha-unit`. Tool must
+    // flag MembershipUnknown for the stray concept.
+    let root = v04_fixture(
+        "## Stray\n",
+        &[("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n")],
+        &[("beta-unit/src/lib.rs", "pub struct Stray;")],
+    );
+
+    // Text output
+    let text = run_v04_text(root.path());
+    assert_eq!(text.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&text.stdout);
+    assert!(
+        stdout.contains("context membership unknown: Stray"),
+        "text: {stdout}"
+    );
+
+    // NDJSON output
+    let out = run_v04_ndjson(root.path());
+    assert_eq!(out.status.code(), Some(1));
+    let records = parse_ndjson(&out.stdout);
+    assert!(
+        records
+            .iter()
+            .any(|r| r["violation"] == "context_membership_unknown"
+                && r["concept"] == "Stray"
+                && r["owned_unit"] == "beta-unit"),
+        "ndjson: {records:?}"
+    );
+}
+
+#[test]
+fn injectbite_v04_cross_edge_unauthorized_surfaces_in_text_and_ndjson() {
+    // Two contexts, no imports between them. Code has an `impl Foo for
+    // Impl` spanning alpha and beta. The cross-context edge lacks any
+    // Imports entry in beta, so CrossEdgeUnauthorized must fire.
+    let root = v04_fixture(
+        "## Foo\n## Impl\n",
+        &[
+            ("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n"),
+            ("beta", "# beta\n\n## Owns\n\n- beta-unit\n"),
+        ],
+        &[
+            ("alpha-unit/src/lib.rs", "pub trait Foo {}"),
+            (
+                "beta-unit/src/lib.rs",
+                "use alpha_unit::Foo; pub struct Impl; impl Foo for Impl {}",
+            ),
+        ],
+    );
+
+    let text = run_v04_text(root.path());
+    assert_eq!(text.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&text.stdout);
+    assert!(
+        stdout.contains("cross-context edge unauthorized: Impl"),
+        "text: {stdout}"
+    );
+
+    let out = run_v04_ndjson(root.path());
+    assert_eq!(out.status.code(), Some(1));
+    let records = parse_ndjson(&out.stdout);
+    assert!(
+        records
+            .iter()
+            .any(|r| r["violation"] == "cross_context_edge_unauthorized"
+                && r["concept"] == "Impl"
+                && r["owning_context"] == "beta"
+                && r["target"] == "Foo"
+                && r["target_context"] == "alpha"),
+        "ndjson: {records:?}"
+    );
+}
+
+#[test]
+fn injectbite_v04_cross_edge_undeclared_surfaces_in_text_and_ndjson() {
+    // Beta imports `Foo from alpha (PublishedLanguage)`, but alpha does
+    // NOT export `Foo`. The edge is authorized on the consumer side but
+    // unsatisfied on the supplier side — CrossEdgeUndeclared fires.
+    let root = v04_fixture(
+        "## Foo\n## Impl\n",
+        &[
+            ("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n"),
+            (
+                "beta",
+                "# beta\n\n## Owns\n\n- beta-unit\n\n## Imports\n\n- Foo from alpha (PublishedLanguage)\n",
+            ),
+        ],
+        &[
+            ("alpha-unit/src/lib.rs", "pub trait Foo {}"),
+            (
+                "beta-unit/src/lib.rs",
+                "use alpha_unit::Foo; pub struct Impl; impl Foo for Impl {}",
+            ),
+        ],
+    );
+
+    let text = run_v04_text(root.path());
+    assert_eq!(text.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&text.stdout);
+    assert!(
+        stdout.contains("cross-context edge undeclared: Impl"),
+        "text: {stdout}"
+    );
+
+    let out = run_v04_ndjson(root.path());
+    assert_eq!(out.status.code(), Some(1));
+    let records = parse_ndjson(&out.stdout);
+    assert!(
+        records
+            .iter()
+            .any(|r| r["violation"] == "cross_context_edge_undeclared"
+                && r["concept"] == "Impl"
+                && r["target"] == "Foo"),
+        "ndjson: {records:?}"
+    );
+}

@@ -23,3 +23,12 @@ pub fn line_of_offset(starts: &[usize], offset: usize) -> usize {
         Err(i) => i.max(1),
     }
 }
+
+/// Returns true iff any ancestor component of `p` equals `name`.
+///
+/// Used by the concept and context readers to skip each other's files
+/// when both are pointed at the same spec root (v0.4 `--specs specs/`).
+#[must_use]
+pub fn path_under_dir(p: &std::path::Path, name: &str) -> bool {
+    p.components().any(|c| c.as_os_str().to_str() == Some(name))
+}

@@ -193,3 +193,59 @@ fn heading_annotations_do_not_affect_section_dispatch() {
     let decl = parse(src).expect("parse");
     assert_eq!(decl.exports.len(), 1);
 }
+
+mod walker {
+    use super::super::walk_contexts;
+    use std::io::Write;
+    use tempfile::TempDir;
+
+    fn write(dir: &std::path::Path, rel: &str, content: &str) {
+        let full = dir.join(rel);
+        if let Some(parent) = full.parent() {
+            std::fs::create_dir_all(parent).expect("test");
+        }
+        let mut f = std::fs::File::create(&full).expect("test");
+        f.write_all(content.as_bytes()).expect("test");
+    }
+
+    #[test]
+    fn v04_scope_descends_only_into_contexts_subdir() {
+        // When pointed at a v0.4 spec root containing both `concepts/`
+        // and `contexts/`, the walker parses ONLY the context files —
+        // it must not trip on concept files that lack an H1 heading.
+        let d = TempDir::new().expect("test");
+        write(d.path(), "concepts/core.md", "## Foo\n## Bar\n");
+        write(
+            d.path(),
+            "contexts/equivalence.md",
+            "# equivalence\n\n## Owns\n\n- domain\n",
+        );
+        let out = walk_contexts(d.path()).expect("walk");
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].name, "equivalence");
+    }
+
+    #[test]
+    fn v03_spec_tree_without_contexts_subdir_yields_empty() {
+        // Back-compat: a v0.3 tree (no `contexts/` subdir) pointed at
+        // `specs/concepts/` directly must yield an empty contexts list,
+        // not error on missing-H1 concept files.
+        let d = TempDir::new().expect("test");
+        write(d.path(), "core.md", "## Foo\n## Bar\n");
+        let out = walk_contexts(d.path()).expect("walk");
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn direct_contexts_dir_still_works() {
+        // Unit tests + callers pointing at `specs/contexts/` directly
+        // must continue to parse every `.md` file they find.
+        let d = TempDir::new().expect("test");
+        let ctx_dir = d.path().join("contexts");
+        std::fs::create_dir_all(&ctx_dir).expect("test");
+        write(&ctx_dir, "equivalence.md", "# equivalence\n");
+        write(&ctx_dir, "reading.md", "# reading\n");
+        let out = walk_contexts(&ctx_dir).expect("walk");
+        assert_eq!(out.len(), 2);
+    }
+}
