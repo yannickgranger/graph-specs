@@ -25,6 +25,14 @@ env:
   CARGO_HOME: /cache/cargo
   CARGO_PROFILE_DEV_DEBUG: line-tables-only
   CARGO_PROFILE_TEST_DEBUG: line-tables-only
+  # sccache (RFC-002 §7 B2, rust-systems B1) — Redis-backed compile cache
+  # shared with cfdb's CI to amortise cfdb-binary rebuilds and the
+  # graph-specs release builds done by the dogfood + cross-dogfood jobs.
+  # The key-prefix is graph-specs-scoped so we do not collide with cfdb's
+  # sccache entries in the same Redis.
+  SCCACHE_REDIS_ENDPOINT: "redis://192.168.1.107:6380"
+  SCCACHE_REDIS_KEY_PREFIX: "graph-specs-1.93"
+  SCCACHE_REDIS_EXPIRATION: "604800"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
@@ -300,6 +308,20 @@ jobs:
           git config --global "url.https://oauth2:${GITEA_TOKEN}@${SERVER_HOST}/.insteadOf" "${GITHUB_SERVER_URL}/"
           git clone --depth=1 --branch="$BRANCH" "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" repo
 
+      - name: Install sccache (rust-systems B1 — amortises cfdb rebuild)
+        run: |
+          if [ ! -f "/cache/cargo/bin/sccache" ]; then
+            SCCACHE_VERSION="v0.8.2"
+            curl -fsSL "https://github.com/mozilla/sccache/releases/download/${SCCACHE_VERSION}/sccache-${SCCACHE_VERSION}-x86_64-unknown-linux-musl.tar.gz" | \
+              tar xzf - --strip-components=1 -C /cache/cargo/bin/ "sccache-${SCCACHE_VERSION}-x86_64-unknown-linux-musl/sccache"
+            chmod +x /cache/cargo/bin/sccache
+          fi
+          echo "PATH=/cache/cargo/bin:${PATH}" >> "$GITHUB_ENV"
+          if /cache/cargo/bin/sccache --start-server 2>&1; then
+            echo "RUSTC_WRAPPER=/cache/cargo/bin/sccache" >> "$GITHUB_ENV"
+            echo "sccache ready (redis: ${SCCACHE_REDIS_ENDPOINT})"
+          fi
+
       - name: Install cfdb (pinned rev, cached under /cache/cargo/bin)
         run: |
           CFDB_REV=$(cat repo/.cfdb/cfdb.rev)
@@ -332,3 +354,63 @@ jobs:
             /cache/cargo/bin/cfdb violations --db .cfdb/db --keyspace graph-specs --rule "$RULE" || FAILED=1
           done
           exit $FAILED
+
+  # ----------------------------------------------------------------
+  # 9. Cross-dogfood — RFC-002 §3.2.
+  #    Runs THIS PR's graph-specs binary against the cfdb tree at the
+  #    SHA pinned in `.cfdb/cross-fixture.toml`. Zero-false-positive
+  #    invariant (§3.4) — exit 30 on any finding blocks merge. Fix at
+  #    source (companion repo) or scope the rule narrower. No allowlist.
+  # ----------------------------------------------------------------
+  cross-dogfood:
+    name: Cross-dogfood (graph-specs on cfdb)
+    runs-on: rust
+    container:
+      image: docker.io/library/rust:1.93
+    steps:
+      - name: Setup
+        run: |
+          set -e
+          apt-get update && apt-get install -y --no-install-recommends git ca-certificates curl
+          mkdir -p /cache/cargo/registry /cache/cargo/git /cache/cargo/bin ~/.cargo
+          ln -sf /cache/cargo/registry ~/.cargo/registry
+          ln -sf /cache/cargo/git ~/.cargo/git
+
+      - name: Install sccache (rust-systems B1 — amortises release build)
+        run: |
+          if [ ! -f "/cache/cargo/bin/sccache" ]; then
+            SCCACHE_VERSION="v0.8.2"
+            curl -fsSL "https://github.com/mozilla/sccache/releases/download/${SCCACHE_VERSION}/sccache-${SCCACHE_VERSION}-x86_64-unknown-linux-musl.tar.gz" | \
+              tar xzf - --strip-components=1 -C /cache/cargo/bin/ "sccache-${SCCACHE_VERSION}-x86_64-unknown-linux-musl/sccache"
+            chmod +x /cache/cargo/bin/sccache
+          fi
+          echo "PATH=/cache/cargo/bin:${PATH}" >> "$GITHUB_ENV"
+          if /cache/cargo/bin/sccache --start-server 2>&1; then
+            echo "RUSTC_WRAPPER=/cache/cargo/bin/sccache" >> "$GITHUB_ENV"
+            echo "sccache ready (redis: ${SCCACHE_REDIS_ENDPOINT})"
+          fi
+
+      - name: Clone
+        env:
+          GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          SERVER_HOST=$(echo "${GITHUB_SERVER_URL}" | sed -E 's|https?://||')
+          git config --global "url.https://oauth2:${GITEA_TOKEN}@${SERVER_HOST}/.insteadOf" "${GITHUB_SERVER_URL}/"
+          git clone --depth=1 --branch="$BRANCH" "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" repo
+
+      - name: Build graph-specs binary
+        run: |
+          cd repo
+          cargo build -p application --release
+
+      - name: Run cross-dogfood against pinned cfdb SHA
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd repo
+          # ci/cross-dogfood.sh clones yg/cfdb at the SHA pinned in
+          # .cfdb/cross-fixture.toml and runs `graph-specs check` against
+          # that tree. Two SHA universes (rust-systems C1): this is
+          # decoupled from .cfdb/cfdb.rev (used by the cfdb-check job).
+          ./ci/cross-dogfood.sh
