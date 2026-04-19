@@ -1,0 +1,58 @@
+    Checking memchr v2.8.0
+    Checking unicode-ident v1.0.24
+    Checking domain v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/23/domain)
+    Checking bitflags v2.11.1
+    Checking same-file v1.0.6
+    Checking anstyle v1.0.14
+    Checking utf8parse v0.2.2
+    Checking is_terminal_polyfill v1.70.2
+    Checking colorchoice v1.0.5
+    Checking libc v0.2.185
+    Checking unicase v2.9.0
+    Checking regex-syntax v0.8.10
+    Checking anstyle-query v1.1.5
+   Compiling quote v1.0.45
+    Checking cfg-if v1.0.4
+    Checking strsim v0.11.1
+    Checking linux-raw-sys v0.12.1
+    Checking anstyle-parse v1.0.0
+    Checking clap_lex v1.1.0
+    Checking proc-macro2 v1.0.106
+    Checking zmij v1.0.21
+    Checking num-traits v0.2.19
+    Checking serde_core v1.0.228
+    Checking fastrand v2.4.1
+    Checking walkdir v2.5.0
+    Checking predicates-core v1.0.10
+    Checking once_cell v1.21.4
+    Checking aho-corasick v1.1.4
+    Checking pulldown-cmark v0.12.2
+   Compiling syn v2.0.117
+    Checking itoa v1.0.18
+    Checking difflib v0.4.0
+    Checking anstream v1.0.0
+    Checking rustix v1.1.4
+    Checking normalize-line-endings v0.3.0
+    Checking termtree v0.5.1
+    Checking getrandom v0.4.2
+    Checking wait-timeout v0.2.1
+    Checking float-cmp v0.10.0
+    Checking regex-automata v0.4.14
+    Checking predicates-tree v1.0.13
+    Checking clap_builder v4.6.0
+    Checking tempfile v3.27.0
+   Compiling thiserror-impl v2.0.18
+   Compiling clap_derive v4.6.0
+    Checking regex v1.12.3
+    Checking bstr v1.12.1
+    Checking predicates v3.1.4
+    Checking assert_cmd v2.2.0
+    Checking thiserror v2.0.18
+    Checking ports v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/23/ports)
+    Checking adapter-rust v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/23/adapters/rust)
+    Checking clap v4.6.0
+    Checking adapter-markdown v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/23/adapters/markdown)
+    Checking serde_json v1.0.149
+    Checking application v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/23/application)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.85s
+clippy exit: 0

@@ -1,0 +1,42 @@
+   Compiling proc-macro2 v1.0.106
+   Compiling unicode-ident v1.0.24
+   Compiling quote v1.0.45
+   Compiling thiserror v2.0.18
+   Compiling domain v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/23/domain)
+   Compiling syn v2.0.117
+   Compiling thiserror-impl v2.0.18
+   Compiling ports v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/23/ports)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.43s
+     Running unittests src/lib.rs (target/debug/deps/ports-1ad48d26fc8eb519)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/context_reader.rs (target/debug/deps/context_reader-532c1cce880382b2)
+
+running 2 tests
+test context_reader_is_object_safe ... FAILED
+test context_reader_contract_is_implementable ... FAILED
+
+failures:
+
+---- context_reader_is_object_safe stdout ----
+
+thread 'context_reader_is_object_safe' (1367971) panicked at ports/tests/context_reader.rs:23:9:
+not yet implemented: RED — stub to panic until GREEN replacement
+
+---- context_reader_contract_is_implementable stdout ----
+
+thread 'context_reader_contract_is_implementable' (1367970) panicked at ports/tests/context_reader.rs:23:9:
+not yet implemented: RED — stub to panic until GREEN replacement
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    context_reader_contract_is_implementable
+    context_reader_is_object_safe
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p ports --test context_reader`

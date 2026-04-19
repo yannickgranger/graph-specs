@@ -4,7 +4,7 @@
 //! implement [`Reader`] and produce graphs of identical shape. The diff
 //! engine in [`domain`] operates on graphs, not on source languages.
 
-use domain::Graph;
+use domain::{ContextDecl, Graph};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
@@ -21,6 +21,26 @@ pub trait Reader {
     /// [`ReaderError::ParseFailed`] if the reader's parser rejects a file,
     /// or [`ReaderError::WalkFailed`] if the directory traversal fails.
     fn extract(&self, root: &Path) -> Result<Graph, ReaderError>;
+}
+
+/// v0.4 bounded-context reader contract: extract context declarations
+/// from `specs/contexts/<name>.md`.
+///
+/// Separate port from [`Reader`] per RFC-001 round-1 clean-arch lens —
+/// not every adapter parses context files. The markdown adapter will
+/// implement both; the rust adapter implements only [`Reader`].
+pub trait ContextReader {
+    /// Walk `root` for context-declaration files and return the parsed
+    /// [`ContextDecl`] list. An empty list is a valid result — v0.3 spec
+    /// trees have no `specs/contexts/` directory.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ReaderError::IoFailed`] if a source file cannot be read,
+    /// [`ReaderError::ParseFailed`] if a context file is malformed
+    /// (unknown pattern, missing required section, duplicate owner), or
+    /// [`ReaderError::WalkFailed`] if the directory traversal fails.
+    fn extract_contexts(&self, root: &Path) -> Result<Vec<ContextDecl>, ReaderError>;
 }
 
 /// Failure modes of a [`Reader`] implementation.
