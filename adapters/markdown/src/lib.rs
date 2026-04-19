@@ -25,7 +25,7 @@
 mod contexts;
 mod markdown_utils;
 
-use crate::markdown_utils::{compute_line_starts, line_of_offset};
+use crate::markdown_utils::{compute_line_starts, line_of_offset, path_under_dir};
 use domain::{
     tokenise_target, ConceptNode, ContextDecl, Edge, EdgeKind, Graph, SignatureState, Source,
 };
@@ -42,7 +42,21 @@ impl Reader for MarkdownReader {
         let mut nodes = Vec::new();
         let mut edges = Vec::new();
 
-        for entry in WalkDir::new(root) {
+        // v0.4 layout: when the caller passes `specs/` (a root containing
+        // both `concepts/` and `contexts/` subdirs), walk only
+        // `concepts/`. This scopes the concept reader away from
+        // `contexts/*.md` (different dialect) AND from prose sidecars
+        // like `specs/dialect.md` or `specs/ndjson-output.md`. Absence
+        // of a `concepts/` subdir preserves v0.3 behaviour — walk the
+        // root directly.
+        let concepts_subdir = root.join("concepts");
+        let walk_root: &Path = if concepts_subdir.is_dir() {
+            concepts_subdir.as_path()
+        } else {
+            root
+        };
+
+        for entry in WalkDir::new(walk_root) {
             let entry = entry.map_err(|e| ReaderError::WalkFailed {
                 root: root.to_path_buf(),
                 cause: e.to_string(),
@@ -51,6 +65,11 @@ impl Reader for MarkdownReader {
                 continue;
             }
             if entry.path().extension().is_none_or(|ext| ext != "md") {
+                continue;
+            }
+            // Defence in depth: even under the v0.3 fallback above, a
+            // nested `contexts/` subtree is owned by the ContextReader.
+            if path_under_dir(entry.path(), "contexts") {
                 continue;
             }
 

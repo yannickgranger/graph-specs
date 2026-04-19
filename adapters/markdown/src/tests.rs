@@ -404,3 +404,19 @@ fn module_path_target_is_tokenised() {
     assert_eq!(edges[0].target, "Graph");
     assert_eq!(edges[0].raw_target, "domain::Graph");
 }
+
+/// v0.4 scoping: when the reader is pointed at `specs/`, files under
+/// `contexts/` are owned by the `ContextReader` impl and MUST NOT
+/// contaminate the concept graph. Without this filter, every `## Owns`
+/// heading in a context file would register a phantom concept.
+#[test]
+fn v04_ignores_files_under_contexts_subdir() {
+    let d = TempDir::new().expect("test");
+    write(d.path(), "concepts/a.md", "## Foo\n## Bar\n");
+    write(
+        d.path(),
+        "contexts/equivalence.md",
+        "# equivalence\n\n## Owns\n\n- domain\n",
+    );
+    assert_eq!(extract(d.path()), vec!["Bar", "Foo"]);
+}

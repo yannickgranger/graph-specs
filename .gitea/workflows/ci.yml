@@ -205,8 +205,10 @@ jobs:
 
   # ----------------------------------------------------------------
   # 6. Dogfood — the unique gate this tool provides.
-  #    Runs `graph-specs check` against its own specs+code.
-  #    Fails the CI run if specs and code disagree at concept level.
+  #    Runs `graph-specs check` against its own specs+code, including
+  #    both concept-level files (`specs/concepts/`) and v0.4
+  #    bounded-context declarations (`specs/contexts/`). Fails the CI
+  #    run if specs and code disagree at any configured level.
   # ----------------------------------------------------------------
   dogfood:
     name: Dogfood (graph-specs check)
@@ -239,7 +241,7 @@ jobs:
       - name: Run dogfood check
         run: |
           cd repo
-          ./target/release/graph-specs check --specs specs/concepts/ --code .
+          ./target/release/graph-specs check --specs specs/ --code .
 
   # ----------------------------------------------------------------
   # 7. Audit — RUSTSEC advisory scan over the dep graph

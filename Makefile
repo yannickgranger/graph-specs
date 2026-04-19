@@ -18,4 +18,4 @@ test-integ-down:
 # `dogfood` job. Release-mode build, so the binary reflects current HEAD.
 graph-specs-check:
 	cargo build -p application --release
-	./target/release/graph-specs check --specs specs/concepts/ --code .
+	./target/release/graph-specs check --specs specs/ --code .

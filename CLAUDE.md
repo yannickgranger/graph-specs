@@ -50,7 +50,7 @@ Every RFC is reviewed by a team of architect sub-agents, one teammate per lens:
 
 Invocation is via `Agent(subagent_type=...)` or agent teams — whichever affords the review. Each lens returns a verdict (RATIFY / REJECT / REQUEST CHANGES) with evidence. The RFC is not ratified until all four verdicts are RATIFY, or a single author-documented override is recorded inline.
 
-**Architects also prescribe tests** (§2.5). The verdict is not complete until each issue in the decomposition carries a named test surface — unit, integration, dogfood assertion (`graph-specs check` against this repo's own `specs/concepts/`), or a documented `Tests: none` rationale. Implementers do not choose the test shape; they deliver against the prescription.
+**Architects also prescribe tests** (§2.5). The verdict is not complete until each issue in the decomposition carries a named test surface — unit, integration, dogfood assertion (`graph-specs check` against this repo's own `specs/`), or a documented `Tests: none` rationale. Implementers do not choose the test shape; they deliver against the prescription.
 
 ### §2.4 — Ratification → issues
 
@@ -62,7 +62,7 @@ Once ratified, the RFC's "Issue decomposition" section becomes the concrete back
 
 **Real infra is always preferred over mocks.** The hierarchy:
 
-1. **Dogfood / self-integration.** Exercise the change against this repo's own source tree via `graph-specs check --specs specs/concepts/ --code .` and assert on the observable output (e.g. "the new output variant appears in NDJSON", or "violations count is still zero after the refactor"). Strongest signal — real data, real pipeline.
+1. **Dogfood / self-integration.** Exercise the change against this repo's own source tree via `graph-specs check --specs specs/ --code .` and assert on the observable output (e.g. "the new output variant appears in NDJSON", or "violations count is still zero after the refactor"). Strongest signal — real data, real pipeline.
 2. **Integration against real inputs.** Construct a small real-shaped fixture (a synthetic `specs/` directory, a crafted Rust source file) and run the markdown and rust readers end-to-end. Assert on the resulting `Graph` / `Violation` output.
 3. **Unit tests on pure functions.** Fine when the function is genuinely pure. Do not stub out reader I/O that could be exercised via option 2.
 4. **Mocks / doubles.** Last resort. Must carry an inline comment naming why real infra was unavailable.
@@ -83,7 +83,7 @@ Once ratified, the RFC's "Issue decomposition" section becomes the concrete back
 ```
 Tests:
   - Unit: <pure-function assertions>
-  - Self dogfood (graph-specs on graph-specs): <assertion shape on this repo's own specs/concepts/ + crates>
+  - Self dogfood (graph-specs on graph-specs): <assertion shape on this repo's own specs/ + crates>
   - Cross dogfood (graph-specs on cfdb at pinned SHA): <assertion shape on companion tree; exit 30 on any finding blocks merge>
   - Target dogfood (on qbot-core at pinned SHA): <assertion shape; often "report metric X in PR body for reviewer sanity-check">
 ```
@@ -96,7 +96,7 @@ Every PR passes these gates. CI enforces them (`.gitea/workflows/ci.yml` jobs `d
 
 | Gate | Tool | Question answered | Failure mode |
 |---|---|---|---|
-| Equivalence | `graph-specs check --specs specs/concepts/ --code .` | "Do the markdown specs match the code?" | Adding a `pub` type without a spec entry, or changing a signature without updating the spec |
+| Equivalence | `graph-specs check --specs specs/ --code .` | "Do the markdown specs match the code?" | Adding a `pub` type without a spec entry, or changing a signature without updating the spec (v0.4: new context-level violations on cross-context drift) |
 | Architectural bans | `cfdb violations` over `.cfdb/queries/*.cypher` | "Does the code use forbidden patterns?" | Introducing `.unwrap()` in `domain/` or `ports/`; future rules added per new RFC |
 | Cross-dogfood | `ci/cross-dogfood.sh` against companion at pinned SHA | "Does graph-specs still produce zero findings on cfdb?" | Any violation on companion → exit 30; see [docs/cross-fixture-bump.md](docs/cross-fixture-bump.md) |
 
@@ -126,14 +126,14 @@ graph-specs-rust dogfoods itself from day zero:
 - `specs/ndjson-output.md` is the authoritative NDJSON v1 schema contract referenced by downstream consumers (qbot-core Study 002 v4.2 Phase A1).
 - `specs/dialect.md` documents the markdown + Rust reader rules.
 
-The tool's own `check` runs against `specs/concepts/` + `.` on every CI push. A new concept in code without a spec entry blocks the PR — this is the REUSE / CREATE test; no sub-agent discovery is needed for this codebase.
+The tool's own `check` runs against `specs/` + `.` on every CI push — picking up both `specs/concepts/` (concept-level, v0.1–v0.3) and `specs/contexts/` (bounded-context level, v0.4). A new concept in code without a spec entry blocks the PR; a cross-context edge without a matching `Imports` declaration does too. This is the REUSE / CREATE test; no sub-agent discovery is needed for this codebase.
 
 ## §6 — Quick reference
 
 ```bash
 # Local dual-control check before pushing
 cargo build --release -p application
-./target/release/graph-specs check --specs specs/concepts/ --code .
+./target/release/graph-specs check --specs specs/ --code .
 mkdir -p .cfdb/db && cfdb extract --workspace . --db .cfdb/db --keyspace graph-specs
 for r in .cfdb/queries/*.cypher; do cfdb violations --db .cfdb/db --keyspace graph-specs --rule "$r"; done
 
