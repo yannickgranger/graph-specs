@@ -78,6 +78,18 @@ Once ratified, the RFC's "Issue decomposition" section becomes the concrete back
 
 **Escape hatch.** An issue that is genuinely untestable carries `Tests: none — rationale: <why>` in its body. "I didn't bother" is not a valid rationale.
 
+**Tests: template (RFC-002 §3.5).** New-capability issues carry a `Tests:` block with four rows. Architects fill each entry when prescribing the issue; `none — rationale: <why>` is the only valid way to leave a row empty.
+
+```
+Tests:
+  - Unit: <pure-function assertions>
+  - Self dogfood (graph-specs on graph-specs): <assertion shape on this repo's own specs/concepts/ + crates>
+  - Cross dogfood (graph-specs on cfdb at pinned SHA): <assertion shape on companion tree; exit 30 on any finding blocks merge>
+  - Target dogfood (on qbot-core at pinned SHA): <assertion shape; often "report metric X in PR body for reviewer sanity-check">
+```
+
+The `Cross dogfood` row exists because graph-specs-rust and cfdb are a paired toolchain (RFC-002); every new equivalence level, violation variant, or dialect addition is contracted to be zero-false-positive against the companion at its pinned SHA. See [`docs/cross-fixture-bump.md`](docs/cross-fixture-bump.md) for the pin semantics and the runbook §5 escape-hatch rules for legitimate companion-side findings.
+
 ## §3 — Dual control
 
 Every PR passes these gates. CI enforces them (`.gitea/workflows/ci.yml` jobs `dogfood`, `cfdb-check`, and `cross-dogfood`).
@@ -91,6 +103,8 @@ Every PR passes these gates. CI enforces them (`.gitea/workflows/ci.yml` jobs `d
 **Adding a new ban rule is an RFC-gated change.** The rule goes into the same PR as the code motivating it, with `schema_version: 1` proof that develop is zero-violation before the rule lands.
 
 **Adding a new concept / trait / output variant is specs-gated.** The spec entry goes in `specs/concepts/` in the same PR as the code.
+
+**`cfdb::SchemaVersion` bumps require a lockstep PR on this repo** (RFC-002 §4 I3 / cfdb RFC-033 §4 I2). When cfdb bumps `cfdb_core::SchemaVersion`, a draft PR on `yg/graph-specs-rust` MUST bump `.cfdb/cross-fixture.toml` to cfdb's HEAD SHA. Merge order: cfdb first, then graph-specs within minutes. During that window the cross-dogfood step may return exit 20 briefly — the documented reason for that code. If graph-specs' `cfdb-check` CI cannot absorb the new shape (e.g. the new `SchemaVersion` breaks the existing `.cfdb/cfdb.rev`-pinned binary), graph-specs does NOT merge the bump PR — it instead bumps `.cfdb/cfdb.rev` too, in the same PR, to pick up the matching new cfdb binary. See [`docs/cross-fixture-bump.md`](docs/cross-fixture-bump.md) §4 for the full flow and exit-code contract.
 
 ## §4 — Skill selection
 
