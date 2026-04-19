@@ -20,6 +20,6 @@
 [companion]
 repo      = "yg/cfdb"
 branch    = "develop"
-sha       = "dd5103db18bf9ab2d907f1ffad3ab894d4e0f33b"
-bumped_at = "2026-04-19T18:00:00Z"
-bumped_by = "lockstep — cfdb #36 SchemaVersion V0_1_1 → V0_1_2 (:Item.cfg_gate)"
+sha       = "2af3c85cfe67878ba72b739e124ed0054c12915b"
+bumped_at = "2026-04-19T19:00:00Z"
+bumped_by = "lockstep — cfdb #83 SchemaVersion V0_1_2 → V0_1_3 (:CallSite resolver discriminator)"
