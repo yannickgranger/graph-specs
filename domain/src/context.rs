@@ -294,9 +294,6 @@ mod tests {
             code_source: src(),
         };
         let outer = Violation::Context(inner.clone());
-        match &outer {
-            Violation::Context(got) => assert_eq!(got, &inner),
-            _ => panic!("expected Violation::Context, got {outer:?}"),
-        }
+        assert_eq!(outer, Violation::Context(inner));
     }
 }
