@@ -10,6 +10,7 @@ domain = { workspace = true }
 ports = { workspace = true }
 adapter-markdown = { workspace = true }
 adapter-rust = { workspace = true }
+serde_json = { workspace = true }
 
 [[bin]]
 name = "graph-specs"

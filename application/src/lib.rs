@@ -11,6 +11,8 @@ use domain::{diff, Violation};
 use ports::{Reader, ReaderError};
 use std::path::Path;
 
+pub mod ndjson;
+
 /// Run the full concept-level equivalence check.
 ///
 /// Reads all `*.md` files under `specs_dir` and all `*.rs` files under
