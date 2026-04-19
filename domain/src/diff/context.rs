@@ -102,15 +102,21 @@ fn emit_cross_context_edge_violations(
             target_ctx.as_str(),
             edge.target.as_str(),
         );
+        // Pre-compute clones needed for both violation branches.
+        let concept = edge.source_concept.clone();
+        let owning_context = source_ctx.clone();
+        let target = edge.target.clone();
+        let target_context = target_ctx.clone();
+        let spec_source = source_ctx_decl.source.clone();
         if matching_import.is_none() {
             out.push(Violation::Context(
                 ContextViolation::CrossEdgeUnauthorized {
-                    concept: edge.source_concept.clone(),
-                    owning_context: source_ctx.clone(),
+                    concept: concept.clone(),
+                    owning_context: owning_context.clone(),
                     edge_kind: edge.kind,
-                    target: edge.target.clone(),
-                    target_context: target_ctx.clone(),
-                    spec_source: source_ctx_decl.source.clone(),
+                    target: target.clone(),
+                    target_context: target_context.clone(),
+                    spec_source: spec_source.clone(),
                 },
             ));
             continue;
@@ -125,12 +131,12 @@ fn emit_cross_context_edge_violations(
             .any(|e| e.concept == edge.target);
         if !supplier_exports_it {
             out.push(Violation::Context(ContextViolation::CrossEdgeUndeclared {
-                concept: edge.source_concept.clone(),
-                owning_context: source_ctx.clone(),
+                concept,
+                owning_context,
                 edge_kind: edge.kind,
-                target: edge.target.clone(),
-                target_context: target_ctx.clone(),
-                spec_source: source_ctx_decl.source.clone(),
+                target,
+                target_context,
+                spec_source,
             }));
         }
     }
