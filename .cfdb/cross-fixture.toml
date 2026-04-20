@@ -20,6 +20,6 @@
 [companion]
 repo      = "yg/cfdb"
 branch    = "develop"
-sha       = "72ce3e7dd96afce31b0fc6d03a127821f5bfb345"
-bumped_at = "2026-04-20T13:00:00Z"
-bumped_by = "lockstep — cfdb #42 SchemaVersion V0_2_1 → V0_2_2 (impl-block :Items + IMPLEMENTS + IMPLEMENTS_FOR edges). Pinned at cfdb PR #115 branch HEAD; will refresh to post-merge develop HEAD after cfdb #115 merges."
+sha       = "bcdb08085ef1636470c609cd3d0cf9dd16cdf1a7"
+bumped_at = "2026-04-20T11:55:00Z"
+bumped_by = "lockstep — cfdb #42 SchemaVersion V0_2_1 → V0_2_2 (impl-block :Items + IMPLEMENTS + IMPLEMENTS_FOR edges). Post-merge cfdb develop HEAD (#115 merged)."
