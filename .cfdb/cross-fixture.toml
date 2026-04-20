@@ -20,6 +20,6 @@
 [companion]
 repo      = "yg/cfdb"
 branch    = "develop"
-sha       = "2f8011bc3750baba5cf5a7601ef6e05da8c4874b"
-bumped_at = "2026-04-20T10:50:00Z"
-bumped_by = "lockstep — cfdb #106 SchemaVersion V0_2_0 → V0_2_1 (:Item.is_deprecated + :Item.deprecation_since, extractor-time per RFC addendum §A2.2 row 3 / #43 council DDD + rust-systems verdicts)"
+sha       = "bcdb08085ef1636470c609cd3d0cf9dd16cdf1a7"
+bumped_at = "2026-04-20T11:55:00Z"
+bumped_by = "lockstep — cfdb #42 SchemaVersion V0_2_1 → V0_2_2 (impl-block :Items + IMPLEMENTS + IMPLEMENTS_FOR edges). Post-merge cfdb develop HEAD (#115 merged)."
