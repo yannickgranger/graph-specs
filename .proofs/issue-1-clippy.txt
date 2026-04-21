@@ -1,6 +1,0 @@
-    Checking adapter-rust v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/work-1-scaffold/adapters/rust)
-    Checking adapter-markdown v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/work-1-scaffold/adapters/markdown)
-    Checking clap_builder v4.6.0
-    Checking clap v4.6.0
-    Checking application v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/work-1-scaffold/application)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.25s

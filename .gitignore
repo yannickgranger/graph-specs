@@ -7,3 +7,11 @@
 /.cfdb/db/
 *.swp
 .DS_Store
+
+# Agent-Zero workflow scratch — gates.
+# Excluded from public OSS mirror.
+.context/
+.discovery/
+.prescriptions/
+.proofs/
+.audits/
