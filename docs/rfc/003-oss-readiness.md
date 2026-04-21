@@ -1,6 +1,6 @@
 ---
 title: RFC-003 — OSS readiness + public CI
-status: DRAFT (round 1, awaiting architect-team review)
+status: DRAFT (round 1 r2 — collapses dual-CI to mirror + tiny contributor-CI; supersedes the as-merged r1 inline)
 date: 2026-04-21
 authors: Claude (session 2026-04-21, EPIC umbrella for OSS + multi-language)
 companion: yg/cfdb (publish-paired — see §3.2)
@@ -27,11 +27,11 @@ The mission this RFC opens is the umbrella EPIC "OSS-release graph-specs-rust + 
 
 **Ships in Phase 1:**
 
-- A public-CI workflow tree at `.github/workflows/` that reproduces the dual-control gates (fmt, clippy, clippy-pedantic, build, test, dogfood, audit) on github.com free-tier runners, with a **public sccache** (`mozilla-actions/sccache-action` + GitHub Actions cache backend) replacing the private Redis.
-- A documentation split: `CLAUDE.md` becomes `CONTRIBUTING.md` (public methodology — RFC-first, dual-control, `Tests:` template, vertical-slice doctrine, architect-team protocol) plus `INTERNAL.md` (private working-setup ceremony, kept in `.gitignore` or moved to author's dotfiles repo). A new `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1).
-- An `OSS_CFDB_GATES` env-var convention that lets the public CI run with cfdb gates **opt-in**: when set, runs `cfdb-check` + `cross-dogfood`; when unset (default for OSS contributors), skips them with a clear log line. The Gitea-side private CI keeps cfdb gates always-on. The `.cfdb/cross-fixture.toml` pin moves to point at the **public** `github.com/yannickgranger/cfdb` mirror once cfdb's own RFC-033-mirror Phase 1 lands.
+- A **Gitea→GitHub one-way mirror** (Gitea Actions on push to `develop` / `main` / tags runs `git push --mirror github`).
+- A **single GitHub Actions workflow** (`.github/workflows/contributor-ci.yml`, ~50 lines) on `pull_request` only — fmt + clippy-strict + build + test. No cfdb, no dogfood, no sccache, no env-flag dance. The eight authoritative Gitea jobs stay where they are.
+- A documentation split: `CLAUDE.md` becomes `CONTRIBUTING.md` (public methodology — RFC-first, dual-control, `Tests:` template, vertical-slice doctrine, architect-team protocol, dual-surface model explained) plus `INTERNAL.md` (private working-setup ceremony, kept in `.gitignore` or moved to author's dotfiles repo). A new `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1).
 - A `Cargo.toml.repository` flip to `https://github.com/yannickgranger/graph-specs` and matching README link updates.
-- A new `specs/limits.md` (or `docs/equivalence-limits.md` — see §3.7 OQ-1) that documents the symmetric-absence blind spot, closing `#64`.
+- A new "Limits of equivalence checking" section in `specs/concepts/core.md` (per §3.7 OQ-1) documenting the symmetric-absence blind spot, closing `#64`.
 - A README rewrite that drops qbot-core-internal references, adds an OSS quick-start path that does NOT require cfdb, and links forward to the multi-language roadmap (RFC-004+).
 - A `.github/ISSUE_TEMPLATE/` with three templates: `bug.md`, `rfc-proposal.md`, `feature-request.md`.
 
@@ -51,45 +51,51 @@ The mission this RFC opens is the umbrella EPIC "OSS-release graph-specs-rust + 
 
 ## §3 — Design
 
-### §3.1 — Hosting target: github.com
+### §3.1 — Hosting target: github.com (mirror, not dual-CI)
 
-The public repository is `github.com/yannickgranger/graph-specs` (already exists, 89 commits as of 2026-04-21, develop branch). The Gitea repository at `agency.lab:3000/yg/graph-specs-rust` remains the **canonical write surface**:
+The public repository is `github.com/yannickgranger/graph-specs` (already exists, 89 commits as of 2026-04-21, develop branch). The Gitea repository at `agency.lab:3000/yg/graph-specs-rust` remains the **canonical write surface AND the canonical CI surface**:
 
-- All RFCs, issues, PRs, and merges happen on Gitea first.
-- A documented `git push github main:main && git push github develop:develop` step (or a future cron) refreshes the GitHub mirror from Gitea's develop / main branches.
-- Issues filed on GitHub are mirrored back to Gitea for triage; no work is done directly on GitHub branches in Phase 1.
-- The GitHub repository's "About" sidebar links back to the Gitea repository with a note that Gitea is canonical.
+- All RFCs, issues, PRs, merges, and authoritative CI runs (the eight Gitea workflow jobs incl. cfdb gates + cross-dogfood) happen on Gitea.
+- A Gitea Actions workflow on push-to-`develop`/`main`/tags runs `git push --mirror github` so the GitHub repo is a near-instant reflection of Gitea's branches and tags. Mirror direction is one-way — Gitea→GitHub, never the reverse.
+- The GitHub repo provides three things: code visibility (browse, search, fork, star), issue tracker (mirrored back to Gitea for triage by a tiny webhook handler — see R3-3), and a **minimal contributor-feedback CI** (§3.3) that fires only on PRs filed against the GitHub mirror.
+- The GitHub repo's "About" sidebar links back to the Gitea repo with a note that Gitea is canonical and that PRs filed on GitHub are cherry-picked or re-pushed to Gitea by the maintainer for the canonical CI run before merge.
 
-Rationale: the author's working environment, agent-zero ceremonies, and the cfdb companion all live on Gitea. Inverting the canonical surface would force a much larger migration than this RFC scopes. The GitHub mirror is the OSS-facing read + contribution surface; PRs from external contributors will be cherry-picked or re-pushed to Gitea by the maintainer.
+Rationale (revised from r1): translating eight Gitea jobs into `.github/workflows/` to "achieve dual CI" doubles the maintenance surface for marginal contributor benefit — the maintainer's pre-merge cycle on Gitea catches everything that matters. A pure mirror plus a tiny contributor-feedback CI gives 90% of the OSS value at 10% of the work and removes the `OSS_CFDB_GATES` env-flag dance the r1 draft contemplated.
 
-### §3.2 — cfdb companion: publish-paired
+### §3.2 — cfdb companion: publish-paired (for visibility, not CI)
 
-`yg/cfdb` will be published in parallel to `github.com/yannickgranger/cfdb` (empty repo already created). cfdb files an equivalent RFC-034 (mirror of this RFC) and the two repos cross-coordinate via an updated `docs/cross-fixture-bump.md` that names the **public** companion URL.
+`yg/cfdb` is published in parallel to `github.com/yannickgranger/cfdb` (empty repo already created) using the same Gitea→GitHub mirror pattern from §3.1. cfdb files an equivalent RFC-034 (mirror of this RFC).
 
-The lockstep window: cfdb's RFC-034 Phase 1 must land **before** graph-specs' R3-4 (cfdb decoupling) closes — otherwise the `cross-fixture.toml` pin can't switch from `agency.lab:3000/yg/cfdb` to `github.com/yannickgranger/cfdb`. Until then, the public CI's cross-dogfood job runs in opt-in mode (off by default; on with `OSS_CFDB_GATES=1` for testing).
+cfdb's gates (`cfdb-check`, `cross-dogfood`) remain **Gitea-only**. They run on the canonical CI; they do NOT run on the GitHub contributor-feedback CI. The maintainer's pre-merge cycle on Gitea is the gate that protects develop. Forking the cfdb gates to GitHub would require duplicating the Redis/sccache setup, the cfdb pinning protocol, and the cross-fixture lockstep — none of which give an external contributor useful feedback they can act on (they don't have cfdb installed locally either).
 
-After both Phase 1s land, the canonical `cross-fixture.toml.[companion].repo` value flips to `yannickgranger/cfdb` (no `https://github.com/` prefix — the resolution helper in `ci/read-cross-fixture-sha.sh` learns to honor the host implied by `${GITHUB_SERVER_URL}` at CI time, so the same toml works on both Gitea and GitHub).
+`docs/cross-fixture-bump.md` is updated only to mention `github.com/yannickgranger/cfdb` as the public-visibility mirror; the canonical `[companion].repo` value in `.cfdb/cross-fixture.toml` stays the Gitea path. **No env-flag, no opt-in, no lockstep window** between graph-specs' and cfdb's Phase 1 RFCs — both can ship independently.
 
-### §3.3 — Public CI: `.github/workflows/`
+### §3.3 — Contributor-feedback CI: one workflow, one event
 
-Eight jobs, mirroring the existing Gitea ones:
+A single GitHub Actions workflow at `.github/workflows/contributor-ci.yml` runs only on `pull_request` events against the GitHub mirror. The mirror cron's pushes to `develop` / `main` do NOT trigger it (the workflow subscribes to `pull_request: [opened, synchronize, reopened]` only — mirror pushes use the default `push` event which the workflow does not listen for). This avoids redundant CI on every mirror sync.
 
-| Job | Image / runner | Replaces |
+Four jobs, all on `ubuntu-latest` with the public `rust:1.93` Docker image:
+
+| Job | What | Notes |
 |---|---|---|
-| `fmt` | `rust:1.93` on `ubuntu-latest` | gitea `fmt` |
-| `clippy-strict` | `rust:1.93` on `ubuntu-latest` | gitea `clippy` |
-| `clippy-pedantic` | `rust:1.93` on `ubuntu-latest` | gitea `clippy-pedantic` |
-| `build` | `rust:1.93` on `ubuntu-latest` | gitea `build` |
-| `test` | `rust:1.93` on `ubuntu-latest` | gitea `test` |
-| `dogfood` | `rust:1.93` on `ubuntu-latest` | gitea `dogfood` |
-| `audit` | `rustsec/audit-check@v1` | gitea `audit` |
-| `cfdb-gates` (conditional) | `rust:1.93` on `ubuntu-latest`, `if: ${{ vars.OSS_CFDB_GATES == '1' }}` | gitea `cfdb-check` + `cross-dogfood` |
+| `fmt` | `cargo fmt --check --all` | shape-mirror of gitea `fmt` |
+| `clippy` | `cargo clippy --workspace --all-targets -- -D warnings` (strict only — no pedantic, since pedantic-only failures from contributors should be the maintainer's job to fix during cherry-pick) | shape-mirror of gitea `clippy` |
+| `build` | `cargo build --workspace` | shape-mirror of gitea `build` |
+| `test` | `cargo test --workspace` | shape-mirror of gitea `test` |
 
-**sccache:** `mozilla-actions/sccache-action@v0.0.5` with `SCCACHE_GHA_ENABLED=true` (GitHub Actions cache backend, free up to 10 GB per repo). No Redis dependency. The Gitea workflow's Redis-backed sccache stays unchanged for the private side.
+**Not reproduced** on the contributor CI:
+- `clippy-pedantic` — too noisy for first-time contributors; maintainer applies during cherry-pick
+- `dogfood` (`graph-specs check`) — runs on Gitea where the binary is built canonically; if the contributor's PR introduced spec drift, the Gitea run catches it before merge
+- `audit` (cargo-audit) — runs weekly on Gitea cron; no need on every contributor PR
+- `cfdb-check`, `cross-dogfood` — Gitea-only per §3.2
 
-**Branch coverage:** PRs against `main` and `develop`; pushes on `main`, `develop`, and contributor fork branches via `pull_request` event.
+**No sccache.** The workspace is small (5 crates, ~1.5k LOC); cold builds on free-tier runners complete in 60–90s. Adding `mozilla-actions/sccache-action` is premature optimisation; revisit if cold-build time exceeds 3 min.
 
-**No `actions/checkout`-related concern:** github.com runners have Node.js, so we use `actions/checkout@v4` and `actions/cache@v4` directly — no need for the manual git-clone workaround the Gitea workflows carry.
+**Workflow yaml is ~50 lines total**, single file. CONTRIBUTING.md (R3-2 deliverable) tells external contributors:
+
+> Open your PR on github.com/yannickgranger/graph-specs. The contributor-feedback CI will run fmt + clippy + build + test on your branch. The maintainer cherry-picks accepted PRs to the Gitea canonical write surface, where the full gate suite (incl. dogfood, cfdb, cross-dogfood) runs before merge. Merged commits flow back to the GitHub mirror via cron.
+
+Honest about the dual-surface model; sets contributor expectations correctly.
 
 ### §3.4 — Documentation split
 
@@ -103,32 +109,11 @@ Eight jobs, mirroring the existing Gitea ones:
 
 The `CLAUDE.md` 3-line stub matters: agent harnesses (including this author's) auto-load `CLAUDE.md` on session start. Removing it would break the author's workflow; keeping the full content public would leak operational details that don't belong in an OSS repo.
 
-### §3.5 — cfdb decoupling: `OSS_CFDB_GATES` env flag
+### §3.5 — cfdb stays Gitea-only (no decoupling needed)
 
-The eight `.cfdb/queries/*.cypher` ban rules and the cross-dogfood loop are **architecturally sound and worth keeping** — they enforce the unwrap / context-bleed bans that make the codebase predictable. They are also unavailable to OSS contributors who don't have cfdb installed locally. The compromise:
+Folded into §3.2. cfdb gates run on the Gitea canonical CI; the GitHub contributor-feedback CI does not attempt to install cfdb. No env-flag, no opt-in, no lockstep PR with cfdb's RFC-034 Phase 1.
 
-```yaml
-# .github/workflows/ci.yml — cfdb-gates job
-cfdb-gates:
-  if: ${{ vars.OSS_CFDB_GATES == '1' }}
-  runs-on: ubuntu-latest
-  steps:
-    - uses: actions/checkout@v4
-    - name: Install cfdb (pinned)
-      run: cargo install --git https://github.com/yannickgranger/cfdb.git --rev "$(cat .cfdb/cfdb.rev)" --locked cfdb-cli --bin cfdb
-    - run: cd .cfdb && cfdb extract --workspace .. --db db --keyspace graph-specs
-    - run: for r in .cfdb/queries/*.cypher; do cfdb violations --db .cfdb/db --keyspace graph-specs --rule "$r" || exit 1; done
-```
-
-The `vars.OSS_CFDB_GATES` is set to `1` at the **repository level** by the maintainer (so the maintainer's own pushes still get the cfdb belt-and-suspenders) and unset by default for forks (so an external contributor's PR runs only fmt / clippy / build / test / dogfood / audit). When a fork's PR lands and the maintainer rebases onto develop, the maintainer's push triggers the cfdb-gates job and catches any cfdb-rule violation before it reaches develop.
-
-`CONTRIBUTING.md` documents:
-- the cfdb-gates job is opt-in
-- contributors are not expected to install cfdb locally
-- the maintainer's pre-merge run catches cfdb regressions
-- if a contributor wants to run the gates locally, the install command is one line
-
-This is symmetric to the cfdb-side decision (cfdb's own RFC-034 will define how cfdb decouples graph-specs's reverse cross-dogfood — likely the same flag-based approach).
+The eight `.cfdb/queries/*.cypher` ban rules and the cross-dogfood loop remain unchanged — they are the maintainer's pre-merge belt-and-suspenders on Gitea. CONTRIBUTING.md notes that the contributor-feedback CI does not run cfdb gates; if the maintainer's Gitea cycle finds a cfdb-rule violation in a cherry-picked PR, the maintainer either fixes inline (≤15 min per CLAUDE.md §7) or files a follow-up issue against the contributor's branch.
 
 ### §3.6 — README rewrite for OSS audience
 
@@ -157,12 +142,13 @@ OQ-1 (resolved below): does this go in `specs/concepts/core.md` (under the gate)
 ## §4 — Invariants
 
 1. **The equivalence semantics do not change.** Phase 1 is plumbing and policy. The `domain::diff` algorithm, the four equivalence levels, the NDJSON wire schema v2 — all unchanged.
-2. **Self-dogfood stays green throughout.** Every commit on the work branch passes `graph-specs check --specs specs/ --code .` against the latest tool binary.
-3. **Cross-dogfood stays green throughout the lockstep window.** Until cfdb's RFC-034 Phase 1 lands and `cross-fixture.toml` flips to the github.com URL, the existing private cross-dogfood job continues to run on Gitea and must pass.
-4. **No deletion of agent-author CLAUDE.md slot.** The 3-line stub preserves the path; agent harnesses that auto-load it continue to work.
-5. **The github.com mirror is read-only-canonical:** all writes go through Gitea first. PRs filed on github.com are cherry-picked or re-pushed by the maintainer; no direct merges on github.com until RFC-008 chooses a publishing model.
-6. **`OSS_CFDB_GATES=1` is the maintainer's default**, not an external contributor's expectation. CI green for an external PR requires only the seven non-cfdb jobs.
-7. **`#64` closes with R3-5.** The "Limits of equivalence checking" section is the documented mitigation; tool-side detection is RFC-009 work, not Phase 1.
+2. **Canonical CI is Gitea.** All eight Gitea jobs (fmt, clippy-strict, clippy-pedantic, build, test, dogfood, audit, cfdb-check + cross-dogfood) continue to run unchanged. The mirror workflow (R3-3a) only adds outbound `git push --mirror github`; it does not modify any existing Gitea job.
+3. **Self-dogfood stays green throughout.** Every commit on the work branch passes `graph-specs check --specs specs/ --code .` against the latest tool binary on Gitea.
+4. **Cross-dogfood stays green throughout.** The existing Gitea cross-dogfood job continues to pass against the pinned cfdb SHA; nothing in Phase 1 perturbs the cross-fixture protocol.
+5. **No deletion of agent-author CLAUDE.md slot.** The 3-line stub preserves the path; agent harnesses that auto-load it continue to work.
+6. **The github.com mirror is read-only-canonical from Gitea's perspective:** all writes go through Gitea first. PRs filed on github.com are cherry-picked or re-pushed by the maintainer; no direct merges on github.com until RFC-008 chooses a publishing model.
+7. **Contributor-feedback CI is informational.** A green run on github.com does NOT authorize merge to develop. The maintainer's Gitea cycle is the gate.
+8. **`#64` closes with R3-4.** The "Limits of equivalence checking" section is the documented mitigation; tool-side detection is RFC-009 work, not Phase 1.
 
 ## §5 — Architect lenses
 
@@ -186,14 +172,14 @@ To be filled.
 
 ## §6 — Non-goals
 
-1. Not auto-mirroring Gitea ↔ GitHub source. One-way, manual push for now.
-2. Not changing the equivalence engine.
-3. Not publishing to crates.io (deferred to RFC-008).
-4. Not migrating the private Gitea CI to GitHub Actions — both coexist.
-5. Not enforcing cfdb-gates on external contributors' PRs.
+1. **Not translating the eight Gitea jobs into `.github/workflows/`.** The contributor-feedback CI (§3.3) reproduces only four (fmt / clippy-strict / build / test); the canonical CI stays on Gitea.
+2. **Not running cfdb gates on the GitHub side.** cfdb stays Gitea-only (§3.2). No env-flag, no opt-in.
+3. Not building a bidirectional mirror. Gitea→GitHub only; GitHub→Gitea is the maintainer's manual cherry-pick on accepted PRs.
+4. Not changing the equivalence engine.
+5. Not publishing to crates.io (deferred to RFC-008).
 6. Not changing the dual MIT/Apache license.
 7. Not addressing PHP / TS adapters (RFC-004 / 005 / 006 territory).
-8. Not building the tool-side symmetric-absence detector (RFC-009 placeholder; #64 closes with the documented mitigation per R3-5).
+8. Not building the tool-side symmetric-absence detector (RFC-009 placeholder; #64 closes with the documented mitigation per R3-4).
 
 ## §7 — Issue decomposition
 
@@ -201,24 +187,26 @@ Each child issue carries the standard `Tests:` template (Unit / Self dogfood / C
 
 | ID | Slice | Tests prescription |
 |---|---|---|
-| **R3-1** | Update `Cargo.toml.repository` to `https://github.com/yannickgranger/graph-specs`. Update README links from `agency.lab:3000` to `github.com/yannickgranger`. Add `.github/ISSUE_TEMPLATE/{bug,rfc-proposal,feature-request}.md`. | Unit: none — text changes. Self dogfood: tool runs unchanged after the URL flip (smoke). Cross dogfood: existing pinned cfdb SHA still resolves correctly via Gitea (no impact yet on the github.com cfdb path). Target dogfood: none. |
-| **R3-2** | Doc split: `CLAUDE.md` → `CONTRIBUTING.md` + `INTERNAL.md` + 3-line `CLAUDE.md` stub. Add `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1). | Unit: none — docs only. Self dogfood: 0 violations. Cross dogfood: none. Target dogfood: none — rationale: no executable surface touched. |
-| **R3-3** | New `.github/workflows/{ci,audit}.yml` reproducing the seven non-cfdb gates with `mozilla-actions/sccache-action`. Verify on a throwaway PR against the public mirror. | Unit: none. Self dogfood: dogfood job in `.github/workflows/ci.yml` exits 0. Cross dogfood: none in this slice (cfdb-gates job is R3-4). Target dogfood: a green workflow run on a PR against github.com/yannickgranger/graph-specs is the proof. |
-| **R3-4** | `cfdb-gates` opt-in job with `${{ vars.OSS_CFDB_GATES }}` guard. cfdb install URL flips to `github.com/yannickgranger/cfdb` AFTER cfdb's RFC-034 Phase 1 lands; until then, the job stays on the Gitea path inside the public CI yaml (with a runtime check that fails fast if `OSS_CFDB_GATES=1` is set on a non-Gitea environment without cfdb access). | Unit: shell script lint on the new workflow yaml. Self dogfood: job exits 0 with `OSS_CFDB_GATES=1` and skips cleanly with `OSS_CFDB_GATES` unset. Cross dogfood: existing private cross-dogfood (Gitea) still passes — no regression. Target dogfood: none. |
-| **R3-5** | New "Limits of equivalence checking" section in `specs/concepts/core.md`. Closes #64. | Unit: none. Self dogfood: section is gated as a spec concept, dogfood passes. Cross dogfood: cfdb still passes. Target dogfood: none. |
-| **R3-6** | README rewrite per §3.6. | Unit: none. Self dogfood: no impact. Cross dogfood: no impact. Target dogfood: none. |
-| **R3-7** | Lockstep with cfdb's RFC-034 Phase 1: once cfdb is published at github.com/yannickgranger/cfdb, flip `.cfdb/cross-fixture.toml.[companion].repo` and the cfdb install URL in the cfdb-gates job to point at the public host. | Unit: `ci/read-cross-fixture-sha.sh` parses the new value correctly. Self dogfood: no impact. Cross dogfood: cfdb-gates with `OSS_CFDB_GATES=1` exits 0 against the github.com cfdb pin. Target dogfood: none. |
+| **R3-1** | Update `Cargo.toml.repository` to `https://github.com/yannickgranger/graph-specs`. Update README links from `agency.lab:3000` to `github.com/yannickgranger`. Add `.github/ISSUE_TEMPLATE/{bug,rfc-proposal,feature-request}.md`. | Unit: none — text changes. Self dogfood: tool runs unchanged after the URL flip (smoke). Cross dogfood: existing pinned cfdb SHA still resolves correctly via Gitea. Target dogfood: none. |
+| **R3-2** | Doc split: `CLAUDE.md` → `CONTRIBUTING.md` + `INTERNAL.md` + 3-line `CLAUDE.md` stub. Add `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1). `CONTRIBUTING.md` documents the dual-surface model (Gitea canonical, GitHub mirror, contributor-feedback CI vs canonical CI distinction). | Unit: none — docs only. Self dogfood: 0 violations. Cross dogfood: none. Target dogfood: none — rationale: no executable surface touched. |
+| **R3-3** | **Gitea→GitHub mirror + contributor-feedback CI.** Two artifacts in one slice: (a) `.gitea/workflows/mirror-to-github.yml` — runs on push to `develop` / `main` / tags, executes `git push --mirror github` using a `GITHUB_MIRROR_PAT` secret; (b) `.github/workflows/contributor-ci.yml` — fires only on `pull_request: [opened, synchronize, reopened]`, four jobs (fmt / clippy-strict / build / test) on `ubuntu-latest` with `rust:1.93` image, no sccache. Plus a tiny optional issue-mirror webhook (Gitea side, OQ-3 resolved) that copies new GitHub issues to Gitea. | Unit: yaml-lint + shellcheck on both workflow files. Self dogfood: a throwaway PR against the GitHub mirror runs all four jobs green. Cross dogfood: the new mirror workflow on Gitea pushes successfully without breaking existing Gitea jobs. Target dogfood: a green run on `github.com/yannickgranger/graph-specs/pulls/<n>` is the proof. |
+| **R3-4** | New "Limits of equivalence checking" section in `specs/concepts/core.md`. Closes #64. Also notes the workflow-mode dimension surfaced in §9 (legacy archaeology has the same blind-spot shape, amplified for codebases without inline attributes). | Unit: none. Self dogfood: section is gated as a spec concept, dogfood passes. Cross dogfood: cfdb still passes. Target dogfood: none. |
+| **R3-5** | README rewrite per §3.6. | Unit: none. Self dogfood: no impact. Cross dogfood: no impact. Target dogfood: none. |
 
-R3-1, R3-2, R3-5, R3-6 can ship in parallel after this RFC ratifies. R3-3 is a prerequisite for R3-4. R3-7 depends on cfdb's RFC-034 Phase 1 ratifying and shipping (companion §7).
+All five slices can ship in parallel after this RFC ratifies — there are no internal dependencies. R3-3 can land before or after the doc split (R3-2); the mirror works regardless of CONTRIBUTING.md state, and contributor-feedback CI is independent of doc layout.
+
+**Slices removed from the round-1 draft** (folded into §3.2 + §3.3 simplifications):
+- ~~R3-4 r1 (cfdb decoupling via `OSS_CFDB_GATES` env-flag)~~ — DROPPED, cfdb stays Gitea-only
+- ~~R3-7 r1 (cfdb URL flip lockstep with RFC-034 Phase 1)~~ — DROPPED, no canonical-URL change needed; the github cfdb mirror is purely for visibility
 
 ## §8 — Open questions
 
 | ID | Question | Resolution |
 |---|---|---|
 | OQ-1 | Limits-doc location: `specs/concepts/core.md` vs `docs/equivalence-limits.md`? | RESOLVED — under the gate, in `specs/concepts/core.md`. |
-| OQ-2 | One-way mirror push: manual `git push github` vs scheduled cron? | DEFERRED to RFC-008. |
-| OQ-3 | Do we accept external PRs directly on github.com or require they re-file on Gitea? | DEFERRED to round-2 review with input from the maintainer. The tentative answer: accept on github.com, cherry-pick to Gitea on merge. Documented in `CONTRIBUTING.md`. |
-| OQ-4 | Should the `cfdb-gates` job ever run on external PRs (e.g., maintainer manually toggles `vars.OSS_CFDB_GATES=1` for a specific PR via `workflow_dispatch`)? | RESOLVED — `workflow_dispatch` with optional `cfdb_gates: bool` input lets the maintainer trigger a one-off cfdb-gates run on a specific commit. Documented. |
+| OQ-2 | One-way mirror trigger: Gitea Actions on `push` to develop/main/tags vs scheduled cron? | RESOLVED — Gitea Actions `on: push` for near-instant mirror; cron not needed. |
+| OQ-3 | Do we accept external PRs directly on github.com or require they re-file on Gitea? | RESOLVED — accept on github.com, cherry-pick to Gitea on merge. CONTRIBUTING.md (R3-2) documents the dual-surface model. |
+| ~~OQ-4~~ | ~~Should the `cfdb-gates` job ever run on external PRs?~~ | DROPPED — no `cfdb-gates` job exists in the revised design (cfdb stays Gitea-only per §3.2). |
 
 ## §9 — Forward-looking workflow modes (informational, RFC-004 territory)
 
@@ -241,6 +229,8 @@ This RFC ships only Phase 1 (OSS plumbing). The umbrella EPIC anticipates two di
 ### §9.3 — Architectural consequence
 
 Spec sources are **additive per language**. Markdown is universal and mandatory; inline attributes/decorators are an optional augmentation that strengthens the gate when the codebase culture supports it. The diff engine unions all spec sources before comparing against the structural code graph. RFC-004 formalizes the `Vec<Reader>` per side; RFC-005 / RFC-006 ship the language-specific readers.
+
+The blind spot to flag in `CONTRIBUTING.md` (R3-2 deliverable): legacy code without inline attributes can silently lose a class — deleting the class also deletes any inline declaration, so only the markdown spec retains the "this concept must exist" intent. The greenfield mode is naturally protected because the markdown was authored first; the legacy mode depends on the discipline of locking the rebuilt markdown and never deleting concept entries without a spec-back PR. This is a strict superset of the symmetric-absence blind spot in §3.7 — the limits-doc (R3-4) should mention the workflow-mode dimension.
 
 The blind spot to flag in `CONTRIBUTING.md` (§3.4 deliverable): legacy code without inline attributes can silently lose a class — deleting the class also deletes any inline declaration, so only the markdown spec retains the "this concept must exist" intent. The greenfield mode is naturally protected because the markdown was authored first; the legacy mode depends on the discipline of locking the rebuilt markdown and never deleting concept entries without a spec-back PR. This is a strict superset of the symmetric-absence blind spot in §3.7 — the limits-doc R3-5 ships should mention the workflow-mode dimension.
 
