@@ -1,6 +1,6 @@
 ---
 title: RFC-003 — OSS readiness + public CI
-status: DRAFT round 1 r3 — round-1 verdicts captured (clean-arch RC×2, ddd RC×3, solid RATIFY+advisory, rust-systems RC×4); RC fixes applied; awaits round-2 review
+status: RATIFIED — round 2 (2026-04-21): clean-arch RATIFY, ddd-specialist RATIFY, solid-architect RATIFY (round 1, with one advisory carried into R3-3), rust-systems RATIFY
 date: 2026-04-21
 authors: Claude (session 2026-04-21, EPIC umbrella for OSS + multi-language)
 companion: yg/cfdb (visibility mirror only — cfdb gates remain Gitea-only; see §3.2)
@@ -142,7 +142,7 @@ OQ-1 (resolved below): does this go in `specs/concepts/core.md` (under the gate)
 ## §4 — Invariants
 
 1. **The equivalence semantics do not change.** Phase 1 is plumbing and policy. The `domain::diff` algorithm, the four equivalence levels, the NDJSON wire schema v2 — all unchanged.
-2. **Canonical CI is Gitea.** All eight Gitea jobs (fmt, clippy-strict, clippy-pedantic, build, test, dogfood, audit, cfdb-check + cross-dogfood) continue to run unchanged. The mirror workflow (R3-3a) only adds outbound `git push --mirror github`; it does not modify any existing Gitea job.
+2. **Canonical CI is Gitea.** All eight Gitea jobs (fmt, clippy-strict, clippy-pedantic, build, test, dogfood, audit, cfdb-check + cross-dogfood) continue to run unchanged. The mirror workflow (R3-3a) only adds an outbound explicit-refspec push of `develop` / `main` / tags to GitHub (per rust-systems RC-1); it does not modify any existing Gitea job.
 3. **Self-dogfood stays green throughout.** Every commit on the work branch passes `graph-specs check --specs specs/ --code .` against the latest tool binary on Gitea.
 4. **Cross-dogfood stays green throughout.** The existing Gitea cross-dogfood job continues to pass against the pinned cfdb SHA; nothing in Phase 1 perturbs the cross-fixture protocol.
 5. **No deletion of agent-author CLAUDE.md slot.** The 3-line stub preserves the path; agent harnesses that auto-load it continue to work.
@@ -154,16 +154,16 @@ OQ-1 (resolved below): does this go in `specs/concepts/core.md` (under the gate)
 
 (All four return verdicts inline after round 1.)
 
-### §5.0 — Round-1 verdict summary
+### §5.0 — Verdict summary (rounds 1 + 2)
 
 | Lens | Round 1 | RC items | Round 2 |
 |---|---|---|---|
-| Clean architecture | REQUEST CHANGES | RC-1 stale `OSS_CFDB_GATES` ref at §10; RC-2 dup paragraph in §9.3 | pending — both fixes applied |
-| Domain-driven design | REQUEST CHANGES | RC-1 "canonical CI surface" conflation §3.1; RC-2 drop "publish-paired" frontmatter+§3.2; RC-3 "shape-mirror" homonym §3.3 | pending — all three fixes applied |
-| SOLID + components | RATIFY (round 1) | — (one advisory: R3-3 split-allowance noted in issue body) | RATIFIED |
-| Rust systems | REQUEST CHANGES | RC-1 (mandatory) `--mirror` deletes contributor branches → explicit refspec; RC-2 fine-grained PAT scope + 90d rotation; RC-3 cold-build estimate 60–90s → 3–5 min; RC-4 `actions/checkout@v4` + no `/cache/cargo` block | pending — all four fixes applied |
+| Clean architecture | REQUEST CHANGES | RC-1 stale `OSS_CFDB_GATES` ref at §10; RC-2 dup paragraph in §9.3 | RATIFY |
+| Domain-driven design | REQUEST CHANGES | RC-1 "canonical CI surface" conflation §3.1; RC-2 drop "publish-paired" frontmatter+§3.2; RC-3 "shape-mirror" homonym §3.3 | RATIFY |
+| SOLID + components | RATIFY | — (one advisory: R3-3 split-allowance noted in issue body) | (n/a — single round) |
+| Rust systems | REQUEST CHANGES | RC-1 (mandatory) `--mirror` deletes contributor branches → explicit refspec; RC-2 fine-grained PAT scope + 90d rotation; RC-3 cold-build estimate 60–90s → 3–5 min; RC-4 `actions/checkout@v4` + no `/cache/cargo` block | RATIFY (with non-blocking editorial note on §4 I2; fixed in r4) |
 
-All round-1 RC items are addressed in this revision. Lenses re-invoked in round 2 against the patched RFC.
+**RFC RATIFIED** at round 2. All four lens verdicts returned RATIFY against the patched RFC. §7 is now the concrete backlog and Phase 1 implementation may proceed.
 
 ### §5.1 — Clean architecture (`clean-arch`) — Round 1
 
@@ -174,6 +174,8 @@ All round-1 RC items are addressed in this revision. Lenses re-invoked in round 
 
 **Findings that did NOT require changes:** dependency direction clean (mirror workflow on Gitea side, contributor CI on GitHub side, no inner-to-outer import); port purity clean (doc split has no trait signatures); screaming architecture satisfactory (`contributor-ci` and `mirror-to-github` are intent-revealing); composition root sound (CLAUDE.md stub preserved per §3.4 / §4 I5); R3-3 bundling acceptable (CCP win for atomic-deploy, both artifacts exist solely because of the GitHub-mirror decision); §9 forward-looking citation correctly scoped as "RFC-004 territory" — no premature dependency.
 
+**Round 2 verdict: RATIFY.** Both round-1 RC items verified clean. The explicit-refspec change from rust-systems RC-1 is a tighter safety constraint that strengthens, not undermines, the composition root boundary (contributor branches on the GitHub side are no longer silently deleted by the mirror push).
+
 ### §5.2 — Domain-driven design (`ddd-specialist`) — Round 1
 
 **Verdict: REQUEST CHANGES** (all three items applied in r3).
@@ -183,6 +185,8 @@ All round-1 RC items are addressed in this revision. Lenses re-invoked in round 
 - **RC-3:** §3.3 Notes column used "shape-mirror of gitea `<job>`" alongside §3.1's "git mirror" sense — homonym. Replaced with "analogous to gitea `<job>`".
 
 **Advisory carried (no RC):** "contributor-feedback CI" vs "canonical CI" is correctly an operational/process concept, NOT a domain concept; no `specs/contexts/` entry needed. CONTRIBUTING.md (R3-2) author should not over-formalize it.
+
+**Round 2 verdict: RATIFY.** All three round-1 RC items resolved cleanly. No new vocabulary terms introduced by the other lenses' RC fixes; "companion repo" stays the canonical relationship term per `docs/cross-fixture-bump.md §1.1`.
 
 ### §5.3 — SOLID + component principles (`solid-architect`) — Round 1
 
@@ -210,6 +214,8 @@ ADP satisfied — no new compile-time edges, the existing acyclic graph (domain 
 - **RC-4 (non-blocking, implementation guard):** Contributor-CI Setup must use `actions/checkout@v4` directly (github runners have Node.js on the host, unlike Gitea's `rust:1.93` container) and MUST NOT copy the Gitea `/cache/cargo` symlink block (no persistent host mount on github-hosted runners). Inlined into R3-3.
 
 **Findings that did NOT require changes:** `Cargo.toml.repository` portability clean (zero in-tree `CARGO_PKG_REPOSITORY` references); `rust:1.93` Docker Hub image works identically on github-hosted runners; coherence/orphan-rule risk is no-op (zero new Rust crates).
+
+**Round 2 verdict: RATIFY.** All four round-1 RC items resolved. Non-blocking editorial note: §4 Invariant 2 originally still referenced `git push --mirror github` (not updated when §3.1 / §7 were patched in r3); fixed in r4 to "an outbound explicit-refspec push of `develop` / `main` / tags to GitHub (per rust-systems RC-1)". Does not change any design decision.
 
 ## §6 — Non-goals
 
@@ -275,6 +281,9 @@ The blind spot to flag in `CONTRIBUTING.md` (R3-2 deliverable): legacy code with
 
 ## §10 — Ratification
 
-Round 1: solid-architect RATIFY; clean-arch / ddd-specialist / rust-systems REQUEST CHANGES (10 RC items total). All RC items applied in r3. Round 2 awaits re-invocation of clean-arch / ddd-specialist / rust-systems against the patched RFC.
+**RATIFIED 2026-04-21.** All four architect lenses returned RATIFY:
 
-After ratification, §7 becomes the concrete backlog. Each row is filed as a forge issue with body `Refs: docs/rfc/003-oss-readiness.md`, worked via `/work-issue-lib`, shipped through the canonical Gitea CI gates (graph-specs check + cfdb-check + cross-dogfood). The contributor-feedback CI on the GitHub mirror is informational only.
+- Round 1: solid-architect RATIFY; clean-arch / ddd-specialist / rust-systems REQUEST CHANGES (10 RC items total).
+- Round 2: clean-arch RATIFY, ddd-specialist RATIFY, rust-systems RATIFY (with one non-blocking editorial fix to §4 I2, applied in r4).
+
+§7 is now the concrete backlog. Each row is filed as a forge issue with body `Refs: docs/rfc/003-oss-readiness.md`, worked via `/work-issue-lib`, shipped through the canonical Gitea CI gates (graph-specs check + cfdb-check + cross-dogfood). The contributor-feedback CI on the GitHub mirror is informational only.
