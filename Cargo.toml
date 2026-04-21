@@ -12,7 +12,7 @@ members = [
 edition = "2021"
 version = "0.1.0"
 license = "MIT OR Apache-2.0"
-repository = "https://agency.lab:3000/yg/graph-specs-rust"
+repository = "https://github.com/yannickgranger/graph-specs"
 
 [workspace.dependencies]
 clap = { version = "4.5", features = ["derive"] }
