@@ -202,3 +202,23 @@ behavior to v0.3 (context pass is a no-op). Lives in `domain`.
 - depends on: Graph
 - depends on: ContextDecl
 - returns: CheckInput
+
+## SchemaVersion
+
+The NDJSON wire-contract version stamped on every record emitted by
+`graph-specs check --format=ndjson`. Promoted from a serialization
+literal to a domain-owned Published Language type so downstream
+consumers (notably qbot-core's `compare-spec-change` pipeline, tracked
+in `yg/qbot-core#4034`) import this type and dispatch parse behavior
+against it rather than re-typing `"1"` / `"2"` magic strings per
+consumer. The current production value is the associated constant
+`SchemaVersion::CURRENT` (today: `V2`). Retaining `V1` keeps the
+overlap-window reader path typed — consumers gating on this enum at
+parse time get an exhaustiveness check the day a future RFC bumps
+`CURRENT`. Marked `#[non_exhaustive]` so future-version additions
+(v3+) are non-breaking for downstream consumers. Lives in `domain`.
+
+See `specs/ndjson-output.md` §Schema evolution for the bump rules
+(breaking changes bump; non-breaking additions do not) and
+`docs/rfc/001-bounded-context-equivalence.md` §3.3 for the v1→v2
+ratification decision.

@@ -27,6 +27,7 @@ here. No IO, no parser state — just values, traits, and the three-pass
 - ContextPattern (PublishedLanguage)
 - OwnedUnit (PublishedLanguage)
 - CheckInput (PublishedLanguage)
+- SchemaVersion (PublishedLanguage)
 - Reader (PublishedLanguage)
 - ContextReader (PublishedLanguage)
 - ReaderError (PublishedLanguage)
