@@ -1,4 +1,0 @@
-    Checking adapter-markdown v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/24/adapters/markdown)
-    Checking application v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/24/application)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.44s
-clippy exit: 0

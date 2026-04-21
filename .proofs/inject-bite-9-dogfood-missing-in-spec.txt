@@ -1,3 +1,0 @@
-edge missing in spec: MarkdownReader --IMPLEMENTS--> Reader (./adapters/markdown/src/lib.rs:34)
-1 violation(s) found.
-Exit: 1

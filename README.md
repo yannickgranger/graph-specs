@@ -50,7 +50,7 @@ Two self-control layers ship in CI:
 | Layer | Tool | Question answered |
 |---|---|---|
 | Equivalence | `graph-specs check` | Do the specs match the code? |
-| Architectural bans | [`cfdb`](https://agency.lab:3000/yg/cfdb) violations | Does the code use forbidden patterns? |
+| Architectural bans | [`cfdb`](https://github.com/yannickgranger/cfdb) violations | Does the code use forbidden patterns? |
 
 The cfdb layer runs pinned Cypher rules under `.cfdb/queries/` — e.g. `arch-ban-unwrap-domain-ports.cypher` forbids `.unwrap()` in non-test items inside the hexagonal core. The cfdb commit is pinned in `.cfdb/cfdb.rev`.
 

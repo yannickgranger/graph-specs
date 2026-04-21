@@ -1,6 +1,6 @@
 # graph-specs-rust — CLAUDE.md
 
-Repo-local rules. Extends the global `~/.claude/CLAUDE.md`, does not replace it.
+Repo-local methodology. Sets the contribution and review discipline for this repo; see `CONTRIBUTING.md` (if present) for a contributor-oriented summary.
 
 ## §1 — Core methodology
 
@@ -138,7 +138,7 @@ mkdir -p .cfdb/db && cfdb extract --workspace . --db .cfdb/db --keyspace graph-s
 for r in .cfdb/queries/*.cypher; do cfdb violations --db .cfdb/db --keyspace graph-specs --rule "$r"; done
 
 # Ship
-/ship <issue> agency:yg/graph-specs-rust --workspace <path>
+/ship <issue> <repo-url> --workspace <path>
 ```
 
 ## §7 — Companion policy

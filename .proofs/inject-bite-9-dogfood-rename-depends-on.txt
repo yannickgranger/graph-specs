@@ -1,4 +1,0 @@
-edge missing in spec: ConceptNode --DEPENDS_ON--> Source (./domain/src/lib.rs:45)
-edge target unknown: ConceptNode --DEPENDS_ON--> NonExistent (not a concept in either graph) (specs/concepts/core.md:28)
-2 violation(s) found.
-Exit: 1
