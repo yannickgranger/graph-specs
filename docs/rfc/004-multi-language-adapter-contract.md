@@ -1,6 +1,6 @@
 ---
 title: RFC-004 — Multi-language adapter contract
-status: DRAFT round 1 r2 — round-1 verdicts captured (clean-arch RC×3, ddd-specialist RC×5, solid-architect RC×2 + 3 advisories, rust-systems RC×4); RC fixes applied; awaits round-2 review
+status: RATIFIED 2026-04-21 — clean-arch RATIFY, ddd-specialist RATIFY, solid-architect RATIFY, rust-systems RATIFY (with one non-blocking implementation advisory captured in R4-4)
 date: 2026-04-21
 authors: Claude (session 2026-04-21, EPIC umbrella for OSS + multi-language)
 companion: yg/cfdb (visibility mirror only — RFC-004 has no cross-tool wire impact)
@@ -353,14 +353,16 @@ A self-dogfood test runs as part of `application::tests::cli` to assert that v0.
 
 (All four return verdicts inline after round 1.)
 
-### §5.0 — Round-1 verdict summary
+### §5.0 — Verdict summary (rounds 1 + 2)
 
 | Lens | Round 1 | RC items | Round 2 |
 |---|---|---|---|
-| Clean architecture | REQUEST CHANGES | RC-1 (BLOCKER) `BuildSystemKind` leaks infra into domain (Dependency Rule); RC-2 `SpecSourceKind` placement; RC-3 `dispatch.rs` naming + `ReaderSide`/`SourceKind` split-brain | pending — all three fixes applied |
-| Domain-driven design | REQUEST CHANGES | RC-1 (BLOCKING) split `Language` → `CodeLanguage` + `SpecFormat` (homonym); RC-2 "spec source" prose overload; RC-3 drop `SpecSourceKind` (absorbed into `SpecFormat`); RC-4 R4-1 must update `specs/contexts/{equivalence,reading}.md`; RC-5 declare markdown canonical upstream in `SignatureDriftWithinSide` | pending — all five fixes applied |
-| SOLID + components | REQUEST CHANGES | RC-1 (BLOCKING) split `CheckRequest` → `ReaderSet` + `CheckRequest` (SRP); RC-2 (BLOCKING) `Reader::languages() -> &[Language]` (ISP) — superseded by drop entirely per §3.2 r2; A-1 OCP advisory; A-2 CCP advisory; A-3 `SignatureDriftWithinSide` clean | pending — both blocking fixes applied (RC-2 went further than slice: dropped from trait entirely) |
-| Rust systems | REQUEST CHANGES | RC-1 `violation_key` const-fn arm for `SignatureDriftWithinSide` (compile blocker); RC-2 12+ `Source` enum→struct call-sites (resolved by keeping `Source` as enum); RC-3 `owned_unit.0` ndjson break (resolved by keeping `OwnedUnit` unchanged); RC-4 `--lang` must NOT filter spec readers | pending — all four fixes applied |
+| Clean architecture | REQUEST CHANGES | RC-1 (BLOCKER) `BuildSystemKind` leaks infra into domain (Dependency Rule); RC-2 `SpecSourceKind` placement; RC-3 `dispatch.rs` naming + `ReaderSide`/`SourceKind` split-brain | RATIFY |
+| Domain-driven design | REQUEST CHANGES | RC-1 (BLOCKING) split `Language` → `CodeLanguage` + `SpecFormat` (homonym); RC-2 "spec source" prose overload; RC-3 drop `SpecSourceKind` (absorbed into `SpecFormat`); RC-4 R4-1 must update `specs/contexts/{equivalence,reading}.md`; RC-5 declare markdown canonical upstream in `SignatureDriftWithinSide` | RATIFY |
+| SOLID + components | REQUEST CHANGES | RC-1 (BLOCKING) split `CheckRequest` → `ReaderSet` + `CheckRequest` (SRP); RC-2 (BLOCKING) `Reader::languages() -> &[Language]` (ISP) — superseded by drop entirely per §3.2 r2; A-1 OCP advisory; A-2 CCP advisory; A-3 `SignatureDriftWithinSide` clean | RATIFY (round-1 RC-2 correctly overshot — drop went further than slice; ISP intent fully satisfied) |
+| Rust systems | REQUEST CHANGES | RC-1 `violation_key` const-fn arm for `SignatureDriftWithinSide` (compile blocker); RC-2 12+ `Source` enum→struct call-sites (resolved by keeping `Source` as enum); RC-3 `owned_unit.0` ndjson break (resolved by keeping `OwnedUnit` unchanged); RC-4 `--lang` must NOT filter spec readers | RATIFY (with one non-blocking implementation advisory on `ReaderRegistry::code_readers_for` signature; captured in R4-4) |
+
+**RFC RATIFIED** at round 2 (2026-04-21). All four lens verdicts returned RATIFY against the patched RFC. §7 is now the concrete Phase 2 backlog.
 
 All 14 round-1 RC items addressed in r2. Three convergences eliminated entire migration scope:
 - `SpecSourceKind` triple-flagged → dropped (clean-arch RC-2 + ddd RC-3 + solid A-3 converged)
@@ -377,6 +379,8 @@ All 14 round-1 RC items addressed in r2. Three convergences eliminated entire mi
 
 **Findings that did NOT require changes:** dependency direction of `CheckRequest` carrying `Vec<Box<dyn Reader>>` is sound (`application` → `ports`); composition root wiring respects the inward-pointing rule; `Reader::language()` would have been port-clean had `Language` stayed in `domain` — but solid-architect RC-2 + ddd-specialist RC-1 converged to drop it entirely; forward-looking RFC-005/006 citations are correctly scoped as informational.
 
+**Round 2 verdict: RATIFY.** All three round-1 RC items closed. The `CodeLanguage`/`SpecFormat` split, `ReaderSet`/`CheckRequest` split, and `ReaderRegistry`-as-application-concern placement all preserve inward dependency direction. The `domain/src/context.rs:17` "language-agnostic" comment intent is preserved. No new clean-arch concerns introduced in r2.
+
 ### §5.2 — Domain-driven design (`ddd-specialist`) — Round 1
 
 **Verdict: REQUEST CHANGES** (all five items applied in r2).
@@ -386,6 +390,8 @@ All 14 round-1 RC items addressed in r2. Three convergences eliminated entire mi
 - **RC-3:** `SpecSourceKind` was partially absorbed by `Language` and partially redundant — `MarkdownConcept` / `MarkdownContext` are reader-implementation details (the diff engine doesn't branch on subdirectory). Resolution: dropped entirely; the legitimate `InlineAttribute` distinction lives in `SpecFormat`. `Source::Spec` carries `format: SpecFormat` (no `Option<...>` whose meaning depends on context).
 - **RC-4:** R4-1 self-dogfood migration was instance-level only (gaining `build_system: cargo_crate` annotations on `Owns` entries) but missed the type-level Published Language signature update. Resolution: R4-1 now explicitly includes `specs/contexts/equivalence.md` Exports gain `CodeLanguage` + `SpecFormat` (PublishedLanguage); `specs/contexts/reading.md` Imports gain the same. (The instance-level migration that ddd RC-4 originally referenced is moot since `OwnedUnit` is unchanged in r2.)
 - **RC-5:** ACL deferral correctly scoped, but `SignatureDriftWithinSide` implicitly required a canonical-upstream rule for spec-side conflicts. Resolution: §4 Invariant 7 + §3.5 now declare markdown as canonical upstream on the spec side; the variant reports both sources; no auto-resolution. Auto-resolution is RFC-007 territory.
+
+**Round 2 verdict: RATIFY.** All five round-1 RC items closed cleanly. The canonical-upstream rule is stated in four places (§3.5, §4 Invariant 7, §6 non-goal 10, §8 OQ-2) — implementers of RFC-005/006 cannot miss it. The §3.6 fenced-block dispatch correctly lives in `specs/dialect.md` (documentation layer), not in `domain` — adapter-implementation detail in the right place. No domain-layer leakage; no new vocabulary concerns introduced in r2.
 
 ### §5.3 — SOLID + component principles (`solid-architect`) — Round 1
 
@@ -399,6 +405,8 @@ All 14 round-1 RC items addressed in r2. Three convergences eliminated entire mi
 
 Stability metrics impact (per the lens's table): `domain` Zone-of-Pain D=1.00 unchanged (5→2 new types still concrete; A=0); `ports` D=0.35 stays (no new methods on the trait, since `language()` was dropped); `application` D=0.00 stays (composition root). No SDP/ADP violations introduced.
 
+**Round 2 verdict: RATIFY.** Both blocking items closed; advisories carried. The lens noted that the round-1 RC-2 resolution (drop the method entirely) "went further than my round-1 slice proposal" and is "strictly better" — the registry-based approach makes the `Reader` port byte-identical to v0.4 and never forces an implementor to characterize themselves as "one language." Stability table refinement: `ports` stays D=0.35 (the conditional D=0.15 improvement was tied to adding `language()` as a third method; with `language()` dropped, ports is unchanged from v0.4). Same inherited carry-forward; no new finding.
+
 ### §5.4 — Rust systems (`rust-systems`) — Round 1
 
 **Verdict: REQUEST CHANGES** (all four items applied in r2; two evaporated by upstream fixes).
@@ -409,6 +417,8 @@ Stability metrics impact (per the lens's table): `domain` Zone-of-Pain D=1.00 un
 - **RC-4:** `--lang rust` would have filtered out `MarkdownReader` (returning `Language::Markdown`) from spec readers, producing an empty spec graph and a false pass. Resolution: §3.4 algorithm now explicitly filters only `code_readers`; spec readers always fire (Invariant 5 corollary). R4-5 negative test added.
 
 **Findings that did NOT require changes:** trait object safety preserved (no generics, no Self in return); `#[non_exhaustive]` on the new enums has no `const fn` use-site impact (unlike RFC-001's `violation_key()` concern, which RC-1 above DOES touch via the new variant arm); zero new workspace crates; zero new `[workspace.dependencies]` entries; `Box<dyn Reader>` virtual-call cost is `len(spec_readers) + len(code_readers) = 2` per run, trivially I/O-dominated; NDJSON serde uses `serde_json::json!` macros (hand-built `Value`), not `#[derive(Serialize)]` — no adjacent-tagging pitfall on the `sources` array; `R4-9` qbot-core lockstep is acceptable as a documented obligation (RFC-002-style cross-fixture pin enforcement is overkill for a one-shot consumer bump).
+
+**Round 2 verdict: RATIFY** (with one non-blocking implementation advisory). All four round-1 RC items confirmed resolved. Object safety with `Reader` staying single-method confirmed (`Box<dyn Reader>` requires nothing beyond what already exists). **Implementation advisory:** the `ReaderRegistry::code_readers_for` signature in §3.3 cannot satisfy the `'a` lifetime bound from `&self` alone — the registry only stores `Vec<CodeLanguage>` tags, not the `Reader` references themselves. Implementer threads `readers: &'a [Box<dyn Reader>]` as a second parameter at impl time. One-line signature change; design intent unambiguous. Captured in R4-4 prescription so the implementer cannot miss it.
 
 ## §6 — Non-goals (revised in r2)
 
@@ -432,7 +442,7 @@ Each child issue carries the standard `Tests:` template (Unit / Self dogfood / C
 | **R4-1** | Domain types: `CodeLanguage` + `SpecFormat` enums (`#[non_exhaustive]`). `Source` enum gains typed payload per variant (`format: SpecFormat` on `Spec`; `language: CodeLanguage` on `Code`). **Updates `specs/contexts/equivalence.md` Exports** with `CodeLanguage` + `SpecFormat` (PublishedLanguage); **updates `specs/contexts/reading.md` Imports** to consume them (per ddd-specialist RC-4). Migrates the 12+ `Source::Spec`/`Source::Code` construction + match sites listed by rust-systems RC-2 across `adapters/markdown/`, `adapters/rust/`, `application/`, `domain/` (file:line list pasted verbatim from rust-systems verdict). | Unit: round-trip serde tests for both enums; `Source::Spec` and `Source::Code` smoke tests. Self dogfood: 0 violations after migration commit (verifies `equivalence.md` Exports update is correct). Cross dogfood: cfdb tree still passes (no schema impact on cfdb). Target dogfood: none — domain-only. |
 | **R4-2** | (DROPPED in r2) — was `Reader::language()`. The trait stays single-method. The language tag moves to `ReaderRegistry` per §3.3 (lands in R4-4). | n/a — slice merged into R4-4. |
 | **R4-3** | Composition root split per solid-architect RC-1: `ReaderSet` struct (compose-time: `spec_readers`, `code_readers`, `context_reader`, `registry`) + `CheckRequest` struct (runtime: `spec_root`, `code_root`, `lang_hint`); `union_graphs` deduplication function; `application::run_check(req: CheckRequest, readers: &ReaderSet)` signature. | Unit: `union_graphs` test cases (no overlap, exact dup, conflict triggering `SignatureDriftWithinSide`). Self dogfood: graph-specs' own check produces identical violations as v0.4 (modulo the new `format` / `language` fields on each source). Cross dogfood: cfdb tree passes. Target dogfood: none. |
-| **R4-4** | Adapter routing: `application/src/adapter_routing.rs` (renamed from r1's `dispatch.rs` per clean-arch RC-3) with `AdapterAssignment { Spec(usize), Code(usize) }` enum (no `ReaderSide` split-brain), `ReaderRegistry` (holds `code_languages: Vec<CodeLanguage>` for code-reader filtering), `route_by_extension`. Wired into the composition root. | Unit: routing table tests for `.md`, `.rs`, unknown extensions; `ReaderRegistry::code_readers_for(CodeLanguage::Rust)` smoke test. Self dogfood: 0 violations. Cross dogfood: cfdb tree passes. Target dogfood: none. |
+| **R4-4** | Adapter routing: `application/src/adapter_routing.rs` (renamed from r1's `dispatch.rs` per clean-arch RC-3) with `AdapterAssignment { Spec(usize), Code(usize) }` enum (no `ReaderSide` split-brain), `ReaderRegistry` (holds `code_languages: Vec<CodeLanguage>` for code-reader filtering), `route_by_extension`. Wired into the composition root. **Implementation note (rust-systems round-2 advisory):** the `ReaderRegistry::code_readers_for` signature in §3.3 cannot satisfy the `'a` lifetime bound from `&self` alone — the registry only stores language tags, not the `Reader` references. Implementer threads `readers: &'a [Box<dyn Reader>]` as a second parameter: `fn code_readers_for<'a>(&self, lang: CodeLanguage, readers: &'a [Box<dyn Reader>]) -> impl Iterator<Item = (usize, &'a Box<dyn Reader>)> + 'a`. One-line signature change at impl time; design intent unchanged. | Unit: routing table tests for `.md`, `.rs`, unknown extensions; `ReaderRegistry::code_readers_for(CodeLanguage::Rust, &readers)` smoke test. Self dogfood: 0 violations. Cross dogfood: cfdb tree passes. Target dogfood: none. |
 | **R4-5** | `--lang` CLI flag plumbed end-to-end. **Filters only `code_readers`** via `ReaderRegistry::code_readers_for(lang)` per rust-systems RC-4. `spec_readers` always fire (Invariant 5). | Unit: integration test in `application/tests/cli.rs` for each `--lang` value. Self dogfood: `--lang rust` on graph-specs' tree gives identical results to no flag. **Negative test (rust-systems RC-4):** `--lang rust` on an all-markdown spec tree returns the same violations as no flag; an empty `active_code_readers` after filtering is a bug. Cross dogfood: none. Target dogfood: none. |
 | **R4-6** | NDJSON schema v3: bump version; add `format` field on spec-source objects, `language` field on code-source objects; add `signature_drift_within_side` variant with `sources: Vec<SourceWithSig>` array; **add `SignatureDriftWithinSide` arm to `const fn violation_key` at `domain/src/diff.rs:105` with rank 9** per rust-systems RC-1 (compile blocker if missed); update `specs/ndjson-output.md` as authoritative contract. | Unit: snapshot test on every emitter arm; `violation_key` returns rank 9 for `SignatureDriftWithinSide`. Self dogfood: graph-specs' v3 NDJSON parses correctly through a v3 fixture parser. Cross dogfood: cfdb consumer still works on its own tree (cfdb does not consume graph-specs NDJSON). Target dogfood: qbot-core PR open against `compare-spec-change` adding v3 arm — proof is a green link. |
 | **R4-7** | `specs/dialect.md` §"Multi-language fenced blocks" added. Documents the fence-tag → adapter dispatch contract. | Unit: none — docs only. Self dogfood: 0 violations. Cross dogfood: none. Target dogfood: none — rationale: documentation. |
@@ -455,6 +465,9 @@ R4-1 is a prerequisite for everything else (ships the new enums + Source variant
 
 ## §9 — Ratification
 
-Round 1: all four lenses returned REQUEST CHANGES (clean-arch RC×3, ddd-specialist RC×5, solid-architect RC×2 + 3 advisories, rust-systems RC×4 — 14 RC items total, 5 blocking). All RC items applied in r2. Round 2 awaits re-invocation against the patched RFC.
+**RATIFIED 2026-04-21.** All four architect lenses returned RATIFY:
 
-After ratification, §7 becomes the concrete Phase 2 backlog. Each row is filed as a forge issue with body `Refs: docs/rfc/004-multi-language-adapter-contract.md`, worked via `/work-issue-lib`, shipped through the canonical Gitea CI gates. RFC-005 (PHP) and RFC-006 (TS) draft in parallel after this RFC ratifies; their work blocks on R4-1, R4-3, R4-4, R4-6 landing first.
+- Round 1: all four lenses REQUEST CHANGES (clean-arch RC×3, ddd-specialist RC×5, solid-architect RC×2 + 3 advisories, rust-systems RC×4 — 14 RC items total, 5 blocking). All applied in r2.
+- Round 2: clean-arch RATIFY, ddd-specialist RATIFY, solid-architect RATIFY, rust-systems RATIFY (with one non-blocking implementation advisory captured in R4-4 prescription).
+
+§7 is now the concrete Phase 2 backlog. Each row is filed as a forge issue with body `Refs: docs/rfc/004-multi-language-adapter-contract.md`, worked via `/work-issue-lib`, shipped through the canonical Gitea CI gates. RFC-005 (PHP) and RFC-006 (TS) draft in parallel; their work blocks on R4-1, R4-3, R4-4, R4-6 landing first.
