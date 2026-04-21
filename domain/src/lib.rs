@@ -40,15 +40,15 @@ pub enum SchemaVersion {
 
 impl SchemaVersion {
     /// The version stamped on every record this build emits.
-    pub const CURRENT: SchemaVersion = SchemaVersion::V2;
+    pub const CURRENT: Self = Self::V2;
 
     /// Wire form — the exact string literal that appears in the
     /// `schema_version` JSON field.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            SchemaVersion::V1 => "1",
-            SchemaVersion::V2 => "2",
+            Self::V1 => "1",
+            Self::V2 => "2",
         }
     }
 }
