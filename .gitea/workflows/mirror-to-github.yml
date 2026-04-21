@@ -35,6 +35,11 @@ jobs:
           GH_REPO: yannickgranger/graph-specs
         run: |
           set -euo pipefail
+
+          # Defensive: strip any whitespace from PAT (Gitea UI doesn't trim on paste).
+          # Done silently — PAT never echoed.
+          GH_PAT=$(printf '%s' "${GH_PAT}" | tr -d '[:space:]')
+
           git config --global --add safe.directory '*'
           git config --global http.sslVerify false
           git config --global url."https://oauth2:${GITEA_TOKEN}@${GITHUB_SERVER_URL#https://}/".insteadOf "${GITHUB_SERVER_URL}/"
