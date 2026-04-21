@@ -18,7 +18,7 @@
 //! All v1 records are structurally unchanged except for the version
 //! bump. Consumers pin on `schema_version` and select a variant set.
 
-use domain::{ContextViolation, Source, Violation};
+use domain::{ContextViolation, SchemaVersion, Source, Violation};
 use serde_json::{json, Value};
 use std::io::Write;
 use std::path::Path;
@@ -41,13 +41,13 @@ pub fn write_ndjson(violations: &[Violation], out: &mut impl Write) -> std::io::
 fn violation_to_record(v: &Violation) -> Value {
     match v {
         Violation::MissingInCode { name, spec_source } => json!({
-            "schema_version": "2",
+            "schema_version": SchemaVersion::CURRENT.as_str(),
             "violation": "missing_in_code",
             "concept": name,
             "source": source_to_json(spec_source),
         }),
         Violation::MissingInSpecs { name, code_source } => json!({
-            "schema_version": "2",
+            "schema_version": SchemaVersion::CURRENT.as_str(),
             "violation": "missing_in_specs",
             "concept": name,
             "source": source_to_json(code_source),
@@ -59,7 +59,7 @@ fn violation_to_record(v: &Violation) -> Value {
             spec_source,
             code_source,
         } => json!({
-            "schema_version": "2",
+            "schema_version": SchemaVersion::CURRENT.as_str(),
             "violation": "signature_drift",
             "concept": name,
             "spec_sig": spec_sig,
@@ -72,7 +72,7 @@ fn violation_to_record(v: &Violation) -> Value {
             code_sig,
             code_source,
         } => json!({
-            "schema_version": "2",
+            "schema_version": SchemaVersion::CURRENT.as_str(),
             "violation": "signature_missing_in_spec",
             "concept": name,
             "code_sig": code_sig,
@@ -84,7 +84,7 @@ fn violation_to_record(v: &Violation) -> Value {
             error,
             source,
         } => json!({
-            "schema_version": "2",
+            "schema_version": SchemaVersion::CURRENT.as_str(),
             "violation": "signature_unparseable",
             "concept": name,
             "raw": raw,
@@ -97,7 +97,7 @@ fn violation_to_record(v: &Violation) -> Value {
             target,
             spec_source,
         } => json!({
-            "schema_version": "2",
+            "schema_version": SchemaVersion::CURRENT.as_str(),
             "violation": "edge_missing_in_code",
             "concept": concept,
             "edge_kind": edge_kind.as_label(),
@@ -110,7 +110,7 @@ fn violation_to_record(v: &Violation) -> Value {
             target,
             code_source,
         } => json!({
-            "schema_version": "2",
+            "schema_version": SchemaVersion::CURRENT.as_str(),
             "violation": "edge_missing_in_spec",
             "concept": concept,
             "edge_kind": edge_kind.as_label(),
@@ -123,7 +123,7 @@ fn violation_to_record(v: &Violation) -> Value {
             target,
             spec_source,
         } => json!({
-            "schema_version": "2",
+            "schema_version": SchemaVersion::CURRENT.as_str(),
             "violation": "edge_target_unknown",
             "concept": concept,
             "edge_kind": edge_kind.as_label(),
@@ -141,7 +141,7 @@ fn context_violation_to_record(v: &ContextViolation) -> Value {
             owned_unit,
             code_source,
         } => json!({
-            "schema_version": "2",
+            "schema_version": SchemaVersion::CURRENT.as_str(),
             "violation": "context_membership_unknown",
             "concept": concept,
             "owned_unit": owned_unit.0,
@@ -155,7 +155,7 @@ fn context_violation_to_record(v: &ContextViolation) -> Value {
             target_context,
             spec_source,
         } => json!({
-            "schema_version": "2",
+            "schema_version": SchemaVersion::CURRENT.as_str(),
             "violation": "cross_context_edge_unauthorized",
             "concept": concept,
             "owning_context": owning_context,
@@ -172,7 +172,7 @@ fn context_violation_to_record(v: &ContextViolation) -> Value {
             target_context,
             spec_source,
         } => json!({
-            "schema_version": "2",
+            "schema_version": SchemaVersion::CURRENT.as_str(),
             "violation": "cross_context_edge_undeclared",
             "concept": concept,
             "owning_context": owning_context,
@@ -185,7 +185,7 @@ fn context_violation_to_record(v: &ContextViolation) -> Value {
         // record rather than panicking. `#[non_exhaustive]` on
         // `ContextViolation` mandates this arm.
         _ => json!({
-            "schema_version": "2",
+            "schema_version": SchemaVersion::CURRENT.as_str(),
             "violation": "unknown_context_violation",
             "concept": v.concept(),
         }),

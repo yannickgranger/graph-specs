@@ -17,6 +17,48 @@ pub use context::{
 pub use diff::diff;
 pub use tokens::tokenise_target;
 
+/// NDJSON wire-contract version stamped on every record emitted by
+/// `graph-specs check --format=ndjson`.
+///
+/// Promoted from a serialization literal to a domain-owned Published
+/// Language type so downstream consumers (e.g. qbot-core's
+/// `compare-spec-change` pipeline) gate their parse dispatch against a
+/// single typed source rather than re-typing `"1"` / `"2"` magic
+/// strings per consumer.
+///
+/// The current production value — what every new record this build
+/// emits carries — is [`SchemaVersion::CURRENT`]. [`SchemaVersion::V1`]
+/// is retained for consumers reading v0.3-era fixtures during the
+/// overlap window documented at `specs/ndjson-output.md` §Schema
+/// evolution.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum SchemaVersion {
+    V1,
+    V2,
+}
+
+impl SchemaVersion {
+    /// The version stamped on every record this build emits.
+    pub const CURRENT: SchemaVersion = SchemaVersion::V2;
+
+    /// Wire form — the exact string literal that appears in the
+    /// `schema_version` JSON field.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            SchemaVersion::V1 => "1",
+            SchemaVersion::V2 => "2",
+        }
+    }
+}
+
+impl std::fmt::Display for SchemaVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// A graph of concepts extracted from one side of the equivalence check.
 ///
 /// Either a spec tree or a code tree. Two graphs are equivalent at
