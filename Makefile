@@ -5,7 +5,7 @@
 # targets). They are no-ops because graph-specs-rust runs entirely
 # in-process — no Podman, no databases, no network.
 
-.PHONY: test-integ-up test-integ-down graph-specs-check
+.PHONY: test-integ-up test-integ-down graph-specs-check release-prepare
 
 test-integ-up:
 	@echo "graph-specs-rust: no integration infra — pure-library project"
@@ -19,3 +19,6 @@ test-integ-down:
 graph-specs-check:
 	cargo build -p application --release
 	./target/release/graph-specs check --specs specs/ --code .
+
+release-prepare:  ## Bump version + changelog (auto|patch|minor|major)
+	scripts/release-prepare.sh $(or $(BUMP),auto)
