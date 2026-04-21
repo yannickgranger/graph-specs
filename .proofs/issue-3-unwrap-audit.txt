@@ -1,0 +1,69 @@
+=== Unwrap audit (CLAUDE.md: no .unwrap() anywhere, test or prod) ===
+
+--- Production code ---
+adapters/markdown/src/lib.rs:123:            std::fs::create_dir_all(parent).unwrap();
+adapters/markdown/src/lib.rs:125:        let mut f = std::fs::File::create(&full).unwrap();
+adapters/markdown/src/lib.rs:126:        f.write_all(content.as_bytes()).unwrap();
+adapters/markdown/src/lib.rs:130:        let g = MarkdownReader.extract(dir).unwrap();
+adapters/markdown/src/lib.rs:138:        let d = TempDir::new().unwrap();
+adapters/markdown/src/lib.rs:145:        let d = TempDir::new().unwrap();
+adapters/markdown/src/lib.rs:156:        let d = TempDir::new().unwrap();
+adapters/markdown/src/lib.rs:167:        let d = TempDir::new().unwrap();
+adapters/markdown/src/lib.rs:178:        let d = TempDir::new().unwrap();
+adapters/markdown/src/lib.rs:185:        let d = TempDir::new().unwrap();
+adapters/markdown/src/lib.rs:192:        let d = TempDir::new().unwrap();
+adapters/markdown/src/lib.rs:194:        let g = MarkdownReader.extract(d.path()).unwrap();
+adapters/markdown/src/lib.rs:203:        let d = TempDir::new().unwrap();
+adapters/rust/src/lib.rs:156:            std::fs::create_dir_all(parent).unwrap();
+adapters/rust/src/lib.rs:158:        let mut f = std::fs::File::create(&full).unwrap();
+adapters/rust/src/lib.rs:159:        f.write_all(content.as_bytes()).unwrap();
+adapters/rust/src/lib.rs:163:        let g = RustReader.extract(dir).unwrap();
+adapters/rust/src/lib.rs:171:        let d = TempDir::new().unwrap();
+adapters/rust/src/lib.rs:182:        let d = TempDir::new().unwrap();
+adapters/rust/src/lib.rs:189:        let d = TempDir::new().unwrap();
+adapters/rust/src/lib.rs:200:        let d = TempDir::new().unwrap();
+adapters/rust/src/lib.rs:212:        let d = TempDir::new().unwrap();
+adapters/rust/src/lib.rs:222:        let d = TempDir::new().unwrap();
+adapters/rust/src/lib.rs:231:        let d = TempDir::new().unwrap();
+adapters/rust/src/lib.rs:233:        let g = RustReader.extract(d.path()).unwrap();
+application/src/lib.rs:34:            std::fs::create_dir_all(parent).unwrap();
+application/src/lib.rs:36:        let mut f = std::fs::File::create(&full).unwrap();
+application/src/lib.rs:37:        f.write_all(content.as_bytes()).unwrap();
+application/src/lib.rs:42:        let specs = TempDir::new().unwrap();
+application/src/lib.rs:43:        let code = TempDir::new().unwrap();
+application/src/lib.rs:44:        assert!(run_check(specs.path(), code.path()).unwrap().is_empty());
+application/src/lib.rs:49:        let specs = TempDir::new().unwrap();
+application/src/lib.rs:50:        let code = TempDir::new().unwrap();
+application/src/lib.rs:57:        assert!(run_check(specs.path(), code.path()).unwrap().is_empty());
+
+--- Test code ---
+application/src/lib.rs:50:        let code = TempDir::new().unwrap();
+application/src/lib.rs:57:        assert!(run_check(specs.path(), code.path()).unwrap().is_empty());
+application/tests/cli.rs:17:        std::fs::create_dir_all(parent).unwrap();
+application/tests/cli.rs:19:    let mut f = std::fs::File::create(&full).unwrap();
+application/tests/cli.rs:20:    f.write_all(content.as_bytes()).unwrap();
+application/tests/cli.rs:29:    let specs = TempDir::new().unwrap();
+application/tests/cli.rs:30:    let code = TempDir::new().unwrap();
+application/tests/cli.rs:36:            specs.path().to_str().unwrap(),
+application/tests/cli.rs:38:            code.path().to_str().unwrap(),
+application/tests/cli.rs:47:    let specs = TempDir::new().unwrap();
+application/tests/cli.rs:48:    let code = TempDir::new().unwrap();
+application/tests/cli.rs:60:            specs.path().to_str().unwrap(),
+application/tests/cli.rs:62:            code.path().to_str().unwrap(),
+application/tests/cli.rs:71:    let specs = TempDir::new().unwrap();
+application/tests/cli.rs:72:    let code = TempDir::new().unwrap();
+application/tests/cli.rs:80:            specs.path().to_str().unwrap(),
+application/tests/cli.rs:82:            code.path().to_str().unwrap(),
+application/tests/cli.rs:92:    let specs = TempDir::new().unwrap();
+application/tests/cli.rs:93:    let code = TempDir::new().unwrap();
+application/tests/cli.rs:105:            specs.path().to_str().unwrap(),
+application/tests/cli.rs:107:            code.path().to_str().unwrap(),
+
+Total .unwrap() occurrences: 53
+
+=== TODO/FIXME audit ===
+(none)
+
+=== panic!/todo!/unimplemented! audit ===
+adapters/markdown/src/lib.rs:197:            _ => panic!("expected Spec source"),
+adapters/rust/src/lib.rs:236:            _ => panic!("expected Code source"),

@@ -1,0 +1,12 @@
+=== $ cargo audit ===
+    Fetching advisory database from `https://github.com/RustSec/advisory-db.git`
+      Loaded 1046 security advisories (from /var/home/yg/.cargo/advisory-db)
+    Updating crates.io index
+    Scanning Cargo.lock for vulnerabilities (90 crate dependencies)
+=== exit=0 ===
+=== $ cargo audit --json | jq '{vulnerabilities: .vulnerabilities.count, warnings: (.warnings | length // 0)}' ===
+{
+  "vulnerabilities": 0,
+  "warnings_sections": []
+}
+=== ===

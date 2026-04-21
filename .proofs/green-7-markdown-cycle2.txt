@@ -1,0 +1,29 @@
+   Compiling adapter-markdown v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/7-signature-level/adapters/markdown)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 10.33s
+     Running unittests src/lib.rs (target/debug/deps/adapter_markdown-39bf26c60c3b84ef)
+
+running 15 tests
+test tests::concept_without_rust_block_has_absent_signature ... ok
+test tests::captures_h2_and_h3_headings ... ok
+test tests::handles_inline_backticks_in_heading ... ok
+test tests::ignores_prose_and_lists ... ok
+test tests::ignores_fenced_code_blocks ... ok
+test tests::rust_block_before_first_heading_is_ignored ... ok
+test tests::concept_with_rust_block_has_normalized_signature ... ok
+test tests::strips_generics_from_heading ... ok
+test tests::unparseable_rust_block_becomes_unparseable_signature ... ok
+test tests::ignores_h1_and_deeper_than_h3 ... ok
+test tests::multiple_rust_blocks_in_one_concept_is_unparseable ... ok
+test tests::non_md_files_are_ignored ... ok
+test tests::rust_block_scoped_to_current_concept_only ... ok
+test tests::non_rust_fenced_blocks_do_not_populate_signature ... ok
+test tests::records_correct_line_number ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests adapter_markdown
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

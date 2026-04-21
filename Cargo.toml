@@ -1,0 +1,38 @@
+[workspace]
+resolver = "2"
+members = [
+    "domain",
+    "ports",
+    "adapters/markdown",
+    "adapters/rust",
+    "application",
+]
+
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+license = "MIT OR Apache-2.0"
+repository = "https://agency.lab:3000/yg/graph-specs-rust"
+
+[workspace.dependencies]
+clap = { version = "4.5", features = ["derive"] }
+pulldown-cmark = { version = "0.12", default-features = false }
+syn = { version = "2", features = ["full", "parsing", "visit", "extra-traits"] }
+quote = "1"
+proc-macro2 = { version = "1", features = ["span-locations"] }
+walkdir = "2"
+thiserror = "2"
+serde_json = "1"
+# dev-dependencies
+assert_cmd = "2"
+predicates = "3"
+tempfile = "3"
+
+domain = { path = "domain" }
+ports = { path = "ports" }
+adapter-markdown = { path = "adapters/markdown" }
+adapter-rust = { path = "adapters/rust" }
+application = { path = "application" }
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }

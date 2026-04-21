@@ -1,0 +1,50 @@
+   Compiling domain v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/7-signature-level/domain)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.39s
+     Running unittests src/lib.rs (target/debug/deps/domain-1d1da506e1107ac9)
+
+running 11 tests
+test diff::tests::absent_on_both_sides_still_passes_concept_check ... ok
+test diff::tests::code_only_concept_is_missing_in_specs ... ok
+test diff::tests::duplicate_spec_names_collapse ... ok
+test diff::tests::drifting_signatures_yield_signature_drift ... FAILED
+test diff::tests::code_sig_without_spec_sig_yields_missing_in_spec ... FAILED
+test diff::tests::empty_graphs_yield_no_violations ... ok
+test diff::tests::matching_graphs_yield_no_violations ... ok
+test diff::tests::matching_signatures_yield_no_violations ... ok
+test diff::tests::spec_only_concept_is_missing_in_code ... ok
+test diff::tests::violations_are_sorted_by_name_deterministically ... ok
+test diff::tests::unparseable_spec_sig_yields_unparseable_violation ... FAILED
+
+failures:
+
+---- diff::tests::drifting_signatures_yield_signature_drift stdout ----
+
+thread 'diff::tests::drifting_signatures_yield_signature_drift' (2831413) panicked at domain/src/diff.rs:206:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+---- diff::tests::code_sig_without_spec_sig_yields_missing_in_spec stdout ----
+
+thread 'diff::tests::code_sig_without_spec_sig_yields_missing_in_spec' (2831412) panicked at domain/src/diff.rs:225:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- diff::tests::unparseable_spec_sig_yields_unparseable_violation stdout ----
+
+thread 'diff::tests::unparseable_spec_sig_yields_unparseable_violation' (2831419) panicked at domain/src/diff.rs:246:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+
+failures:
+    diff::tests::code_sig_without_spec_sig_yields_missing_in_spec
+    diff::tests::drifting_signatures_yield_signature_drift
+    diff::tests::unparseable_spec_sig_yields_unparseable_violation
+
+test result: FAILED. 8 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p domain --lib`

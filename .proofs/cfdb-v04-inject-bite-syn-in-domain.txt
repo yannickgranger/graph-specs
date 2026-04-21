@@ -1,0 +1,11 @@
+violations: 1 (rule: .cfdb/queries/arch-context-no-syn-in-domain.cypher)
+{
+  "rows": [
+    {
+      "caller.qname": "domain::_inject_bite_syn_call",
+      "cs.callee_path": "syn::parse_str",
+      "cs.file": "/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/29/domain/src/lib.rs"
+    }
+  ]
+}
+cfdb exit: 1

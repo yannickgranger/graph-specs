@@ -1,0 +1,25 @@
+    Updating crates.io index
+     Locking 21 packages to latest compatible versions
+   Compiling proc-macro2 v1.0.106
+   Compiling unicode-ident v1.0.24
+   Compiling quote v1.0.45
+   Compiling utf8parse v0.2.2
+   Compiling colorchoice v1.0.5
+   Compiling anstyle v1.0.14
+   Compiling is_terminal_polyfill v1.70.2
+   Compiling anstyle-query v1.1.5
+   Compiling domain v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/work-1-scaffold/domain)
+   Compiling heck v0.5.0
+   Compiling clap_lex v1.1.0
+   Compiling strsim v0.11.1
+   Compiling anstyle-parse v1.0.0
+   Compiling ports v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/work-1-scaffold/ports)
+   Compiling anstream v1.0.0
+   Compiling adapter-rust v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/work-1-scaffold/adapters/rust)
+   Compiling adapter-markdown v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/work-1-scaffold/adapters/markdown)
+   Compiling clap_builder v4.6.0
+   Compiling syn v2.0.117
+   Compiling clap_derive v4.6.0
+   Compiling clap v4.6.0
+   Compiling application v0.1.0 (/var/mnt/workspaces/graph-specs-rust/.claude/worktrees/work-1-scaffold/application)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.77s

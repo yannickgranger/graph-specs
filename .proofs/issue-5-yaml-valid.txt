@@ -1,0 +1,7 @@
+=== Workflow YAML syntax validation ===
+Jobs defined: 7
+Job names: ['fmt', 'clippy', 'clippy-pedantic', 'build', 'test', 'dogfood', 'audit']
+
+=== Trigger declarations ===
+push branches: ['main', 'develop', 'feat/*', 'work/*', 'fix/*', 'docs/*', 'ci/*', 'infra/*', 'chore/*']
+PR branches: ['main', 'develop']
