@@ -1,9 +1,7 @@
 # Pure-library project — no external integration infrastructure.
 #
-# `test-integ-up` / `test-integ-down` exist solely to satisfy the
-# agent-zero ship preflight contract (Makefile must declare integ
-# targets). They are no-ops because graph-specs-rust runs entirely
-# in-process — no Podman, no databases, no network.
+# `test-integ-up` / `test-integ-down` are no-ops: graph-specs-rust runs
+# entirely in-process — no Podman, no databases, no network.
 
 .PHONY: test-integ-up test-integ-down graph-specs-check release-prepare
 

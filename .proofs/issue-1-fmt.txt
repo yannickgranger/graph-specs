@@ -1,5 +1,0 @@
-=== Tool versions ===
-cargo 1.93.1 (083ac5135 2025-12-15)
-rustfmt 1.8.0-stable (01f6ddf758 2026-02-11)
-=== Command: cargo fmt --check --all ===
-=== Exit: 0 ===
