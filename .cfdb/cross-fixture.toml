@@ -19,7 +19,7 @@
 
 [companion]
 repo      = "yg/cfdb"
-branch    = "develop"
-sha       = "4588fbab50469e3b18e5018dd003fa2d8c57c15d"
-bumped_at = "2026-04-23T13:53:13Z"
-bumped_by = "lockstep — cfdb #228 SchemaVersion V0_2_3 → V0_3_0 (RFC-037 epoch close: :Variant + HAS_VARIANT, RETURNS producer, TYPE_OF producer, REGISTERS_PARAM 3-paths, SUPERTRAIT + RECEIVES_ARG deletions). Pinned at cfdb PR #228 branch HEAD per docs/cross-fixture-bump.md §4 anti-pattern clause."
+branch    = "work/203-enrich-metrics"
+sha       = "95e77d32483d4764ccdf5805b6510b51bc6a1f87"
+bumped_at = "2026-04-23T15:00:00Z"
+bumped_by = "lockstep — cfdb #203 SchemaVersion V0_3_0 → V0_3_1 (RFC-036 §3.3 enrich_metrics producer landing: unwrap_count + cyclomatic + test_coverage + dup_cluster_id populated by PetgraphStore::enrich_metrics when quality-metrics feature is active). DRAFT pin at cfdb #203 WIP branch HEAD — refreshed to latest cfdb #203 HEAD on each push, and finally to post-merge cfdb develop HEAD before this lockstep PR merges per docs/cross-fixture-bump.md §4."
