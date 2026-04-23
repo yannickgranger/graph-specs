@@ -19,7 +19,7 @@
 
 [companion]
 repo      = "yg/cfdb"
-branch    = "work/203-enrich-metrics"
-sha       = "95e77d32483d4764ccdf5805b6510b51bc6a1f87"
-bumped_at = "2026-04-23T15:00:00Z"
-bumped_by = "lockstep — cfdb #203 SchemaVersion V0_3_0 → V0_3_1 (RFC-036 §3.3 enrich_metrics producer landing: unwrap_count + cyclomatic + test_coverage + dup_cluster_id populated by PetgraphStore::enrich_metrics when quality-metrics feature is active). DRAFT pin at cfdb #203 WIP branch HEAD — refreshed to latest cfdb #203 HEAD on each push, and finally to post-merge cfdb develop HEAD before this lockstep PR merges per docs/cross-fixture-bump.md §4."
+branch    = "develop"
+sha       = "d03e47267b18a3fa0d3aaf07f1789569c52501a3"
+bumped_at = "2026-04-23T17:50:00Z"
+bumped_by = "lockstep — cfdb #230 (issue #203) post-merge pin refresh. Replaces the interim WIP-branch pin at cfdb 95e77d3 that PR #81 landed (cfdb PR #230 squashed to develop SHA d03e472 before PR #81's subsequent SHA refreshes could merge). Pinned at cfdb develop HEAD d03e472 (merge commit of cfdb PR #230, enrich_metrics producer + SchemaVersion V0_3_0 → V0_3_1). Cross-dogfood against graph-specs-rust @ 913f06f: 0 violations (asserted during cfdb #230 CI)."
