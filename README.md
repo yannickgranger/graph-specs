@@ -130,3 +130,5 @@ at your option. This is the Rust-ecosystem convention — it gives downstream us
 ### Contribution
 
 Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in this project by you, as defined in the Apache-2.0 license, shall be dual-licensed as above, without any additional terms or conditions.
+
+<!-- agentry-smoke-test-2026-04-25 -->
