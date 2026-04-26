@@ -20,6 +20,6 @@
 [companion]
 repo      = "yg/cfdb"
 branch    = "develop"
-sha       = "d03e47267b18a3fa0d3aaf07f1789569c52501a3"
-bumped_at = "2026-04-23T17:50:00Z"
-bumped_by = "lockstep — cfdb #230 (issue #203) post-merge pin refresh. Replaces the interim WIP-branch pin at cfdb 95e77d3 that PR #81 landed (cfdb PR #230 squashed to develop SHA d03e472 before PR #81's subsequent SHA refreshes could merge). Pinned at cfdb develop HEAD d03e472 (merge commit of cfdb PR #230, enrich_metrics producer + SchemaVersion V0_3_0 → V0_3_1). Cross-dogfood against graph-specs-rust @ 913f06f: 0 violations (asserted during cfdb #230 CI)."
+sha       = "3681713e98b7e2fbde650323409251155c43b16e"
+bumped_at = "2026-04-27T00:10:00Z"
+bumped_by = "lockstep — cfdb RFC-040 slices 1-4 (issues #323/#324/#325/#326, PRs #329/#330/#331/#333) post-merge pin refresh. SchemaVersion V0_3_1 → V0_3_2 (additive, non-breaking) for the new :ConstTable node label, HAS_CONST_TABLE edge label, and const-table-overlap.cypher detector. Pinned at cfdb develop HEAD 3681713 (merge commit of cfdb PR #333, the RFC-040 slice 4/5 detector + fixture). Cross-dogfood against graph-specs-rust @ 913f06f: 0 violations on arch-ban-* rules; const-table-overlap.cypher ships DUPLICATE-only (cfdb #332 tracks the SUBSET / INTERSECTION_HIGH branches needing entries_subset / entries_jaccard UDFs)."
