@@ -18,11 +18,14 @@ equivalence publishes.
 
 - MarkdownReader (PublishedLanguage)
 - RustReader (PublishedLanguage)
+- RustBackend (PublishedLanguage)
 
 ## Imports
 
 - Reader from equivalence (Conformist)
 - ContextReader from equivalence (Conformist)
+- LanguageBackend from equivalence (Conformist)
+- Extraction from equivalence (PublishedLanguage)
 - ReaderError from equivalence (PublishedLanguage)
 - Graph from equivalence (PublishedLanguage)
 - ConceptNode from equivalence (PublishedLanguage)

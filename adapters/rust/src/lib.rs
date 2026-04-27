@@ -16,7 +16,7 @@ mod normalize;
 pub use normalize::normalize;
 
 use domain::{ConceptNode, Edge, Graph, SignatureState, Source};
-use ports::{Reader, ReaderError};
+use ports::{Extraction, LanguageBackend, Reader, ReaderError};
 use std::path::Path;
 use syn::{Attribute, File, Visibility};
 use walkdir::{DirEntry, WalkDir};
@@ -32,21 +32,28 @@ const EXCLUDED_DIRS: &[&str] = &[
     "node_modules",
 ];
 
+/// Low-level Rust extractor. Walks a source tree once and emits flat
+/// concepts + raw edges. Used by [`RustReader`] to build a [`Graph`] and,
+/// in future, by cfdb's Rust ingestor (RFC-005 / #83 reframe).
 #[derive(Debug, Default)]
-pub struct RustReader;
+pub struct RustBackend;
 
-impl Reader for RustReader {
-    fn extract(&self, root: &Path) -> Result<Graph, ReaderError> {
-        let mut nodes = Vec::new();
+impl LanguageBackend for RustBackend {
+    fn detect(&self, code_root: &Path) -> bool {
+        code_root.join("Cargo.toml").exists()
+    }
+
+    fn extract(&self, code_root: &Path) -> Result<Extraction, ReaderError> {
+        let mut concepts = Vec::new();
         let mut raw_edges: Vec<Edge> = Vec::new();
 
-        let walker = WalkDir::new(root)
+        let walker = WalkDir::new(code_root)
             .into_iter()
             .filter_entry(|e| !is_excluded_dir(e));
 
         for entry in walker {
             let entry = entry.map_err(|e| ReaderError::WalkFailed {
-                root: root.to_path_buf(),
+                root: code_root.to_path_buf(),
                 cause: e.to_string(),
             })?;
             if !entry.file_type().is_file() {
@@ -57,11 +64,30 @@ impl Reader for RustReader {
             }
 
             let (parsed, path) = read_and_parse(entry.path().to_path_buf())?;
-            extract_from_file(&parsed, &path, &mut nodes, &mut raw_edges);
+            extract_from_file(&parsed, &path, &mut concepts, &mut raw_edges);
         }
 
-        let edges = edges::filter_by_known_concepts(raw_edges, &nodes);
-        Ok(Graph::new(nodes, edges))
+        Ok(Extraction {
+            concepts,
+            raw_edges,
+        })
+    }
+}
+
+/// High-level Rust reader. Wraps [`RustBackend`] with language-neutral
+/// graph assembly: pulls concepts + raw edges, filters edges against the
+/// discovered concept set, and returns a [`Graph`] for the diff engine.
+#[derive(Debug, Default)]
+pub struct RustReader;
+
+impl Reader for RustReader {
+    fn extract(&self, root: &Path) -> Result<Graph, ReaderError> {
+        let Extraction {
+            concepts,
+            raw_edges,
+        } = RustBackend.extract(root)?;
+        let edges = edges::filter_by_known_concepts(raw_edges, &concepts);
+        Ok(Graph::new(concepts, edges))
     }
 }
 
@@ -266,5 +292,36 @@ mod tests {
             Source::Code { line, .. } => assert_eq!(*line, 3),
             Source::Spec { .. } => panic!("expected Code source"),
         }
+    }
+
+    #[test]
+    fn rust_backend_detects_cargo_toml() {
+        let d = TempDir::new().unwrap();
+        assert!(!RustBackend.detect(d.path()), "no marker → false");
+        write(d.path(), "Cargo.toml", "[package]\nname = \"x\"\n");
+        assert!(RustBackend.detect(d.path()), "Cargo.toml present → true");
+    }
+
+    #[test]
+    fn rust_backend_extract_returns_concepts_and_edges() {
+        let d = TempDir::new().unwrap();
+        write(
+            d.path(),
+            "src/lib.rs",
+            "pub struct Foo { bar: Bar } pub struct Bar;",
+        );
+        let extraction = RustBackend.extract(d.path()).unwrap();
+        let mut names: Vec<String> = extraction.concepts.iter().map(|n| n.name.clone()).collect();
+        names.sort();
+        assert_eq!(names, vec!["Bar", "Foo"]);
+        // Raw edges include the Foo→Bar field dependency, unfiltered.
+        assert!(
+            extraction
+                .raw_edges
+                .iter()
+                .any(|e| e.source_concept == "Foo" && e.target == "Bar"),
+            "expected raw Foo→Bar dependency edge, got: {:?}",
+            extraction.raw_edges
+        );
     }
 }

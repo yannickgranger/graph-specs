@@ -3,6 +3,15 @@
 //! Concrete readers (markdown specs, Rust code, later PHP / TypeScript)
 //! implement [`Reader`] and produce graphs of identical shape. The diff
 //! engine in [`domain`] operates on graphs, not on source languages.
+//!
+//! Code-side adapters additionally implement [`LanguageBackend`] (see
+//! [`lang`]), which is the lower-level, language-specific extractor that
+//! emits flat [`ConceptNode`] / [`Edge`] vectors. The [`Reader`] adapter
+//! wraps a [`LanguageBackend`] with language-neutral graph assembly.
+
+mod lang;
+
+pub use lang::{Extraction, LanguageBackend};
 
 use domain::{ContextDecl, Graph};
 use std::path::{Path, PathBuf};
