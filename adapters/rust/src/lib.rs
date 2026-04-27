@@ -32,9 +32,11 @@ const EXCLUDED_DIRS: &[&str] = &[
     "node_modules",
 ];
 
-/// Low-level Rust extractor. Walks a source tree once and emits flat
-/// concepts + raw edges. Used by [`RustReader`] to build a [`Graph`] and,
-/// in future, by cfdb's Rust ingestor (RFC-005 / #83 reframe).
+/// Low-level Rust extractor.
+///
+/// Walks a source tree once and emits flat concepts + raw edges. Used by
+/// [`RustReader`] to build a [`Graph`] and, in future, by cfdb's Rust
+/// ingestor (RFC-005 / #83 reframe).
 #[derive(Debug, Default)]
 pub struct RustBackend;
 
@@ -74,9 +76,11 @@ impl LanguageBackend for RustBackend {
     }
 }
 
-/// High-level Rust reader. Wraps [`RustBackend`] with language-neutral
-/// graph assembly: pulls concepts + raw edges, filters edges against the
-/// discovered concept set, and returns a [`Graph`] for the diff engine.
+/// High-level Rust reader.
+///
+/// Wraps [`RustBackend`] with language-neutral graph assembly: pulls
+/// concepts + raw edges, filters edges against the discovered concept set,
+/// and returns a [`Graph`] for the diff engine.
 #[derive(Debug, Default)]
 pub struct RustReader;
 
