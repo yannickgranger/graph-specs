@@ -99,6 +99,39 @@ which is why this type lives in the port layer rather than in `domain`.
 Adapters map their language-specific failures onto `ReaderError` at the
 port boundary.
 
+## LanguageBackend
+
+Lower-level code-side port: walks a source root in one pass and emits an
+[Extraction](#extraction) of flat [ConceptNode](#conceptnode) values plus
+raw [Edge](#edge) values, BEFORE the language-neutral known-concept edge
+filter runs. Each `impl LanguageBackend for FooBackend` covers one source
+language; [`detect`](#languagebackend) lets the CLI dispatch on marker
+files (`Cargo.toml` for Rust, `composer.json` for PHP, `tsconfig.json`
+for TypeScript). Roadmap (#83 reframe, RFC-005 / 006): each backend
+becomes a thin wrapper over a per-language `<lang>-items` shared crate
+also consumed by cfdb. Lives in `ports`.
+
+```rust
+pub trait LanguageBackend {
+    fn detect(&self, code_root: &Path) -> bool;
+    fn extract(&self, code_root: &Path) -> Result<Extraction, ReaderError>;
+}
+```
+
+- depends on: Extraction
+- depends on: ReaderError
+
+## Extraction
+
+Bundle returned by [LanguageBackend::extract](#languagebackend) — a flat
+[ConceptNode](#conceptnode) vector and a flat [Edge](#edge) vector, the
+latter unfiltered. Graph assembly (filtering raw edges against the
+known-concept set) is performed by the calling [Reader](#reader)
+adapter, in language-neutral code. Lives in `ports`.
+
+- depends on: ConceptNode
+- depends on: Edge
+
 ## MarkdownReader
 
 Concrete [Reader](#reader) implementation for markdown spec files. Uses
@@ -116,10 +149,28 @@ values. Lives in `adapters/markdown`.
 - depends on: ReaderError
 - depends on: ContextDecl
 
+## RustBackend
+
+Concrete [LanguageBackend](#languagebackend) implementation for Rust
+source files. Uses `syn`. Walks the source tree once (skipping `target/`,
+`.git/`, `.claude/`, `.proofs/`, per-crate `tests/` / `benches/` /
+`examples/` and `node_modules/`), parses each `*.rs` file, and emits
+flat [ConceptNode](#conceptnode) + raw [Edge](#edge) into an
+[Extraction](#extraction). Detects via `Cargo.toml` at the root.
+[RustReader](#rustreader) wraps it for the [Reader](#reader) port.
+Lives in `adapters/rust`.
+
+- implements: LanguageBackend
+- depends on: Extraction
+- depends on: ReaderError
+
 ## RustReader
 
-Concrete [Reader](#reader) implementation for Rust source files. Uses
-`syn`. Emits a [ConceptNode](#conceptnode) for every top-level
+Concrete [Reader](#reader) implementation for Rust source files. Thin
+adapter over [RustBackend](#rustbackend): pulls the
+[Extraction](#extraction), filters raw edges against the discovered
+[ConceptNode](#conceptnode) set, and assembles a [Graph](#graph) for
+the diff engine. Emits one [ConceptNode](#conceptnode) per top-level
 `pub struct`, `pub enum`, `pub trait`, `pub type`, plus v0.2 signature
 normalisation via `adapter-rust::normalize` and v0.3 relationship edges
 from struct fields, impl blocks, and trait method signatures. Lives in
