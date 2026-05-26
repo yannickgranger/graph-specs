@@ -255,6 +255,11 @@ jobs:
           cd repo
           ./target/release/graph-specs check --specs specs/ --code .
 
+      - name: Run dogfood report
+        run: |
+          cd repo
+          ./target/release/graph-specs report --verb-coverage --specs specs/ --code .
+
   # ----------------------------------------------------------------
   # 7. Audit — RUSTSEC advisory scan over the dep graph
   # ----------------------------------------------------------------

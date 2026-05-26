@@ -377,3 +377,10 @@ Aggregated output of the verb-coverage report: three record lists —
 - depends on: VerbCoverageRecord
 - depends on: TierHistogramRecord
 - depends on: HomonymRecord
+
+## ReportFormat
+
+Output format for `graph-specs report`. `text` is the human-readable
+default; `ndjson` emits one JSON object per report record — see
+`specs/ndjson-output.md` §Report records (v0.5) for the schema. Lives
+in `application`.
