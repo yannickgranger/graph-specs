@@ -32,9 +32,35 @@ Only **structural** elements contribute to the concept graph.
 - Fenced `rust` code blocks inside a concept's section — reserved for
   signature-level extraction in a later issue. Currently parsed but not
   diffed.
-- Bullets with recognised prefixes (`- implements: X`, `- depends on: X`)
-  — reserved for relationship-level extraction in a later issue.
-  Currently parsed but not diffed.
+- Bullets with recognised prefixes (`- implements: X`, `- depends on: X`,
+  `- returns: X`, `- verb: <bare-ident>`) — the first three are
+  relationship-level anchors; `- verb:` is a function-ownership anchor
+  handled by a separate parser path (see [Verb bullets](#verb-bullets)
+  below). **Note:** `verb:` is NOT in `BULLET_PREFIXES` code-side; the
+  parser dispatches it via a dedicated handler.
+
+### Verb bullets
+
+A `- verb: <bare-ident>` bullet inside a concept section anchors a
+public function to that concept's owning bounded context (v0.5).
+
+**Bullet shape:**
+
+```
+- verb: <bare-ident>
+```
+
+**Bare-identifier restriction (Slice A):** the target must satisfy
+`^[A-Za-z_][A-Za-z0-9_]*$`. Multi-word targets, qualified paths, and
+other forms are tolerated but silently dropped with a `tracing::warn!`
+log. Full module-path (qname) anchoring is deferred to a future Slice B
+extension.
+
+**Opt-in semantics:** a concept section with no `- verb:` bullets is
+never inspected by the verb pass. The pass activates only when at least
+one concept in a bounded context carries a verb anchor. Both
+concept-level specs (`specs/concepts/`) and context-level specs
+(`specs/contexts/`) may carry verb bullets.
 
 ## What the markdown reader ignores
 

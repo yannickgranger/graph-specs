@@ -693,6 +693,180 @@ fn injectbite_v04_cross_edge_unauthorized_surfaces_in_text_and_ndjson() {
     );
 }
 
+// --- v0.5 verb-anchoring inject-bite (issue #103 AC) ---------------------
+//
+// Six cases: match, VerbMissingInCode, VerbMissingInSpec, VerbTargetUnknown,
+// CrossVerbUnauthorized, and the zero-anchor no-op. Each drives the real
+// binary with `--specs specs/ --code .` against a v0.4-style tmpdir layout.
+// Cargo.toml stubs in unit directories are required so `find_owned_unit`
+// resolves the workspace-relative unit name.
+
+#[test]
+fn injectbite_v05_verb_match_produces_no_violations() {
+    // Spec: ConceptA anchors `- verb: my_fn`. Code: pub fn my_fn in alpha-unit
+    // owned by context alpha. Exact match → no violations.
+    let root = v04_fixture(
+        "## ConceptA\n\n- verb: my_fn\n",
+        &[("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n")],
+        &[
+            (
+                "alpha-unit/Cargo.toml",
+                "[package]\nname = \"alpha-unit\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+            ),
+            (
+                "alpha-unit/src/lib.rs",
+                "pub struct ConceptA; pub fn my_fn() {}",
+            ),
+        ],
+    );
+
+    let text = run_v04_text(root.path());
+    let stdout = String::from_utf8_lossy(&text.stdout);
+    assert_eq!(text.status.code(), Some(0), "text: {stdout}");
+    assert!(stdout.contains("0 violations"), "text: {stdout}");
+}
+
+#[test]
+fn injectbite_v05_verb_missing_in_code_surfaces_in_text() {
+    // Spec: ConceptA anchors `- verb: absent_fn`. Code: no pub fn absent_fn.
+    // Expects VerbMissingInCode.
+    let root = v04_fixture(
+        "## ConceptA\n\n- verb: absent_fn\n",
+        &[("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n")],
+        &[
+            (
+                "alpha-unit/Cargo.toml",
+                "[package]\nname = \"alpha-unit\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+            ),
+            ("alpha-unit/src/lib.rs", "pub struct ConceptA;"),
+        ],
+    );
+
+    let text = run_v04_text(root.path());
+    assert_eq!(text.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&text.stdout);
+    assert!(
+        stdout.contains("verb missing in code: ConceptA claims `absent_fn`"),
+        "text: {stdout}"
+    );
+}
+
+#[test]
+fn injectbite_v05_verb_missing_in_spec_surfaces_in_text() {
+    // Spec: ConceptA anchors `- verb: claimed_fn` but NOT unclaimed_fn.
+    // Code: alpha-unit exposes both. Expects VerbMissingInSpec for unclaimed_fn.
+    let root = v04_fixture(
+        "## ConceptA\n\n- verb: claimed_fn\n",
+        &[("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n")],
+        &[
+            (
+                "alpha-unit/Cargo.toml",
+                "[package]\nname = \"alpha-unit\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+            ),
+            (
+                "alpha-unit/src/lib.rs",
+                "pub struct ConceptA; pub fn claimed_fn() {} pub fn unclaimed_fn() {}",
+            ),
+        ],
+    );
+
+    let text = run_v04_text(root.path());
+    assert_eq!(text.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&text.stdout);
+    assert!(
+        stdout.contains("verb missing in spec: `unclaimed_fn` is unclaimed"),
+        "text: {stdout}"
+    );
+}
+
+#[test]
+fn injectbite_v05_verb_target_unknown_surfaces_in_text() {
+    // Spec: ConceptA anchors `- verb: ghost_fn`. Code: pub fn ghost_fn exists
+    // in orphan-unit which has no Cargo.toml → owned_unit is None → no context
+    // owns it. Expects VerbTargetUnknown.
+    let root = v04_fixture(
+        "## ConceptA\n\n- verb: ghost_fn\n",
+        &[("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n")],
+        &[
+            (
+                "alpha-unit/Cargo.toml",
+                "[package]\nname = \"alpha-unit\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+            ),
+            ("alpha-unit/src/lib.rs", "pub struct ConceptA;"),
+            ("orphan-unit/src/lib.rs", "pub fn ghost_fn() {}"),
+        ],
+    );
+
+    let text = run_v04_text(root.path());
+    assert_eq!(text.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&text.stdout);
+    assert!(
+        stdout.contains("verb target unknown: ConceptA claims `ghost_fn`"),
+        "text: {stdout}"
+    );
+}
+
+#[test]
+fn injectbite_v05_cross_verb_unauthorized_surfaces_in_text() {
+    // Spec: ConceptA (in alpha context) anchors `- verb: cross_fn`.
+    // Code: cross_fn is pub fn in beta-unit (beta context). No import declared.
+    // Expects CrossVerbUnauthorized.
+    let root = v04_fixture(
+        "## ConceptA\n\n- verb: cross_fn\n",
+        &[
+            ("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n"),
+            ("beta", "# beta\n\n## Owns\n\n- beta-unit\n"),
+        ],
+        &[
+            (
+                "alpha-unit/Cargo.toml",
+                "[package]\nname = \"alpha-unit\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+            ),
+            ("alpha-unit/src/lib.rs", "pub struct ConceptA;"),
+            (
+                "beta-unit/Cargo.toml",
+                "[package]\nname = \"beta-unit\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+            ),
+            ("beta-unit/src/lib.rs", "pub fn cross_fn() {}"),
+        ],
+    );
+
+    let text = run_v04_text(root.path());
+    assert_eq!(text.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&text.stdout);
+    assert!(
+        stdout.contains(
+            "cross-context verb unauthorized: ConceptA (alpha) claims `cross_fn` which belongs to beta"
+        ),
+        "text: {stdout}"
+    );
+}
+
+#[test]
+fn v05_zero_verb_bullets_verb_pass_is_noop() {
+    // Spec has no `- verb:` bullets → verb pass skipped entirely.
+    // Code: alpha-unit exposes pub fn any_fn. No VerbMissingInSpec should fire.
+    let root = v04_fixture(
+        "## ConceptA\n",
+        &[("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n")],
+        &[
+            (
+                "alpha-unit/Cargo.toml",
+                "[package]\nname = \"alpha-unit\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+            ),
+            (
+                "alpha-unit/src/lib.rs",
+                "pub struct ConceptA; pub fn any_fn() {}",
+            ),
+        ],
+    );
+
+    let text = run_v04_text(root.path());
+    let stdout = String::from_utf8_lossy(&text.stdout);
+    assert_eq!(text.status.code(), Some(0), "text: {stdout}");
+    assert!(stdout.contains("0 violations"), "text: {stdout}");
+}
+
 #[test]
 fn injectbite_v04_cross_edge_undeclared_surfaces_in_text_and_ndjson() {
     // Beta imports `Foo from alpha (PublishedLanguage)`, but alpha does
