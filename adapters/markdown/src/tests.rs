@@ -539,6 +539,96 @@ fn extract_annotations_returns_ok_empty_on_no_annotations_present() {
     assert!(anns.is_empty());
 }
 
+// --- v0.5 verb-bullet tests ---
+
+#[test]
+fn parse_verb_bullet_returns_anchor_for_valid_ident() {
+    let anchor = parse_verb_bullet("verb: diff").expect("should parse");
+    assert_eq!(anchor.qname, "diff");
+    assert_eq!(anchor.raw_target, "verb: diff");
+    assert!(
+        anchor.concept.is_empty(),
+        "concept placeholder should be empty"
+    );
+}
+
+#[test]
+fn parse_verb_bullet_returns_none_for_non_verb_bullet() {
+    assert!(parse_verb_bullet("implements: Reader").is_none());
+    assert!(parse_verb_bullet("prose line").is_none());
+    assert!(parse_verb_bullet("depends on: Foo").is_none());
+}
+
+#[test]
+fn parse_verb_bullet_returns_none_for_empty_qname() {
+    assert!(parse_verb_bullet("verb:").is_none());
+    assert!(parse_verb_bullet("verb:   ").is_none());
+}
+
+#[test]
+fn parse_verb_bullet_returns_none_for_multi_word_qname() {
+    assert!(parse_verb_bullet("verb: fn_name extra").is_none());
+    assert!(parse_verb_bullet("verb: two words").is_none());
+}
+
+#[test]
+fn verb_bullet_does_not_yield_edge_in_graph() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Concept\n\n- verb: some_fn\n- implements: Reader\n",
+    );
+    let g = MarkdownReader.extract(d.path()).expect("test");
+    let edges = find_edges_for(&g.edges, "Concept");
+    assert_eq!(edges.len(), 1, "verb bullet must not become an edge");
+    assert_eq!(edges[0].kind, EdgeKind::Implements);
+}
+
+#[test]
+fn extract_verb_anchors_collects_anchors_from_spec() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Graph\n\n- verb: diff\n- verb: tokenise_target\n\n## Reader\n\n- verb: extract\n",
+    );
+    let anchors = MarkdownReader.extract_verb_anchors(d.path()).expect("test");
+    assert_eq!(anchors.len(), 3);
+    let qnames: Vec<&str> = anchors.iter().map(|a| a.qname.as_str()).collect();
+    assert!(qnames.contains(&"diff"));
+    assert!(qnames.contains(&"tokenise_target"));
+    assert!(qnames.contains(&"extract"));
+    let graph_anchors: Vec<&_> = anchors.iter().filter(|a| a.concept == "Graph").collect();
+    assert_eq!(graph_anchors.len(), 2);
+}
+
+#[test]
+fn extract_verb_anchors_returns_empty_when_no_verb_bullets() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Concept\n\n- implements: Reader\n- depends on: Graph\n",
+    );
+    let anchors = MarkdownReader.extract_verb_anchors(d.path()).expect("test");
+    assert!(anchors.is_empty());
+}
+
+#[test]
+fn extract_verb_anchors_records_correct_concept_and_source_line() {
+    let d = TempDir::new().expect("test");
+    write(d.path(), "a.md", "## Graph\n\n- verb: diff\n");
+    let anchors = MarkdownReader.extract_verb_anchors(d.path()).expect("test");
+    assert_eq!(anchors.len(), 1);
+    assert_eq!(anchors[0].concept, "Graph");
+    assert_eq!(anchors[0].qname, "diff");
+    match &anchors[0].source {
+        Source::Spec { line, .. } => assert!(*line >= 1),
+        Source::Code { .. } => panic!("expected Spec source"),
+    }
+}
+
 /// v0.4 scoping: when the reader is pointed at `specs/`, files under
 /// `contexts/` are owned by the `ContextReader` impl and MUST NOT
 /// contaminate the concept graph. Without this filter, every `## Owns`

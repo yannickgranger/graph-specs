@@ -56,6 +56,8 @@ A declared relationship between two concepts (v0.3): `implements`,
 `depends on`, or `returns`. Each edge owns a tokenised matching target
 plus the raw textual form preserved for display in drift messages.
 
+- verb: tokenise_target
+
 ## EdgeKind
 
 The relationship kind of an [Edge](#edge). Closed set for v0.3;
@@ -152,6 +154,7 @@ Exposes `extract_invariant_annotations` (inherent method) for RFC-005
 - depends on: ReaderError
 - depends on: ContextDecl
 - depends on: InvariantAnnotation
+- depends on: VerbAnchor
 
 ## RustBackend
 
@@ -210,6 +213,7 @@ pattern that applies. Lives in `domain`.
 - depends on: ContextImport
 - depends on: Source
 - returns: ContextDecl
+- verb: detect_import_cycle
 
 ## ContextExport
 
@@ -252,15 +256,20 @@ Lives in `domain`.
 
 ## CheckInput
 
-Input envelope to the v0.4 diff on the spec side — concept graph plus
-declared bounded-context map. Keeps [Graph](#graph) focused on concepts
-and edges (SOLID SRP, per RFC-001 round-1 architect review); contexts
-are carried alongside. An empty `contexts` list reduces v0.4 diff
-behavior to v0.3 (context pass is a no-op). Lives in `domain`.
+Input envelope to the v0.5 diff on the spec side — concept graph plus
+declared bounded-context map plus verb-anchoring data. Keeps
+[Graph](#graph) focused on concepts and edges (SOLID SRP, per RFC-001
+round-1 architect review); contexts and verb ownership are carried
+alongside. An empty `contexts` list reduces diff behavior to v0.3
+(context pass is a no-op); an empty `verb_ownership.anchors` skips
+v0.5 entirely. Lives in `domain`.
 
 - depends on: Graph
 - depends on: ContextDecl
+- depends on: VerbOwnership
 - returns: CheckInput
+- verb: diff
+- verb: context_for_concept
 
 ## SchemaVersion
 
@@ -309,6 +318,40 @@ and an optional `owned_unit` string for bounded-context membership lookup.
 Per RFC-005 §3.3. Lives in `domain`.
 
 - depends on: Source
+
+## VerbDecl
+
+A top-level `pub fn` declaration prepared for verb-anchoring: name
+(`qname`), optional owning crate (`owned_unit`), and [Source](#source).
+Convertible from [PubFnDecl](#pubfndecl) via `From`. Used by
+[`VerbOwnership`](#verbownership) to represent the code side of the
+verb-anchoring contract. Lives in `domain`.
+
+- depends on: Source
+- depends on: PubFnDecl
+- returns: VerbDecl
+
+## VerbAnchor
+
+Spec-side anchor parsed from a `- verb: <ident>` bullet inside a concept
+section. `concept` names the owning concept; `qname` is the bare
+identifier; `raw_target` preserves the verbatim bullet text;
+`source` points to the spec file line. Used by
+[`VerbOwnership`](#verbownership) to represent the spec side of the
+verb-anchoring contract. Lives in `domain`.
+
+- depends on: Source
+
+## VerbOwnership
+
+Aggregates both sides of the verb-anchoring contract: `decls` (code
+side, `Vec<VerbDecl>`) and `anchors` (spec side, `Vec<VerbAnchor>`).
+Carried by [`CheckInput`](#checkinput) and consumed by the v0.5 verb
+pass inside `diff`. `#[derive(Default)]` allows zero-cost construction
+when no verb anchors are present (opt-in semantics). Lives in `domain`.
+
+- depends on: VerbDecl
+- depends on: VerbAnchor
 
 ## InvariantAnnotation
 
@@ -377,6 +420,7 @@ Aggregated output of the verb-coverage report: three record lists —
 - depends on: VerbCoverageRecord
 - depends on: TierHistogramRecord
 - depends on: HomonymRecord
+- verb: report_verb_coverage
 
 ## ReportFormat
 

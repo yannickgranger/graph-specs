@@ -1,17 +1,20 @@
-//! Equivalence diff — concept, signature, relationship, and bounded-context.
+//! Equivalence diff — concept, signature, relationship, bounded-context, verb.
 //!
-//! Four passes over the spec and code graphs:
+//! Five passes over the spec and code graphs:
 //!
 //! 1. **Concept** — set-difference over concept names.
 //! 2. **Signature** (v0.2) — per matched concept, compare signatures.
 //! 3. **Edge** (v0.3) — per matched concept with ≥1 spec edge, compare edges.
-//! 4. **Context** (v0.4) — if `CheckInput.contexts` is non-empty, emit
+//! 4. **Verb** (v0.5) — if `CheckInput.verb_ownership` has anchors, emit
+//!    verb-level violations. Order-independent from passes 1–3.
+//! 5. **Context** (v0.4) — if `CheckInput.contexts` is non-empty, emit
 //!    [`crate::Violation::Context`] variants for membership + cross-context
 //!    edges. Order-independent from passes 1–3 (RFC-001 §4 invariant 9).
 
 mod context;
 mod edge;
 mod signature;
+mod verb;
 
 #[cfg(test)]
 mod tests;
@@ -24,6 +27,7 @@ pub fn diff(spec: CheckInput, code: Graph) -> Vec<Violation> {
     let CheckInput {
         graph: specs,
         contexts: spec_contexts,
+        verb_ownership: spec_verb_ownership,
     } = spec;
     let Graph {
         nodes: spec_nodes,
@@ -34,13 +38,17 @@ pub fn diff(spec: CheckInput, code: Graph) -> Vec<Violation> {
         edges: code_edges,
     } = code;
 
-    // Snapshot for the context pass before code_nodes is moved into the
-    // name-indexed map — pass 4 needs the full code graph, not the
-    // drained residual.
+    // Snapshots for passes 4 (context) and 5 (verb) — taken before
+    // code_nodes is consumed into the name-indexed map.
     let code_for_context = if spec_contexts.is_empty() {
         Graph::default()
     } else {
         Graph::new(code_nodes.clone(), code_edges.clone())
+    };
+    let code_for_verb = if spec_verb_ownership.anchors.is_empty() {
+        Graph::default()
+    } else {
+        Graph::new(code_nodes.clone(), Vec::new())
     };
 
     // Index code by name, consuming code_nodes — later lookups remove the
@@ -91,6 +99,13 @@ pub fn diff(spec: CheckInput, code: Graph) -> Vec<Violation> {
         &mut violations,
     );
 
+    verb::verb_pass(
+        &spec_verb_ownership,
+        &code_for_verb,
+        &spec_contexts,
+        &mut violations,
+    );
+
     context::context_pass(spec_contexts, code_for_context, &mut violations);
 
     violations.sort_by(|a, b| {
@@ -113,5 +128,8 @@ const fn violation_key(v: &Violation) -> (&str, u8) {
         Violation::EdgeMissingInSpec { concept, .. } => (concept.as_str(), 6),
         Violation::EdgeTargetUnknown { concept, .. } => (concept.as_str(), 7),
         Violation::Context(ctx) => (ctx.concept(), 8),
+        Violation::VerbMissingInCode { concept, .. } => (concept.as_str(), 9),
+        Violation::VerbMissingInSpec { qname, .. } => (qname.as_str(), 10),
+        Violation::VerbTargetUnknown { concept, .. } => (concept.as_str(), 11),
     }
 }

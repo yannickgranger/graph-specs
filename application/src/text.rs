@@ -14,6 +14,7 @@ use std::path::Path;
 /// # Errors
 ///
 /// Propagates any [`std::io::Error`] from the underlying writer.
+#[allow(clippy::too_many_lines)]
 pub fn format_violation(v: &Violation, out: &mut impl Write) -> std::io::Result<()> {
     match v {
         Violation::MissingInCode { name, spec_source } => {
@@ -105,6 +106,39 @@ pub fn format_violation(v: &Violation, out: &mut impl Write) -> std::io::Result<
             )
         }
         Violation::Context(ctx) => format_context_violation(ctx, out),
+        Violation::VerbMissingInCode {
+            concept,
+            qname,
+            spec_source,
+        } => {
+            let (path, line) = source_pair(spec_source);
+            writeln!(
+                out,
+                "verb missing in code: {concept} claims `{qname}` but no pub fn found ({}:{line})",
+                path.display()
+            )
+        }
+        Violation::VerbMissingInSpec { qname, code_source } => {
+            let (path, line) = source_pair(code_source);
+            writeln!(
+                out,
+                "verb missing in spec: `{qname}` is unclaimed in its context ({}:{line})",
+                path.display()
+            )
+        }
+        Violation::VerbTargetUnknown {
+            concept,
+            qname,
+            spec_source,
+        } => {
+            let (path, line) = source_pair(spec_source);
+            writeln!(
+                out,
+                "verb target unknown: {concept} claims `{qname}` but fn belongs to no context ({}:{line})",
+                path.display()
+            )
+        }
+        _ => writeln!(out, "unknown violation"),
     }
 }
 
@@ -153,8 +187,20 @@ fn format_context_violation(v: &ContextViolation, out: &mut impl Write) -> std::
                 path.display()
             )
         }
-        // Forward-compat: v0.5 variants render as a generic fallback so
-        // new variants don't panic on consumers running an older binary.
+        ContextViolation::CrossVerbUnauthorized {
+            concept,
+            qname,
+            owning_context,
+            target_context,
+            spec_source,
+        } => {
+            let (path, line) = source_pair(spec_source);
+            writeln!(
+                out,
+                "cross-context verb unauthorized: {concept} ({owning_context}) claims `{qname}` which belongs to {target_context} ({}:{line})",
+                path.display()
+            )
+        }
         _ => writeln!(out, "unknown context violation for {}", v.concept()),
     }
 }
@@ -239,6 +285,69 @@ mod tests {
         let out = render(&v);
         assert!(
             out.starts_with("cross-context edge undeclared: MarkdownReader (reading) --IMPLEMENTS--> Reader (equivalence)"),
+            "got: {out}"
+        );
+    }
+
+    #[test]
+    fn verb_missing_in_code_text() {
+        let v = Violation::VerbMissingInCode {
+            concept: "Graph".into(),
+            qname: "diff".into(),
+            spec_source: spec_src(),
+        };
+        let out = render(&v);
+        assert!(out.ends_with('\n'));
+        assert!(
+            out.contains("verb missing in code: Graph claims `diff`"),
+            "got: {out}"
+        );
+        assert!(out.contains("specs/contexts/reading.md:12"));
+    }
+
+    #[test]
+    fn verb_missing_in_spec_text() {
+        let v = Violation::VerbMissingInSpec {
+            qname: "orphan_fn".into(),
+            code_source: code_src(),
+        };
+        let out = render(&v);
+        assert!(out.ends_with('\n'));
+        assert!(
+            out.contains("verb missing in spec: `orphan_fn` is unclaimed"),
+            "got: {out}"
+        );
+        assert!(out.contains("some-crate/src/lib.rs:3"));
+    }
+
+    #[test]
+    fn verb_target_unknown_text() {
+        let v = Violation::VerbTargetUnknown {
+            concept: "Graph".into(),
+            qname: "ghost_fn".into(),
+            spec_source: spec_src(),
+        };
+        let out = render(&v);
+        assert!(out.ends_with('\n'));
+        assert!(
+            out.contains("verb target unknown: Graph claims `ghost_fn`"),
+            "got: {out}"
+        );
+    }
+
+    #[test]
+    fn cross_verb_unauthorized_text() {
+        let v = Violation::Context(ContextViolation::CrossVerbUnauthorized {
+            concept: "Graph".into(),
+            qname: "diff".into(),
+            owning_context: "equivalence".into(),
+            target_context: "reading".into(),
+            spec_source: spec_src(),
+        });
+        let out = render(&v);
+        assert!(out.ends_with('\n'));
+        assert!(
+            out.contains("cross-context verb unauthorized: Graph (equivalence) claims `diff` which belongs to reading"),
             "got: {out}"
         );
     }

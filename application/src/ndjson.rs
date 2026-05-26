@@ -38,6 +38,7 @@ pub fn write_ndjson(violations: &[Violation], out: &mut impl Write) -> std::io::
     Ok(())
 }
 
+#[allow(clippy::too_many_lines)]
 fn violation_to_record(v: &Violation) -> Value {
     match v {
         Violation::MissingInCode { name, spec_source } => json!({
@@ -131,6 +132,38 @@ fn violation_to_record(v: &Violation) -> Value {
             "spec_source": source_to_json(spec_source),
         }),
         Violation::Context(ctx) => context_violation_to_record(ctx),
+        Violation::VerbMissingInCode {
+            concept,
+            qname,
+            spec_source,
+        } => json!({
+            "schema_version": SchemaVersion::CURRENT.as_str(),
+            "violation": "verb_missing_in_code",
+            "concept": concept,
+            "qname": qname,
+            "spec_source": source_to_json(spec_source),
+        }),
+        Violation::VerbMissingInSpec { qname, code_source } => json!({
+            "schema_version": SchemaVersion::CURRENT.as_str(),
+            "violation": "verb_missing_in_spec",
+            "qname": qname,
+            "code_source": source_to_json(code_source),
+        }),
+        Violation::VerbTargetUnknown {
+            concept,
+            qname,
+            spec_source,
+        } => json!({
+            "schema_version": SchemaVersion::CURRENT.as_str(),
+            "violation": "verb_target_unknown",
+            "concept": concept,
+            "qname": qname,
+            "spec_source": source_to_json(spec_source),
+        }),
+        _ => json!({
+            "schema_version": SchemaVersion::CURRENT.as_str(),
+            "violation": "unknown_violation",
+        }),
     }
 }
 
@@ -178,6 +211,21 @@ fn context_violation_to_record(v: &ContextViolation) -> Value {
             "owning_context": owning_context,
             "edge_kind": edge_kind.as_label(),
             "target": target,
+            "target_context": target_context,
+            "spec_source": source_to_json(spec_source),
+        }),
+        ContextViolation::CrossVerbUnauthorized {
+            concept,
+            qname,
+            owning_context,
+            target_context,
+            spec_source,
+        } => json!({
+            "schema_version": SchemaVersion::CURRENT.as_str(),
+            "violation": "cross_verb_unauthorized",
+            "concept": concept,
+            "qname": qname,
+            "owning_context": owning_context,
             "target_context": target_context,
             "spec_source": source_to_json(spec_source),
         }),
@@ -472,6 +520,78 @@ mod tests {
         assert_eq!(r["edge_kind"], "DEPENDS_ON");
         assert_eq!(r["target"], "TradingPort");
         assert_eq!(r["target_context"], "trading");
+        assert_eq!(r["spec_source"]["kind"], "spec");
+    }
+
+    // --- v0.5 verb violation records -----------------------------------
+
+    #[test]
+    fn verb_missing_in_code_record() {
+        let v = Violation::VerbMissingInCode {
+            concept: "Graph".into(),
+            qname: "diff".into(),
+            spec_source: Source::Spec {
+                path: PathBuf::from("specs/concepts/core.md"),
+                line: 10,
+            },
+        };
+        let r = record(&render_one(v));
+        assert_eq!(r["schema_version"], "2");
+        assert_eq!(r["violation"], "verb_missing_in_code");
+        assert_eq!(r["concept"], "Graph");
+        assert_eq!(r["qname"], "diff");
+        assert_eq!(r["spec_source"]["kind"], "spec");
+    }
+
+    #[test]
+    fn verb_missing_in_spec_record() {
+        let v = Violation::VerbMissingInSpec {
+            qname: "orphan_fn".into(),
+            code_source: Source::Code {
+                path: PathBuf::from("domain/src/lib.rs"),
+                line: 42,
+            },
+        };
+        let r = record(&render_one(v));
+        assert_eq!(r["violation"], "verb_missing_in_spec");
+        assert_eq!(r["qname"], "orphan_fn");
+        assert_eq!(r["code_source"]["kind"], "code");
+    }
+
+    #[test]
+    fn verb_target_unknown_record() {
+        let v = Violation::VerbTargetUnknown {
+            concept: "Graph".into(),
+            qname: "ghost_fn".into(),
+            spec_source: Source::Spec {
+                path: PathBuf::from("specs/concepts/core.md"),
+                line: 5,
+            },
+        };
+        let r = record(&render_one(v));
+        assert_eq!(r["violation"], "verb_target_unknown");
+        assert_eq!(r["concept"], "Graph");
+        assert_eq!(r["qname"], "ghost_fn");
+    }
+
+    #[test]
+    fn cross_verb_unauthorized_record() {
+        let v = Violation::Context(ContextViolation::CrossVerbUnauthorized {
+            concept: "Graph".into(),
+            qname: "diff".into(),
+            owning_context: "equivalence".into(),
+            target_context: "reading".into(),
+            spec_source: Source::Spec {
+                path: PathBuf::from("specs/concepts/core.md"),
+                line: 15,
+            },
+        });
+        let r = record(&render_one(v));
+        assert_eq!(r["violation"], "cross_verb_unauthorized");
+        assert_eq!(r["concept"], "Graph");
+        assert_eq!(r["qname"], "diff");
+        assert_eq!(r["owning_context"], "equivalence");
+        assert_eq!(r["target_context"], "reading");
         assert_eq!(r["spec_source"]["kind"], "spec");
     }
 

@@ -7,8 +7,8 @@
 
 use adapter_markdown::MarkdownReader;
 use adapter_rust::RustReader;
-use domain::{diff, CheckInput, Violation};
-use ports::{ContextReader, Reader, ReaderError};
+use domain::{diff, CheckInput, VerbDecl, VerbOwnership, Violation};
+use ports::{ContextReader, Reader, ReaderError, VerbReader};
 use std::path::Path;
 
 pub mod ndjson;
@@ -36,9 +36,15 @@ pub mod text;
 pub fn run_check(specs_dir: &Path, code_dir: &Path) -> Result<Vec<Violation>, ReaderError> {
     let specs_graph = MarkdownReader.extract(specs_dir)?;
     let spec_contexts = MarkdownReader.extract_contexts(specs_dir)?;
+    let verb_anchors = MarkdownReader.extract_verb_anchors(specs_dir)?;
     let code_graph = RustReader.extract(code_dir)?;
+    let pub_fn_decls = RustReader.extract_pub_fns(code_dir)?;
+    let verb_ownership = VerbOwnership {
+        decls: pub_fn_decls.into_iter().map(VerbDecl::from).collect(),
+        anchors: verb_anchors,
+    };
     Ok(diff(
-        CheckInput::new(specs_graph, spec_contexts),
+        CheckInput::new(specs_graph, spec_contexts, verb_ownership),
         code_graph,
     ))
 }

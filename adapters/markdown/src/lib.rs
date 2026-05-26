@@ -28,7 +28,7 @@ mod markdown_utils;
 use crate::markdown_utils::{compute_line_starts, line_of_offset, path_under_dir};
 use domain::{
     tokenise_target, ConceptNode, ContextDecl, Edge, EdgeKind, Graph, InvariantAnnotation,
-    SignatureState, Source, TierKind,
+    SignatureState, Source, TierKind, VerbAnchor,
 };
 use ports::{ContextReader, Reader, ReaderError};
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Parser, Tag, TagEnd};
@@ -80,7 +80,14 @@ impl Reader for MarkdownReader {
                 cause: e.to_string(),
             })?;
 
-            extract_from_source(&source, path, &mut nodes, &mut edges);
+            let mut verb_anchors_scratch: Vec<VerbAnchor> = Vec::new();
+            extract_from_source(
+                &source,
+                path,
+                &mut nodes,
+                &mut edges,
+                &mut verb_anchors_scratch,
+            );
         }
 
         Ok(Graph::new(nodes, edges))
@@ -94,6 +101,59 @@ impl ContextReader for MarkdownReader {
 }
 
 impl MarkdownReader {
+    /// Walk `root` and collect every `- verb: <ident>` anchor from concept
+    /// spec files (`concepts/` subdir if present, else root). Skips
+    /// `contexts/` files (different dialect).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ReaderError::IoFailed`] or [`ReaderError::WalkFailed`] on
+    /// I/O failures.
+    pub fn extract_verb_anchors(&self, root: &Path) -> Result<Vec<VerbAnchor>, ReaderError> {
+        let mut verb_anchors: Vec<VerbAnchor> = Vec::new();
+
+        let concepts_subdir = root.join("concepts");
+        let walk_root: &Path = if concepts_subdir.is_dir() {
+            concepts_subdir.as_path()
+        } else {
+            root
+        };
+
+        for entry in WalkDir::new(walk_root) {
+            let entry = entry.map_err(|e| ReaderError::WalkFailed {
+                root: root.to_path_buf(),
+                cause: e.to_string(),
+            })?;
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            if entry.path().extension().is_none_or(|ext| ext != "md") {
+                continue;
+            }
+            if path_under_dir(entry.path(), "contexts") {
+                continue;
+            }
+
+            let path = entry.path();
+            let source = std::fs::read_to_string(path).map_err(|e| ReaderError::IoFailed {
+                path: path.to_path_buf(),
+                cause: e.to_string(),
+            })?;
+
+            let mut nodes_scratch: Vec<ConceptNode> = Vec::new();
+            let mut edges_scratch: Vec<Edge> = Vec::new();
+            extract_from_source(
+                &source,
+                path,
+                &mut nodes_scratch,
+                &mut edges_scratch,
+                &mut verb_anchors,
+            );
+        }
+
+        Ok(verb_anchors)
+    }
+
     /// Extract all `[enforced-by:]` / `[prose-only:]` bracketed annotations
     /// from `#### Operational invariants` sections in spec files under `root`.
     ///
@@ -200,12 +260,13 @@ fn extract_from_source(
     path: &Path,
     nodes: &mut Vec<ConceptNode>,
     edges: &mut Vec<Edge>,
+    verb_anchors: &mut Vec<VerbAnchor>,
 ) {
     let mut st = SectionState::new(source, path);
     let parser = Parser::new(source).into_offset_iter();
 
     for (event, range) in parser {
-        handle_event(&mut st, event, range, nodes, edges);
+        handle_event(&mut st, event, range, nodes, edges, verb_anchors);
     }
 
     flush_pending(&mut st.pending, &st.rust_blocks, st.path, nodes);
@@ -217,6 +278,7 @@ fn handle_event(
     range: std::ops::Range<usize>,
     nodes: &mut Vec<ConceptNode>,
     edges: &mut Vec<Edge>,
+    verb_anchors: &mut Vec<VerbAnchor>,
 ) {
     match event {
         Event::Start(Tag::Heading {
@@ -252,7 +314,7 @@ fn handle_event(
         }
         Event::End(TagEnd::Item) if st.in_bullet.is_some() => {
             if let Some(line) = st.in_bullet.take() {
-                finish_bullet(st, line, edges);
+                finish_bullet(st, line, edges, verb_anchors);
             }
         }
         Event::Text(s) | Event::Code(s) => absorb_text(st, &s),
@@ -270,7 +332,12 @@ fn absorb_text(st: &mut SectionState, s: &str) {
     }
 }
 
-fn finish_bullet(st: &mut SectionState, line: usize, edges: &mut Vec<Edge>) {
+fn finish_bullet(
+    st: &mut SectionState,
+    line: usize,
+    edges: &mut Vec<Edge>,
+    verb_anchors: &mut Vec<VerbAnchor>,
+) {
     let Some(concept) = st.current_concept().map(str::to_owned) else {
         st.bullet_buf.clear();
         return;
@@ -287,6 +354,13 @@ fn finish_bullet(st: &mut SectionState, line: usize, edges: &mut Vec<Edge>) {
                 line,
             },
         });
+    } else if let Some(mut anchor) = parse_verb_bullet(text.as_str()) {
+        anchor.concept = concept;
+        anchor.source = Source::Spec {
+            path: st.path.to_path_buf(),
+            line,
+        };
+        verb_anchors.push(anchor);
     }
 }
 
@@ -295,6 +369,31 @@ const BULLET_PREFIXES: &[(&str, EdgeKind)] = &[
     ("depends on:", EdgeKind::DependsOn),
     ("returns:", EdgeKind::Returns),
 ];
+
+/// Parse a `- verb: <ident>` bullet into a [`VerbAnchor`] with the
+/// `concept` and `source` fields left as placeholders. The caller
+/// (`finish_bullet`) fills them in once the concept name and file
+/// location are available.
+///
+/// Returns `None` for bullets that do not start with `verb: ` or whose
+/// identifier is empty or contains whitespace.
+pub fn parse_verb_bullet(text: &str) -> Option<VerbAnchor> {
+    let trimmed = text.trim();
+    let rest = trimmed.strip_prefix("verb:")?;
+    let qname = rest.trim().to_string();
+    if qname.is_empty() || qname.contains(char::is_whitespace) {
+        return None;
+    }
+    Some(VerbAnchor {
+        concept: String::new(),
+        qname,
+        raw_target: trimmed.to_owned(),
+        source: Source::Spec {
+            path: std::path::PathBuf::new(),
+            line: 0,
+        },
+    })
+}
 
 /// Parse a bullet's accumulated text into an (`EdgeKind`, tokenised, raw)
 /// triple, if it matches a recognised prefix. Returns `None` for prose

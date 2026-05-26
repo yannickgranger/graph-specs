@@ -1,7 +1,7 @@
 use crate::{
     detect_import_cycle, diff, CheckInput, ConceptNode, ContextDecl, ContextExport, ContextImport,
     ContextPattern, ContextViolation, Edge, EdgeKind, Graph, OwnedUnit, SignatureState, Source,
-    Violation,
+    VerbOwnership, Violation,
 };
 use std::path::PathBuf;
 
@@ -69,7 +69,7 @@ fn im(from: &str, pattern: ContextPattern, concept: &str) -> ContextImport {
 }
 
 fn ci(graph: Graph, contexts: Vec<ContextDecl>) -> CheckInput {
-    CheckInput::new(graph, contexts)
+    CheckInput::new(graph, contexts, VerbOwnership::default())
 }
 
 // --- context pass: empty / v0.3 regression -------------------------

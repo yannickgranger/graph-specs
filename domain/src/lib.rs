@@ -12,8 +12,8 @@ mod report;
 mod tokens;
 
 pub use context::{
-    detect_import_cycle, CheckInput, ContextDecl, ContextExport, ContextImport, ContextPattern,
-    ContextViolation, OwnedUnit,
+    context_for_concept, detect_import_cycle, CheckInput, ContextDecl, ContextExport,
+    ContextImport, ContextPattern, ContextViolation, OwnedUnit,
 };
 pub use diff::diff;
 pub use report::{
@@ -182,8 +182,52 @@ pub enum Source {
     Code { path: PathBuf, line: usize },
 }
 
+/// A top-level `pub fn` declaration found in code, with its owning crate
+/// and the location of its declaration site.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerbDecl {
+    pub qname: String,
+    pub owned_unit: Option<String>,
+    pub source: Source,
+}
+
+/// Spec-side anchor parsed from a `- verb: <ident>` bullet inside a
+/// concept section. `concept` names the owning concept; `qname` is the
+/// bare identifier; `raw_target` preserves the verbatim bullet text.
+///
+/// `concept` and `source` are placeholder-initialised by
+/// `parse_verb_bullet` and filled in by the caller (`finish_bullet`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerbAnchor {
+    pub concept: String,
+    pub qname: String,
+    pub raw_target: String,
+    pub source: Source,
+}
+
+/// Aggregates both sides of the verb-anchoring contract carried by
+/// [`CheckInput`]. `decls` are `pub fn` declarations from code;
+/// `anchors` are `- verb:` bullets from spec files.
+/// [`Default`] is derived so `CheckInput`'s `#[derive(Default)]` compiles.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct VerbOwnership {
+    pub decls: Vec<VerbDecl>,
+    pub anchors: Vec<VerbAnchor>,
+}
+
+impl From<PubFnDecl> for VerbDecl {
+    fn from(f: PubFnDecl) -> Self {
+        Self {
+            qname: f.name,
+            owned_unit: f.owned_unit,
+            source: f.source,
+        }
+    }
+}
+
 /// A single equivalence violation between spec and code graphs.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Violation {
     /// Concept declared in specs but absent from code.
     MissingInCode { name: String, spec_source: Source },
@@ -246,4 +290,21 @@ pub enum Violation {
     /// [`ContextViolation`] variants so consumers that do not opt
     /// into context checking match one arm rather than three.
     Context(ContextViolation),
+    /// Spec anchor `- verb: <qname>` found under `concept` but no
+    /// `pub fn` named `qname` exists anywhere in the code tree.
+    VerbMissingInCode {
+        concept: String,
+        qname: String,
+        spec_source: Source,
+    },
+    /// A `pub fn` named `qname` exists in a verb-anchored context but
+    /// no spec anchor claims it.
+    VerbMissingInSpec { qname: String, code_source: Source },
+    /// Spec anchor references `qname` but no `pub fn` with that name
+    /// belongs to any declared bounded context.
+    VerbTargetUnknown {
+        concept: String,
+        qname: String,
+        spec_source: Source,
+    },
 }
