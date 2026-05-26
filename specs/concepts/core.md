@@ -134,20 +134,24 @@ adapter, in language-neutral code. Lives in `ports`.
 
 ## MarkdownReader
 
-Concrete [Reader](#reader) implementation for markdown spec files. Uses
-`pulldown-cmark`. Emits a [ConceptNode](#conceptnode) for every `##` or
-`###` heading it encounters, collects fenced `rust` blocks for
-signature-level comparison, and recognises the v0.3 bullet prefixes
-(`- implements:`, `- depends on:`, `- returns:`) as declared edges.
-Also implements [ContextReader](#contextreader) for v0.4 — parses
-`specs/contexts/<name>.md` files into [ContextDecl](#contextdecl)
-values. Lives in `adapters/markdown`.
+Concrete [Reader](#reader) and [ContextReader](#contextreader)
+implementation for markdown spec files. Uses `pulldown-cmark`. Emits a
+[ConceptNode](#conceptnode) for every `##` or `###` heading it encounters,
+collects fenced `rust` blocks for signature-level comparison, and
+recognises the v0.3 bullet prefixes (`- implements:`, `- depends on:`,
+`- returns:`) as declared edges. Also implements
+[ContextReader](#contextreader) for v0.4 — parses
+`specs/contexts/<name>.md` files into [ContextDecl](#contextdecl) values.
+Exposes `extract_invariant_annotations` (inherent method) for RFC-005
+§3.2 — extracts `[enforced-by:]` / `[prose-only:]` annotations from
+`#### Operational invariants` spec sections. Lives in `adapters/markdown`.
 
 - implements: Reader
 - implements: ContextReader
 - depends on: Graph
 - depends on: ReaderError
 - depends on: ContextDecl
+- depends on: InvariantAnnotation
 
 ## RustBackend
 
@@ -166,19 +170,23 @@ Lives in `adapters/rust`.
 
 ## RustReader
 
-Concrete [Reader](#reader) implementation for Rust source files. Thin
-adapter over [RustBackend](#rustbackend): pulls the
-[Extraction](#extraction), filters raw edges against the discovered
-[ConceptNode](#conceptnode) set, and assembles a [Graph](#graph) for
-the diff engine. Emits one [ConceptNode](#conceptnode) per top-level
-`pub struct`, `pub enum`, `pub trait`, `pub type`, plus v0.2 signature
-normalisation via `adapter-rust::normalize` and v0.3 relationship edges
-from struct fields, impl blocks, and trait method signatures. Lives in
+Concrete [Reader](#reader) and [VerbReader](#verbreader) implementation
+for Rust source files. Thin adapter over [RustBackend](#rustbackend):
+pulls the [Extraction](#extraction), filters raw edges against the
+discovered [ConceptNode](#conceptnode) set, and assembles a
+[Graph](#graph) for the diff engine. Emits one [ConceptNode](#conceptnode)
+per top-level `pub struct`, `pub enum`, `pub trait`, `pub type`, plus v0.2
+signature normalisation via `adapter-rust::normalize` and v0.3 relationship
+edges from struct fields, impl blocks, and trait method signatures.
+`VerbReader::extract_pub_fns` uses a separate parallel walk (per RFC-005
+§3.2 dry-run rust-systems-A) and is never invoked by `check`. Lives in
 `adapters/rust`.
 
 - implements: Reader
+- implements: VerbReader
 - depends on: Graph
 - depends on: ReaderError
+- depends on: PubFnDecl
 
 ## OwnedUnit
 
@@ -273,3 +281,99 @@ See `specs/ndjson-output.md` §Schema evolution for the bump rules
 (breaking changes bump; non-breaking additions do not) and
 `docs/rfc/001-bounded-context-equivalence.md` §3.3 for the v1→v2
 ratification decision.
+
+## VerbReader
+
+The v0.5 verb-extraction port trait. Sibling to [Reader](#reader) and
+[ContextReader](#contextreader) — separate per RFC-005 §3.2 clean-arch
+lens. Not every adapter extracts verbs (markdown has no code items);
+returning an empty `Vec` is the correct implementation for adapters that
+do not walk code. Only invoked by the `report` subcommand, never by
+`check`. Lives in `ports`.
+
+```rust
+pub trait VerbReader {
+    fn extract_pub_fns(&self, root: &Path) -> Result<Vec<PubFnDecl>, ReaderError>;
+}
+```
+
+- depends on: PubFnDecl
+- depends on: ReaderError
+
+## PubFnDecl
+
+A top-level `pub fn` declaration found in code — the verb counterpart to
+[ConceptNode](#conceptnode) (which captures pub types). Carries the
+function name, a [Source](#source) pointing back to the declaration site,
+and an optional `owned_unit` string for bounded-context membership lookup.
+Per RFC-005 §3.3. Lives in `domain`.
+
+- depends on: Source
+
+## InvariantAnnotation
+
+A parsed `[enforced-by:]` or `[prose-only:]` bracketed annotation
+extracted from a spec `#### Operational invariants` bullet by
+[MarkdownReader](#markdownreader). Carries `inv_id`, [TierKind](#tierkind),
+`artifact`, `retire_when`, `prose_only_why`, and [Source](#source).
+Per RFC-005 §3.3. Lives in `domain`.
+
+- depends on: TierKind
+- depends on: Source
+
+## TierKind
+
+Enforcement tier derived from an `[enforced-by:]` artifact path, or
+`ProseOnly` for `[prose-only:]` waivers. Four variants in RFC-005 §3.3:
+`Cypher` (`.cfdb/queries/*.cypher`), `Tier0` (pub trait/fn ref),
+`ScriptFence` (`scripts/*.sh`), `ProseOnly` (explicit waiver). Marked
+`#[non_exhaustive]` per RFC-005 §3.3 solid §5.3 finding 3 — RFC-006 may
+add `BehaviorTest`. Lives in `domain`.
+
+## VerbCoverageRecord
+
+Report record: one `pub fn` in code, its bounded context (if known), and
+whether any spec section cites it by name. `context: None` is the
+report-mode analog of `ContextViolation::MembershipUnknown` — the fn
+lives in a crate not declared under any context's `Owns` block.
+Per RFC-005 §3.3. Lives in `domain`.
+
+- depends on: PubFnDecl
+
+## TierHistogramRecord
+
+Report record: annotation count per [TierKind](#tierkind), partitioned by
+bounded context. Per RFC-005 §3.3. Lives in `domain`.
+
+- depends on: TierKind
+
+## HomonymAppearance
+
+A single context's appearance in a [HomonymRecord](#homonymrecord). Carries
+`context_name`, `sanctioned_by_pattern` (derived via the exporter-wins
+algorithm, RFC-005 §3.3 dry-run DDD-B), and `asymmetric` (set when export
+and import patterns disagree for the same name, per RFC-001 §4 invariant
+5). Per RFC-005 §3.3. Lives in `domain`.
+
+- depends on: ContextPattern
+
+## HomonymRecord
+
+A name (pub fn or pub type) that appears in more than one bounded context.
+Each appearance is a [HomonymAppearance](#homonymappearance) enriched with
+the sanctioning [ContextPattern](#contextpattern). Per RFC-005 §3.3.
+Lives in `domain`.
+
+- depends on: HomonymAppearance
+
+## ReportOutput
+
+Aggregated output of the verb-coverage report: three record lists —
+`verb_coverage` ([VerbCoverageRecord](#verbcoveragerecord) vec),
+`tier_histogram` ([TierHistogramRecord](#tierhistogramrecord) vec), and
+`homonyms` ([HomonymRecord](#homonymrecord) vec). Produced by
+`report_verb_coverage`. Per RFC-005 §3.3. Lives in `domain`.
+
+- depends on: VerbCoverageRecord
+- depends on: TierHistogramRecord
+- depends on: HomonymRecord

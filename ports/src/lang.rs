@@ -88,6 +88,7 @@ pub trait LanguageBackend {
     /// stateless so future configurable backends (PHP namespace-prefix,
     /// TS `tsconfig.json` resolution rules) can carry config without
     /// breaking the trait shape.
+    #[must_use]
     fn detect(&self, code_root: &Path) -> bool;
 
     /// Walk `code_root` once and emit concepts + raw edges.

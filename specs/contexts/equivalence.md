@@ -30,9 +30,18 @@ here. No IO, no parser state — just values, traits, and the three-pass
 - SchemaVersion (PublishedLanguage)
 - Reader (PublishedLanguage)
 - ContextReader (PublishedLanguage)
+- VerbReader (PublishedLanguage)
 - ReaderError (PublishedLanguage)
 - LanguageBackend (PublishedLanguage)
 - Extraction (PublishedLanguage)
+- PubFnDecl (PublishedLanguage)
+- InvariantAnnotation (PublishedLanguage)
+- TierKind (PublishedLanguage)
+- VerbCoverageRecord (PublishedLanguage)
+- TierHistogramRecord (PublishedLanguage)
+- HomonymAppearance (PublishedLanguage)
+- HomonymRecord (PublishedLanguage)
+- ReportOutput (PublishedLanguage)
 
 ## Imports
 
