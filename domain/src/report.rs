@@ -105,9 +105,10 @@ pub struct ReportOutput {
     pub homonyms: Vec<HomonymRecord>,
 }
 
-/// Pure transformation — per RFC-005 §4 Invariant 8, MUST NOT invoke any
-/// reader. Receives pre-materialised inputs assembled by the application
-/// orchestrator (`application::report`, Slice B), parallel to [`crate::diff`].
+/// Pure transformation — per RFC-005 §4 Invariant 8, MUST NOT invoke any reader.
+///
+/// Receives pre-materialised inputs assembled by the application orchestrator
+/// (`application::report`, Slice B), parallel to [`crate::diff`].
 ///
 /// # Arguments
 ///
@@ -120,9 +121,9 @@ pub struct ReportOutput {
 ///   `MarkdownReader::extract_invariant_annotations`.
 #[must_use]
 pub fn report_verb_coverage(
-    check_input: CheckInput,
-    pub_fns: Vec<PubFnDecl>,
-    annotations: Vec<InvariantAnnotation>,
+    check_input: &CheckInput,
+    pub_fns: &[PubFnDecl],
+    annotations: &[InvariantAnnotation],
 ) -> ReportOutput {
     let unit_to_context = build_unit_context_map(&check_input.contexts);
 
@@ -133,9 +134,9 @@ pub fn report_verb_coverage(
         .map(|n| n.name.as_str())
         .collect();
 
-    let verb_coverage = build_verb_coverage(&pub_fns, &unit_to_context, &spec_names);
-    let tier_histogram = build_tier_histogram(&annotations);
-    let homonyms = build_homonyms(&pub_fns, &check_input.contexts, &unit_to_context);
+    let verb_coverage = build_verb_coverage(pub_fns, &unit_to_context, &spec_names);
+    let tier_histogram = build_tier_histogram(annotations);
+    let homonyms = build_homonyms(pub_fns, &check_input.contexts, &unit_to_context);
 
     ReportOutput {
         verb_coverage,
@@ -324,7 +325,7 @@ mod tests {
     fn verb_coverage_none_context_when_unit_unmapped() {
         let input = empty_input();
         let pub_fns = vec![make_fn("run_check", Some("application"))];
-        let out = report_verb_coverage(input, pub_fns, vec![]);
+        let out = report_verb_coverage(&input, &pub_fns, &[]);
         assert_eq!(out.verb_coverage.len(), 1);
         assert_eq!(out.verb_coverage[0].context, None);
         assert!(!out.verb_coverage[0].cited);
@@ -343,7 +344,7 @@ mod tests {
         );
         let input = CheckInput::new(Graph::default(), vec![ctx]);
         let pub_fns = vec![make_fn("run_check", Some("application"))];
-        let out = report_verb_coverage(input, pub_fns, vec![]);
+        let out = report_verb_coverage(&input, &pub_fns, &[]);
         assert_eq!(
             out.verb_coverage[0].context,
             Some("orchestration".to_owned())
@@ -362,7 +363,7 @@ mod tests {
         let graph = Graph::new(vec![node], vec![]);
         let input = CheckInput::new(graph, vec![]);
         let pub_fns = vec![make_fn("run_check", None)];
-        let out = report_verb_coverage(input, pub_fns, vec![]);
+        let out = report_verb_coverage(&input, &pub_fns, &[]);
         assert!(out.verb_coverage[0].cited);
     }
 
@@ -379,7 +380,7 @@ mod tests {
             make_ann(TierKind::ProseOnly),
             make_ann(TierKind::ProseOnly),
         ];
-        let out = report_verb_coverage(input, vec![], annotations);
+        let out = report_verb_coverage(&input, &[], &annotations);
         assert_eq!(out.tier_histogram.len(), 4);
         let cypher = out
             .tier_histogram
@@ -437,7 +438,7 @@ mod tests {
             make_fn("Foo", Some("crate_a")),
             make_fn("Foo", Some("crate_b")),
         ];
-        let out = report_verb_coverage(input, pub_fns, vec![]);
+        let out = report_verb_coverage(&input, &pub_fns, &[]);
         assert_eq!(out.homonyms.len(), 1);
         let rec = &out.homonyms[0];
         assert_eq!(rec.name, "Foo");
@@ -472,7 +473,7 @@ mod tests {
             make_fn("Bar", Some("crate_a")),
             make_fn("Bar", Some("crate_b")),
         ];
-        let out = report_verb_coverage(input, pub_fns, vec![]);
+        let out = report_verb_coverage(&input, &pub_fns, &[]);
         assert_eq!(out.homonyms.len(), 1);
         let rec = &out.homonyms[0];
         for app in &rec.contexts {
@@ -510,7 +511,7 @@ mod tests {
             make_fn("Baz", Some("crate_a")),
             make_fn("Baz", Some("crate_b")),
         ];
-        let out = report_verb_coverage(input, pub_fns, vec![]);
+        let out = report_verb_coverage(&input, &pub_fns, &[]);
         assert_eq!(out.homonyms.len(), 1);
         let app_a = out.homonyms[0]
             .contexts
@@ -543,7 +544,7 @@ mod tests {
         );
         let input = CheckInput::new(Graph::default(), vec![ctx]);
         let pub_fns = vec![make_fn("only_here", Some("solo_crate"))];
-        let out = report_verb_coverage(input, pub_fns, vec![]);
+        let out = report_verb_coverage(&input, &pub_fns, &[]);
         assert!(out.homonyms.is_empty());
     }
 }

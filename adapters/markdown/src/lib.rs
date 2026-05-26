@@ -442,8 +442,10 @@ fn try_parse_annotation(text: &str, path: &Path, line: usize) -> Option<Invarian
         return None;
     }
 
-    match parse_annotation_grammar(text) {
-        Some((inv_id, tier, artifact, retire_when, prose_only_why)) => Some(InvariantAnnotation {
+    if let Some((inv_id, tier, artifact, retire_when, prose_only_why)) =
+        parse_annotation_grammar(text)
+    {
+        Some(InvariantAnnotation {
             inv_id,
             tier,
             artifact,
@@ -453,16 +455,15 @@ fn try_parse_annotation(text: &str, path: &Path, line: usize) -> Option<Invarian
                 path: path.to_path_buf(),
                 line,
             },
-        }),
-        None => {
-            tracing::warn!(
-                "malformed invariant annotation at {}:{} — skipping: {:?}",
-                path.display(),
-                line,
-                text
-            );
-            None
-        }
+        })
+    } else {
+        tracing::warn!(
+            "malformed invariant annotation at {}:{} — skipping: {:?}",
+            path.display(),
+            line,
+            text
+        );
+        None
     }
 }
 
@@ -530,7 +531,10 @@ fn derive_tier(artifact: &str) -> TierKind {
     let a = artifact.trim();
     if a.ends_with(".cypher") {
         TierKind::Cypher
-    } else if a.ends_with(".sh") {
+    } else if std::path::Path::new(a)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("sh"))
+    {
         TierKind::ScriptFence
     } else if a.is_empty() {
         TierKind::ProseOnly
