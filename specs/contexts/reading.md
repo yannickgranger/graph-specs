@@ -40,6 +40,7 @@ equivalence publishes.
 - ContextPattern from equivalence (PublishedLanguage)
 - OwnedUnit from equivalence (PublishedLanguage)
 - PubFnDecl from equivalence (PublishedLanguage)
+- VerbAnchor from equivalence (PublishedLanguage)
 - InvariantAnnotation from equivalence (PublishedLanguage)
 - TierKind from equivalence (PublishedLanguage)
 

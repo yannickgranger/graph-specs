@@ -279,7 +279,7 @@ mod tests {
     use super::*;
     use crate::{
         CheckInput, ContextDecl, ContextExport, ContextImport, ContextPattern, Graph, OwnedUnit,
-        Source,
+        Source, VerbOwnership,
     };
     use std::path::PathBuf;
 
@@ -342,7 +342,7 @@ mod tests {
             vec![],
             spec_src(1),
         );
-        let input = CheckInput::new(Graph::default(), vec![ctx]);
+        let input = CheckInput::new(Graph::default(), vec![ctx], VerbOwnership::default());
         let pub_fns = vec![make_fn("run_check", Some("application"))];
         let out = report_verb_coverage(&input, &pub_fns, &[]);
         assert_eq!(
@@ -361,7 +361,7 @@ mod tests {
             signature: SignatureState::Absent,
         };
         let graph = Graph::new(vec![node], vec![]);
-        let input = CheckInput::new(graph, vec![]);
+        let input = CheckInput::new(graph, vec![], VerbOwnership::default());
         let pub_fns = vec![make_fn("run_check", None)];
         let out = report_verb_coverage(&input, &pub_fns, &[]);
         assert!(out.verb_coverage[0].cited);
@@ -433,7 +433,11 @@ mod tests {
             vec![],
             spec_src(2),
         );
-        let input = CheckInput::new(Graph::default(), vec![ctx_a, ctx_b]);
+        let input = CheckInput::new(
+            Graph::default(),
+            vec![ctx_a, ctx_b],
+            VerbOwnership::default(),
+        );
         let pub_fns = vec![
             make_fn("Foo", Some("crate_a")),
             make_fn("Foo", Some("crate_b")),
@@ -468,7 +472,11 @@ mod tests {
             vec![],
             spec_src(2),
         );
-        let input = CheckInput::new(Graph::default(), vec![ctx_a, ctx_b]);
+        let input = CheckInput::new(
+            Graph::default(),
+            vec![ctx_a, ctx_b],
+            VerbOwnership::default(),
+        );
         let pub_fns = vec![
             make_fn("Bar", Some("crate_a")),
             make_fn("Bar", Some("crate_b")),
@@ -506,7 +514,11 @@ mod tests {
             vec![],
             spec_src(2),
         );
-        let input = CheckInput::new(Graph::default(), vec![ctx_a, ctx_b]);
+        let input = CheckInput::new(
+            Graph::default(),
+            vec![ctx_a, ctx_b],
+            VerbOwnership::default(),
+        );
         let pub_fns = vec![
             make_fn("Baz", Some("crate_a")),
             make_fn("Baz", Some("crate_b")),
@@ -542,7 +554,7 @@ mod tests {
             vec![],
             spec_src(1),
         );
-        let input = CheckInput::new(Graph::default(), vec![ctx]);
+        let input = CheckInput::new(Graph::default(), vec![ctx], VerbOwnership::default());
         let pub_fns = vec![make_fn("only_here", Some("solo_crate"))];
         let out = report_verb_coverage(&input, &pub_fns, &[]);
         assert!(out.homonyms.is_empty());

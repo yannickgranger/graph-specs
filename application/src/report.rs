@@ -7,7 +7,7 @@
 
 use adapter_markdown::MarkdownReader;
 use adapter_rust::RustReader;
-use domain::{report_verb_coverage, CheckInput};
+use domain::{report_verb_coverage, CheckInput, VerbOwnership};
 use ports::{ContextReader, Reader, ReaderError, VerbReader};
 use std::io;
 use std::path::{Path, PathBuf};
@@ -35,7 +35,7 @@ pub fn run_report(specs: &Path, code: &Path, format: ReportFormat) -> Result<u8,
     let annotations = MarkdownReader.extract_invariant_annotations(specs)?;
     let specs_graph = MarkdownReader.extract(specs)?;
     let spec_contexts = MarkdownReader.extract_contexts(specs)?;
-    let check_input = CheckInput::new(specs_graph, spec_contexts);
+    let check_input = CheckInput::new(specs_graph, spec_contexts, VerbOwnership::default());
     let report = report_verb_coverage(&check_input, &pub_fns, &annotations);
 
     let stdout = io::stdout();

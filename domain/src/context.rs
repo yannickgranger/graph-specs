@@ -8,7 +8,7 @@
 //! lives alongside the three existing passes in `diff.rs` and consumes
 //! [`CheckInput`] as its spec-side argument.
 
-use crate::{EdgeKind, Graph, Source};
+use crate::{EdgeKind, Graph, Source, VerbOwnership};
 use std::collections::HashMap;
 
 /// A crate, npm package, Go module, or equivalent — named deliberately to
@@ -121,7 +121,7 @@ impl std::fmt::Display for ContextPattern {
     }
 }
 
-/// The three context-level violation variants. Wrapped inside
+/// The context-level violation variants. Wrapped inside
 /// [`crate::Violation::Context`] so consumers that do not opt into
 /// context checking match one arm rather than three.
 ///
@@ -159,6 +159,16 @@ pub enum ContextViolation {
         target_context: String,
         spec_source: Source,
     },
+    /// A `- verb: <qname>` anchor's concept lives in `owning_context`
+    /// but the `pub fn` named `qname` belongs to `target_context`
+    /// (cross-context verb routing without a matching `Imports` entry).
+    CrossVerbUnauthorized {
+        concept: String,
+        qname: String,
+        owning_context: String,
+        target_context: String,
+        spec_source: Source,
+    },
 }
 
 impl ContextViolation {
@@ -170,29 +180,85 @@ impl ContextViolation {
         match self {
             Self::MembershipUnknown { concept, .. }
             | Self::CrossEdgeUnauthorized { concept, .. }
-            | Self::CrossEdgeUndeclared { concept, .. } => concept.as_str(),
+            | Self::CrossEdgeUndeclared { concept, .. }
+            | Self::CrossVerbUnauthorized { concept, .. } => concept.as_str(),
         }
     }
 }
 
-/// Input to the v0.4 diff on the spec side — concept graph plus
-/// declared bounded-context map.
+/// Input to the v0.4+ diff on the spec side — concept graph plus
+/// declared bounded-context map plus verb-ownership aggregate.
 ///
-/// Keeps [`Graph`] focused on concepts + edges (two reasons to change);
-/// contexts are carried alongside (third reason to change) per
-/// SOLID lens round-1 RC-1 in RFC-001.
+/// Keeps [`Graph`] focused on concepts + edges; contexts and
+/// `verb_ownership` are carried alongside per SOLID lens RC-1.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CheckInput {
     pub graph: Graph,
     pub contexts: Vec<ContextDecl>,
+    pub verb_ownership: VerbOwnership,
 }
 
 impl CheckInput {
-    /// An empty `contexts` list reduces v0.4 diff to v0.3 behavior (the
-    /// context pass is a no-op).
+    /// Full constructor — carries all three spec-side inputs.
     #[must_use]
-    pub const fn new(graph: Graph, contexts: Vec<ContextDecl>) -> Self {
-        Self { graph, contexts }
+    pub const fn new(
+        graph: Graph,
+        contexts: Vec<ContextDecl>,
+        verb_ownership: VerbOwnership,
+    ) -> Self {
+        Self {
+            graph,
+            contexts,
+            verb_ownership,
+        }
+    }
+
+    /// Convenience constructor for callers that do not populate
+    /// `verb_ownership`. Defaults `verb_ownership` to empty vecs.
+    #[must_use]
+    pub const fn with_graph_and_contexts(graph: Graph, contexts: Vec<ContextDecl>) -> Self {
+        Self {
+            graph,
+            contexts,
+            verb_ownership: VerbOwnership {
+                decls: Vec::new(),
+                anchors: Vec::new(),
+            },
+        }
+    }
+}
+
+/// Two-hop context lookup: find the concept named `concept_name` in
+/// `graph.nodes`, extract its source path, then return the
+/// [`ContextDecl`] whose `owned_units` prefix matches that path.
+///
+/// Returns `None` when the concept is absent from the graph or when no
+/// declared context owns its path.
+#[must_use]
+pub fn context_for_concept<'a>(
+    graph: &Graph,
+    contexts: &'a [ContextDecl],
+    concept_name: &str,
+) -> Option<&'a ContextDecl> {
+    let node = graph.nodes.iter().find(|n| n.name == concept_name)?;
+    match &node.source {
+        Source::Code { path, .. } => {
+            let path_str = path.to_string_lossy();
+            let trimmed = path_str.trim_start_matches("./");
+            let unit = trimmed.split_once("/src/").map(|(u, _)| u)?;
+            contexts
+                .iter()
+                .find(|ctx| ctx.owned_units.iter().any(|u| u.0 == unit))
+        }
+        Source::Spec { path, .. } => {
+            let path_str = path.to_string_lossy();
+            let trimmed = path_str.trim_start_matches("./");
+            contexts.iter().find(|ctx| {
+                ctx.owned_units
+                    .iter()
+                    .any(|u| trimmed.starts_with(u.0.as_str()))
+            })
+        }
     }
 }
 
@@ -389,10 +455,13 @@ mod tests {
         assert!(ci.graph.nodes.is_empty());
         assert!(ci.graph.edges.is_empty());
         assert!(ci.contexts.is_empty());
+        assert!(ci.verb_ownership.decls.is_empty());
+        assert!(ci.verb_ownership.anchors.is_empty());
     }
 
     #[test]
     fn check_input_new_wraps_arguments() {
+        use crate::VerbOwnership;
         let g = Graph::empty();
         let ctxs = vec![ContextDecl {
             name: "x".to_string(),
@@ -401,7 +470,7 @@ mod tests {
             imports: vec![],
             source: spec_src(),
         }];
-        let ci = CheckInput::new(g, ctxs);
+        let ci = CheckInput::new(g, ctxs, VerbOwnership::default());
         assert_eq!(ci.contexts.len(), 1);
         assert_eq!(ci.contexts[0].name, "x");
     }
