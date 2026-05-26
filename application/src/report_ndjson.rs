@@ -78,7 +78,9 @@ fn emit_tier_histogram_records(
 }
 
 fn emit_homonym_records(out: &mut impl Write, records: &[HomonymRecord]) -> io::Result<()> {
-    for rec in records {
+    let mut sorted: Vec<&HomonymRecord> = records.iter().collect();
+    sorted.sort_by(|a, b| a.name.cmp(&b.name));
+    for rec in sorted {
         let contexts: Vec<Value> = rec
             .contexts
             .iter()
@@ -257,9 +259,44 @@ mod tests {
 
     #[test]
     fn emit_ndjson_determinism() {
-        let report = make_report();
+        // Two homonym entries in reverse-alpha order: "Zebra" before "Apple".
+        // Emitter must sort them alpha so "Apple" appears first in output.
+        let report = ReportOutput {
+            verb_coverage: vec![],
+            tier_histogram: vec![],
+            homonyms: vec![
+                HomonymRecord {
+                    name: "Zebra".to_owned(),
+                    contexts: vec![HomonymAppearance {
+                        context_name: "ctx_z".to_owned(),
+                        sanctioned_by_pattern: None,
+                        asymmetric: false,
+                    }],
+                },
+                HomonymRecord {
+                    name: "Apple".to_owned(),
+                    contexts: vec![HomonymAppearance {
+                        context_name: "ctx_a".to_owned(),
+                        sanctioned_by_pattern: None,
+                        asymmetric: false,
+                    }],
+                },
+            ],
+        };
         let out1 = render(&report);
         let out2 = render(&report);
         assert_eq!(out1, out2, "output must be deterministic");
+
+        let lines = parse_lines(&out1);
+        let names: Vec<&str> = lines
+            .iter()
+            .filter(|r| r["record"] == "homonym")
+            .map(|r| r["name"].as_str().unwrap())
+            .collect();
+        assert_eq!(
+            names,
+            vec!["Apple", "Zebra"],
+            "homonyms must be sorted alpha"
+        );
     }
 }

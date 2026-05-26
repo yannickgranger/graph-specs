@@ -89,7 +89,9 @@ fn emit_homonyms(out: &mut impl Write, records: &[HomonymRecord]) -> io::Result<
         return Ok(());
     }
     writeln!(out, "=== homonyms ===")?;
-    for rec in records {
+    let mut sorted: Vec<&HomonymRecord> = records.iter().collect();
+    sorted.sort_by(|a, b| a.name.cmp(&b.name));
+    for rec in sorted {
         writeln!(out, "  {}", rec.name)?;
         for app in &rec.contexts {
             let marker = match app.sanctioned_by_pattern {
@@ -229,10 +231,37 @@ mod tests {
 
     #[test]
     fn emit_text_determinism() {
-        let report = make_report();
+        // Two homonym entries in reverse-alpha order: "Zebra" before "Apple".
+        // Emitter must sort them alpha so "Apple" appears first in output.
+        let report = ReportOutput {
+            verb_coverage: vec![],
+            tier_histogram: vec![],
+            homonyms: vec![
+                HomonymRecord {
+                    name: "Zebra".to_owned(),
+                    contexts: vec![HomonymAppearance {
+                        context_name: "ctx_z".to_owned(),
+                        sanctioned_by_pattern: None,
+                        asymmetric: false,
+                    }],
+                },
+                HomonymRecord {
+                    name: "Apple".to_owned(),
+                    contexts: vec![HomonymAppearance {
+                        context_name: "ctx_a".to_owned(),
+                        sanctioned_by_pattern: None,
+                        asymmetric: false,
+                    }],
+                },
+            ],
+        };
         let out1 = render(&report);
         let out2 = render(&report);
         assert_eq!(out1, out2, "output must be deterministic");
+
+        let apple_pos = out1.find("  Apple").expect("Apple must appear");
+        let zebra_pos = out1.find("  Zebra").expect("Zebra must appear");
+        assert!(apple_pos < zebra_pos, "Apple must sort before Zebra");
     }
 
     #[test]
