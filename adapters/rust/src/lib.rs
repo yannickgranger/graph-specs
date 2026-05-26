@@ -15,8 +15,8 @@ mod normalize;
 
 pub use normalize::normalize;
 
-use domain::{ConceptNode, Edge, Graph, SignatureState, Source};
-use ports::{Extraction, LanguageBackend, Reader, ReaderError};
+use domain::{ConceptNode, Edge, Graph, PubFnDecl, SignatureState, Source};
+use ports::{Extraction, LanguageBackend, Reader, ReaderError, VerbReader};
 use std::path::Path;
 use syn::{Attribute, File, Visibility};
 use walkdir::{DirEntry, WalkDir};
@@ -92,6 +92,93 @@ impl Reader for RustReader {
         } = RustBackend.extract(root)?;
         let edges = edges::filter_by_known_concepts(raw_edges, &concepts);
         Ok(Graph::new(concepts, edges))
+    }
+}
+
+impl VerbReader for RustReader {
+    fn extract_pub_fns(&self, root: &Path) -> Result<Vec<PubFnDecl>, ReaderError> {
+        let mut pub_fns = Vec::new();
+
+        let walker = WalkDir::new(root)
+            .into_iter()
+            .filter_entry(|e| !is_excluded_dir(e));
+
+        for entry in walker {
+            let entry = entry.map_err(|e| ReaderError::WalkFailed {
+                root: root.to_path_buf(),
+                cause: e.to_string(),
+            })?;
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            if entry.path().extension().is_none_or(|ext| ext != "rs") {
+                continue;
+            }
+
+            let owned_unit = find_owned_unit(entry.path(), root);
+            let (parsed, path) = read_and_parse(entry.path().to_path_buf())?;
+
+            for item in &parsed.items {
+                visit_top_level_fn(item, &path, owned_unit.as_deref(), &mut pub_fns);
+            }
+        }
+
+        Ok(pub_fns)
+    }
+}
+
+/// Separate parallel walk for `pub fn` items — per RFC-005 §3.2 dry-run
+/// rust-systems-A finding: `visit_top_level_item` documents `Fn` as a
+/// deliberately-excluded item and MUST NOT be extended. This sibling
+/// exclusively handles `syn::Item::Fn`.
+fn visit_top_level_fn(
+    item: &syn::Item,
+    path: &Path,
+    owned_unit: Option<&str>,
+    out: &mut Vec<PubFnDecl>,
+) {
+    if let syn::Item::Fn(f) = item {
+        if !matches!(f.vis, Visibility::Public(_)) {
+            return;
+        }
+        if is_test_gated(&f.attrs) {
+            return;
+        }
+        let line = f.sig.ident.span().start().line;
+        out.push(PubFnDecl {
+            name: f.sig.ident.to_string(),
+            source: Source::Code {
+                path: path.to_path_buf(),
+                line,
+            },
+            owned_unit: owned_unit.map(str::to_owned),
+        });
+    }
+}
+
+/// Find the owning crate for a given source file by walking up to the
+/// nearest `Cargo.toml`, then computing the path relative to `root`.
+/// Returns `None` if no `Cargo.toml` is found in the ancestor chain.
+fn find_owned_unit(file_path: &Path, root: &Path) -> Option<String> {
+    let mut dir = file_path.parent()?;
+    loop {
+        if dir.join("Cargo.toml").exists() {
+            // Return workspace-relative path (e.g. "application",
+            // "adapters/rust") when the Cargo.toml is under root;
+            // fall back to the directory name when root == dir.
+            if let Ok(rel) = dir.strip_prefix(root) {
+                let s = rel.to_string_lossy();
+                if !s.is_empty() {
+                    return Some(s.replace('\\', "/"));
+                }
+            }
+            return dir.file_name().and_then(|n| n.to_str()).map(str::to_owned);
+        }
+        let parent = dir.parent()?;
+        if parent == dir {
+            return None;
+        }
+        dir = parent;
     }
 }
 
@@ -304,6 +391,72 @@ mod tests {
         assert!(!RustBackend.detect(d.path()), "no marker → false");
         write(d.path(), "Cargo.toml", "[package]\nname = \"x\"\n");
         assert!(RustBackend.detect(d.path()), "Cargo.toml present → true");
+    }
+
+    /// Self-dogfood: `extract_pub_fns` on this repo's `application/` crate
+    /// yields a non-zero list that includes `run_check` per RFC-005 §7 Slice A.
+    #[test]
+    fn extract_pub_fns_self_dogfood_application_includes_run_check() {
+        let manifest = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        // adapters/rust → workspace root is two levels up
+        let workspace = manifest
+            .parent()
+            .and_then(|p| p.parent())
+            .expect("workspace root");
+        let app_dir = workspace.join("application");
+        if !app_dir.exists() {
+            // Tolerate running outside the real workspace (e.g. isolated tmpfs)
+            return;
+        }
+        let fns = RustReader.extract_pub_fns(&app_dir).expect("dogfood");
+        assert!(
+            !fns.is_empty(),
+            "application/ should yield at least one pub fn"
+        );
+        assert!(
+            fns.iter().any(|f| f.name == "run_check"),
+            "expected run_check in pub fn list; got: {:?}",
+            fns.iter().map(|f| f.name.as_str()).collect::<Vec<_>>()
+        );
+    }
+
+    // Self-dogfood: extract_pub_fns on the application crate yields run_check.
+    #[test]
+    fn extract_pub_fns_finds_pub_fns() {
+        let d = TempDir::new().unwrap();
+        write(d.path(), "Cargo.toml", "[package]\nname = \"testcrate\"\n");
+        write(
+            d.path(),
+            "src/lib.rs",
+            "pub fn alpha() {} pub fn beta() {} fn private() {}",
+        );
+        let fns = RustReader.extract_pub_fns(d.path()).unwrap();
+        let mut names: Vec<&str> = fns.iter().map(|f| f.name.as_str()).collect();
+        names.sort_unstable();
+        assert_eq!(names, vec!["alpha", "beta"]);
+    }
+
+    #[test]
+    fn extract_pub_fns_skips_test_gated() {
+        let d = TempDir::new().unwrap();
+        write(
+            d.path(),
+            "src/lib.rs",
+            "#[cfg(test)] pub fn skip_me() {} pub fn keep_me() {}",
+        );
+        let fns = RustReader.extract_pub_fns(d.path()).unwrap();
+        assert_eq!(fns.len(), 1);
+        assert_eq!(fns[0].name, "keep_me");
+    }
+
+    #[test]
+    fn extract_pub_fns_excludes_target_dir() {
+        let d = TempDir::new().unwrap();
+        write(d.path(), "src/lib.rs", "pub fn real_fn() {}");
+        write(d.path(), "target/gen.rs", "pub fn generated() {}");
+        let fns = RustReader.extract_pub_fns(d.path()).unwrap();
+        assert_eq!(fns.len(), 1);
+        assert_eq!(fns[0].name, "real_fn");
     }
 
     #[test]

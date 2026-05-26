@@ -8,6 +8,7 @@ use std::path::PathBuf;
 
 mod context;
 mod diff;
+mod report;
 mod tokens;
 
 pub use context::{
@@ -15,6 +16,10 @@ pub use context::{
     ContextViolation, OwnedUnit,
 };
 pub use diff::diff;
+pub use report::{
+    report_verb_coverage, HomonymAppearance, HomonymRecord, InvariantAnnotation, PubFnDecl,
+    ReportOutput, TierHistogramRecord, TierKind, VerbCoverageRecord,
+};
 pub use tokens::tokenise_target;
 
 /// NDJSON wire-contract version stamped on every record emitted by

@@ -405,6 +405,140 @@ fn module_path_target_is_tokenised() {
     assert_eq!(edges[0].raw_target, "domain::Graph");
 }
 
+// --- RFC-005 invariant-annotation tests ---
+
+#[test]
+fn extract_annotations_empty_on_no_h4_section() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Concept\n\nProse.\n\n- implements: Reader\n",
+    );
+    let anns = MarkdownReader
+        .extract_invariant_annotations(d.path())
+        .expect("test");
+    assert!(anns.is_empty());
+}
+
+#[test]
+fn extract_annotations_recognises_enforced_by_cypher() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Concept\n\n#### Operational invariants\n\n- INV-001: desc [enforced-by: .cfdb/queries/rule.cypher; retire-when: never]\n",
+    );
+    let anns = MarkdownReader
+        .extract_invariant_annotations(d.path())
+        .expect("test");
+    assert_eq!(anns.len(), 1);
+    assert_eq!(anns[0].inv_id, "INV-001: desc");
+    assert_eq!(anns[0].tier, domain::TierKind::Cypher);
+    assert_eq!(
+        anns[0].artifact.as_deref(),
+        Some(".cfdb/queries/rule.cypher")
+    );
+    assert_eq!(anns[0].retire_when.as_deref(), Some("never"));
+    assert!(anns[0].prose_only_why.is_none());
+}
+
+#[test]
+fn extract_annotations_recognises_enforced_by_script() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Concept\n\n#### Operational invariants\n\n- [enforced-by: scripts/check.sh; retire-when: done]\n",
+    );
+    let anns = MarkdownReader
+        .extract_invariant_annotations(d.path())
+        .expect("test");
+    assert_eq!(anns.len(), 1);
+    assert_eq!(anns[0].tier, domain::TierKind::ScriptFence);
+}
+
+#[test]
+fn extract_annotations_recognises_prose_only() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Concept\n\n#### Operational invariants\n\n- INV-waiver: [prose-only: no tooling available]\n",
+    );
+    let anns = MarkdownReader
+        .extract_invariant_annotations(d.path())
+        .expect("test");
+    assert_eq!(anns.len(), 1);
+    assert_eq!(anns[0].tier, domain::TierKind::ProseOnly);
+    assert_eq!(
+        anns[0].prose_only_why.as_deref(),
+        Some("no tooling available")
+    );
+}
+
+#[test]
+fn extract_annotations_malformed_skips_with_ok_return() {
+    let d = TempDir::new().expect("test");
+    // Bullet looks like annotation (has marker prefix) but bracket is malformed
+    write(
+        d.path(),
+        "a.md",
+        "## Concept\n\n#### Operational invariants\n\n- [enforced-by: missing-close-bracket\n",
+    );
+    let result = MarkdownReader.extract_invariant_annotations(d.path());
+    assert!(result.is_ok(), "tolerant-skip: malformed should not Err");
+    // malformed annotation is dropped
+    assert!(result.unwrap().is_empty());
+}
+
+#[test]
+fn extract_annotations_section_ends_at_next_h2() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Concept\n\n#### Operational invariants\n\n- [enforced-by: rule.cypher; retire-when: done]\n\n## Other\n\n- [enforced-by: other.cypher]\n",
+    );
+    let anns = MarkdownReader
+        .extract_invariant_annotations(d.path())
+        .expect("test");
+    // Only annotation in the Operational invariants section should be found;
+    // the bullet under ## Other is not in an h4 section.
+    assert_eq!(anns.len(), 1);
+}
+
+#[test]
+fn extract_annotations_multiple_in_section() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Concept\n\n#### Operational invariants\n\n- INV-1: [enforced-by: rule.cypher; retire-when: a]\n- INV-2: [prose-only: reason]\n",
+    );
+    let anns = MarkdownReader
+        .extract_invariant_annotations(d.path())
+        .expect("test");
+    assert_eq!(anns.len(), 2);
+}
+
+/// Cross-dogfood baseline: cfdb's specs/concepts/ currently has no
+/// `#### Operational invariants` sections, so the result should be empty.
+/// This test uses an empty directory to exercise the same empty-Vec path.
+#[test]
+fn extract_annotations_returns_ok_empty_on_no_annotations_present() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## ConceptA\n\nSome prose.\n\n## ConceptB\n\n- depends on: ConceptA\n",
+    );
+    let anns = MarkdownReader
+        .extract_invariant_annotations(d.path())
+        .expect("test");
+    assert!(anns.is_empty());
+}
+
 /// v0.4 scoping: when the reader is pointed at `specs/`, files under
 /// `contexts/` are owned by the `ContextReader` impl and MUST NOT
 /// contaminate the concept graph. Without this filter, every `## Owns`

@@ -11,6 +11,7 @@ ports = { workspace = true }
 pulldown-cmark = { workspace = true }
 syn = { workspace = true }
 walkdir = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

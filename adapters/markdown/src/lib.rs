@@ -27,7 +27,8 @@ mod markdown_utils;
 
 use crate::markdown_utils::{compute_line_starts, line_of_offset, path_under_dir};
 use domain::{
-    tokenise_target, ConceptNode, ContextDecl, Edge, EdgeKind, Graph, SignatureState, Source,
+    tokenise_target, ConceptNode, ContextDecl, Edge, EdgeKind, Graph, InvariantAnnotation,
+    SignatureState, Source, TierKind,
 };
 use ports::{ContextReader, Reader, ReaderError};
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Parser, Tag, TagEnd};
@@ -89,6 +90,65 @@ impl Reader for MarkdownReader {
 impl ContextReader for MarkdownReader {
     fn extract_contexts(&self, root: &Path) -> Result<Vec<ContextDecl>, ReaderError> {
         contexts::walk_contexts(root)
+    }
+}
+
+impl MarkdownReader {
+    /// Extract all `[enforced-by:]` / `[prose-only:]` bracketed annotations
+    /// from `#### Operational invariants` sections in spec files under `root`.
+    ///
+    /// Per RFC-005 §3.2: uses a **fresh** `Parser::new(source).into_offset_iter()`
+    /// per file — NOT shared with the concept walk. The existing `handle_event`
+    /// (H2/H3-only) is NOT extended; this method's parser loop introduces its
+    /// own `HeadingLevel::H4` arm.
+    ///
+    /// **Failure mode (Invariant 7):** a bullet that looks like an annotation
+    /// (contains `[enforced-by:` or `[prose-only:`) but fails the bracket
+    /// grammar emits `tracing::warn!` and is dropped from the returned `Vec`.
+    /// `Err` is reserved for I/O / fundamental parse failures only.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ReaderError::IoFailed`] or [`ReaderError::WalkFailed`] on
+    /// I/O failures. Grammar errors are tolerated per Invariant 7.
+    pub fn extract_invariant_annotations(
+        &self,
+        root: &Path,
+    ) -> Result<Vec<InvariantAnnotation>, ReaderError> {
+        let mut result = Vec::new();
+
+        let concepts_subdir = root.join("concepts");
+        let walk_root: &Path = if concepts_subdir.is_dir() {
+            concepts_subdir.as_path()
+        } else {
+            root
+        };
+
+        for entry in WalkDir::new(walk_root) {
+            let entry = entry.map_err(|e| ReaderError::WalkFailed {
+                root: root.to_path_buf(),
+                cause: e.to_string(),
+            })?;
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            if entry.path().extension().is_none_or(|ext| ext != "md") {
+                continue;
+            }
+            if path_under_dir(entry.path(), "contexts") {
+                continue;
+            }
+
+            let path = entry.path();
+            let source = std::fs::read_to_string(path).map_err(|e| ReaderError::IoFailed {
+                path: path.to_path_buf(),
+                cause: e.to_string(),
+            })?;
+
+            extract_annotations_from_source(&source, path, &mut result);
+        }
+
+        Ok(result)
     }
 }
 
@@ -305,6 +365,178 @@ fn normalize_heading(raw: &str) -> String {
     trimmed
         .find('<')
         .map_or_else(|| trimmed.to_string(), |i| trimmed[..i].trim().to_string())
+}
+
+/// Parse a single spec file for `#### Operational invariants` sections,
+/// extracting all well-formed bracketed annotations from bullet items.
+/// Per RFC-005 §3.2: fresh parser per file, own H4 arm, new bracket grammar.
+fn extract_annotations_from_source(source: &str, path: &Path, out: &mut Vec<InvariantAnnotation>) {
+    let line_starts = compute_line_starts(source);
+    let parser = Parser::new(source).into_offset_iter();
+
+    let mut in_op_invariants = false;
+    let mut in_h4 = false;
+    let mut h4_buf = String::new();
+    let mut in_bullet = false;
+    let mut bullet_buf = String::new();
+    let mut bullet_line = 0usize;
+
+    for (event, range) in parser {
+        match event {
+            // Higher-level headings reset the invariants section.
+            Event::Start(Tag::Heading {
+                level: HeadingLevel::H1 | HeadingLevel::H2 | HeadingLevel::H3,
+                ..
+            }) => {
+                in_op_invariants = false;
+            }
+            Event::Start(Tag::Heading {
+                level: HeadingLevel::H4,
+                ..
+            }) => {
+                in_h4 = true;
+                h4_buf.clear();
+            }
+            Event::End(TagEnd::Heading(HeadingLevel::H4)) => {
+                if in_h4 {
+                    in_op_invariants = h4_buf.trim() == "Operational invariants";
+                    in_h4 = false;
+                }
+            }
+            Event::Start(Tag::Item) if in_op_invariants => {
+                in_bullet = true;
+                bullet_line = line_of_offset(&line_starts, range.start);
+                bullet_buf.clear();
+            }
+            Event::End(TagEnd::Item) if in_bullet => {
+                if in_op_invariants {
+                    if let Some(ann) = try_parse_annotation(&bullet_buf, path, bullet_line) {
+                        out.push(ann);
+                    }
+                }
+                in_bullet = false;
+                bullet_buf.clear();
+            }
+            Event::Text(s) | Event::Code(s) => {
+                if in_h4 {
+                    h4_buf.push_str(&s);
+                } else if in_bullet && in_op_invariants {
+                    bullet_buf.push_str(&s);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Attempt to parse a bracket annotation from bullet text.
+///
+/// Silently returns `None` when the bullet has no annotation marker.
+/// Emits `tracing::warn!` and returns `None` when the bullet LOOKS like
+/// an annotation but fails the bracket grammar (Invariant 7).
+fn try_parse_annotation(text: &str, path: &Path, line: usize) -> Option<InvariantAnnotation> {
+    let has_enforced = text.contains("[enforced-by:");
+    let has_prose = text.contains("[prose-only:");
+
+    if !has_enforced && !has_prose {
+        return None;
+    }
+
+    match parse_annotation_grammar(text) {
+        Some((inv_id, tier, artifact, retire_when, prose_only_why)) => Some(InvariantAnnotation {
+            inv_id,
+            tier,
+            artifact,
+            retire_when,
+            prose_only_why,
+            source: Source::Spec {
+                path: path.to_path_buf(),
+                line,
+            },
+        }),
+        None => {
+            tracing::warn!(
+                "malformed invariant annotation at {}:{} — skipping: {:?}",
+                path.display(),
+                line,
+                text
+            );
+            None
+        }
+    }
+}
+
+/// `(inv_id, tier, artifact, retire_when, prose_only_why)` — return type of
+/// [`parse_annotation_grammar`]. Aliased to keep the type below clippy's
+/// `type_complexity` threshold.
+type AnnotationFields = (
+    String,
+    TierKind,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+);
+
+/// Bracket-grammar parser — per RFC-005 §3.2 dry-run rust-systems-E:
+/// new infrastructure distinct from prefix-matching `parse_bullet_edge`.
+///
+/// Recognises:
+/// - `[enforced-by: <artifact>; retire-when: <predicate>]`
+/// - `[prose-only: <why>]`
+///
+/// Returns `None` when the bracket block cannot be parsed.
+fn parse_annotation_grammar(text: &str) -> Option<AnnotationFields> {
+    let bracket_start = text.find('[')?;
+    let bracket_end = text.rfind(']')?;
+    if bracket_end <= bracket_start {
+        return None;
+    }
+    let inv_id = text[..bracket_start].trim().to_owned();
+    let inside = text[bracket_start + 1..bracket_end].trim();
+
+    if let Some(rest) = inside.strip_prefix("enforced-by:") {
+        let mut artifact: Option<String> = None;
+        let mut retire_when: Option<String> = None;
+        for part in rest.split(';') {
+            let part = part.trim();
+            if part.is_empty() {
+                continue;
+            }
+            if let Some(rw) = part.strip_prefix("retire-when:") {
+                retire_when = Some(rw.trim().to_owned());
+            } else if artifact.is_none() {
+                artifact = Some(part.to_owned());
+            }
+        }
+        let tier = derive_tier(artifact.as_deref().unwrap_or(""));
+        return Some((inv_id, tier, artifact, retire_when, None));
+    }
+
+    if let Some(why) = inside.strip_prefix("prose-only:") {
+        return Some((
+            inv_id,
+            TierKind::ProseOnly,
+            None,
+            None,
+            Some(why.trim().to_owned()),
+        ));
+    }
+
+    None
+}
+
+/// Derive `TierKind` from an artifact path string per RFC-005 §3.2.
+fn derive_tier(artifact: &str) -> TierKind {
+    let a = artifact.trim();
+    if a.ends_with(".cypher") {
+        TierKind::Cypher
+    } else if a.ends_with(".sh") {
+        TierKind::ScriptFence
+    } else if a.is_empty() {
+        TierKind::ProseOnly
+    } else {
+        TierKind::Tier0
+    }
 }
 
 #[cfg(test)]

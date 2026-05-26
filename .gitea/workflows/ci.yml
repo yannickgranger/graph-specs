@@ -238,6 +238,15 @@ jobs:
           cd repo
           cargo build -p application --release
 
+      - name: Invariant 8 — report_verb_coverage must not call any reader
+        run: |
+          cd repo
+          if grep -n 'VerbReader::\|MarkdownReader::extract_invariant_annotations\|MarkdownReader::extract\|RustReader::extract\|ContextReader::extract_contexts' domain/src/report.rs; then
+            echo "FAIL: report_verb_coverage body calls a reader method (RFC-005 §4 Invariant 8)"
+            exit 1
+          fi
+          echo "OK: no reader calls found in domain/src/report.rs"
+
       - name: Run dogfood check
         run: |
           cd repo

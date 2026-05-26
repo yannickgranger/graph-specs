@@ -102,6 +102,17 @@ impl ContextPattern {
             Self::PublishedLanguage,
         ]
     }
+
+    /// Returns `true` for patterns that doctrine-sanction cross-context
+    /// appearances (no council escalation warranted). Per RFC-005 §3.3
+    /// dry-run DDD-C: `PublishedLanguage` and `SharedKernel` are the two
+    /// sanctioned patterns; `Conformist` and `CustomerSupplier` signal
+    /// potential split-brain. Forward-compatible with `#[non_exhaustive]`
+    /// — new variants must classify themselves by adding a match arm here.
+    #[must_use]
+    pub const fn is_doctrine_sanctioned(self) -> bool {
+        matches!(self, Self::PublishedLanguage | Self::SharedKernel)
+    }
 }
 
 impl std::fmt::Display for ContextPattern {
