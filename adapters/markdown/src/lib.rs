@@ -370,10 +370,11 @@ const BULLET_PREFIXES: &[(&str, EdgeKind)] = &[
     ("returns:", EdgeKind::Returns),
 ];
 
-/// Parse a `- verb: <ident>` bullet into a [`VerbAnchor`] with the
-/// `concept` and `source` fields left as placeholders. The caller
-/// (`finish_bullet`) fills them in once the concept name and file
-/// location are available.
+/// Parse a `- verb: <ident>` bullet into a [`VerbAnchor`] with placeholder fields.
+///
+/// The `concept` and `source` fields are left as placeholders; the caller
+/// (`finish_bullet`) fills them in once the concept name and file location
+/// are available.
 ///
 /// Returns `None` for bullets that do not start with `verb: ` or whose
 /// identifier is empty or contains whitespace.

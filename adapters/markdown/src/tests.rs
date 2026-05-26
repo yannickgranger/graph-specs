@@ -599,8 +599,8 @@ fn extract_verb_anchors_collects_anchors_from_spec() {
     assert!(qnames.contains(&"diff"));
     assert!(qnames.contains(&"tokenise_target"));
     assert!(qnames.contains(&"extract"));
-    let graph_anchors: Vec<&_> = anchors.iter().filter(|a| a.concept == "Graph").collect();
-    assert_eq!(graph_anchors.len(), 2);
+    let graph_anchor_count = anchors.iter().filter(|a| a.concept == "Graph").count();
+    assert_eq!(graph_anchor_count, 2);
 }
 
 #[test]

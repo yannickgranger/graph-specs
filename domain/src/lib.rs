@@ -205,10 +205,11 @@ pub struct VerbAnchor {
     pub source: Source,
 }
 
-/// Aggregates both sides of the verb-anchoring contract carried by
-/// [`CheckInput`]. `decls` are `pub fn` declarations from code;
-/// `anchors` are `- verb:` bullets from spec files.
-/// [`Default`] is derived so `CheckInput`'s `#[derive(Default)]` compiles.
+/// Aggregates both sides of the verb-anchoring contract carried by [`CheckInput`].
+///
+/// `decls` are `pub fn` declarations from code; `anchors` are `- verb:` bullets
+/// from spec files. [`Default`] is derived so `CheckInput`'s `#[derive(Default)]`
+/// compiles.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct VerbOwnership {
     pub decls: Vec<VerbDecl>,
