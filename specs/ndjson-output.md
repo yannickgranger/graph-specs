@@ -176,6 +176,64 @@ Same field shape as `cross_context_edge_unauthorized`. The difference is the cau
 
 `ContextViolation` carries `#[non_exhaustive]` in the domain type. If a future v0.5 adds a variant not known to this tool version, the record emits with `"violation":"unknown_context_violation"` and the `concept` field only. Consumers SHOULD treat unknown variants as tripwires — the tool version on the producer side is ahead of the consumer's schema.
 
+## Report records (v0.5)
+
+`graph-specs report --verb-coverage --format=ndjson` emits one JSON object per
+line, with `"record"` as the top-level discriminator (distinct from `"violation"`
+used by `check`). All report records carry `"schema_version":"2"` — this is an
+**additive** extension; existing `violation` records are structurally unchanged.
+
+### `verb_coverage`
+
+One record per `pub fn` found in the code tree.
+
+```json
+{"record":"verb_coverage","schema_version":"2","context":"equivalence","pub_fn":{"name":"run_check","source":{"kind":"code","path":"application/src/lib.rs","line":33}},"cited":true}
+```
+
+| Field | Type | Meaning |
+|---|---|---|
+| `context` | string or null | bounded context that owns the fn's crate; `null` if the crate is not declared under any `Owns` block |
+| `pub_fn.name` | string | function name |
+| `pub_fn.source` | source object | location of the declaration (`kind` always `"code"`) |
+| `cited` | bool | `true` if the fn name appears as a concept node in the spec graph |
+
+### `tier_histogram`
+
+One record per (context, tier) pair that has at least one annotation.
+
+```json
+{"record":"tier_histogram","schema_version":"2","context":null,"tier":"cypher","count":4}
+```
+
+| Field | Type | Meaning |
+|---|---|---|
+| `context` | string or null | bounded context; `null` for orphaned annotations |
+| `tier` | string | one of `"cypher"`, `"tier0"`, `"script_fence"`, `"prose_only"` |
+| `count` | integer | number of invariant annotations at this tier within the context |
+
+### `homonym`
+
+One record per name that appears in more than one bounded context.
+
+```json
+{"record":"homonym","schema_version":"2","name":"Foo","contexts":[{"context":"ctx_a","sanctioned_by_pattern":"PublishedLanguage","asymmetric":false},{"context":"ctx_b","sanctioned_by_pattern":null,"asymmetric":true}]}
+```
+
+| Field | Type | Meaning |
+|---|---|---|
+| `name` | string | the shared name |
+| `contexts` | array | one entry per context where the name appears |
+| `contexts[].context` | string | context name |
+| `contexts[].sanctioned_by_pattern` | string or null | `"PublishedLanguage"` / `"SharedKernel"` / `"Conformist"` / `"CustomerSupplier"` or `null` when undeclared |
+| `contexts[].asymmetric` | bool | `true` when the export and import patterns disagree for this name in this context |
+
+### Sort order
+
+All three record types follow the same stable sort as `--format=text`:
+verb-coverage and tier-histogram sort by context name (null last), then by fn
+name / tier discriminant within each context. Homonyms sort by name.
+
 ## Schema evolution
 
 `schema_version` is a string, not a semver tuple. Consumers compare it against the exact string they were built against.

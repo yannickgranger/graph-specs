@@ -12,6 +12,9 @@ use ports::{ContextReader, Reader, ReaderError};
 use std::path::Path;
 
 pub mod ndjson;
+pub mod report;
+mod report_ndjson;
+mod report_text;
 pub mod text;
 
 /// Run the full equivalence check across all levels configured in the

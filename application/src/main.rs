@@ -10,6 +10,7 @@
 //!   mean "input can't be parsed" — the author must fix the input before
 //!   any equivalence check is meaningful.
 
+use application::report::ReportFormat;
 use clap::{Parser, Subcommand, ValueEnum};
 use domain::Violation;
 use std::path::PathBuf;
@@ -47,6 +48,21 @@ enum Command {
         #[arg(long, value_enum, default_value_t = Format::Text)]
         format: Format,
     },
+    /// Generate a verb-coverage (and related) report across specs and code.
+    Report {
+        /// Emit the verb-coverage report (pub fn × spec citation matrix).
+        #[arg(long)]
+        verb_coverage: bool,
+        /// Directory walked for markdown specs (e.g., `specs/`).
+        #[arg(long)]
+        specs: PathBuf,
+        /// Directory walked for Rust source (e.g., `.`).
+        #[arg(long)]
+        code: PathBuf,
+        /// Output format. Defaults to `text`.
+        #[arg(long, value_enum, default_value_t = ReportFormat::Text)]
+        format: ReportFormat,
+    },
 }
 
 fn main() -> ExitCode {
@@ -57,6 +73,26 @@ fn main() -> ExitCode {
             code,
             format,
         } => run_check_command(&specs, &code, format),
+        Command::Report {
+            verb_coverage,
+            specs,
+            code,
+            format,
+        } => {
+            if !verb_coverage {
+                eprintln!(
+                    "error: at least one report type must be specified (e.g. --verb-coverage)"
+                );
+                return ExitCode::from(2);
+            }
+            match application::report::run_report(&specs, &code, format) {
+                Ok(code) => ExitCode::from(code),
+                Err(e) => {
+                    eprintln!("reader error: {e}");
+                    ExitCode::from(2)
+                }
+            }
+        }
     }
 }
 
