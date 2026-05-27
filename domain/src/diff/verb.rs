@@ -47,10 +47,25 @@ pub(super) fn verb_pass(
         }
     }
 
+    // The map keys are concept names (anchor.concept). The impl-method branch of
+    // emit_missing_in_spec checks `concepts_in_ctx.contains(type_root)` where
+    // `type_root` is the Type portion of `Type::method`. This works iff concept
+    // name == type name — the existing graph-specs dialect invariant.
+    let mut opted_in_concepts_by_context: HashMap<&str, HashSet<&str>> = HashMap::new();
+    for anchor in &verb_ownership.anchors {
+        if let Some(ctx) = context_for_concept(code, contexts, &anchor.concept) {
+            opted_in_concepts_by_context
+                .entry(ctx.name.as_str())
+                .or_default()
+                .insert(anchor.concept.as_str());
+        }
+    }
+
     emit_missing_in_spec(
         &verb_ownership.decls,
         &unit_to_context,
         &context_claimed_qnames,
+        &opted_in_concepts_by_context,
         out,
     );
 }
@@ -131,6 +146,7 @@ fn emit_missing_in_spec(
     decls: &[VerbDecl],
     unit_to_context: &HashMap<&str, &str>,
     context_claimed_qnames: &HashMap<&str, HashSet<&str>>,
+    opted_in_concepts_by_context: &HashMap<&str, HashSet<&str>>,
     out: &mut Vec<Violation>,
 ) {
     for decl in decls {
@@ -140,14 +156,39 @@ fn emit_missing_in_spec(
         let Some(&decl_ctx) = unit_to_context.get(unit) else {
             continue;
         };
-        let Some(claimed) = context_claimed_qnames.get(decl_ctx) else {
-            continue;
-        };
-        if !claimed.contains(decl.qname.as_str()) {
-            out.push(Violation::VerbMissingInSpec {
-                qname: decl.qname.clone(),
-                code_source: decl.source.clone(),
-            });
+
+        // Fast-path exit if already claimed in this context.
+        if let Some(claimed) = context_claimed_qnames.get(decl_ctx) {
+            if claimed.contains(decl.qname.as_str()) {
+                continue;
+            }
+        }
+
+        match decl.qname.split_once("::") {
+            Some(("", _)) => {} // malformed qname; explicit skip
+            Some((type_root, _method)) => {
+                // Impl-method: per-concept opt-in, context-scoped.
+                let Some(concepts_in_ctx) = opted_in_concepts_by_context.get(decl_ctx) else {
+                    continue;
+                };
+                if !concepts_in_ctx.contains(type_root) {
+                    continue;
+                }
+                out.push(Violation::VerbMissingInSpec {
+                    qname: decl.qname.clone(),
+                    code_source: decl.source.clone(),
+                });
+            }
+            None => {
+                // Free fn (bare-ident): per-context activation preserved.
+                if !opted_in_concepts_by_context.contains_key(decl_ctx) {
+                    continue;
+                }
+                out.push(Violation::VerbMissingInSpec {
+                    qname: decl.qname.clone(),
+                    code_source: decl.source.clone(),
+                });
+            }
         }
     }
 }
@@ -335,6 +376,124 @@ mod tests {
         assert!(
             violations.is_empty(),
             "other_fn is in a non-anchored context and must not fire VerbMissingInSpec: {violations:?}"
+        );
+    }
+
+    #[test]
+    fn impl_method_in_anchored_concept_fires_missing_in_spec() {
+        // Foo has anchor Foo::baz (claimed). Foo::bar is in the same context
+        // but not claimed. Because Foo is opted-in, Foo::bar fires VerbMissingInSpec.
+        let ctx = make_ctx("eq", &["domain"]);
+        let anchor = make_anchor("Foo", "Foo::baz");
+        let node = make_code_node("Foo", "domain");
+        let decl_claimed = make_decl("Foo::baz", "domain");
+        let decl_unclaimed = make_decl("Foo::bar", "domain");
+        let violations = run(
+            vec![anchor],
+            vec![decl_claimed, decl_unclaimed],
+            vec![node],
+            vec![ctx],
+        );
+        assert_eq!(
+            violations.len(),
+            1,
+            "expected exactly one violation: {violations:?}"
+        );
+        assert!(
+            matches!(&violations[0], Violation::VerbMissingInSpec { qname, .. } if qname == "Foo::bar"),
+            "expected VerbMissingInSpec for Foo::bar, got: {:?}",
+            violations[0]
+        );
+    }
+
+    #[test]
+    fn impl_method_in_non_anchored_concept_does_not_fire() {
+        // Bar is opted-in (has anchor bar_fn). Foo has no anchors.
+        // Foo::bar must not fire because Foo is not in opted_in_concepts.
+        let ctx = make_ctx("eq", &["domain"]);
+        let anchor = make_anchor("Bar", "bar_fn");
+        let node_foo = make_code_node("Foo", "domain");
+        let node_bar = make_code_node("Bar", "domain");
+        let decl_bar_fn = make_decl("bar_fn", "domain");
+        let decl_foo_bar = make_decl("Foo::bar", "domain");
+        let violations = run(
+            vec![anchor],
+            vec![decl_bar_fn, decl_foo_bar],
+            vec![node_foo, node_bar],
+            vec![ctx],
+        );
+        assert!(
+            violations.is_empty(),
+            "Foo has no anchors so Foo::bar must not fire VerbMissingInSpec: {violations:?}"
+        );
+    }
+
+    #[test]
+    fn impl_method_anchored_concept_in_different_context_does_not_fire() {
+        // Foo (in ctx_a) is opted-in. Foo::bar decl is in ctx_b.
+        // The concept-scoped lookup must not cross context boundaries.
+        let ctx_a = make_ctx("ctx_a", &["crate_a"]);
+        let ctx_b = make_ctx("ctx_b", &["crate_b"]);
+        let anchor = make_anchor("Foo", "Foo::baz");
+        let node_foo = make_code_node("Foo", "crate_a");
+        let decl_in_a = make_decl("Foo::baz", "crate_a");
+        let decl_in_b = make_decl("Foo::bar", "crate_b");
+        let violations = run(
+            vec![anchor],
+            vec![decl_in_a, decl_in_b],
+            vec![node_foo],
+            vec![ctx_a, ctx_b],
+        );
+        assert!(
+            violations.is_empty(),
+            "Foo::bar is in ctx_b where Foo is not opted-in; must not fire: {violations:?}"
+        );
+    }
+
+    #[test]
+    fn free_fn_fires_missing_in_spec_under_per_context_activation() {
+        // SomeConcept is opted-in in ctx. A bare-ident unclaimed_fn in the
+        // same context must fire VerbMissingInSpec via the free-fn branch.
+        let ctx = make_ctx("eq", &["domain"]);
+        let anchor = make_anchor("SomeConcept", "some_fn");
+        let node = make_code_node("SomeConcept", "domain");
+        let decl_claimed = make_decl("some_fn", "domain");
+        let decl_unclaimed = make_decl("unclaimed_fn", "domain");
+        let violations = run(
+            vec![anchor],
+            vec![decl_claimed, decl_unclaimed],
+            vec![node],
+            vec![ctx],
+        );
+        assert_eq!(
+            violations.len(),
+            1,
+            "expected exactly one violation: {violations:?}"
+        );
+        assert!(
+            matches!(&violations[0], Violation::VerbMissingInSpec { qname, .. } if qname == "unclaimed_fn"),
+            "expected VerbMissingInSpec for unclaimed_fn, got: {:?}",
+            violations[0]
+        );
+    }
+
+    #[test]
+    fn malformed_leading_colons_does_not_panic_or_fire() {
+        // A decl with qname "::orphan" matches Some(("", _)) and is silently skipped.
+        let ctx = make_ctx("eq", &["domain"]);
+        let anchor = make_anchor("Foo", "Foo::baz");
+        let node = make_code_node("Foo", "domain");
+        let decl_baz = make_decl("Foo::baz", "domain");
+        let decl_malformed = make_decl("::orphan", "domain");
+        let violations = run(
+            vec![anchor],
+            vec![decl_baz, decl_malformed],
+            vec![node],
+            vec![ctx],
+        );
+        assert!(
+            violations.is_empty(),
+            "::orphan must be silently skipped with no panic or violation: {violations:?}"
         );
     }
 }

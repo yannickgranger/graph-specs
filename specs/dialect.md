@@ -72,6 +72,8 @@ one concept in a bounded context carries a verb anchor. Both
 concept-level specs (`specs/concepts/`) and context-level specs
 (`specs/contexts/`) may carry verb bullets.
 
+**MissingInSpec activation:** unanchored `Type::method` decls are inspected only when concept `## Type` exists in the decl's bounded context AND carries at least one `- verb:` anchor (per-concept, context-scoped). Unanchored top-level free `pub fn`s are inspected when their bounded context has any opt-in concept (per-context).
+
 ## What the markdown reader ignores
 
 Prose changes never affect the graph. The reader does not see:

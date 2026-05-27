@@ -893,6 +893,50 @@ fn v05_zero_verb_bullets_verb_pass_is_noop() {
 }
 
 #[test]
+fn injectbite_v06_hybrid_opt_in_impl_method_vs_free_fn() {
+    // Spec: ## Foo with `- verb: bar` (bare-ident); ## Other with no anchors.
+    // Code: pub fn bar (claimed free fn), impl Foo { pub fn baz } (unclaimed
+    // impl-method), pub fn loose_fn (unclaimed free fn), impl Other { pub fn
+    // quux } (impl-method for non-opted-in concept).
+    //
+    // Expected VerbMissingInSpec: Foo::baz (impl-method branch) and loose_fn
+    // (free-fn branch). Other::quux must NOT fire (per-concept narrowing).
+    let root = v04_fixture(
+        "## Foo\n\n- verb: bar\n\n## Other\n",
+        &[("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n")],
+        &[
+            (
+                "alpha-unit/Cargo.toml",
+                "[package]\nname = \"alpha-unit\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+            ),
+            (
+                "alpha-unit/src/lib.rs",
+                "pub struct Foo; pub struct Other; \
+                 pub fn bar() {} \
+                 impl Foo { pub fn baz() {} } \
+                 pub fn loose_fn() {} \
+                 impl Other { pub fn quux() {} }",
+            ),
+        ],
+    );
+
+    let text = run_v04_text(root.path());
+    let stdout = String::from_utf8_lossy(&text.stdout);
+    assert!(
+        stdout.contains("verb missing in spec: `Foo::baz` is unclaimed"),
+        "impl-method branch: expected VerbMissingInSpec for Foo::baz; text: {stdout}"
+    );
+    assert!(
+        stdout.contains("verb missing in spec: `loose_fn` is unclaimed"),
+        "free-fn branch: expected VerbMissingInSpec for loose_fn; text: {stdout}"
+    );
+    assert!(
+        !stdout.contains("Other::quux"),
+        "per-concept narrowing: Other::quux must not fire (Other has no anchors); text: {stdout}"
+    );
+}
+
+#[test]
 fn injectbite_v04_cross_edge_undeclared_surfaces_in_text_and_ndjson() {
     // Beta imports `Foo from alpha (PublishedLanguage)`, but alpha does
     // NOT export `Foo`. The edge is authorized on the consumer side but
