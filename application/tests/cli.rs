@@ -843,6 +843,31 @@ fn injectbite_v05_cross_verb_unauthorized_surfaces_in_text() {
 }
 
 #[test]
+fn injectbite_v06_impl_method_verb_anchor_matches_impl_block() {
+    // Spec: Foo anchors `- verb: Foo::bar`. Code: impl Foo { pub fn bar() {} }.
+    // After v0.6 impl-method walk, Foo::bar is in the decl set → exit 0.
+    let root = v04_fixture(
+        "## Foo\n\n- verb: Foo::bar\n",
+        &[("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n")],
+        &[
+            (
+                "alpha-unit/Cargo.toml",
+                "[package]\nname = \"alpha-unit\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+            ),
+            (
+                "alpha-unit/src/lib.rs",
+                "pub struct Foo; impl Foo { pub fn bar() {} }",
+            ),
+        ],
+    );
+
+    let text = run_v04_text(root.path());
+    let stdout = String::from_utf8_lossy(&text.stdout);
+    assert_eq!(text.status.code(), Some(0), "text: {stdout}");
+    assert!(stdout.contains("0 violations"), "text: {stdout}");
+}
+
+#[test]
 fn v05_zero_verb_bullets_verb_pass_is_noop() {
     // Spec has no `- verb:` bullets → verb pass skipped entirely.
     // Code: alpha-unit exposes pub fn any_fn. No VerbMissingInSpec should fire.

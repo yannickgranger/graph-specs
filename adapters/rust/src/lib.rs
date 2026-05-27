@@ -120,6 +120,7 @@ impl VerbReader for RustReader {
 
             for item in &parsed.items {
                 visit_top_level_fn(item, &path, owned_unit.as_deref(), &mut pub_fns);
+                visit_impl_block(item, &path, owned_unit.as_deref(), &mut pub_fns);
             }
         }
 
@@ -154,6 +155,70 @@ fn visit_top_level_fn(
             owned_unit: owned_unit.map(str::to_owned),
         });
     }
+}
+
+/// Parallel walk for impl-block pub methods (v0.6 impl-method anchoring).
+///
+/// Handles both inherent impls (`impl Foo { pub fn bar }`) and trait impls
+/// (`impl Trait for Foo { fn bar }`). For trait impls, explicit `pub` is not
+/// required because trait-impl methods are public by contract.
+///
+/// Does NOT modify `visit_top_level_fn` or `visit_top_level_item`.
+fn visit_impl_block(
+    item: &syn::Item,
+    path: &Path,
+    owned_unit: Option<&str>,
+    out: &mut Vec<PubFnDecl>,
+) {
+    let syn::Item::Impl(item_impl) = item else {
+        return;
+    };
+    if is_test_gated(&item_impl.attrs) {
+        return;
+    }
+    let Some(type_root) = root_ident_of_self_ty(&item_impl.self_ty) else {
+        return;
+    };
+    let is_trait_impl = item_impl.trait_.is_some();
+    for inner in &item_impl.items {
+        let syn::ImplItem::Fn(method) = inner else {
+            continue;
+        };
+        if is_test_gated(&method.attrs) {
+            continue;
+        }
+        let is_public = matches!(method.vis, Visibility::Public(_)) || is_trait_impl;
+        if !is_public {
+            continue;
+        }
+        let method_ident = &method.sig.ident;
+        let line = method_ident.span().start().line;
+        out.push(PubFnDecl {
+            name: format!("{type_root}::{method_ident}"),
+            source: Source::Code {
+                path: path.to_path_buf(),
+                line,
+            },
+            owned_unit: owned_unit.map(str::to_owned),
+        });
+    }
+}
+
+/// Extract the leading type-name identifier from an impl self-type.
+///
+/// Returns `None` for qualified-path self types (`<Foo as Trait>::Item`) —
+/// their outer path's first segment is the associated-type name, not the
+/// implementing type, so the qname would be wrong. Returns `None` for
+/// non-`Path` types such as slices (`[T]`) or tuples.
+fn root_ident_of_self_ty(ty: &syn::Type) -> Option<&syn::Ident> {
+    let syn::Type::Path(tp) = ty else {
+        return None;
+    };
+    // Skip qualified-path Self types like <Foo as Trait>::Item.
+    if tp.qself.is_some() {
+        return None;
+    }
+    tp.path.segments.first().map(|s| &s.ident)
 }
 
 /// Find the owning crate for a given source file by walking up to the
@@ -480,5 +545,108 @@ mod tests {
             "expected raw Foo→Bar dependency edge, got: {:?}",
             extraction.raw_edges
         );
+    }
+
+    // --- v0.6 impl-method anchoring tests ---
+
+    #[test]
+    fn impl_inherent_pub_method_extracted_as_type_method_qname() {
+        let d = TempDir::new().unwrap();
+        write(
+            d.path(),
+            "src/lib.rs",
+            "struct Foo; impl Foo { pub fn bar() {} }",
+        );
+        let fns = RustReader.extract_pub_fns(d.path()).unwrap();
+        assert_eq!(fns.len(), 1);
+        assert_eq!(fns[0].name, "Foo::bar");
+    }
+
+    #[test]
+    fn impl_inherent_private_method_skipped() {
+        let d = TempDir::new().unwrap();
+        write(
+            d.path(),
+            "src/lib.rs",
+            "struct Foo; impl Foo { fn bar() {} }",
+        );
+        let fns = RustReader.extract_pub_fns(d.path()).unwrap();
+        assert!(fns.is_empty(), "private method must not be extracted");
+    }
+
+    #[test]
+    fn impl_trait_method_extracted_without_pub() {
+        let d = TempDir::new().unwrap();
+        write(
+            d.path(),
+            "src/lib.rs",
+            "trait Trait { fn bar(); } struct Foo; impl Trait for Foo { fn bar() {} }",
+        );
+        let fns = RustReader.extract_pub_fns(d.path()).unwrap();
+        assert_eq!(
+            fns.len(),
+            1,
+            "trait-impl method must be extracted even without pub"
+        );
+        assert_eq!(fns[0].name, "Foo::bar");
+    }
+
+    #[test]
+    fn impl_generic_type_stripped() {
+        let d = TempDir::new().unwrap();
+        write(
+            d.path(),
+            "src/lib.rs",
+            "struct Foo<T>(T); impl<T> Foo<T> { pub fn bar() {} }",
+        );
+        let fns = RustReader.extract_pub_fns(d.path()).unwrap();
+        assert_eq!(fns.len(), 1);
+        assert_eq!(
+            fns[0].name, "Foo::bar",
+            "generic param must be stripped from type name"
+        );
+    }
+
+    #[test]
+    fn impl_cfg_test_gated_skipped() {
+        let d = TempDir::new().unwrap();
+        write(
+            d.path(),
+            "src/lib.rs",
+            "#[cfg(test)] impl Foo { pub fn bar() {} }",
+        );
+        let fns = RustReader.extract_pub_fns(d.path()).unwrap();
+        assert!(fns.is_empty(), "cfg(test)-gated impl block must be skipped");
+    }
+
+    #[test]
+    fn impl_qualified_self_skipped() {
+        let d = TempDir::new().unwrap();
+        // <Foo as Other>::Item as self type — qself guard must fire, no decl.
+        write(
+            d.path(),
+            "src/lib.rs",
+            "trait Other { type Item; } \
+             trait Trait { fn bar(); } \
+             impl Trait for <i32 as Other>::Item { fn bar() {} }",
+        );
+        let fns = RustReader.extract_pub_fns(d.path()).unwrap();
+        assert!(
+            fns.is_empty(),
+            "qualified-self impl must produce no decl; got: {fns:?}"
+        );
+    }
+
+    #[test]
+    fn impl_non_path_self_skipped() {
+        let d = TempDir::new().unwrap();
+        // [T] as self type — non-Path type guard must fire.
+        write(
+            d.path(),
+            "src/lib.rs",
+            "trait Trait { fn bar(); } impl Trait for [u8] { fn bar() {} }",
+        );
+        let fns = RustReader.extract_pub_fns(d.path()).unwrap();
+        assert!(fns.is_empty(), "non-Path self type must produce no decl");
     }
 }
