@@ -17,6 +17,8 @@ the v0.3 opt-in rules apply. Lives in `domain`.
 - depends on: ConceptNode
 - depends on: Edge
 - returns: Graph
+- verb: Graph::new
+- verb: Graph::empty
 
 ## ConceptNode
 
@@ -62,6 +64,9 @@ plus the raw textual form preserved for display in drift messages.
 
 The relationship kind of an [Edge](#edge). Closed set for v0.3;
 future dialect growth adds variants here.
+
+- verb: EdgeKind::as_label
+- verb: EdgeKind::fmt
 
 ## Reader
 
@@ -214,6 +219,7 @@ pattern that applies. Lives in `domain`.
 - depends on: Source
 - returns: ContextDecl
 - verb: detect_import_cycle
+- verb: ContextDecl::new
 
 ## ContextExport
 
@@ -241,6 +247,11 @@ Layer, Separate Ways, and Open Host Service are deferred to v0.5 per
 RFC-001 §2. Marked `#[non_exhaustive]` so future-variant additions are
 non-breaking for downstream consumers. Lives in `domain`.
 
+- verb: ContextPattern::as_label
+- verb: ContextPattern::variants
+- verb: ContextPattern::is_doctrine_sanctioned
+- verb: ContextPattern::fmt
+
 ## ContextViolation
 
 The three bounded-context-level violation variants, wrapped by
@@ -253,6 +264,7 @@ Lives in `domain`.
 - depends on: OwnedUnit
 - depends on: EdgeKind
 - depends on: Source
+- verb: ContextViolation::concept
 
 ## CheckInput
 
@@ -270,6 +282,8 @@ v0.5 entirely. Lives in `domain`.
 - returns: CheckInput
 - verb: diff
 - verb: context_for_concept
+- verb: CheckInput::new
+- verb: CheckInput::with_graph_and_contexts
 
 ## SchemaVersion
 
@@ -291,6 +305,9 @@ See `specs/ndjson-output.md` §Schema evolution for the bump rules
 `docs/rfc/001-bounded-context-equivalence.md` §3.3 for the v1→v2
 ratification decision.
 
+- verb: SchemaVersion::as_str
+- verb: SchemaVersion::fmt
+
 ## VerbReader
 
 The v0.5 verb-extraction port trait. Sibling to [Reader](#reader) and
@@ -311,7 +328,8 @@ pub trait VerbReader {
 
 ## PubFnDecl
 
-A top-level `pub fn` declaration found in code — the verb counterpart to
+A public function (top-level free `pub fn` OR public method inside an
+impl block) found in code — the verb counterpart to
 [ConceptNode](#conceptnode) (which captures pub types). Carries the
 function name, a [Source](#source) pointing back to the declaration site,
 and an optional `owned_unit` string for bounded-context membership lookup.
@@ -321,22 +339,26 @@ Per RFC-005 §3.3. Lives in `domain`.
 
 ## VerbDecl
 
-A top-level `pub fn` declaration prepared for verb-anchoring: name
-(`qname`), optional owning crate (`owned_unit`), and [Source](#source).
-Convertible from [PubFnDecl](#pubfndecl) via `From`. Used by
+A public function (top-level free `pub fn` OR public impl-block method)
+prepared for verb-anchoring. `qname` is a bare identifier for top-level
+fns or a `Type::method` two-segment name for impl methods. Carries an
+optional `owned_unit` string and a [Source](#source). Convertible from
+[PubFnDecl](#pubfndecl) via `From`. Used by
 [`VerbOwnership`](#verbownership) to represent the code side of the
 verb-anchoring contract. Lives in `domain`.
 
 - depends on: Source
 - depends on: PubFnDecl
 - returns: VerbDecl
+- verb: VerbDecl::from
 
 ## VerbAnchor
 
-Spec-side anchor parsed from a `- verb: <ident>` bullet inside a concept
-section. `concept` names the owning concept; `qname` is the bare
-identifier; `raw_target` preserves the verbatim bullet text;
-`source` points to the spec file line. Used by
+Spec-side anchor parsed from a `- verb: <qname>` bullet inside a concept
+section. `concept` names the owning concept; `qname` is either a bare
+identifier (matching a top-level `pub fn`) or a `Type::method` two-segment
+name (matching an impl-block method); `raw_target` preserves the verbatim
+bullet text; `source` points to the spec file line. Used by
 [`VerbOwnership`](#verbownership) to represent the spec side of the
 verb-anchoring contract. Lives in `domain`.
 

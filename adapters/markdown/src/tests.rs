@@ -644,3 +644,33 @@ fn v04_ignores_files_under_contexts_subdir() {
     );
     assert_eq!(extract(d.path()), vec!["Bar", "Foo"]);
 }
+
+// --- v0.6 parse_verb_bullet qname validation ---
+
+#[test]
+fn parse_verb_bullet_accepts_type_method() {
+    let anchor = parse_verb_bullet("verb: Foo::bar").expect("should parse");
+    assert_eq!(anchor.qname, "Foo::bar");
+}
+
+#[test]
+fn parse_verb_bullet_rejects_multi_segment() {
+    assert!(
+        parse_verb_bullet("verb: a::b::c").is_none(),
+        "multi-segment path must be rejected"
+    );
+}
+
+#[test]
+fn parse_verb_bullet_rejects_leading_colons() {
+    assert!(
+        parse_verb_bullet("verb: ::foo").is_none(),
+        "leading :: must be rejected"
+    );
+}
+
+#[test]
+fn parse_verb_bullet_accepts_bare_ident_unchanged() {
+    let anchor = parse_verb_bullet("verb: foo").expect("should parse");
+    assert_eq!(anchor.qname, "foo");
+}

@@ -32,7 +32,9 @@ use domain::{
 };
 use ports::{ContextReader, Reader, ReaderError};
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Parser, Tag, TagEnd};
+use regex::Regex;
 use std::path::Path;
+use std::sync::LazyLock;
 use walkdir::WalkDir;
 
 #[derive(Debug, Default)]
@@ -370,24 +372,38 @@ const BULLET_PREFIXES: &[(&str, EdgeKind)] = &[
     ("returns:", EdgeKind::Returns),
 ];
 
-/// Parse a `- verb: <ident>` bullet into a [`VerbAnchor`] with placeholder fields.
+/// Compiled regex for validating verb-bullet qnames (v0.6).
+///
+/// Accepts bare identifiers (`foo`) and `Type::method` two-segment qnames.
+/// Rejects multi-segment paths, leading or trailing `::`, and non-ident chars.
+static VERB_QNAME_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^[A-Za-z_][A-Za-z0-9_]*(::[A-Za-z_][A-Za-z0-9_]*)?$").expect("valid regex")
+});
+
+/// Parse a `- verb: <qname>` bullet into a [`VerbAnchor`] with placeholder fields.
 ///
 /// The `concept` and `source` fields are left as placeholders; the caller
 /// (`finish_bullet`) fills them in once the concept name and file location
 /// are available.
 ///
-/// Returns `None` for bullets that do not start with `verb: ` or whose
-/// identifier is empty or contains whitespace.
+/// Returns `None` for bullets that do not start with `verb:` or whose qname
+/// does not satisfy `^[A-Za-z_][A-Za-z0-9_]*(::[A-Za-z_][A-Za-z0-9_]*)?$`.
+/// A non-empty, non-matching qname emits `tracing::warn!` before the skip
+/// (tolerant-skip).
 pub fn parse_verb_bullet(text: &str) -> Option<VerbAnchor> {
     let trimmed = text.trim();
     let rest = trimmed.strip_prefix("verb:")?;
-    let qname = rest.trim().to_string();
-    if qname.is_empty() || qname.contains(char::is_whitespace) {
+    let qname = rest.trim();
+    if qname.is_empty() {
+        return None;
+    }
+    if !VERB_QNAME_RE.is_match(qname) {
+        tracing::warn!("verb bullet has malformed qname — skipping: {qname:?}");
         return None;
     }
     Some(VerbAnchor {
         concept: String::new(),
-        qname,
+        qname: qname.to_owned(),
         raw_target: trimmed.to_owned(),
         source: Source::Spec {
             path: std::path::PathBuf::new(),

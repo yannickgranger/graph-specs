@@ -33,7 +33,7 @@ Only **structural** elements contribute to the concept graph.
   signature-level extraction in a later issue. Currently parsed but not
   diffed.
 - Bullets with recognised prefixes (`- implements: X`, `- depends on: X`,
-  `- returns: X`, `- verb: <bare-ident>`) — the first three are
+  `- returns: X`, `- verb: <qname>`) — the first three are
   relationship-level anchors; `- verb:` is a function-ownership anchor
   handled by a separate parser path (see [Verb bullets](#verb-bullets)
   below). **Note:** `verb:` is NOT in `BULLET_PREFIXES` code-side; the
@@ -41,20 +41,30 @@ Only **structural** elements contribute to the concept graph.
 
 ### Verb bullets
 
-A `- verb: <bare-ident>` bullet inside a concept section anchors a
-public function to that concept's owning bounded context (v0.5).
+A `- verb: <qname>` bullet inside a concept section anchors a public
+function to that concept's owning bounded context (v0.5).
 
 **Bullet shape:**
 
 ```
-- verb: <bare-ident>
+- verb: <qname>
 ```
 
-**Bare-identifier restriction (Slice A):** the target must satisfy
-`^[A-Za-z_][A-Za-z0-9_]*$`. Multi-word targets, qualified paths, and
-other forms are tolerated but silently dropped with a `tracing::warn!`
-log. Full module-path (qname) anchoring is deferred to a future Slice B
-extension.
+**Qname forms (v0.6):** two forms are accepted, syntactically disjoint:
+
+- **Bare identifier** — `^[A-Za-z_][A-Za-z0-9_]*$`. Matches a top-level
+  `pub fn` declaration at the root of a `.rs` file (e.g. `- verb: diff`
+  anchors `pub fn diff(...)`). No auto-fallback to impl methods.
+- **`Type::method`** — `^[A-Za-z_][A-Za-z0-9_]*::[A-Za-z_][A-Za-z0-9_]*$`.
+  Matches a public method inside an impl block: either an inherent impl
+  (`impl Foo { pub fn bar }`) or a trait impl (`impl Trait for Foo { fn bar }`).
+  Trait-impl methods are considered public even without an explicit `pub`
+  keyword. The `::` distinguishes this form from a bare identifier —
+  no auto-fallback to top-level fns applies.
+
+Multi-segment paths (`a::b::c`), leading `::`, trailing `::`, and
+non-identifier characters are rejected with a `tracing::warn!` log
+(tolerant-skip).
 
 **Opt-in semantics:** a concept section with no `- verb:` bullets is
 never inspected by the verb pass. The pass activates only when at least
@@ -83,6 +93,12 @@ Only **top-level public declarations** contribute to the concept graph.
 - `pub struct`, `pub enum`, `pub trait`, `pub type` at the root of each
   `*.rs` file. The identifier is the concept name. The file path and
   start line of the identifier are the source location.
+- **Impl-method extraction (v0.6, verb-anchoring only):** public methods
+  in impl blocks are extracted as `Type::method` qnames for verb-anchor
+  matching. This walk is separate from concept extraction and only feeds
+  the verb-anchoring pass (`VerbReader::extract_pub_fns`). Both inherent
+  impls (`impl Foo { pub fn bar }`) and trait impls
+  (`impl Trait for Foo { fn bar }`) are covered.
 
 ## What the Rust reader ignores
 
@@ -91,7 +107,7 @@ The code-side filter rules are:
 - Non-`pub` items
 - Items gated by `#[cfg(test)]` or `#[cfg(feature = "…test…")]`
 - Declarations nested inside `pub mod foo { … }` (top-level only)
-- `impl` blocks, `fn`, `const`, `static`, `use`, `macro_rules!`, `mod`
+- `impl` blocks (except for verb-anchoring purposes — see ## What the Rust reader parses), `fn`, `const`, `static`, `use`, `macro_rules!`, `mod`
 - Per-crate `tests/`, `benches/`, `examples/` directories
 - `target/`, `.git/`, `.claude/`, `.proofs/`, `node_modules/` directories
 - Any file whose extension is not `.rs`
