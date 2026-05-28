@@ -674,3 +674,74 @@ fn parse_verb_bullet_accepts_bare_ident_unchanged() {
     let anchor = parse_verb_bullet("verb: foo").expect("should parse");
     assert_eq!(anchor.qname, "foo");
 }
+
+// --- draft front-matter suppression ---
+
+#[test]
+fn is_draft_recognises_status_draft_front_matter() {
+    let src = "---\nstatus: draft\nauthor_council: council/x.md\n---\n\n## Foo\n";
+    assert!(is_draft(src));
+}
+
+#[test]
+fn is_draft_accepts_quoted_and_mixed_case_value() {
+    assert!(is_draft("---\nstatus: \"Draft\"\n---\n"));
+    assert!(is_draft("---\nstatus: 'draft' # pre-authored\n---\n"));
+}
+
+#[test]
+fn is_draft_false_for_ratified_status() {
+    assert!(!is_draft("---\nstatus: ratified\n---\n\n## Foo\n"));
+}
+
+#[test]
+fn is_draft_false_without_front_matter() {
+    assert!(!is_draft("## Foo\n\nstatus: draft mentioned in prose\n"));
+}
+
+#[test]
+fn is_draft_false_when_front_matter_closes_before_status() {
+    assert!(!is_draft("---\nauthor: x\n---\nstatus: draft\n"));
+}
+
+#[test]
+fn extract_skips_draft_spec_keeps_siblings() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "draft.md",
+        "---\nstatus: draft\n---\n\n## Reconciler\n\n```rust\npub trait Reconciler {}\n```\n",
+    );
+    write(d.path(), "live.md", "## Live\n");
+    // Only the non-draft concept survives.
+    assert_eq!(extract(d.path()), vec!["Live"]);
+}
+
+#[test]
+fn extract_verb_anchors_skips_draft_spec() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "draft.md",
+        "---\nstatus: draft\n---\n\n## Reconciler\n\n- verb: reconcile\n",
+    );
+    let anchors = MarkdownReader.extract_verb_anchors(d.path()).expect("test");
+    assert!(anchors.is_empty(), "draft verb anchors must be skipped");
+}
+
+#[test]
+fn extract_invariant_annotations_skips_draft_spec() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "draft.md",
+        "---\nstatus: draft\n---\n\n## Reconciler\n\n#### Operational invariants\n\n- INV-001: x [enforced-by: .cfdb/queries/r.cypher; retire-when: never]\n",
+    );
+    let anns = MarkdownReader
+        .extract_invariant_annotations(d.path())
+        .expect("test");
+    assert!(
+        anns.is_empty(),
+        "draft invariant annotations must be skipped"
+    );
+}
