@@ -87,6 +87,38 @@ Prose changes never affect the graph. The reader does not see:
 - Tables, images, links, raw HTML blocks, HTML comments
 - Files outside the directory passed to `--specs`
 - Any file whose extension is not `.md`
+- Every spec file declaring `status: draft` (see ## Draft specs)
+
+## Draft specs
+
+A spec file may open with a YAML front-matter block — lines delimited by
+`---` — that declares its lifecycle status:
+
+```
+---
+status: draft
+---
+
+## SomeConcept
+```
+
+When the leading front-matter declares `status: draft`, the markdown
+reader **skips the whole file**: it contributes no concepts, no verb
+anchors, and no invariant annotations to the graph. A draft spec is
+therefore invisible to `check` and can never raise a `missing in code`
+violation.
+
+This exists so a canonical concept can be **authored ahead of its
+code** — ratified by review, committed to `specs/concepts/`, and filled
+in by later PRs — without blocking CI in the interim. Removing or
+changing the `status:` line re-arms the file: from that commit on, every
+concept it declares must resolve against code like any other spec.
+
+Only the leading front-matter is consulted. The value matches
+case-insensitively, with or without surrounding quotes, and a trailing
+`#` comment is ignored. A front-matter block that closes before any
+`status:` line, a `status:` line in the prose body, or a file with no
+front-matter at all, is not draft.
 
 ## What the Rust reader parses
 

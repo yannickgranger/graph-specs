@@ -82,6 +82,13 @@ impl Reader for MarkdownReader {
                 cause: e.to_string(),
             })?;
 
+            // Pre-authored draft specs declare concepts ahead of their
+            // code; skip the file so its not-yet-implemented surface emits
+            // no violation. See [`is_draft`].
+            if is_draft(&source) {
+                continue;
+            }
+
             let mut verb_anchors_scratch: Vec<VerbAnchor> = Vec::new();
             extract_from_source(
                 &source,
@@ -141,6 +148,12 @@ impl MarkdownReader {
                 path: path.to_path_buf(),
                 cause: e.to_string(),
             })?;
+
+            // Draft specs are skipped wholesale — see [`is_draft`] and the
+            // matching guard in `extract`.
+            if is_draft(&source) {
+                continue;
+            }
 
             let mut nodes_scratch: Vec<ConceptNode> = Vec::new();
             let mut edges_scratch: Vec<Edge> = Vec::new();
@@ -207,11 +220,60 @@ impl MarkdownReader {
                 cause: e.to_string(),
             })?;
 
+            // Draft specs are skipped wholesale — see [`is_draft`] and the
+            // matching guard in `extract`.
+            if is_draft(&source) {
+                continue;
+            }
+
             extract_annotations_from_source(&source, path, &mut result);
         }
 
         Ok(result)
     }
+}
+
+/// Returns `true` when `source` opens with a YAML front-matter block
+/// (delimited by lines containing only `---`) that declares
+/// `status: draft`.
+///
+/// A draft spec is **pre-authored ahead of its code**: its concepts,
+/// verb anchors, and invariant annotations intentionally have no
+/// implementation yet, so every concept-walking reader skips the file
+/// and it contributes no nodes, edges, or anchors to the spec graph —
+/// no `missing in code` violation can arise from it. Removing or
+/// changing the `status:` line re-arms the file: its declarations then
+/// resolve against code like any other spec.
+///
+/// Only the leading front-matter block is consulted — a `status:` line
+/// in the prose body has no effect. The value is matched
+/// case-insensitively, with or without surrounding quotes, and any
+/// trailing `#` comment is ignored. A front-matter block that closes
+/// before any `status:` line, or a file with no front-matter at all,
+/// is not draft.
+fn is_draft(source: &str) -> bool {
+    // The opening fence must be the first non-empty line.
+    let mut lines = source.lines().skip_while(|l| l.trim().is_empty());
+    if lines.next().map(str::trim) != Some("---") {
+        return false;
+    }
+    for line in lines {
+        let trimmed = line.trim();
+        if trimmed == "---" {
+            return false;
+        }
+        if let Some(rest) = trimmed.strip_prefix("status:") {
+            let value = rest
+                .split('#')
+                .next()
+                .unwrap_or("")
+                .trim()
+                .trim_matches('"')
+                .trim_matches('\'');
+            return value.eq_ignore_ascii_case("draft");
+        }
+    }
+    false
 }
 
 /// Per-file extraction state. Grouping the state into a struct keeps
