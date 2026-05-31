@@ -172,6 +172,21 @@ A v0.3 edge crosses a context boundary, IS listed in the importing context's `Im
 
 Same field shape as `cross_context_edge_unauthorized`. The difference is the cause: `unauthorized` means "you didn't ask"; `undeclared` means "you asked but they don't publish that."
 
+### `implements_draft_concept` (additive, v0.4 schema_version stays "2")
+
+A `pub` code item whose name matches a concept heading living in a `status: draft` spec file. The draft imposes no code-existence obligation, but implementing it while the spec is still draft leaves the code item with no active owning heading. Distinct from `missing_in_specs` (where no heading exists anywhere) — here a draft heading exists but is not yet ratified. Does not bump `schema_version` because it is an additive new variant (see §Schema evolution — compatible non-breaking changes).
+
+```json
+{"schema_version":"2","violation":"implements_draft_concept","name":"Widget","draft_source":{"kind":"spec","path":"specs/concepts/drafts.md","line":7}}
+```
+
+| Field | Type | Meaning |
+|---|---|---|
+| `name` | string | the concept name (code item name = draft heading name) |
+| `draft_source` | source object (kind=spec) | location of the draft heading |
+
+**Remediation:** either promote the draft (flip the `status:` field to ratified, set `code_landing_pr`) or remove the code item until the spec is ratified.
+
 ## v0.5 forward-compat — `unknown_context_violation`
 
 `ContextViolation` carries `#[non_exhaustive]` in the domain type. If a future v0.5 adds a variant not known to this tool version, the record emits with `"violation":"unknown_context_violation"` and the `concept` field only. Consumers SHOULD treat unknown variants as tripwires — the tool version on the producer side is ahead of the consumer's schema.

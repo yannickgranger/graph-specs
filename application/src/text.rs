@@ -138,6 +138,14 @@ pub fn format_violation(v: &Violation, out: &mut impl Write) -> std::io::Result<
                 path.display()
             )
         }
+        Violation::ImplementsDraftConcept { name, draft_source } => {
+            let (path, line) = source_pair(draft_source);
+            writeln!(
+                out,
+                "implements draft spec: {name} ({}:{line}) — promote the draft (flip status:, set code_landing_pr) or remove the code",
+                path.display()
+            )
+        }
         _ => writeln!(out, "unknown violation"),
     }
 }

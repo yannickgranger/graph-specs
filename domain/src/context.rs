@@ -8,7 +8,7 @@
 //! lives alongside the three existing passes in `diff.rs` and consumes
 //! [`CheckInput`] as its spec-side argument.
 
-use crate::{EdgeKind, Graph, Source, VerbOwnership};
+use crate::{ConceptNode, EdgeKind, Graph, Source, VerbOwnership};
 use std::collections::HashMap;
 
 /// A crate, npm package, Go module, or equivalent — named deliberately to
@@ -196,6 +196,11 @@ pub struct CheckInput {
     pub graph: Graph,
     pub contexts: Vec<ContextDecl>,
     pub verb_ownership: VerbOwnership,
+    /// Spec-side headings parsed from `status: draft` files. Empty
+    /// until the markdown reader populates it (Slice B). Used by the
+    /// orphan pass to distinguish `ImplementsDraftConcept` from
+    /// `MissingInSpecs`.
+    pub draft_concepts: Vec<ConceptNode>,
 }
 
 impl CheckInput {
@@ -210,6 +215,7 @@ impl CheckInput {
             graph,
             contexts,
             verb_ownership,
+            draft_concepts: Vec::new(),
         }
     }
 
@@ -224,6 +230,18 @@ impl CheckInput {
                 decls: Vec::new(),
                 anchors: Vec::new(),
             },
+            draft_concepts: Vec::new(),
+        }
+    }
+
+    /// Builder: attach draft-spec concept headings parsed from
+    /// `status: draft` files. Wired by the markdown reader in Slice B;
+    /// the unit test in this slice uses it directly.
+    #[must_use]
+    pub fn with_draft_concepts(self, draft_concepts: Vec<ConceptNode>) -> Self {
+        Self {
+            draft_concepts,
+            ..self
         }
     }
 }

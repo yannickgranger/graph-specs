@@ -19,7 +19,7 @@ mod verb;
 #[cfg(test)]
 mod tests;
 
-use crate::{CheckInput, ConceptNode, Graph, Violation};
+use crate::{CheckInput, ConceptNode, Graph, Source, Violation};
 use std::collections::{HashMap, HashSet};
 
 #[must_use]
@@ -28,6 +28,7 @@ pub fn diff(spec: CheckInput, code: Graph) -> Vec<Violation> {
         graph: specs,
         contexts: spec_contexts,
         verb_ownership: spec_verb_ownership,
+        draft_concepts,
     } = spec;
     let Graph {
         nodes: spec_nodes,
@@ -84,11 +85,22 @@ pub fn diff(spec: CheckInput, code: Graph) -> Vec<Violation> {
             });
         }
     }
+    let draft_by_name: HashMap<&str, &Source> = draft_concepts
+        .iter()
+        .map(|n| (n.name.as_str(), &n.source))
+        .collect();
     for (_, code_node) in code_by_name {
-        violations.push(Violation::MissingInSpecs {
-            name: code_node.name,
-            code_source: code_node.source,
-        });
+        if let Some(draft_src) = draft_by_name.get(code_node.name.as_str()) {
+            violations.push(Violation::ImplementsDraftConcept {
+                name: code_node.name,
+                draft_source: (**draft_src).clone(),
+            });
+        } else {
+            violations.push(Violation::MissingInSpecs {
+                name: code_node.name,
+                code_source: code_node.source,
+            });
+        }
     }
 
     edge::edge_diff(
@@ -131,5 +143,6 @@ const fn violation_key(v: &Violation) -> (&str, u8) {
         Violation::VerbMissingInCode { concept, .. } => (concept.as_str(), 9),
         Violation::VerbMissingInSpec { qname, .. } => (qname.as_str(), 10),
         Violation::VerbTargetUnknown { concept, .. } => (concept.as_str(), 11),
+        Violation::ImplementsDraftConcept { name, .. } => (name.as_str(), 12),
     }
 }
