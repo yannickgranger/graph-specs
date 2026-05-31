@@ -169,6 +169,66 @@ impl MarkdownReader {
         Ok(verb_anchors)
     }
 
+    /// Walk `root` and collect [`ConceptNode`]s from every `status: draft`
+    /// spec file — the inverse of what [`Reader::extract`] does. Non-draft
+    /// files are skipped; `contexts/` is excluded as usual. Edges and verb
+    /// anchors parsed alongside the headings are discarded — only the heading
+    /// nodes matter for the draft-concept index.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ReaderError::IoFailed`] or [`ReaderError::WalkFailed`] on
+    /// I/O failures.
+    pub fn extract_draft_concepts(&self, root: &Path) -> Result<Vec<ConceptNode>, ReaderError> {
+        let mut nodes = Vec::new();
+
+        let concepts_subdir = root.join("concepts");
+        let walk_root: &Path = if concepts_subdir.is_dir() {
+            concepts_subdir.as_path()
+        } else {
+            root
+        };
+
+        for entry in WalkDir::new(walk_root) {
+            let entry = entry.map_err(|e| ReaderError::WalkFailed {
+                root: root.to_path_buf(),
+                cause: e.to_string(),
+            })?;
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            if entry.path().extension().is_none_or(|ext| ext != "md") {
+                continue;
+            }
+            if path_under_dir(entry.path(), "contexts") {
+                continue;
+            }
+
+            let path = entry.path();
+            let source = std::fs::read_to_string(path).map_err(|e| ReaderError::IoFailed {
+                path: path.to_path_buf(),
+                cause: e.to_string(),
+            })?;
+
+            // Only draft files contribute to the draft-concept index.
+            if !is_draft(&source) {
+                continue;
+            }
+
+            let mut edges_scratch = Vec::new();
+            let mut verb_anchors_scratch = Vec::new();
+            extract_from_source(
+                &source,
+                path,
+                &mut nodes,
+                &mut edges_scratch,
+                &mut verb_anchors_scratch,
+            );
+        }
+
+        Ok(nodes)
+    }
+
     /// Extract all `[enforced-by:]` / `[prose-only:]` bracketed annotations
     /// from `#### Operational invariants` sections in spec files under `root`.
     ///

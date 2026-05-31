@@ -158,6 +158,7 @@ Exposes `extract_invariant_annotations` (inherent method) for RFC-005
 - implements: Reader
 - implements: ContextReader
 - depends on: Graph
+- depends on: ConceptNode
 - depends on: ReaderError
 - depends on: ContextDecl
 - depends on: InvariantAnnotation

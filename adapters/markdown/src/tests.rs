@@ -675,6 +675,28 @@ fn parse_verb_bullet_accepts_bare_ident_unchanged() {
     assert_eq!(anchor.qname, "foo");
 }
 
+// --- draft concept index ---
+
+#[test]
+fn extract_draft_concepts_returns_headings_of_draft_files_only() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "draft.md",
+        "---\nstatus: draft\n---\n\n## Widget\n",
+    );
+    write(d.path(), "live.md", "## Gadget\n");
+    let nodes = MarkdownReader
+        .extract_draft_concepts(d.path())
+        .expect("test");
+    let names: Vec<&str> = nodes.iter().map(|n| n.name.as_str()).collect();
+    assert!(names.contains(&"Widget"), "draft heading must be included");
+    assert!(
+        !names.contains(&"Gadget"),
+        "non-draft heading must be excluded"
+    );
+}
+
 // --- draft front-matter suppression ---
 
 #[test]
