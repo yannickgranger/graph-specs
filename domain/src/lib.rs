@@ -234,6 +234,14 @@ pub enum Violation {
     MissingInCode { name: String, spec_source: Source },
     /// Concept declared in code but absent from specs.
     MissingInSpecs { name: String, code_source: Source },
+    /// A `pub` code item whose name matches a heading living in a
+    /// `status: draft` spec. The draft imposes no code-existence
+    /// obligation, but implementing it while the spec is still draft
+    /// leaves the item with no active owning heading. Distinct from
+    /// [`Violation::MissingInSpecs`] (no heading exists anywhere) —
+    /// here a heading exists but is draft. `draft_source` points at
+    /// the draft heading. (per specs/dialect.md ## Draft specs)
+    ImplementsDraftConcept { name: String, draft_source: Source },
     /// Both sides declare the concept with a signature, but the signatures
     /// disagree after normalisation.
     SignatureDrift {

@@ -494,3 +494,50 @@ fn violation_key_context_sorts_after_edge_target_unknown() {
     assert_eq!(ka, kb);
     assert!(da < db);
 }
+
+// --- draft concept diagnostics (#1379 slice A) ---
+
+#[test]
+fn implements_draft_concept_when_code_orphan_matches_draft_heading() {
+    let draft_src = Source::Spec {
+        path: spec_path(),
+        line: 5,
+    };
+    let draft_concept = ConceptNode {
+        name: "Widget".to_string(),
+        source: draft_src.clone(),
+        signature: SignatureState::Absent,
+    };
+    let input = CheckInput::new(Graph::default(), Vec::new(), VerbOwnership::default())
+        .with_draft_concepts(vec![draft_concept]);
+    let code = nodes(vec![code("Widget")]);
+    let v = super::diff(input, code);
+    assert_eq!(v.len(), 1);
+    assert!(
+        matches!(
+            &v[0],
+            Violation::ImplementsDraftConcept { name, draft_source }
+                if name == "Widget" && *draft_source == draft_src
+        ),
+        "expected ImplementsDraftConcept, got: {:?}",
+        v[0]
+    );
+    assert!(
+        !v.iter()
+            .any(|vi| matches!(vi, Violation::MissingInSpecs { .. })),
+        "MissingInSpecs must not fire when a draft heading matches"
+    );
+}
+
+#[test]
+fn orphan_without_draft_match_is_missing_in_specs() {
+    let input = CheckInput::new(Graph::default(), Vec::new(), VerbOwnership::default());
+    let code = nodes(vec![code("Gadget")]);
+    let v = super::diff(input, code);
+    assert_eq!(v.len(), 1);
+    assert!(
+        matches!(&v[0], Violation::MissingInSpecs { name, .. } if name == "Gadget"),
+        "expected MissingInSpecs, got: {:?}",
+        v[0]
+    );
+}

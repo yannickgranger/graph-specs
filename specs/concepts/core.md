@@ -50,7 +50,9 @@ came from.
 A single equivalence violation between spec and code graphs. Concept-,
 signature-, and relationship-level variants share the convention that
 the first-carried field is the concept or owner name, so CLI output can
-be sorted deterministically regardless of violation kind.
+be sorted deterministically regardless of violation kind. The variant
+set includes `ImplementsDraftConcept` for the case where a code item
+implements a concept whose spec heading is still `status: draft`.
 
 ## Edge
 
@@ -277,6 +279,7 @@ alongside. An empty `contexts` list reduces diff behavior to v0.3
 v0.5 entirely. Lives in `domain`.
 
 - depends on: Graph
+- depends on: ConceptNode
 - depends on: ContextDecl
 - depends on: VerbOwnership
 - returns: CheckInput
@@ -284,6 +287,7 @@ v0.5 entirely. Lives in `domain`.
 - verb: context_for_concept
 - verb: CheckInput::new
 - verb: CheckInput::with_graph_and_contexts
+- verb: CheckInput::with_draft_concepts
 
 ## SchemaVersion
 

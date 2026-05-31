@@ -160,6 +160,12 @@ fn violation_to_record(v: &Violation) -> Value {
             "qname": qname,
             "spec_source": source_to_json(spec_source),
         }),
+        Violation::ImplementsDraftConcept { name, draft_source } => json!({
+            "schema_version": SchemaVersion::CURRENT.as_str(),
+            "violation": "implements_draft_concept",
+            "name": name,
+            "draft_source": source_to_json(draft_source),
+        }),
         _ => json!({
             "schema_version": SchemaVersion::CURRENT.as_str(),
             "violation": "unknown_violation",
