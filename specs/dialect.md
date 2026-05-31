@@ -103,10 +103,18 @@ status: draft
 ```
 
 When the leading front-matter declares `status: draft`, the markdown
-reader **skips the whole file**: it contributes no concepts, no verb
-anchors, and no invariant annotations to the graph. A draft spec is
-therefore invisible to `check` and can never raise a `missing in code`
-violation.
+reader **skips the whole file** for the equivalence graph: it contributes
+no concepts, no verb anchors, and no invariant annotations. A draft spec
+therefore imposes no code-existence obligation — no `missing in code`
+violation can arise from it.
+
+Its headings are still read into a separate **draft-concept index** that
+carries no obligation. This index is used solely so that a code item
+whose name matches a draft heading reports the targeted
+`implements draft spec` diagnostic (`Violation::ImplementsDraftConcept`)
+instead of the generic `missing in specs` orphan. The distinction
+matters: `MissingInSpecs` signals an undocumented item, while
+`ImplementsDraftConcept` signals an item racing ahead of a ratified spec.
 
 This exists so a canonical concept can be **authored ahead of its
 code** — ratified by review, committed to `specs/concepts/`, and filled

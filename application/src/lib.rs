@@ -37,6 +37,7 @@ pub fn run_check(specs_dir: &Path, code_dir: &Path) -> Result<Vec<Violation>, Re
     let specs_graph = MarkdownReader.extract(specs_dir)?;
     let spec_contexts = MarkdownReader.extract_contexts(specs_dir)?;
     let verb_anchors = MarkdownReader.extract_verb_anchors(specs_dir)?;
+    let draft_concepts = MarkdownReader.extract_draft_concepts(specs_dir)?;
     let code_graph = RustReader.extract(code_dir)?;
     let pub_fn_decls = RustReader.extract_pub_fns(code_dir)?;
     let verb_ownership = VerbOwnership {
@@ -44,7 +45,8 @@ pub fn run_check(specs_dir: &Path, code_dir: &Path) -> Result<Vec<Violation>, Re
         anchors: verb_anchors,
     };
     Ok(diff(
-        CheckInput::new(specs_graph, spec_contexts, verb_ownership),
+        CheckInput::new(specs_graph, spec_contexts, verb_ownership)
+            .with_draft_concepts(draft_concepts),
         code_graph,
     ))
 }
