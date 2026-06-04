@@ -16,6 +16,15 @@ on:
     - cron: "30 6 * * 2"
   workflow_dispatch: {}
 
+# The closed-loop job files a `cross-drift-YYYY-WW` issue via the Gitea API
+# when companion HEAD diverges from the pin. Without an explicit grant the
+# auto-token is issues:read, so `curl POST /issues` returns 4xx (curl exit
+# 22). Latent until a real drift fires; granted explicitly here to match
+# cross-bump.yml (Issue #122).
+permissions:
+  contents: read
+  issues: write
+
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -Dwarnings
