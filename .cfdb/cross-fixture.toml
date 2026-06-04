@@ -20,6 +20,6 @@
 [companion]
 repo      = "yg/cfdb"
 branch    = "develop"
-sha       = "b542af329f5e73f89b42d62c183c19f86555ba9d"
-bumped_at = "2026-05-15T19:30:00Z"
-bumped_by = "lockstep — cfdb #375 / RFC-041 slice 041-D. SchemaVersion V0_3_2 → V0_4_0 (additive, non-breaking) reserving the :Literal node label + describer. No producer in this slice — cfdb #370 (041-B) lands the extractor emission, so this pin advances purely on the schema-vocab addition. Pinned at cfdb #375's commit (b542af3, FF-merged onto cfdb develop). Pre-existing rules return zero rows against the new pin (no :Literal nodes emitted yet)."
+sha       = "5f5bf6443197a863db206a4c75166646e1581b6b"
+bumped_at = "2026-06-01T06:31:01Z"
+bumped_by = "cron — cross-bump (Mon 06:30 UTC)"
