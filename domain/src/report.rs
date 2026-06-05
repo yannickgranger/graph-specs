@@ -355,11 +355,7 @@ mod tests {
     #[test]
     fn verb_coverage_cited_when_spec_has_matching_concept() {
         use crate::{ConceptNode, SignatureState};
-        let node = ConceptNode {
-            name: "run_check".to_owned(),
-            source: spec_src(5),
-            signature: SignatureState::Absent,
-        };
+        let node = ConceptNode::new("run_check".to_owned(), spec_src(5), SignatureState::Absent);
         let graph = Graph::new(vec![node], vec![]);
         let input = CheckInput::new(graph, vec![], VerbOwnership::default());
         let pub_fns = vec![make_fn("run_check", None)];

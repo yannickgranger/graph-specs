@@ -1,10 +1,14 @@
-# Core concepts
+# equivalence
 
-The concepts currently exposed by the public Rust surface of
-`graph-specs-rust`. Every top-level `pub` type in the workspace must
-appear here; every heading here must correspond to a top-level `pub`
-type in the workspace. Prose is encouraged — it is ignored by the
-reader.
+Concept-level entries for the **equivalence** bounded context — the
+domain of the checker itself: the graph model, the diff engine, the
+port contracts readers implement, and the violation vocabulary
+downstream consumers observe. Every type whose code lives under
+`domain/src/` or `ports/src/` (the context's `Owns` block in
+`specs/contexts/equivalence.md`) appears here. Every top-level `pub`
+type in those crates must have a heading; every heading must
+correspond to such a type. Prose is encouraged — it is ignored by
+the reader.
 
 ## Graph
 
@@ -25,10 +29,16 @@ the v0.3 opt-in rules apply. Lives in `domain`.
 A single named concept located at a specific source site. Carries the
 concept's name, a [Source](#source) pointing back to where the reader
 found it, and an optional [SignatureState](#signaturestate) payload for
-v0.2 signature-level equivalence.
+v0.2 signature-level equivalence. Since v0.6 (RFC-010 §3.3) it also
+carries the language-agnostic containment triple `module_path` / `unit` /
+`context` (each `Option<String>`), populated by a code-facts adapter and
+left `None` on the spec side. `new` is the no-provenance constructor;
+`with_provenance` is the builder that attaches the triple. Lives in
+`domain`.
 
 - depends on: Source
 - depends on: SignatureState
+- returns: ConceptNode
 
 ## SignatureState
 
@@ -141,64 +151,6 @@ adapter, in language-neutral code. Lives in `ports`.
 - depends on: ConceptNode
 - depends on: Edge
 
-## MarkdownReader
-
-Concrete [Reader](#reader) and [ContextReader](#contextreader)
-implementation for markdown spec files. Uses `pulldown-cmark`. Emits a
-[ConceptNode](#conceptnode) for every `##` or `###` heading it encounters,
-collects fenced `rust` blocks for signature-level comparison, and
-recognises the v0.3 bullet prefixes (`- implements:`, `- depends on:`,
-`- returns:`) as declared edges. Also implements
-[ContextReader](#contextreader) for v0.4 — parses
-`specs/contexts/<name>.md` files into [ContextDecl](#contextdecl) values.
-Exposes `extract_invariant_annotations` (inherent method) for RFC-005
-§3.2 — extracts `[enforced-by:]` / `[prose-only:]` annotations from
-`#### Operational invariants` spec sections. Lives in `adapters/markdown`.
-
-- implements: Reader
-- implements: ContextReader
-- depends on: Graph
-- depends on: ConceptNode
-- depends on: ReaderError
-- depends on: ContextDecl
-- depends on: InvariantAnnotation
-- depends on: VerbAnchor
-
-## RustBackend
-
-Concrete [LanguageBackend](#languagebackend) implementation for Rust
-source files. Uses `syn`. Walks the source tree once (skipping `target/`,
-`.git/`, `.claude/`, `.proofs/`, per-crate `tests/` / `benches/` /
-`examples/` and `node_modules/`), parses each `*.rs` file, and emits
-flat [ConceptNode](#conceptnode) + raw [Edge](#edge) into an
-[Extraction](#extraction). Detects via `Cargo.toml` at the root.
-[RustReader](#rustreader) wraps it for the [Reader](#reader) port.
-Lives in `adapters/rust`.
-
-- implements: LanguageBackend
-- depends on: Extraction
-- depends on: ReaderError
-
-## RustReader
-
-Concrete [Reader](#reader) and [VerbReader](#verbreader) implementation
-for Rust source files. Thin adapter over [RustBackend](#rustbackend):
-pulls the [Extraction](#extraction), filters raw edges against the
-discovered [ConceptNode](#conceptnode) set, and assembles a
-[Graph](#graph) for the diff engine. Emits one [ConceptNode](#conceptnode)
-per top-level `pub struct`, `pub enum`, `pub trait`, `pub type`, plus v0.2
-signature normalisation via `adapter-rust::normalize` and v0.3 relationship
-edges from struct fields, impl blocks, and trait method signatures.
-`VerbReader::extract_pub_fns` uses a separate parallel walk (per RFC-005
-§3.2 dry-run rust-systems-A) and is never invoked by `check`. Lives in
-`adapters/rust`.
-
-- implements: Reader
-- implements: VerbReader
-- depends on: Graph
-- depends on: ReaderError
-- depends on: PubFnDecl
-
 ## OwnedUnit
 
 A crate, npm package, Go module, or equivalent — the thing a bounded
@@ -286,6 +238,7 @@ v0.5 entirely. Lives in `domain`.
 - returns: CheckInput
 - verb: diff
 - verb: context_for_concept
+- verb: resolve_declared_context
 - verb: CheckInput::new
 - verb: CheckInput::with_graph_and_contexts
 - verb: CheckInput::with_draft_concepts
@@ -319,8 +272,9 @@ The v0.5 verb-extraction port trait. Sibling to [Reader](#reader) and
 [ContextReader](#contextreader) — separate per RFC-005 §3.2 clean-arch
 lens. Not every adapter extracts verbs (markdown has no code items);
 returning an empty `Vec` is the correct implementation for adapters that
-do not walk code. Only invoked by the `report` subcommand, never by
-`check`. Lives in `ports`.
+do not walk code. Invoked by `check` (it feeds the v0.5/v0.6 verb-
+anchoring pass with the code-side `pub fn` declarations) and by the
+`report` subcommand. Lives in `ports`.
 
 ```rust
 pub trait VerbReader {
@@ -449,9 +403,31 @@ Aggregated output of the verb-coverage report: three record lists —
 - depends on: HomonymRecord
 - verb: report_verb_coverage
 
-## ReportFormat
+## AbstractionLevel
 
-Output format for `graph-specs report`. `text` is the human-readable
-default; `ndjson` emits one JSON object per report record — see
-`specs/ndjson-output.md` §Report records (v0.5) for the schema. Lives
-in `application`.
+One rung of the four-level abstraction ladder (RFC-010 §3.1): `Context`
+(H1), `Concept` (H2 — the diff unit), `SubConcept` (H3, diffed at L2),
+`Member` (H4+, emitted not diffed). Depth is authoritative — a heading's
+role *is* its depth. `from_heading_depth` maps a markdown heading depth
+to its rung; adapters call it rather than `match`-ing the enum, so
+`#[non_exhaustive]` never forces a dead wildcard arm in adapter crates.
+Marked `#[non_exhaustive]`. Lives in `domain`.
+
+- verb: AbstractionLevel::from_heading_depth
+
+## CohesionViolation
+
+The abstraction-ladder cohesion violations (RFC-010 §3.5), wrapped by
+[Violation](#violation)'s `Cohesion` arm so consumers that do not opt
+into cohesion checking match one arm rather than three — distinct from
+[ContextViolation](#contextviolation) (RFC-001 cross-context edges).
+Three variants: `ContextWithoutCohesionUnit` (an H1 context with no
+H2/H3 concept under it) and `SubConceptOrphan` (an H3 with no enclosing
+H2) fire spec-side with zero code facts; `ConceptContextMismatch` (the
+spec-side declared owning context disagrees with the code-resolved one)
+is code-fact-gated and carries a [Source](#source) so its rendering
+shows `path:line` like every other violation. Marked `#[non_exhaustive]`.
+The *detection* logic that emits these lands in R10-3; this entry covers
+the type. Lives in `domain`.
+
+- verb: CohesionViolation::key

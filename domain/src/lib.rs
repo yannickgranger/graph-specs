@@ -6,14 +6,18 @@
 
 use std::path::PathBuf;
 
+mod abstraction;
+mod cohesion;
 mod context;
 mod diff;
 mod report;
 mod tokens;
 
+pub use abstraction::AbstractionLevel;
+pub use cohesion::CohesionViolation;
 pub use context::{
-    context_for_concept, detect_import_cycle, CheckInput, ContextDecl, ContextExport,
-    ContextImport, ContextPattern, ContextViolation, OwnedUnit,
+    context_for_concept, detect_import_cycle, resolve_declared_context, CheckInput, ContextDecl,
+    ContextExport, ContextImport, ContextPattern, ContextViolation, OwnedUnit,
 };
 pub use diff::diff;
 pub use report::{
@@ -102,6 +106,58 @@ pub struct ConceptNode {
     pub name: String,
     pub source: Source,
     pub signature: SignatureState,
+    /// Language-agnostic containment provenance (RFC-010 §3.3). Populated
+    /// by a `CodeFacts`-style adapter (source-walk in R10-3, cfdb-query
+    /// ACL in R10-6); `None` on the spec side and wherever no code facts
+    /// are available. Deliberately **not** cfdb's Rust-specific prop names
+    /// (`module_qpath` / `crate` / `bounded_context`) — PHP `:Item` carries
+    /// no such props, so the agnostic triple is translated by the ACL.
+    ///
+    /// `module_path` — the owning module path, crate-root-collapsed.
+    pub module_path: Option<String>,
+    /// `unit` — the owning crate / package, relative to the code root.
+    pub unit: Option<String>,
+    /// `context` — the resolved bounded context (`specs/contexts/` Owns or
+    /// the cfdb-query ACL), used by the R10-3 cohesion pass.
+    pub context: Option<String>,
+}
+
+impl ConceptNode {
+    /// Construct a concept node with **no** containment provenance — the
+    /// spec-side / no-code-facts case. The three provenance fields default
+    /// to `None`; populate them with [`ConceptNode::with_provenance`].
+    ///
+    /// This is an explicit "provenance unknown" constructor, **not** a
+    /// `Default` escape: every site decides provenance consciously (RFC-010
+    /// §3.7 — `ConceptNode` does not derive `Default`).
+    #[must_use]
+    pub const fn new(name: String, source: Source, signature: SignatureState) -> Self {
+        Self {
+            name,
+            source,
+            signature,
+            module_path: None,
+            unit: None,
+            context: None,
+        }
+    }
+
+    /// Builder: attach the language-agnostic containment triple
+    /// (`module_path` / `unit` / `context`) derived by a code-facts
+    /// adapter. Used by the source-walk adapter (R10-3) and the cfdb-query
+    /// ACL (R10-6); the R10-1 round-trip test exercises it directly.
+    #[must_use]
+    pub fn with_provenance(
+        mut self,
+        module_path: Option<String>,
+        unit: Option<String>,
+        context: Option<String>,
+    ) -> Self {
+        self.module_path = module_path;
+        self.unit = unit;
+        self.context = context;
+        self
+    }
 }
 
 /// The signature-level payload on a [`ConceptNode`].
@@ -316,4 +372,55 @@ pub enum Violation {
         qname: String,
         spec_source: Source,
     },
+    /// A v0.6 abstraction-ladder cohesion violation (RFC-010 §3.5). Wraps
+    /// the three [`CohesionViolation`] variants so consumers that do not
+    /// opt into cohesion checking match one arm rather than three —
+    /// distinct from [`Violation::Context`] (RFC-001 cross-context edges).
+    Cohesion(CohesionViolation),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn code_src() -> Source {
+        Source::Code {
+            path: PathBuf::from("domain/src/lib.rs"),
+            line: 101,
+        }
+    }
+
+    #[test]
+    fn new_leaves_provenance_unset() {
+        let n = ConceptNode::new("ConceptNode".to_owned(), code_src(), SignatureState::Absent);
+        assert_eq!(n.name, "ConceptNode");
+        assert_eq!(n.module_path, None);
+        assert_eq!(n.unit, None);
+        assert_eq!(n.context, None);
+    }
+
+    #[test]
+    fn with_provenance_round_trips_the_agnostic_triple() {
+        let n = ConceptNode::new("Graph".to_owned(), code_src(), SignatureState::Absent)
+            .with_provenance(
+                Some("domain".to_owned()),
+                Some("domain".to_owned()),
+                Some("equivalence".to_owned()),
+            );
+        assert_eq!(n.module_path.as_deref(), Some("domain"));
+        assert_eq!(n.unit.as_deref(), Some("domain"));
+        assert_eq!(n.context.as_deref(), Some("equivalence"));
+        // name / source / signature are preserved through the builder.
+        assert_eq!(n.name, "Graph");
+        assert_eq!(n.signature, SignatureState::Absent);
+    }
+
+    #[test]
+    fn with_provenance_accepts_partial_facts() {
+        // PHP `:Item` may yield context via edge-traversal but no module_path.
+        let n = ConceptNode::new("X".to_owned(), code_src(), SignatureState::Absent)
+            .with_provenance(None, None, Some("equivalence".to_owned()));
+        assert_eq!(n.module_path, None);
+        assert_eq!(n.context.as_deref(), Some("equivalence"));
+    }
 }

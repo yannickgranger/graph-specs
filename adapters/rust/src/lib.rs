@@ -322,14 +322,16 @@ fn emit(
         return;
     }
     let line = ident.span().start().line;
-    out.push(ConceptNode {
-        name: ident.to_string(),
-        source: Source::Code {
+    // Provenance (module_path / unit / context) stays `None` here in R10-1;
+    // the source-walk adapter populates it via `with_provenance` in R10-3.
+    out.push(ConceptNode::new(
+        ident.to_string(),
+        Source::Code {
             path: path.to_path_buf(),
             line,
         },
-        signature: SignatureState::Normalized(normalize(item)),
-    });
+        SignatureState::Normalized(normalize(item)),
+    ));
 }
 
 fn is_test_gated(attrs: &[Attribute]) -> bool {

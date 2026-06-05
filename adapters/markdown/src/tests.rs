@@ -489,7 +489,10 @@ fn extract_annotations_malformed_skips_with_ok_return() {
     let result = MarkdownReader.extract_invariant_annotations(d.path());
     assert!(result.is_ok(), "tolerant-skip: malformed should not Err");
     // malformed annotation is dropped
-    assert!(result.unwrap().is_empty());
+    assert!(
+        result.expect("asserted Ok above").is_empty(),
+        "malformed annotation must be dropped"
+    );
 }
 
 #[test]

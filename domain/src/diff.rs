@@ -112,7 +112,7 @@ pub fn diff(spec: CheckInput, code: Graph) -> Vec<Violation> {
     );
 
     verb::verb_pass(
-        &spec_verb_ownership,
+        spec_verb_ownership,
         &code_for_verb,
         &spec_contexts,
         &mut violations,
@@ -129,6 +129,11 @@ pub fn diff(spec: CheckInput, code: Graph) -> Vec<Violation> {
     violations
 }
 
+// The `Cohesion` arm delegates to `CohesionViolation::key`. RFC-010
+// §3.5/§12-D speculated this would force `violation_key` non-`const`
+// (heterogeneous variant fields); in practice `str::as_str` is `const`
+// on this toolchain, so the whole match stays `const fn` —
+// `clippy::nursery` (`missing_const_for_fn`) requires it.
 const fn violation_key(v: &Violation) -> (&str, u8) {
     match v {
         Violation::MissingInCode { name, .. } => (name.as_str(), 0),
@@ -143,6 +148,7 @@ const fn violation_key(v: &Violation) -> (&str, u8) {
         Violation::VerbMissingInCode { concept, .. } => (concept.as_str(), 9),
         Violation::VerbMissingInSpec { qname, .. } => (qname.as_str(), 10),
         Violation::VerbTargetUnknown { concept, .. } => (concept.as_str(), 11),
-        Violation::ImplementsDraftConcept { name, .. } => (name.as_str(), 12),
+        Violation::Cohesion(c) => (c.key(), 12),
+        Violation::ImplementsDraftConcept { name, .. } => (name.as_str(), 13),
     }
 }

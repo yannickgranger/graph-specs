@@ -19,21 +19,24 @@ use crate::{
 use std::collections::{HashMap, HashSet};
 
 pub(super) fn verb_pass(
-    verb_ownership: &VerbOwnership,
+    verb_ownership: VerbOwnership,
     code: &Graph,
     contexts: &[ContextDecl],
     out: &mut Vec<Violation>,
 ) {
-    if verb_ownership.anchors.is_empty() {
+    // Owned so `emit_missing_in_spec` can move each decl's `qname`/`source`
+    // into the emitted violation instead of cloning per loop iteration.
+    let VerbOwnership { decls, anchors } = verb_ownership;
+    if anchors.is_empty() {
         return;
     }
 
     let unit_to_context = build_unit_context_map(contexts);
-    let decl_by_qname = build_decl_map(&verb_ownership.decls);
+    let decl_by_qname = build_decl_map(&decls);
 
     let mut context_claimed_qnames: HashMap<&str, HashSet<&str>> = HashMap::new();
 
-    for anchor in &verb_ownership.anchors {
+    for anchor in &anchors {
         let concept_ctx =
             context_for_concept(code, contexts, &anchor.concept).map(|c| c.name.as_str());
 
@@ -52,7 +55,7 @@ pub(super) fn verb_pass(
     // `type_root` is the Type portion of `Type::method`. This works iff concept
     // name == type name — the existing graph-specs dialect invariant.
     let mut opted_in_concepts_by_context: HashMap<&str, HashSet<&str>> = HashMap::new();
-    for anchor in &verb_ownership.anchors {
+    for anchor in &anchors {
         if let Some(ctx) = context_for_concept(code, contexts, &anchor.concept) {
             opted_in_concepts_by_context
                 .entry(ctx.name.as_str())
@@ -61,8 +64,11 @@ pub(super) fn verb_pass(
         }
     }
 
+    // `decl_by_qname` (borrowing `decls`) is no longer used past the anchor
+    // loop, so `decls` can be moved into the emitter.
+    drop(decl_by_qname);
     emit_missing_in_spec(
-        &verb_ownership.decls,
+        decls,
         &unit_to_context,
         &context_claimed_qnames,
         &opted_in_concepts_by_context,
@@ -143,7 +149,7 @@ fn check_anchor(
 }
 
 fn emit_missing_in_spec(
-    decls: &[VerbDecl],
+    decls: Vec<VerbDecl>,
     unit_to_context: &HashMap<&str, &str>,
     context_claimed_qnames: &HashMap<&str, HashSet<&str>>,
     opted_in_concepts_by_context: &HashMap<&str, HashSet<&str>>,
@@ -158,37 +164,30 @@ fn emit_missing_in_spec(
         };
 
         // Fast-path exit if already claimed in this context.
-        if let Some(claimed) = context_claimed_qnames.get(decl_ctx) {
-            if claimed.contains(decl.qname.as_str()) {
-                continue;
-            }
+        if context_claimed_qnames
+            .get(decl_ctx)
+            .is_some_and(|claimed| claimed.contains(decl.qname.as_str()))
+        {
+            continue;
         }
 
-        match decl.qname.split_once("::") {
-            Some(("", _)) => {} // malformed qname; explicit skip
-            Some((type_root, _method)) => {
-                // Impl-method: per-concept opt-in, context-scoped.
-                let Some(concepts_in_ctx) = opted_in_concepts_by_context.get(decl_ctx) else {
-                    continue;
-                };
-                if !concepts_in_ctx.contains(type_root) {
-                    continue;
-                }
-                out.push(Violation::VerbMissingInSpec {
-                    qname: decl.qname.clone(),
-                    code_source: decl.source.clone(),
-                });
-            }
-            None => {
-                // Free fn (bare-ident): per-context activation preserved.
-                if !opted_in_concepts_by_context.contains_key(decl_ctx) {
-                    continue;
-                }
-                out.push(Violation::VerbMissingInSpec {
-                    qname: decl.qname.clone(),
-                    code_source: decl.source.clone(),
-                });
-            }
+        // Decide whether this decl is missing an anchor. Impl-method qnames
+        // (`Type::method`) opt in per-concept (context-scoped); bare-ident
+        // free fns opt in per-context; a leading `::` is malformed → skip.
+        let fires = match decl.qname.split_once("::") {
+            Some(("", _)) => false,
+            Some((type_root, _method)) => opted_in_concepts_by_context
+                .get(decl_ctx)
+                .is_some_and(|concepts_in_ctx| concepts_in_ctx.contains(type_root)),
+            None => opted_in_concepts_by_context.contains_key(decl_ctx),
+        };
+
+        if fires {
+            // All borrows of `decl` have ended; move its fields out — no clone.
+            out.push(Violation::VerbMissingInSpec {
+                qname: decl.qname,
+                code_source: decl.source,
+            });
         }
     }
 }
@@ -224,11 +223,11 @@ mod tests {
     }
 
     fn make_code_node(name: &str, unit: &str) -> ConceptNode {
-        ConceptNode {
-            name: name.to_owned(),
-            source: code_src(&format!("{unit}/src/lib.rs")),
-            signature: crate::SignatureState::Absent,
-        }
+        ConceptNode::new(
+            name.to_owned(),
+            code_src(&format!("{unit}/src/lib.rs")),
+            crate::SignatureState::Absent,
+        )
     }
 
     fn make_decl(qname: &str, unit: &str) -> VerbDecl {
@@ -258,7 +257,7 @@ mod tests {
         let code = Graph::new(code_nodes, vec![]);
         let verb_ownership = VerbOwnership { decls, anchors };
         let mut out = Vec::new();
-        verb_pass(&verb_ownership, &code, &contexts, &mut out);
+        verb_pass(verb_ownership, &code, &contexts, &mut out);
         out
     }
 

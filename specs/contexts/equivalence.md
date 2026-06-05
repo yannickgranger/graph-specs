@@ -21,6 +21,8 @@ here. No IO, no parser state — just values, traits, and the three-pass
 - EdgeKind (PublishedLanguage)
 - Violation (PublishedLanguage)
 - ContextViolation (PublishedLanguage)
+- CohesionViolation (PublishedLanguage)
+- AbstractionLevel (PublishedLanguage)
 - ContextDecl (PublishedLanguage)
 - ContextExport (PublishedLanguage)
 - ContextImport (PublishedLanguage)
