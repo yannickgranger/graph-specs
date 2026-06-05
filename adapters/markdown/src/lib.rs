@@ -24,6 +24,9 @@
 
 mod contexts;
 mod markdown_utils;
+mod tree;
+
+pub use tree::{assemble_spec_trees, assemble_tree, HeadingNode, SpecTree};
 
 use crate::markdown_utils::{compute_line_starts, line_of_offset, path_under_dir};
 use domain::{

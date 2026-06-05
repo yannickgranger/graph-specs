@@ -6,7 +6,9 @@
 //! with flat list syntax vs H2/H3 + fenced rust + bullet-edge syntax).
 //! Only the line-offset helpers are shared via [`crate::markdown_utils`].
 
-use crate::markdown_utils::{compute_line_starts, line_of_offset, path_under_dir};
+use crate::markdown_utils::{
+    compute_line_starts, line_of_offset, normalize_context_id, path_under_dir,
+};
 use domain::{
     detect_import_cycle, ContextDecl, ContextExport, ContextImport, ContextPattern, OwnedUnit,
     Source,
@@ -120,7 +122,10 @@ fn handle_event(st: &mut State, event: Event, range: std::ops::Range<usize>) {
             st.heading_buf.clear();
         }
         Event::End(TagEnd::Heading(HeadingLevel::H1)) => {
-            let name = st.heading_buf.trim().to_string();
+            // RFC-010 §3.2: the context identifier is the normalised H1,
+            // the same rule the concepts-side tree assembler applies, so
+            // `# AC verifier` resolves to `ac-verifier` on both sides.
+            let name = normalize_context_id(&st.heading_buf);
             let line = line_of_offset(&st.line_starts, range.start);
             st.heading = None;
             if name.is_empty() {

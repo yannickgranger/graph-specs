@@ -65,3 +65,25 @@ anchoring pass with code-side `pub fn` declarations. Lives in
 - depends on: Graph
 - depends on: ReaderError
 - depends on: PubFnDecl
+
+## HeadingNode
+
+One node of the abstraction-ladder tree (RFC-010 §3.2 / R10-2) — a single
+markdown heading, tagged with the [AbstractionLevel](#abstractionlevel) its
+depth maps to (`H1 → Context`, `H2 → Concept`, `H3 → SubConcept`,
+`H4+ → Member`), its trimmed text, the normalised context identifier for an
+H1 node (`# AC verifier` → `ac-verifier`, `None` deeper), its 1-based line,
+and the index of its parent one rung up (`None` for a context, or for an
+orphaned sub-concept). Lives in `adapters/markdown`.
+
+## SpecTree
+
+The assembled heading tree for a single spec file (RFC-010 §3.2 / R10-2) —
+a parent-linked vector of [HeadingNode](#headingnode) in document order,
+produced by the `assemble_tree` pass (a separate `pulldown-cmark` walk from
+the concept reader's `handle_event`, which is at the complexity ceiling).
+Exposes `context_id` (the file's single bounded-context identifier) and
+`cohesion_violations`, which surfaces the spec-side
+[CohesionViolation](#cohesionviolation)s the tree's shape reveals — an H1
+context with no concept under it, and orphaned H3 sub-concepts. Wiring the
+detection into the `check` diff is R10-3. Lives in `adapters/markdown`.

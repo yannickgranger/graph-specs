@@ -43,6 +43,8 @@ equivalence publishes.
 - VerbAnchor from equivalence (PublishedLanguage)
 - InvariantAnnotation from equivalence (PublishedLanguage)
 - TierKind from equivalence (PublishedLanguage)
+- AbstractionLevel from equivalence (PublishedLanguage)
+- CohesionViolation from equivalence (PublishedLanguage)
 
 ## Concepts
 
