@@ -1,0 +1,32 @@
+[package]
+name = "adapter-cfdb-query"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+# RFC-010 §3.3 / Invariant 3: of the cfdb crates, `cfdb-core` ONLY. The
+# keyspace JSON deserializes with cfdb-core's `fact`/`schema` types alone —
+# no cfdb-petgraph / cfdb-query / cfdb-concepts. This is the Anti-Corruption
+# Layer's single window onto cfdb's wire shape (so the format is owned in one
+# place, never re-derived).
+#
+# Pinned to the OSS GitHub mirror at the immutable `v0.5.0` tag. A git pin
+# (not a sibling path dep) is what resolves in CI: the build/test/clippy
+# `--workspace` jobs clone only graph-specs, so a relative/absolute path to a
+# cfdb checkout would not resolve. v0.5.0 (= cfdb main) is a superset of the
+# `.cfdb/cfdb.rev` binary pin used to extract keyspaces, so its `fact`/`schema`
+# types read those keyspaces (schema 0.5.x, G4-monotonic).
+cfdb-core = { git = "https://github.com/yannickgranger/cfdb.git", tag = "v0.5.0" }
+domain = { workspace = true }
+ports = { workspace = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+# Parity reference: the real source-walk `CodeFacts` adapter (RFC-010 §7).
+adapter-rust = { workspace = true }
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

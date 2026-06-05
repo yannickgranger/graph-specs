@@ -7,8 +7,10 @@
 
 use adapter_markdown::{assemble_spec_trees, MarkdownReader, SpecTree};
 use adapter_rust::RustReader;
-use domain::{diff, CheckInput, CohesionViolation, VerbDecl, VerbOwnership, Violation};
-use ports::{ContextReader, Reader, ReaderError, VerbReader};
+use domain::{
+    diff, CheckInput, CohesionViolation, ConceptNode, VerbDecl, VerbOwnership, Violation,
+};
+use ports::{CodeFacts, ContextReader, Reader, ReaderError, VerbReader};
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -74,6 +76,53 @@ pub fn run_check(specs_dir: &Path, code_dir: &Path) -> Result<Vec<Violation>, Re
     ))
 }
 
+/// Resolve the code-side concept provenance through the `CodeFacts` adapter
+/// the RFC-010 §3.3 routing rule selects:
+///
+/// - `keyspace: None` ⇒ the source-walking [`RustReader`] — the adapter for
+///   multi-crate repos (e.g. graph-specs itself), whose bounded contexts span
+///   several crates and resolve via `specs/contexts/` Owns.
+/// - `keyspace: Some(path)` ⇒ the cfdb-query ACL reading that keyspace — the
+///   adapter for one-per-crate repos (e.g. agentry), whose per-crate
+///   `bounded_context` is coherent (RFC-010 §13-A (b)-MVP).
+///
+/// The cfdb-query branch is compiled only under the `codefacts` feature (the
+/// opt-in leaf, Invariant 3); without it, a keyspace route is a configuration
+/// error, never a silent fallback to source-walk.
+///
+/// # Errors
+///
+/// Propagates any [`ReaderError`] from the selected adapter; returns
+/// [`ReaderError::WalkFailed`] when a keyspace route is requested in a build
+/// compiled without the `codefacts` feature.
+pub fn code_facts(
+    code_dir: &Path,
+    keyspace: Option<&Path>,
+) -> Result<Vec<ConceptNode>, ReaderError> {
+    keyspace.map_or_else(
+        || RustReader.concepts(code_dir),
+        |keyspace| keyspace_facts(code_dir, keyspace),
+    )
+}
+
+/// The `Some(keyspace)` arm of [`code_facts`]: read code facts from a cfdb
+/// keyspace via the cfdb-query ACL. Compiled only under the `codefacts`
+/// feature (the opt-in leaf, RFC-010 Invariant 3).
+#[cfg(feature = "codefacts")]
+fn keyspace_facts(code_dir: &Path, keyspace: &Path) -> Result<Vec<ConceptNode>, ReaderError> {
+    adapter_cfdb_query::CfdbQueryReader::new(keyspace).concepts(code_dir)
+}
+
+/// Without the `codefacts` feature, requesting a keyspace route is a
+/// configuration error — never a silent fallback to source-walk.
+#[cfg(not(feature = "codefacts"))]
+fn keyspace_facts(code_dir: &Path, _keyspace: &Path) -> Result<Vec<ConceptNode>, ReaderError> {
+    Err(ReaderError::WalkFailed {
+        root: code_dir.to_path_buf(),
+        cause: "cfdb-query keyspace routing requires the `codefacts` feature".to_owned(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -87,6 +136,45 @@ mod tests {
         }
         let mut f = std::fs::File::create(&full).unwrap();
         f.write_all(content.as_bytes()).unwrap();
+    }
+
+    #[test]
+    fn code_facts_without_keyspace_routes_to_source_walk() {
+        // RFC-010 §3.3 routing: `None` keyspace selects the source-walk adapter
+        // — `code_facts` must return exactly what `RustReader` does.
+        let code = TempDir::new().unwrap();
+        write(
+            code.path(),
+            "mycrate/Cargo.toml",
+            "[package]\nname = \"mycrate\"\n",
+        );
+        write(code.path(), "mycrate/src/lib.rs", "pub struct Foo;");
+        let via_router = code_facts(code.path(), None).unwrap();
+        let via_adapter = RustReader.concepts(code.path()).unwrap();
+        assert_eq!(via_router, via_adapter);
+        assert!(via_router.iter().any(|c| c.name == "Foo"));
+    }
+
+    #[cfg(feature = "codefacts")]
+    #[test]
+    fn code_facts_with_keyspace_routes_to_cfdb_query() {
+        // RFC-010 §3.3 routing: `Some(keyspace)` selects the cfdb-query ACL.
+        let dir = TempDir::new().unwrap();
+        let keyspace = dir.path().join("ks.json");
+        std::fs::write(
+            &keyspace,
+            r#"{"schema_version":{"major":0,"minor":5,"patch":0},"nodes":[
+                {"id":"item:domain::Foo","label":"Item","props":{
+                    "name":"Foo","kind":"struct","crate":"domain",
+                    "bounded_context":"domain","module_qpath":"domain",
+                    "file":"/ws/domain/src/lib.rs","visibility":"pub",
+                    "is_test":false,"line":1}}],"edges":[]}"#,
+        )
+        .unwrap();
+        let facts = code_facts(Path::new("/ws"), Some(&keyspace)).unwrap();
+        assert_eq!(facts.len(), 1);
+        assert_eq!(facts[0].name, "Foo");
+        assert_eq!(facts[0].unit.as_deref(), Some("domain"));
     }
 
     #[test]

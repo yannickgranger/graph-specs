@@ -57,14 +57,38 @@ signature normalisation via `adapter-rust::normalize` and v0.3 relationship
 edges from struct fields, impl blocks, and trait method signatures.
 `VerbReader::extract_pub_fns` uses a separate parallel walk (per RFC-005
 §3.2 dry-run rust-systems-A); `check` invokes it to feed the verb-
-anchoring pass with code-side `pub fn` declarations. Lives in
+anchoring pass with code-side `pub fn` declarations. Also implements
+[CodeFacts](equivalence.md#codefacts) (RFC-010 R10-6), returning the
+graph's [ConceptNode](#conceptnode)s as the source-walk parity reference
+the cfdb-query [CfdbQueryReader](#cfdbqueryreader) ACL must match. Lives in
 `adapters/rust`.
 
 - implements: Reader
 - implements: VerbReader
+- implements: CodeFacts
 - depends on: Graph
+- depends on: ConceptNode
 - depends on: ReaderError
 - depends on: PubFnDecl
+
+## CfdbQueryReader
+
+The cfdb-query [CodeFacts](equivalence.md#codefacts) Anti-Corruption Layer
+(RFC-010 §3.3 / R10-6). Reads a cfdb keyspace JSON and translates `:Item`
+nodes into agnostic [ConceptNode](#conceptnode)s — `unit` / `module_path`
+reconstructed from the `:Item.file` prop to match the source-walk
+[RustReader](#rustreader)'s derivation (the parity contract), `context`
+from cfdb's per-crate `bounded_context`. It is an ACL, not a Conformist:
+cfdb's Rust-specific props are translated, never adopted verbatim, so a
+prop-less PHP `:Item` yields empty provenance rather than a crash. Depends
+only on `cfdb-core` (plus serde) for the keyspace wire shape; compiled into
+the application solely behind the `codefacts` feature (the opt-in leaf).
+Lives in `adapters/cfdb-query`.
+
+- implements: CodeFacts
+- depends on: ConceptNode
+- depends on: ReaderError
+- returns: CfdbQueryReader
 
 ## HeadingNode
 
