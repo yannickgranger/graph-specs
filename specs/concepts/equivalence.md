@@ -235,6 +235,7 @@ v0.5 entirely. Lives in `domain`.
 - depends on: ConceptNode
 - depends on: ContextDecl
 - depends on: VerbOwnership
+- depends on: CohesionViolation
 - returns: CheckInput
 - verb: diff
 - verb: context_for_concept
@@ -242,6 +243,7 @@ v0.5 entirely. Lives in `domain`.
 - verb: CheckInput::new
 - verb: CheckInput::with_graph_and_contexts
 - verb: CheckInput::with_draft_concepts
+- verb: CheckInput::with_spec_cohesion
 
 ## SchemaVersion
 

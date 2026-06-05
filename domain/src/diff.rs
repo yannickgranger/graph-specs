@@ -11,6 +11,7 @@
 //!    [`crate::Violation::Context`] variants for membership + cross-context
 //!    edges. Order-independent from passes 1–3 (RFC-001 §4 invariant 9).
 
+mod cohesion;
 mod context;
 mod edge;
 mod signature;
@@ -19,8 +20,30 @@ mod verb;
 #[cfg(test)]
 mod tests;
 
-use crate::{CheckInput, ConceptNode, Graph, Source, Violation};
+use crate::{CheckInput, ConceptNode, ContextDecl, Graph, Source, Violation};
 use std::collections::{HashMap, HashSet};
+
+/// Snapshot each spec concept's declared owning context (its `concepts/` H1,
+/// populated on [`ConceptNode::context`] by `run_check` from the R10-2 tree)
+/// before `spec_nodes` is consumed by the concept loop. Empty when no
+/// contexts are declared — `ConceptContextMismatch` is code-fact-gated
+/// (RFC-010 §3.4), so the snapshot is wasted work without them.
+fn snapshot_declared_contexts(
+    spec_nodes: &[ConceptNode],
+    spec_contexts: &[ContextDecl],
+) -> Vec<(String, String, Source)> {
+    if spec_contexts.is_empty() {
+        return Vec::new();
+    }
+    spec_nodes
+        .iter()
+        .filter_map(|n| {
+            n.context
+                .as_ref()
+                .map(|c| (n.name.clone(), c.clone(), n.source.clone()))
+        })
+        .collect()
+}
 
 #[must_use]
 pub fn diff(spec: CheckInput, code: Graph) -> Vec<Violation> {
@@ -29,6 +52,7 @@ pub fn diff(spec: CheckInput, code: Graph) -> Vec<Violation> {
         contexts: spec_contexts,
         verb_ownership: spec_verb_ownership,
         draft_concepts,
+        spec_cohesion,
     } = spec;
     let Graph {
         nodes: spec_nodes,
@@ -51,6 +75,8 @@ pub fn diff(spec: CheckInput, code: Graph) -> Vec<Violation> {
     } else {
         Graph::new(code_nodes.clone(), Vec::new())
     };
+
+    let declared_contexts = snapshot_declared_contexts(&spec_nodes, &spec_contexts);
 
     // Index code by name, consuming code_nodes — later lookups remove the
     // match so the remainder is "code-only" (missing in specs).
@@ -114,6 +140,14 @@ pub fn diff(spec: CheckInput, code: Graph) -> Vec<Violation> {
     verb::verb_pass(
         spec_verb_ownership,
         &code_for_verb,
+        &spec_contexts,
+        &mut violations,
+    );
+
+    cohesion::cohesion_pass(
+        spec_cohesion,
+        declared_contexts,
+        &code_for_context,
         &spec_contexts,
         &mut violations,
     );

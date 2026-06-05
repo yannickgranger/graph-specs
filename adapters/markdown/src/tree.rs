@@ -73,6 +73,27 @@ impl SpecTree {
             .and_then(|n| n.id.as_deref())
     }
 
+    /// Each `Concept` / `SubConcept` heading paired with this file's
+    /// context identifier — the spec-side **declared** owning context the
+    /// R10-3 cohesion pass compares against the code-resolved context
+    /// (RFC-010 §3.4). Empty when the file declares no `Context` H1.
+    #[must_use]
+    pub fn concept_declarations(&self) -> Vec<(&str, &str)> {
+        let Some(ctx) = self.context_id() else {
+            return Vec::new();
+        };
+        self.nodes
+            .iter()
+            .filter(|n| {
+                matches!(
+                    n.level,
+                    AbstractionLevel::Concept | AbstractionLevel::SubConcept
+                )
+            })
+            .map(|n| (n.text.as_str(), ctx))
+            .collect()
+    }
+
     /// The spec-side cohesion violations the tree's shape reveals
     /// (RFC-010 §3.5): every `Context` with no concept under it, and every
     /// orphaned `SubConcept`. Detection only — emission into the `check`

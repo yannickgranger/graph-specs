@@ -4,7 +4,7 @@
 //! Write`) so unit tests can exercise each variant without going
 //! through stdout. The CLI's `--format=text` dispatch calls this.
 
-use domain::{ContextViolation, Source, Violation};
+use domain::{CohesionViolation, ContextViolation, Source, Violation};
 use std::io::Write;
 use std::path::Path;
 
@@ -146,7 +146,39 @@ pub fn format_violation(v: &Violation, out: &mut impl Write) -> std::io::Result<
                 path.display()
             )
         }
+        Violation::Cohesion(c) => format_cohesion_violation(c, out),
         _ => writeln!(out, "unknown violation"),
+    }
+}
+
+fn format_cohesion_violation(v: &CohesionViolation, out: &mut impl Write) -> std::io::Result<()> {
+    match v {
+        CohesionViolation::ContextWithoutCohesionUnit { context, file } => writeln!(
+            out,
+            "context without cohesion unit: `{context}` declares no concept under its H1 ({})",
+            file.display()
+        ),
+        CohesionViolation::SubConceptOrphan { sub_concept, file } => writeln!(
+            out,
+            "sub-concept orphan: `{sub_concept}` has no enclosing concept (H3 without an H2) ({})",
+            file.display()
+        ),
+        CohesionViolation::ConceptContextMismatch {
+            concept,
+            declared,
+            code_context,
+            spec_source,
+        } => {
+            let (path, line) = source_pair(spec_source);
+            writeln!(
+                out,
+                "concept context mismatch: {concept} declared in `{declared}` but code resolves to `{code_context}` ({}:{line})",
+                path.display()
+            )
+        }
+        // Forward-compat: a future `#[non_exhaustive]` variant renders
+        // generically rather than panicking.
+        _ => writeln!(out, "unknown cohesion violation"),
     }
 }
 
@@ -222,7 +254,7 @@ fn source_pair(s: &Source) -> (&Path, usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use domain::{ContextViolation, EdgeKind, OwnedUnit, Source, Violation};
+    use domain::{CohesionViolation, ContextViolation, EdgeKind, OwnedUnit, Source, Violation};
     use std::path::PathBuf;
 
     fn render(v: &Violation) -> String {
@@ -372,5 +404,47 @@ mod tests {
         };
         let out = render(&v);
         assert_eq!(out, "missing in code: Foo (specs/a.md:1)\n");
+    }
+
+    // --- RFC-010 §3.5 / R10-3 cohesion rendering (§12-G) ---
+
+    #[test]
+    fn concept_context_mismatch_text_renders_path_line() {
+        let v = Violation::Cohesion(CohesionViolation::ConceptContextMismatch {
+            concept: "Widget".into(),
+            declared: "reading".into(),
+            code_context: "equivalence".into(),
+            spec_source: Source::Spec {
+                path: PathBuf::from("specs/concepts/reading.md"),
+                line: 7,
+            },
+        });
+        let out = render(&v);
+        assert!(out.contains("concept context mismatch: Widget"));
+        assert!(out.contains("declared in `reading`"));
+        assert!(out.contains("code resolves to `equivalence`"));
+        assert!(out.contains("specs/concepts/reading.md:7"));
+        assert!(!out.contains("unknown violation"));
+    }
+
+    #[test]
+    fn context_without_cohesion_unit_text() {
+        let v = Violation::Cohesion(CohesionViolation::ContextWithoutCohesionUnit {
+            context: "lonely".into(),
+            file: PathBuf::from("specs/concepts/lonely.md"),
+        });
+        let out = render(&v);
+        assert!(out.contains("context without cohesion unit: `lonely`"));
+        assert!(out.contains("specs/concepts/lonely.md"));
+    }
+
+    #[test]
+    fn sub_concept_orphan_text() {
+        let v = Violation::Cohesion(CohesionViolation::SubConceptOrphan {
+            sub_concept: "Inner".into(),
+            file: PathBuf::from("specs/concepts/x.md"),
+        });
+        let out = render(&v);
+        assert!(out.contains("sub-concept orphan: `Inner`"));
     }
 }

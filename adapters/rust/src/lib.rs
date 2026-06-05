@@ -66,7 +66,7 @@ impl LanguageBackend for RustBackend {
             }
 
             let (parsed, path) = read_and_parse(entry.path().to_path_buf())?;
-            extract_from_file(&parsed, &path, &mut concepts, &mut raw_edges);
+            extract_from_file(&parsed, &path, code_root, &mut concepts, &mut raw_edges);
         }
 
         Ok(Extraction {
@@ -284,22 +284,71 @@ fn is_excluded_dir(entry: &DirEntry) -> bool {
 fn extract_from_file(
     file: &File,
     path: &Path,
+    root: &Path,
     out: &mut Vec<ConceptNode>,
     edges_out: &mut Vec<Edge>,
 ) {
+    // Containment provenance (RFC-010 §3.3) is per-file, so derive it once
+    // and share across the file's top-level items: `unit` is the owning
+    // crate relative to the code root (§12-I — NOT the raw walked path);
+    // `module_path` is the crate-root-collapsed module path (§12-H).
+    let unit = find_owned_unit(path, root);
+    let module_path = module_path_of(path, root, unit.as_deref());
     for item in &file.items {
-        visit_top_level_item(item, path, out);
+        visit_top_level_item(item, path, module_path.as_deref(), unit.as_deref(), out);
         edges::emit_for_item(item, path, edges_out);
     }
 }
 
-fn visit_top_level_item(item: &syn::Item, path: &Path, out: &mut Vec<ConceptNode>) {
+fn visit_top_level_item(
+    item: &syn::Item,
+    path: &Path,
+    module_path: Option<&str>,
+    unit: Option<&str>,
+    out: &mut Vec<ConceptNode>,
+) {
     use syn::Item;
     match item {
-        Item::Struct(s) => emit(&s.vis, &s.ident, &s.attrs, item, path, out),
-        Item::Enum(e) => emit(&e.vis, &e.ident, &e.attrs, item, path, out),
-        Item::Trait(t) => emit(&t.vis, &t.ident, &t.attrs, item, path, out),
-        Item::Type(t) => emit(&t.vis, &t.ident, &t.attrs, item, path, out),
+        Item::Struct(s) => emit(
+            &s.vis,
+            &s.ident,
+            &s.attrs,
+            item,
+            path,
+            module_path,
+            unit,
+            out,
+        ),
+        Item::Enum(e) => emit(
+            &e.vis,
+            &e.ident,
+            &e.attrs,
+            item,
+            path,
+            module_path,
+            unit,
+            out,
+        ),
+        Item::Trait(t) => emit(
+            &t.vis,
+            &t.ident,
+            &t.attrs,
+            item,
+            path,
+            module_path,
+            unit,
+            out,
+        ),
+        Item::Type(t) => emit(
+            &t.vis,
+            &t.ident,
+            &t.attrs,
+            item,
+            path,
+            module_path,
+            unit,
+            out,
+        ),
         // All other items (Mod, Fn, Impl, Const, Static, Use, Macro, etc.) are
         // not top-level concepts. Inline `mod` contents are intentionally not
         // recursed — per-file top-level only.
@@ -307,12 +356,15 @@ fn visit_top_level_item(item: &syn::Item, path: &Path, out: &mut Vec<ConceptNode
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn emit(
     vis: &Visibility,
     ident: &syn::Ident,
     attrs: &[Attribute],
     item: &syn::Item,
     path: &Path,
+    module_path: Option<&str>,
+    unit: Option<&str>,
     out: &mut Vec<ConceptNode>,
 ) {
     if !matches!(vis, Visibility::Public(_)) {
@@ -322,16 +374,56 @@ fn emit(
         return;
     }
     let line = ident.span().start().line;
-    // Provenance (module_path / unit / context) stays `None` here in R10-1;
-    // the source-walk adapter populates it via `with_provenance` in R10-3.
-    out.push(ConceptNode::new(
-        ident.to_string(),
-        Source::Code {
-            path: path.to_path_buf(),
-            line,
-        },
-        SignatureState::Normalized(normalize(item)),
-    ));
+    // `context` stays `None` on the reader side — it needs `specs/contexts/`
+    // Owns, resolved by the cohesion pass (RFC-010 §3.4). The cfdb-query ACL
+    // (R10-6) populates `context` directly.
+    out.push(
+        ConceptNode::new(
+            ident.to_string(),
+            Source::Code {
+                path: path.to_path_buf(),
+                line,
+            },
+            SignatureState::Normalized(normalize(item)),
+        )
+        .with_provenance(
+            module_path.map(str::to_owned),
+            unit.map(str::to_owned),
+            None,
+        ),
+    );
+}
+
+/// Derive a concept's crate-root-collapsed module path (RFC-010 §3.3/§12-H).
+///
+/// `unit` is the owning crate relative to the code root (from
+/// [`find_owned_unit`]). The module segments are the path components between
+/// `<unit>/src/` and the file, with a trailing `lib` / `mod` / `main`
+/// collapsed to the crate root — so `domain/src/lib.rs` → `domain`,
+/// `domain/src/diff.rs` → `domain::diff`, `domain/src/diff/mod.rs` →
+/// `domain::diff`. Returns `None` when `unit` is unknown.
+fn module_path_of(file_path: &Path, root: &Path, unit: Option<&str>) -> Option<String> {
+    let unit = unit?;
+    let rel = file_path
+        .strip_prefix(root)
+        .ok()
+        .map(|p| p.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_default();
+    let after_unit = rel
+        .strip_prefix(unit)
+        .unwrap_or(&rel)
+        .trim_start_matches('/');
+    let after_src = after_unit.strip_prefix("src/").unwrap_or(after_unit);
+    let stem = after_src.strip_suffix(".rs").unwrap_or(after_src);
+    let mut segments: Vec<&str> = stem.split('/').filter(|s| !s.is_empty()).collect();
+    if matches!(segments.last().copied(), Some("lib" | "mod" | "main")) {
+        segments.pop();
+    }
+    if segments.is_empty() {
+        Some(unit.to_owned())
+    } else {
+        Some(format!("{unit}::{}", segments.join("::")))
+    }
 }
 
 fn is_test_gated(attrs: &[Attribute]) -> bool {
@@ -458,6 +550,73 @@ mod tests {
         assert!(!RustBackend.detect(d.path()), "no marker → false");
         write(d.path(), "Cargo.toml", "[package]\nname = \"x\"\n");
         assert!(RustBackend.detect(d.path()), "Cargo.toml present → true");
+    }
+
+    // --- RFC-010 §3.3 / R10-3 source-walk provenance ---
+
+    fn node_named<'a>(g: &'a Graph, name: &str) -> &'a ConceptNode {
+        g.nodes
+            .iter()
+            .find(|n| n.name == name)
+            .unwrap_or_else(|| panic!("missing concept {name}"))
+    }
+
+    #[test]
+    fn provenance_lib_rs_collapses_to_crate_root() {
+        // A top-level type in `<crate>/src/lib.rs`: module_path == unit ==
+        // the crate path relative to the code root (§12-H crate-root edge).
+        let d = TempDir::new().unwrap();
+        write(
+            d.path(),
+            "mycrate/Cargo.toml",
+            "[package]\nname=\"mycrate\"\n",
+        );
+        write(d.path(), "mycrate/src/lib.rs", "pub struct Foo;");
+        let g = RustReader.extract(d.path()).unwrap();
+        let foo = node_named(&g, "Foo");
+        assert_eq!(foo.unit.as_deref(), Some("mycrate"));
+        assert_eq!(foo.module_path.as_deref(), Some("mycrate"));
+        assert_eq!(foo.context, None, "context resolved later, not by reader");
+    }
+
+    #[test]
+    fn provenance_main_rs_collapses_to_crate_root() {
+        let d = TempDir::new().unwrap();
+        write(d.path(), "app/Cargo.toml", "[package]\nname=\"app\"\n");
+        write(d.path(), "app/src/main.rs", "pub struct Cli;");
+        let g = RustReader.extract(d.path()).unwrap();
+        assert_eq!(node_named(&g, "Cli").module_path.as_deref(), Some("app"));
+    }
+
+    #[test]
+    fn provenance_submodule_file_and_mod_rs() {
+        let d = TempDir::new().unwrap();
+        write(d.path(), "c/Cargo.toml", "[package]\nname=\"c\"\n");
+        write(d.path(), "c/src/diff.rs", "pub struct A;");
+        write(d.path(), "c/src/edge/mod.rs", "pub struct B;");
+        let g = RustReader.extract(d.path()).unwrap();
+        // `diff.rs` → module segment; `edge/mod.rs` collapses the `mod`.
+        assert_eq!(node_named(&g, "A").module_path.as_deref(), Some("c::diff"));
+        assert_eq!(node_named(&g, "B").module_path.as_deref(), Some("c::edge"));
+        assert_eq!(node_named(&g, "B").unit.as_deref(), Some("c"));
+    }
+
+    #[test]
+    fn provenance_unit_is_relative_to_code_root_not_walked_path() {
+        // §12-I: a nested crate's `unit` is the crate path relative to the
+        // code root, never the absolute walked path.
+        let d = TempDir::new().unwrap();
+        write(
+            d.path(),
+            "adapters/markdown/Cargo.toml",
+            "[package]\nname=\"adapter-markdown\"\n",
+        );
+        write(d.path(), "adapters/markdown/src/lib.rs", "pub struct R;");
+        let g = RustReader.extract(d.path()).unwrap();
+        assert_eq!(
+            node_named(&g, "R").unit.as_deref(),
+            Some("adapters/markdown")
+        );
     }
 
     /// Self-dogfood: `extract_pub_fns` on this repo's `application/` crate

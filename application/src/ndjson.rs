@@ -18,7 +18,7 @@
 //! All v1 records are structurally unchanged except for the version
 //! bump. Consumers pin on `schema_version` and select a variant set.
 
-use domain::{ContextViolation, SchemaVersion, Source, Violation};
+use domain::{CohesionViolation, ContextViolation, SchemaVersion, Source, Violation};
 use serde_json::{json, Value};
 use std::io::Write;
 use std::path::Path;
@@ -166,9 +166,46 @@ fn violation_to_record(v: &Violation) -> Value {
             "name": name,
             "draft_source": source_to_json(draft_source),
         }),
+        Violation::Cohesion(c) => cohesion_violation_to_record(c),
         _ => json!({
             "schema_version": SchemaVersion::CURRENT.as_str(),
             "violation": "unknown_violation",
+        }),
+    }
+}
+
+fn cohesion_violation_to_record(v: &CohesionViolation) -> Value {
+    match v {
+        CohesionViolation::ContextWithoutCohesionUnit { context, file } => json!({
+            "schema_version": SchemaVersion::CURRENT.as_str(),
+            "violation": "context_without_cohesion_unit",
+            "context": context,
+            "file": file.display().to_string(),
+        }),
+        CohesionViolation::SubConceptOrphan { sub_concept, file } => json!({
+            "schema_version": SchemaVersion::CURRENT.as_str(),
+            "violation": "sub_concept_orphan",
+            "sub_concept": sub_concept,
+            "file": file.display().to_string(),
+        }),
+        CohesionViolation::ConceptContextMismatch {
+            concept,
+            declared,
+            code_context,
+            spec_source,
+        } => json!({
+            "schema_version": SchemaVersion::CURRENT.as_str(),
+            "violation": "concept_context_mismatch",
+            "concept": concept,
+            "declared": declared,
+            "code_context": code_context,
+            "spec_source": source_to_json(spec_source),
+        }),
+        // Forward-compat with `#[non_exhaustive]`: a future variant emits a
+        // generic record rather than panicking.
+        _ => json!({
+            "schema_version": SchemaVersion::CURRENT.as_str(),
+            "violation": "unknown_cohesion_violation",
         }),
     }
 }
@@ -265,7 +302,7 @@ fn path_to_string(p: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use domain::EdgeKind;
+    use domain::{CohesionViolation, EdgeKind};
     use serde_json::Value;
     use std::path::PathBuf;
 
@@ -619,5 +656,48 @@ mod tests {
         assert_eq!(r["edge_kind"], "IMPLEMENTS");
         assert_eq!(r["target"], "Reader");
         assert_eq!(r["target_context"], "equivalence");
+    }
+
+    // --- RFC-010 §3.5 / R10-3 cohesion records (§12-G) ---
+
+    #[test]
+    fn concept_context_mismatch_record() {
+        let v = Violation::Cohesion(CohesionViolation::ConceptContextMismatch {
+            concept: "Widget".into(),
+            declared: "reading".into(),
+            code_context: "equivalence".into(),
+            spec_source: Source::Spec {
+                path: PathBuf::from("specs/concepts/reading.md"),
+                line: 7,
+            },
+        });
+        let r = record(&render_one(v));
+        assert_eq!(r["violation"], "concept_context_mismatch");
+        assert_eq!(r["concept"], "Widget");
+        assert_eq!(r["declared"], "reading");
+        assert_eq!(r["code_context"], "equivalence");
+        assert_eq!(r["spec_source"]["line"], 7);
+    }
+
+    #[test]
+    fn spec_side_cohesion_records_carry_file() {
+        let cwc = record(&render_one(Violation::Cohesion(
+            CohesionViolation::ContextWithoutCohesionUnit {
+                context: "lonely".into(),
+                file: PathBuf::from("specs/concepts/lonely.md"),
+            },
+        )));
+        assert_eq!(cwc["violation"], "context_without_cohesion_unit");
+        assert_eq!(cwc["context"], "lonely");
+        assert_eq!(cwc["file"], "specs/concepts/lonely.md");
+
+        let orphan = record(&render_one(Violation::Cohesion(
+            CohesionViolation::SubConceptOrphan {
+                sub_concept: "Inner".into(),
+                file: PathBuf::from("specs/concepts/x.md"),
+            },
+        )));
+        assert_eq!(orphan["violation"], "sub_concept_orphan");
+        assert_eq!(orphan["sub_concept"], "Inner");
     }
 }

@@ -8,7 +8,7 @@
 //! lives alongside the three existing passes in `diff.rs` and consumes
 //! [`CheckInput`] as its spec-side argument.
 
-use crate::{ConceptNode, EdgeKind, Graph, Source, VerbOwnership};
+use crate::{CohesionViolation, ConceptNode, EdgeKind, Graph, Source, VerbOwnership};
 use std::collections::HashMap;
 
 /// A crate, npm package, Go module, or equivalent — named deliberately to
@@ -201,6 +201,13 @@ pub struct CheckInput {
     /// orphan pass to distinguish `ImplementsDraftConcept` from
     /// `MissingInSpecs`.
     pub draft_concepts: Vec<ConceptNode>,
+    /// Spec-side structural cohesion violations detected by the R10-2
+    /// `TreeAssembler` (`ContextWithoutCohesionUnit` / `SubConceptOrphan`),
+    /// pre-computed by the markdown adapter because they need the heading
+    /// tree (an adapter artifact). The diff's cohesion pass wraps them as
+    /// [`crate::Violation::Cohesion`] and folds them into the sorted output
+    /// (RFC-010 §3.5, fact-dependency split).
+    pub spec_cohesion: Vec<CohesionViolation>,
 }
 
 impl CheckInput {
@@ -216,6 +223,7 @@ impl CheckInput {
             contexts,
             verb_ownership,
             draft_concepts: Vec::new(),
+            spec_cohesion: Vec::new(),
         }
     }
 
@@ -231,6 +239,7 @@ impl CheckInput {
                 anchors: Vec::new(),
             },
             draft_concepts: Vec::new(),
+            spec_cohesion: Vec::new(),
         }
     }
 
@@ -241,6 +250,16 @@ impl CheckInput {
     pub fn with_draft_concepts(self, draft_concepts: Vec<ConceptNode>) -> Self {
         Self {
             draft_concepts,
+            ..self
+        }
+    }
+
+    /// Builder: attach the spec-side structural cohesion violations the
+    /// markdown adapter pre-computed from the heading tree (RFC-010 R10-3).
+    #[must_use]
+    pub fn with_spec_cohesion(self, spec_cohesion: Vec<CohesionViolation>) -> Self {
+        Self {
+            spec_cohesion,
             ..self
         }
     }
@@ -261,9 +280,18 @@ pub fn context_for_concept<'a>(
     let node = graph.nodes.iter().find(|n| n.name == concept_name)?;
     match &node.source {
         Source::Code { path, .. } => {
-            let path_str = path.to_string_lossy();
-            let trimmed = path_str.trim_start_matches("./");
-            let unit = trimmed.split_once("/src/").map(|(u, _)| u)?;
+            // Prefer the adapter-populated `unit` (relative to the code root,
+            // RFC-010 §3.3); fall back to deriving it from the path for nodes
+            // without provenance. The fallback's `split_once("/src/")` keeps
+            // the full absolute prefix on an absolute `--code` path, so it
+            // mismatches `owned_units` — the latent v0.4 bug §12-I fixes by
+            // routing through the relative `unit`.
+            let derived = || {
+                let path_str = path.to_string_lossy();
+                let trimmed = path_str.trim_start_matches("./").to_owned();
+                trimmed.split_once("/src/").map(|(u, _)| u.to_owned())
+            };
+            let unit = node.unit.clone().or_else(derived)?;
             contexts
                 .iter()
                 .find(|ctx| ctx.owned_units.iter().any(|u| u.0 == unit))
