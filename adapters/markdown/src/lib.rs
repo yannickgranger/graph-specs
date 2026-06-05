@@ -559,14 +559,15 @@ fn flush_pending(
     out: &mut Vec<ConceptNode>,
 ) {
     if let Some((name, line)) = pending.take() {
-        out.push(ConceptNode {
+        // Spec-side nodes carry no containment provenance (RFC-010 §3.3).
+        out.push(ConceptNode::new(
             name,
-            source: Source::Spec {
+            Source::Spec {
                 path: path.to_path_buf(),
                 line,
             },
-            signature: signature_from_blocks(rust_blocks),
-        });
+            signature_from_blocks(rust_blocks),
+        ));
     }
 }
 

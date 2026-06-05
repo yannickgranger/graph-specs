@@ -224,11 +224,11 @@ mod tests {
     }
 
     fn make_code_node(name: &str, unit: &str) -> ConceptNode {
-        ConceptNode {
-            name: name.to_owned(),
-            source: code_src(&format!("{unit}/src/lib.rs")),
-            signature: crate::SignatureState::Absent,
-        }
+        ConceptNode::new(
+            name.to_owned(),
+            code_src(&format!("{unit}/src/lib.rs")),
+            crate::SignatureState::Absent,
+        )
     }
 
     fn make_decl(qname: &str, unit: &str) -> VerbDecl {

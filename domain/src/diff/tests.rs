@@ -1,7 +1,7 @@
 use super::violation_key;
 use crate::{
-    CheckInput, ConceptNode, ContextViolation, Edge, EdgeKind, Graph, OwnedUnit, SignatureState,
-    Source, VerbOwnership, Violation,
+    CheckInput, CohesionViolation, ConceptNode, ContextViolation, Edge, EdgeKind, Graph, OwnedUnit,
+    SignatureState, Source, VerbOwnership, Violation,
 };
 use std::path::PathBuf;
 
@@ -23,57 +23,57 @@ fn code_path() -> PathBuf {
 }
 
 fn spec(name: &str) -> ConceptNode {
-    ConceptNode {
-        name: name.to_string(),
-        source: Source::Spec {
+    ConceptNode::new(
+        name.to_string(),
+        Source::Spec {
             path: spec_path(),
             line: 1,
         },
-        signature: SignatureState::Absent,
-    }
+        SignatureState::Absent,
+    )
 }
 fn code(name: &str) -> ConceptNode {
-    ConceptNode {
-        name: name.to_string(),
-        source: Source::Code {
+    ConceptNode::new(
+        name.to_string(),
+        Source::Code {
             path: code_path(),
             line: 1,
         },
-        signature: SignatureState::Absent,
-    }
+        SignatureState::Absent,
+    )
 }
 fn spec_with_sig(name: &str, sig: &str) -> ConceptNode {
-    ConceptNode {
-        name: name.to_string(),
-        source: Source::Spec {
+    ConceptNode::new(
+        name.to_string(),
+        Source::Spec {
             path: spec_path(),
             line: 1,
         },
-        signature: SignatureState::Normalized(sig.to_string()),
-    }
+        SignatureState::Normalized(sig.to_string()),
+    )
 }
 fn code_with_sig(name: &str, sig: &str) -> ConceptNode {
-    ConceptNode {
-        name: name.to_string(),
-        source: Source::Code {
+    ConceptNode::new(
+        name.to_string(),
+        Source::Code {
             path: code_path(),
             line: 1,
         },
-        signature: SignatureState::Normalized(sig.to_string()),
-    }
+        SignatureState::Normalized(sig.to_string()),
+    )
 }
 fn spec_unparseable(name: &str, raw: &str, error: &str) -> ConceptNode {
-    ConceptNode {
-        name: name.to_string(),
-        source: Source::Spec {
+    ConceptNode::new(
+        name.to_string(),
+        Source::Spec {
             path: spec_path(),
             line: 1,
         },
-        signature: SignatureState::Unparseable {
+        SignatureState::Unparseable {
             raw: raw.to_string(),
             error: error.to_string(),
         },
-    }
+    )
 }
 
 fn spec_edge(concept: &str, kind: EdgeKind, target: &str) -> Edge {
@@ -495,6 +495,50 @@ fn violation_key_context_sorts_after_edge_target_unknown() {
     assert!(da < db);
 }
 
+// --- v0.6 cohesion violation_key ranks (RFC-010 §3.5 / #125) ---
+
+#[test]
+fn violation_key_cohesion_returns_rank_12() {
+    let v = Violation::Cohesion(CohesionViolation::ContextWithoutCohesionUnit {
+        context: "equivalence".to_string(),
+        file: PathBuf::from("specs/concepts/equivalence.md"),
+    });
+    let (key, rank) = violation_key(&v);
+    assert_eq!(key, "equivalence");
+    assert_eq!(rank, 12);
+}
+
+#[test]
+fn violation_key_cohesion_uses_each_variant_key() {
+    let mismatch = Violation::Cohesion(CohesionViolation::ConceptContextMismatch {
+        concept: "MarkdownReader".to_string(),
+        declared: "reading".to_string(),
+        code_context: "equivalence".to_string(),
+        spec_source: Source::Spec {
+            path: spec_path(),
+            line: 1,
+        },
+    });
+    let (key, rank) = violation_key(&mismatch);
+    assert_eq!(key, "MarkdownReader");
+    assert_eq!(rank, 12);
+}
+
+#[test]
+fn violation_key_implements_draft_concept_moves_to_rank_13() {
+    // Draft-concept rank was bumped 12 → 13 so Cohesion takes 12 (RFC-010).
+    let v = Violation::ImplementsDraftConcept {
+        name: "Widget".to_string(),
+        draft_source: Source::Spec {
+            path: spec_path(),
+            line: 1,
+        },
+    };
+    let (key, rank) = violation_key(&v);
+    assert_eq!(key, "Widget");
+    assert_eq!(rank, 13);
+}
+
 // --- draft concept diagnostics (#1379 slice A) ---
 
 #[test]
@@ -503,11 +547,11 @@ fn implements_draft_concept_when_code_orphan_matches_draft_heading() {
         path: spec_path(),
         line: 5,
     };
-    let draft_concept = ConceptNode {
-        name: "Widget".to_string(),
-        source: draft_src.clone(),
-        signature: SignatureState::Absent,
-    };
+    let draft_concept = ConceptNode::new(
+        "Widget".to_string(),
+        draft_src.clone(),
+        SignatureState::Absent,
+    );
     let input = CheckInput::new(Graph::default(), Vec::new(), VerbOwnership::default())
         .with_draft_concepts(vec![draft_concept]);
     let code = nodes(vec![code("Widget")]);

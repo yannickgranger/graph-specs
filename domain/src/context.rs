@@ -280,6 +280,25 @@ pub fn context_for_concept<'a>(
     }
 }
 
+/// Resolve a concept's **spec-side declared** owning context (RFC-010 §3.4).
+///
+/// Applies the canonical-upstream precedence rule: a `specs/contexts/`
+/// declaration (RFC-001) wins over the concept file's own `H1` when both
+/// name a context. Returns `None` only when neither source names a context.
+///
+/// This is deliberately a *separate question* from the code-side
+/// resolution computed by [`context_for_concept`]: the R10-3 cohesion pass
+/// emits `ConceptContextMismatch` when the spec-side declaration and the
+/// code-side resolution disagree. Conflating the two into one chain would
+/// make the mismatch tautological (RFC-010 §3.4 / dry-run §12-B).
+#[must_use]
+pub fn resolve_declared_context<'a>(
+    h1_context: Option<&'a str>,
+    contexts_upstream: Option<&'a str>,
+) -> Option<&'a str> {
+    contexts_upstream.or(h1_context)
+}
+
 /// Detect a cycle in the import graph over `contexts`, excluding edges
 /// classified as [`ContextPattern::SharedKernel`] (RFC-001 §4 invariant 4
 /// — Shared Kernel is the one legal form of mutual reference).
@@ -503,5 +522,32 @@ mod tests {
         };
         let outer = Violation::Context(inner.clone());
         assert_eq!(outer, Violation::Context(inner));
+    }
+
+    // --- RFC-010 §3.4 declared-context precedence (#125) ---
+
+    #[test]
+    fn declared_context_prefers_specs_contexts_upstream() {
+        // Both the concept H1 and the canonical specs/contexts/ declaration
+        // name a context — the canonical-upstream one wins.
+        let resolved = resolve_declared_context(Some("reading"), Some("equivalence"));
+        assert_eq!(resolved, Some("equivalence"));
+    }
+
+    #[test]
+    fn declared_context_falls_back_to_h1_when_no_upstream() {
+        let resolved = resolve_declared_context(Some("reading"), None);
+        assert_eq!(resolved, Some("reading"));
+    }
+
+    #[test]
+    fn declared_context_uses_upstream_when_no_h1() {
+        let resolved = resolve_declared_context(None, Some("equivalence"));
+        assert_eq!(resolved, Some("equivalence"));
+    }
+
+    #[test]
+    fn declared_context_is_none_when_neither_source_names_one() {
+        assert_eq!(resolve_declared_context(None, None), None);
     }
 }
