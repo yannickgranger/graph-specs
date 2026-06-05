@@ -9,8 +9,10 @@ adapter-rust = { workspace = true }
 domain = { workspace = true }
 ports = { workspace = true }
 pulldown-cmark = { workspace = true }
+regex = "1"
 syn = { workspace = true }
 walkdir = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

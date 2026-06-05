@@ -25,9 +25,9 @@ code  (*.rs)  ──▶ Rust reader     ──▶ graph(code)  ─┘
 
 The two readers are fully independent. They produce graphs in the same shape. The diff engine is the single source of truth about equivalence.
 
-## The four levels of equivalence
+## The five levels of equivalence
 
-Every violation reported by the tool belongs to one of four levels. Each level must hold on every feature PR in a consumer project.
+Every violation reported by the tool belongs to one of five levels. Each level must hold on every feature PR in a consumer project.
 
 ### 1. Concept
 Every named concept in the specs exists as a type in the code, and vice versa. No spec-only concepts, no code-only types.
@@ -41,9 +41,12 @@ Every dependency, composition, or call edge the specs declare must exist in the 
 ### 4. Bounded context
 Every bounded context named in the specs maps to exactly one declared set of crates. No type crosses a context boundary unless the specs explicitly declare the crossing (ACL, shared kernel, published language, etc.).
 
+### 5. Cohesion (the abstraction ladder)
+Heading *depth* is load-bearing: `#` H1 = bounded context, `##` H2 = concept, `###` H3 = sub-concept, `####`+ H4 = member (RFC-010). A context must declare at least one concept under it, a sub-concept must have an enclosing concept, and a concept must be documented under the context its code actually lives in. See [`specs/dialect.md` § Abstraction ladder](specs/dialect.md#abstraction-ladder).
+
 ## Dogfooding from day zero
 
-The tool validates its own specs from the first commit. The tool's `specs/` directory contains markdown specifications for the tool itself; the tool reads those specs and its own source and diffs them. Every PR to this repository passes the same four-level check it imposes on downstream consumers.
+The tool validates its own specs from the first commit. The tool's `specs/` directory contains markdown specifications for the tool itself; the tool reads those specs and its own source and diffs them. Every PR to this repository passes the same five-level check it imposes on downstream consumers.
 
 Two self-control layers ship in CI:
 
@@ -56,7 +59,7 @@ The cfdb layer runs pinned Cypher rules under `.cfdb/queries/` — e.g. `arch-ba
 
 ## Anti-drift gate
 
-Every feature PR runs the four-level check as a CI gate. A violation at any level blocks the merge. There is no baseline file, no ratchet, no allowlist — violations are fixed in the same PR that introduces them, or the PR does not land.
+Every feature PR runs the five-level check as a CI gate. A violation at any level blocks the merge. There is no baseline file, no ratchet, no allowlist — violations are fixed in the same PR that introduces them, or the PR does not land.
 
 ## Why markdown specs?
 
@@ -112,7 +115,7 @@ The tool is designed for multiple language adapters behind the same port trait. 
 
 ## Status
 
-Concept-level and signature-level checks implemented end-to-end and dogfooded against this repository. Relationship and bounded-context levels are planned.
+All five levels — concept, signature, relationship, bounded-context, and cohesion (the abstraction ladder, RFC-010) — are implemented end-to-end and dogfooded against this repository on every PR. PHP and TypeScript source adapters are the next planned capability (RFC-011).
 
 ## Authorship
 

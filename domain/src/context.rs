@@ -8,7 +8,7 @@
 //! lives alongside the three existing passes in `diff.rs` and consumes
 //! [`CheckInput`] as its spec-side argument.
 
-use crate::{EdgeKind, Graph, Source};
+use crate::{CohesionViolation, ConceptNode, EdgeKind, Graph, Source, VerbOwnership};
 use std::collections::HashMap;
 
 /// A crate, npm package, Go module, or equivalent — named deliberately to
@@ -102,6 +102,17 @@ impl ContextPattern {
             Self::PublishedLanguage,
         ]
     }
+
+    /// Returns `true` for patterns that doctrine-sanction cross-context
+    /// appearances (no council escalation warranted). Per RFC-005 §3.3
+    /// dry-run DDD-C: `PublishedLanguage` and `SharedKernel` are the two
+    /// sanctioned patterns; `Conformist` and `CustomerSupplier` signal
+    /// potential split-brain. Forward-compatible with `#[non_exhaustive]`
+    /// — new variants must classify themselves by adding a match arm here.
+    #[must_use]
+    pub const fn is_doctrine_sanctioned(self) -> bool {
+        matches!(self, Self::PublishedLanguage | Self::SharedKernel)
+    }
 }
 
 impl std::fmt::Display for ContextPattern {
@@ -110,7 +121,7 @@ impl std::fmt::Display for ContextPattern {
     }
 }
 
-/// The three context-level violation variants. Wrapped inside
+/// The context-level violation variants. Wrapped inside
 /// [`crate::Violation::Context`] so consumers that do not opt into
 /// context checking match one arm rather than three.
 ///
@@ -148,6 +159,16 @@ pub enum ContextViolation {
         target_context: String,
         spec_source: Source,
     },
+    /// A `- verb: <qname>` anchor's concept lives in `owning_context`
+    /// but the `pub fn` named `qname` belongs to `target_context`
+    /// (cross-context verb routing without a matching `Imports` entry).
+    CrossVerbUnauthorized {
+        concept: String,
+        qname: String,
+        owning_context: String,
+        target_context: String,
+        spec_source: Source,
+    },
 }
 
 impl ContextViolation {
@@ -159,30 +180,151 @@ impl ContextViolation {
         match self {
             Self::MembershipUnknown { concept, .. }
             | Self::CrossEdgeUnauthorized { concept, .. }
-            | Self::CrossEdgeUndeclared { concept, .. } => concept.as_str(),
+            | Self::CrossEdgeUndeclared { concept, .. }
+            | Self::CrossVerbUnauthorized { concept, .. } => concept.as_str(),
         }
     }
 }
 
-/// Input to the v0.4 diff on the spec side — concept graph plus
-/// declared bounded-context map.
+/// Input to the v0.4+ diff on the spec side — concept graph plus
+/// declared bounded-context map plus verb-ownership aggregate.
 ///
-/// Keeps [`Graph`] focused on concepts + edges (two reasons to change);
-/// contexts are carried alongside (third reason to change) per
-/// SOLID lens round-1 RC-1 in RFC-001.
+/// Keeps [`Graph`] focused on concepts + edges; contexts and
+/// `verb_ownership` are carried alongside per SOLID lens RC-1.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CheckInput {
     pub graph: Graph,
     pub contexts: Vec<ContextDecl>,
+    pub verb_ownership: VerbOwnership,
+    /// Spec-side headings parsed from `status: draft` files. Empty
+    /// until the markdown reader populates it (Slice B). Used by the
+    /// orphan pass to distinguish `ImplementsDraftConcept` from
+    /// `MissingInSpecs`.
+    pub draft_concepts: Vec<ConceptNode>,
+    /// Spec-side structural cohesion violations detected by the R10-2
+    /// `TreeAssembler` (`ContextWithoutCohesionUnit` / `SubConceptOrphan`),
+    /// pre-computed by the markdown adapter because they need the heading
+    /// tree (an adapter artifact). The diff's cohesion pass wraps them as
+    /// [`crate::Violation::Cohesion`] and folds them into the sorted output
+    /// (RFC-010 §3.5, fact-dependency split).
+    pub spec_cohesion: Vec<CohesionViolation>,
 }
 
 impl CheckInput {
-    /// An empty `contexts` list reduces v0.4 diff to v0.3 behavior (the
-    /// context pass is a no-op).
+    /// Full constructor — carries all three spec-side inputs.
     #[must_use]
-    pub const fn new(graph: Graph, contexts: Vec<ContextDecl>) -> Self {
-        Self { graph, contexts }
+    pub const fn new(
+        graph: Graph,
+        contexts: Vec<ContextDecl>,
+        verb_ownership: VerbOwnership,
+    ) -> Self {
+        Self {
+            graph,
+            contexts,
+            verb_ownership,
+            draft_concepts: Vec::new(),
+            spec_cohesion: Vec::new(),
+        }
     }
+
+    /// Convenience constructor for callers that do not populate
+    /// `verb_ownership`. Defaults `verb_ownership` to empty vecs.
+    #[must_use]
+    pub const fn with_graph_and_contexts(graph: Graph, contexts: Vec<ContextDecl>) -> Self {
+        Self {
+            graph,
+            contexts,
+            verb_ownership: VerbOwnership {
+                decls: Vec::new(),
+                anchors: Vec::new(),
+            },
+            draft_concepts: Vec::new(),
+            spec_cohesion: Vec::new(),
+        }
+    }
+
+    /// Builder: attach draft-spec concept headings parsed from
+    /// `status: draft` files. Wired by the markdown reader in Slice B;
+    /// the unit test in this slice uses it directly.
+    #[must_use]
+    pub fn with_draft_concepts(self, draft_concepts: Vec<ConceptNode>) -> Self {
+        Self {
+            draft_concepts,
+            ..self
+        }
+    }
+
+    /// Builder: attach the spec-side structural cohesion violations the
+    /// markdown adapter pre-computed from the heading tree (RFC-010 R10-3).
+    #[must_use]
+    pub fn with_spec_cohesion(self, spec_cohesion: Vec<CohesionViolation>) -> Self {
+        Self {
+            spec_cohesion,
+            ..self
+        }
+    }
+}
+
+/// Two-hop context lookup: find the concept named `concept_name` in
+/// `graph.nodes`, extract its source path, then return the
+/// [`ContextDecl`] whose `owned_units` prefix matches that path.
+///
+/// Returns `None` when the concept is absent from the graph or when no
+/// declared context owns its path.
+#[must_use]
+pub fn context_for_concept<'a>(
+    graph: &Graph,
+    contexts: &'a [ContextDecl],
+    concept_name: &str,
+) -> Option<&'a ContextDecl> {
+    let node = graph.nodes.iter().find(|n| n.name == concept_name)?;
+    match &node.source {
+        Source::Code { path, .. } => {
+            // Prefer the adapter-populated `unit` (relative to the code root,
+            // RFC-010 §3.3); fall back to deriving it from the path for nodes
+            // without provenance. The fallback's `split_once("/src/")` keeps
+            // the full absolute prefix on an absolute `--code` path, so it
+            // mismatches `owned_units` — the latent v0.4 bug §12-I fixes by
+            // routing through the relative `unit`.
+            let derived = || {
+                let path_str = path.to_string_lossy();
+                let trimmed = path_str.trim_start_matches("./").to_owned();
+                trimmed.split_once("/src/").map(|(u, _)| u.to_owned())
+            };
+            let unit = node.unit.clone().or_else(derived)?;
+            contexts
+                .iter()
+                .find(|ctx| ctx.owned_units.iter().any(|u| u.0 == unit))
+        }
+        Source::Spec { path, .. } => {
+            let path_str = path.to_string_lossy();
+            let trimmed = path_str.trim_start_matches("./");
+            contexts.iter().find(|ctx| {
+                ctx.owned_units
+                    .iter()
+                    .any(|u| trimmed.starts_with(u.0.as_str()))
+            })
+        }
+    }
+}
+
+/// Resolve a concept's **spec-side declared** owning context (RFC-010 §3.4).
+///
+/// Applies the canonical-upstream precedence rule: a `specs/contexts/`
+/// declaration (RFC-001) wins over the concept file's own `H1` when both
+/// name a context. Returns `None` only when neither source names a context.
+///
+/// This is deliberately a *separate question* from the code-side
+/// resolution computed by [`context_for_concept`]: the R10-3 cohesion pass
+/// emits `ConceptContextMismatch` when the spec-side declaration and the
+/// code-side resolution disagree. Conflating the two into one chain would
+/// make the mismatch tautological (RFC-010 §3.4 / dry-run §12-B).
+#[must_use]
+pub fn resolve_declared_context<'a>(
+    h1_context: Option<&'a str>,
+    contexts_upstream: Option<&'a str>,
+) -> Option<&'a str> {
+    contexts_upstream.or(h1_context)
 }
 
 /// Detect a cycle in the import graph over `contexts`, excluding edges
@@ -378,10 +520,13 @@ mod tests {
         assert!(ci.graph.nodes.is_empty());
         assert!(ci.graph.edges.is_empty());
         assert!(ci.contexts.is_empty());
+        assert!(ci.verb_ownership.decls.is_empty());
+        assert!(ci.verb_ownership.anchors.is_empty());
     }
 
     #[test]
     fn check_input_new_wraps_arguments() {
+        use crate::VerbOwnership;
         let g = Graph::empty();
         let ctxs = vec![ContextDecl {
             name: "x".to_string(),
@@ -390,7 +535,7 @@ mod tests {
             imports: vec![],
             source: spec_src(),
         }];
-        let ci = CheckInput::new(g, ctxs);
+        let ci = CheckInput::new(g, ctxs, VerbOwnership::default());
         assert_eq!(ci.contexts.len(), 1);
         assert_eq!(ci.contexts[0].name, "x");
     }
@@ -405,5 +550,32 @@ mod tests {
         };
         let outer = Violation::Context(inner.clone());
         assert_eq!(outer, Violation::Context(inner));
+    }
+
+    // --- RFC-010 §3.4 declared-context precedence (#125) ---
+
+    #[test]
+    fn declared_context_prefers_specs_contexts_upstream() {
+        // Both the concept H1 and the canonical specs/contexts/ declaration
+        // name a context — the canonical-upstream one wins.
+        let resolved = resolve_declared_context(Some("reading"), Some("equivalence"));
+        assert_eq!(resolved, Some("equivalence"));
+    }
+
+    #[test]
+    fn declared_context_falls_back_to_h1_when_no_upstream() {
+        let resolved = resolve_declared_context(Some("reading"), None);
+        assert_eq!(resolved, Some("reading"));
+    }
+
+    #[test]
+    fn declared_context_uses_upstream_when_no_h1() {
+        let resolved = resolve_declared_context(None, Some("equivalence"));
+        assert_eq!(resolved, Some("equivalence"));
+    }
+
+    #[test]
+    fn declared_context_is_none_when_neither_source_names_one() {
+        assert_eq!(resolve_declared_context(None, None), None);
     }
 }

@@ -3,8 +3,17 @@
 //! Concrete readers (markdown specs, Rust code, later PHP / TypeScript)
 //! implement [`Reader`] and produce graphs of identical shape. The diff
 //! engine in [`domain`] operates on graphs, not on source languages.
+//!
+//! Code-side adapters additionally implement [`LanguageBackend`] (see
+//! [`lang`]), which is the lower-level, language-specific extractor that
+//! emits flat [`ConceptNode`] / [`Edge`] vectors. The [`Reader`] adapter
+//! wraps a [`LanguageBackend`] with language-neutral graph assembly.
 
-use domain::{ContextDecl, Graph};
+mod lang;
+
+pub use lang::{Extraction, LanguageBackend};
+
+use domain::{ContextDecl, Graph, PubFnDecl};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
@@ -21,6 +30,28 @@ pub trait Reader {
     /// [`ReaderError::ParseFailed`] if the reader's parser rejects a file,
     /// or [`ReaderError::WalkFailed`] if the directory traversal fails.
     fn extract(&self, root: &Path) -> Result<Graph, ReaderError>;
+}
+
+/// Verb-extraction port — per RFC-005 §3.2, sibling to [`ContextReader`].
+///
+/// Not every adapter extracts pub-fn declarations (markdown has no code
+/// items to walk); returning an empty `Vec` is the correct implementation
+/// for adapters that do not extract verbs. Independent of [`Reader::extract`]
+/// — never invoked by `check`, only by the `report` subcommand (Slice B).
+///
+/// Mirrors RFC-001 §3.6's introduction of [`ContextReader`] as a separate
+/// port trait for an opt-in read capability. Per RFC-005 §3.2.
+pub trait VerbReader {
+    /// Collect every top-level `pub fn` (name + source + owning crate)
+    /// under `root`. Returns an empty `Vec` on adapters that do not extract
+    /// verbs — no panic, no error.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ReaderError::IoFailed`] if a source file cannot be read,
+    /// [`ReaderError::ParseFailed`] if the reader's parser rejects a file,
+    /// or [`ReaderError::WalkFailed`] if the directory traversal fails.
+    fn extract_pub_fns(&self, root: &Path) -> Result<Vec<PubFnDecl>, ReaderError>;
 }
 
 /// Separate from [`Reader`] per RFC-001 clean-arch lens — not every

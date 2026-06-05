@@ -405,6 +405,233 @@ fn module_path_target_is_tokenised() {
     assert_eq!(edges[0].raw_target, "domain::Graph");
 }
 
+// --- RFC-005 invariant-annotation tests ---
+
+#[test]
+fn extract_annotations_empty_on_no_h4_section() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Concept\n\nProse.\n\n- implements: Reader\n",
+    );
+    let anns = MarkdownReader
+        .extract_invariant_annotations(d.path())
+        .expect("test");
+    assert!(anns.is_empty());
+}
+
+#[test]
+fn extract_annotations_recognises_enforced_by_cypher() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Concept\n\n#### Operational invariants\n\n- INV-001: desc [enforced-by: .cfdb/queries/rule.cypher; retire-when: never]\n",
+    );
+    let anns = MarkdownReader
+        .extract_invariant_annotations(d.path())
+        .expect("test");
+    assert_eq!(anns.len(), 1);
+    assert_eq!(anns[0].inv_id, "INV-001: desc");
+    assert_eq!(anns[0].tier, domain::TierKind::Cypher);
+    assert_eq!(
+        anns[0].artifact.as_deref(),
+        Some(".cfdb/queries/rule.cypher")
+    );
+    assert_eq!(anns[0].retire_when.as_deref(), Some("never"));
+    assert!(anns[0].prose_only_why.is_none());
+}
+
+#[test]
+fn extract_annotations_recognises_enforced_by_script() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Concept\n\n#### Operational invariants\n\n- [enforced-by: scripts/check.sh; retire-when: done]\n",
+    );
+    let anns = MarkdownReader
+        .extract_invariant_annotations(d.path())
+        .expect("test");
+    assert_eq!(anns.len(), 1);
+    assert_eq!(anns[0].tier, domain::TierKind::ScriptFence);
+}
+
+#[test]
+fn extract_annotations_recognises_prose_only() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Concept\n\n#### Operational invariants\n\n- INV-waiver: [prose-only: no tooling available]\n",
+    );
+    let anns = MarkdownReader
+        .extract_invariant_annotations(d.path())
+        .expect("test");
+    assert_eq!(anns.len(), 1);
+    assert_eq!(anns[0].tier, domain::TierKind::ProseOnly);
+    assert_eq!(
+        anns[0].prose_only_why.as_deref(),
+        Some("no tooling available")
+    );
+}
+
+#[test]
+fn extract_annotations_malformed_skips_with_ok_return() {
+    let d = TempDir::new().expect("test");
+    // Bullet looks like annotation (has marker prefix) but bracket is malformed
+    write(
+        d.path(),
+        "a.md",
+        "## Concept\n\n#### Operational invariants\n\n- [enforced-by: missing-close-bracket\n",
+    );
+    let result = MarkdownReader.extract_invariant_annotations(d.path());
+    assert!(result.is_ok(), "tolerant-skip: malformed should not Err");
+    // malformed annotation is dropped
+    assert!(
+        result.expect("asserted Ok above").is_empty(),
+        "malformed annotation must be dropped"
+    );
+}
+
+#[test]
+fn extract_annotations_section_ends_at_next_h2() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Concept\n\n#### Operational invariants\n\n- [enforced-by: rule.cypher; retire-when: done]\n\n## Other\n\n- [enforced-by: other.cypher]\n",
+    );
+    let anns = MarkdownReader
+        .extract_invariant_annotations(d.path())
+        .expect("test");
+    // Only annotation in the Operational invariants section should be found;
+    // the bullet under ## Other is not in an h4 section.
+    assert_eq!(anns.len(), 1);
+}
+
+#[test]
+fn extract_annotations_multiple_in_section() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Concept\n\n#### Operational invariants\n\n- INV-1: [enforced-by: rule.cypher; retire-when: a]\n- INV-2: [prose-only: reason]\n",
+    );
+    let anns = MarkdownReader
+        .extract_invariant_annotations(d.path())
+        .expect("test");
+    assert_eq!(anns.len(), 2);
+}
+
+/// Cross-dogfood baseline: cfdb's specs/concepts/ currently has no
+/// `#### Operational invariants` sections, so the result should be empty.
+/// This test uses an empty directory to exercise the same empty-Vec path.
+#[test]
+fn extract_annotations_returns_ok_empty_on_no_annotations_present() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## ConceptA\n\nSome prose.\n\n## ConceptB\n\n- depends on: ConceptA\n",
+    );
+    let anns = MarkdownReader
+        .extract_invariant_annotations(d.path())
+        .expect("test");
+    assert!(anns.is_empty());
+}
+
+// --- v0.5 verb-bullet tests ---
+
+#[test]
+fn parse_verb_bullet_returns_anchor_for_valid_ident() {
+    let anchor = parse_verb_bullet("verb: diff").expect("should parse");
+    assert_eq!(anchor.qname, "diff");
+    assert_eq!(anchor.raw_target, "verb: diff");
+    assert!(
+        anchor.concept.is_empty(),
+        "concept placeholder should be empty"
+    );
+}
+
+#[test]
+fn parse_verb_bullet_returns_none_for_non_verb_bullet() {
+    assert!(parse_verb_bullet("implements: Reader").is_none());
+    assert!(parse_verb_bullet("prose line").is_none());
+    assert!(parse_verb_bullet("depends on: Foo").is_none());
+}
+
+#[test]
+fn parse_verb_bullet_returns_none_for_empty_qname() {
+    assert!(parse_verb_bullet("verb:").is_none());
+    assert!(parse_verb_bullet("verb:   ").is_none());
+}
+
+#[test]
+fn parse_verb_bullet_returns_none_for_multi_word_qname() {
+    assert!(parse_verb_bullet("verb: fn_name extra").is_none());
+    assert!(parse_verb_bullet("verb: two words").is_none());
+}
+
+#[test]
+fn verb_bullet_does_not_yield_edge_in_graph() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Concept\n\n- verb: some_fn\n- implements: Reader\n",
+    );
+    let g = MarkdownReader.extract(d.path()).expect("test");
+    let edges = find_edges_for(&g.edges, "Concept");
+    assert_eq!(edges.len(), 1, "verb bullet must not become an edge");
+    assert_eq!(edges[0].kind, EdgeKind::Implements);
+}
+
+#[test]
+fn extract_verb_anchors_collects_anchors_from_spec() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Graph\n\n- verb: diff\n- verb: tokenise_target\n\n## Reader\n\n- verb: extract\n",
+    );
+    let anchors = MarkdownReader.extract_verb_anchors(d.path()).expect("test");
+    assert_eq!(anchors.len(), 3);
+    let qnames: Vec<&str> = anchors.iter().map(|a| a.qname.as_str()).collect();
+    assert!(qnames.contains(&"diff"));
+    assert!(qnames.contains(&"tokenise_target"));
+    assert!(qnames.contains(&"extract"));
+    let graph_anchor_count = anchors.iter().filter(|a| a.concept == "Graph").count();
+    assert_eq!(graph_anchor_count, 2);
+}
+
+#[test]
+fn extract_verb_anchors_returns_empty_when_no_verb_bullets() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Concept\n\n- implements: Reader\n- depends on: Graph\n",
+    );
+    let anchors = MarkdownReader.extract_verb_anchors(d.path()).expect("test");
+    assert!(anchors.is_empty());
+}
+
+#[test]
+fn extract_verb_anchors_records_correct_concept_and_source_line() {
+    let d = TempDir::new().expect("test");
+    write(d.path(), "a.md", "## Graph\n\n- verb: diff\n");
+    let anchors = MarkdownReader.extract_verb_anchors(d.path()).expect("test");
+    assert_eq!(anchors.len(), 1);
+    assert_eq!(anchors[0].concept, "Graph");
+    assert_eq!(anchors[0].qname, "diff");
+    match &anchors[0].source {
+        Source::Spec { line, .. } => assert!(*line >= 1),
+        Source::Code { .. } => panic!("expected Spec source"),
+    }
+}
+
 /// v0.4 scoping: when the reader is pointed at `specs/`, files under
 /// `contexts/` are owned by the `ContextReader` impl and MUST NOT
 /// contaminate the concept graph. Without this filter, every `## Owns`
@@ -419,4 +646,127 @@ fn v04_ignores_files_under_contexts_subdir() {
         "# equivalence\n\n## Owns\n\n- domain\n",
     );
     assert_eq!(extract(d.path()), vec!["Bar", "Foo"]);
+}
+
+// --- v0.6 parse_verb_bullet qname validation ---
+
+#[test]
+fn parse_verb_bullet_accepts_type_method() {
+    let anchor = parse_verb_bullet("verb: Foo::bar").expect("should parse");
+    assert_eq!(anchor.qname, "Foo::bar");
+}
+
+#[test]
+fn parse_verb_bullet_rejects_multi_segment() {
+    assert!(
+        parse_verb_bullet("verb: a::b::c").is_none(),
+        "multi-segment path must be rejected"
+    );
+}
+
+#[test]
+fn parse_verb_bullet_rejects_leading_colons() {
+    assert!(
+        parse_verb_bullet("verb: ::foo").is_none(),
+        "leading :: must be rejected"
+    );
+}
+
+#[test]
+fn parse_verb_bullet_accepts_bare_ident_unchanged() {
+    let anchor = parse_verb_bullet("verb: foo").expect("should parse");
+    assert_eq!(anchor.qname, "foo");
+}
+
+// --- draft concept index ---
+
+#[test]
+fn extract_draft_concepts_returns_headings_of_draft_files_only() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "draft.md",
+        "---\nstatus: draft\n---\n\n## Widget\n",
+    );
+    write(d.path(), "live.md", "## Gadget\n");
+    let nodes = MarkdownReader
+        .extract_draft_concepts(d.path())
+        .expect("test");
+    let names: Vec<&str> = nodes.iter().map(|n| n.name.as_str()).collect();
+    assert!(names.contains(&"Widget"), "draft heading must be included");
+    assert!(
+        !names.contains(&"Gadget"),
+        "non-draft heading must be excluded"
+    );
+}
+
+// --- draft front-matter suppression ---
+
+#[test]
+fn is_draft_recognises_status_draft_front_matter() {
+    let src = "---\nstatus: draft\nauthor_council: council/x.md\n---\n\n## Foo\n";
+    assert!(is_draft(src));
+}
+
+#[test]
+fn is_draft_accepts_quoted_and_mixed_case_value() {
+    assert!(is_draft("---\nstatus: \"Draft\"\n---\n"));
+    assert!(is_draft("---\nstatus: 'draft' # pre-authored\n---\n"));
+}
+
+#[test]
+fn is_draft_false_for_ratified_status() {
+    assert!(!is_draft("---\nstatus: ratified\n---\n\n## Foo\n"));
+}
+
+#[test]
+fn is_draft_false_without_front_matter() {
+    assert!(!is_draft("## Foo\n\nstatus: draft mentioned in prose\n"));
+}
+
+#[test]
+fn is_draft_false_when_front_matter_closes_before_status() {
+    assert!(!is_draft("---\nauthor: x\n---\nstatus: draft\n"));
+}
+
+#[test]
+fn extract_skips_draft_spec_keeps_siblings() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "draft.md",
+        "---\nstatus: draft\n---\n\n## Reconciler\n\n```rust\npub trait Reconciler {}\n```\n",
+    );
+    write(d.path(), "live.md", "## Live\n");
+    // Only the non-draft concept survives.
+    assert_eq!(extract(d.path()), vec!["Live"]);
+}
+
+#[test]
+fn extract_verb_anchors_skips_draft_spec() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "draft.md",
+        "---\nstatus: draft\n---\n\n## Reconciler\n\n- verb: reconcile\n",
+    );
+    let anchors = MarkdownReader.extract_verb_anchors(d.path()).expect("test");
+    assert!(anchors.is_empty(), "draft verb anchors must be skipped");
+}
+
+#[test]
+fn extract_invariant_annotations_skips_draft_spec() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "draft.md",
+        "---\nstatus: draft\n---\n\n## Reconciler\n\n#### Operational invariants\n\n- INV-001: x [enforced-by: .cfdb/queries/r.cypher; retire-when: never]\n",
+    );
+    let anns = MarkdownReader
+        .extract_invariant_annotations(d.path())
+        .expect("test");
+    assert!(
+        anns.is_empty(),
+        "draft invariant annotations must be skipped"
+    );
 }

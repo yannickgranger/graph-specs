@@ -1,21 +1,21 @@
 use crate::{
     detect_import_cycle, diff, CheckInput, ConceptNode, ContextDecl, ContextExport, ContextImport,
     ContextPattern, ContextViolation, Edge, EdgeKind, Graph, OwnedUnit, SignatureState, Source,
-    Violation,
+    VerbOwnership, Violation,
 };
 use std::path::PathBuf;
 
 // --- helpers -------------------------------------------------------
 
 fn code_node(name: &str, unit: &str) -> ConceptNode {
-    ConceptNode {
-        name: name.to_string(),
-        source: Source::Code {
+    ConceptNode::new(
+        name.to_string(),
+        Source::Code {
             path: PathBuf::from(format!("./{unit}/src/lib.rs")),
             line: 1,
         },
-        signature: SignatureState::Absent,
-    }
+        SignatureState::Absent,
+    )
 }
 
 fn code_edge(src: &str, kind: EdgeKind, target: &str) -> Edge {
@@ -69,7 +69,7 @@ fn im(from: &str, pattern: ContextPattern, concept: &str) -> ContextImport {
 }
 
 fn ci(graph: Graph, contexts: Vec<ContextDecl>) -> CheckInput {
-    CheckInput::new(graph, contexts)
+    CheckInput::new(graph, contexts, VerbOwnership::default())
 }
 
 // --- context pass: empty / v0.3 regression -------------------------
@@ -89,14 +89,14 @@ fn empty_contexts_skip_context_pass() {
 #[test]
 fn v03_regression_preserved_when_contexts_empty() {
     // spec-only concept → MissingInCode; code-only → MissingInSpecs.
-    let spec_node = ConceptNode {
-        name: "SpecOnly".into(),
-        source: Source::Spec {
+    let spec_node = ConceptNode::new(
+        "SpecOnly".into(),
+        Source::Spec {
             path: PathBuf::from("x.md"),
             line: 1,
         },
-        signature: SignatureState::Absent,
-    };
+        SignatureState::Absent,
+    );
     let spec = Graph::new(vec![spec_node], vec![]);
     let code = Graph::new(vec![code_node("CodeOnly", "domain")], vec![]);
     let v = diff(ci(spec, vec![]), code);

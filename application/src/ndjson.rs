@@ -6,7 +6,7 @@
 //! `specs/ndjson-output.md` for the authoritative schema.
 //!
 //! Schema v2 invariants:
-//! - every record carries `"schema_version":"2"` at the top level
+//! - every record carries `"schema_version":"3"` at the top level
 //! - `violation` is the `snake_case` variant discriminator
 //! - record order matches the `violations` argument order
 //! - no trailing comma, no final newline suppression — each record
@@ -18,7 +18,7 @@
 //! All v1 records are structurally unchanged except for the version
 //! bump. Consumers pin on `schema_version` and select a variant set.
 
-use domain::{ContextViolation, SchemaVersion, Source, Violation};
+use domain::{CohesionViolation, ContextViolation, SchemaVersion, Source, Violation};
 use serde_json::{json, Value};
 use std::io::Write;
 use std::path::Path;
@@ -38,6 +38,7 @@ pub fn write_ndjson(violations: &[Violation], out: &mut impl Write) -> std::io::
     Ok(())
 }
 
+#[allow(clippy::too_many_lines)]
 fn violation_to_record(v: &Violation) -> Value {
     match v {
         Violation::MissingInCode { name, spec_source } => json!({
@@ -131,6 +132,81 @@ fn violation_to_record(v: &Violation) -> Value {
             "spec_source": source_to_json(spec_source),
         }),
         Violation::Context(ctx) => context_violation_to_record(ctx),
+        Violation::VerbMissingInCode {
+            concept,
+            qname,
+            spec_source,
+        } => json!({
+            "schema_version": SchemaVersion::CURRENT.as_str(),
+            "violation": "verb_missing_in_code",
+            "concept": concept,
+            "qname": qname,
+            "spec_source": source_to_json(spec_source),
+        }),
+        Violation::VerbMissingInSpec { qname, code_source } => json!({
+            "schema_version": SchemaVersion::CURRENT.as_str(),
+            "violation": "verb_missing_in_spec",
+            "qname": qname,
+            "code_source": source_to_json(code_source),
+        }),
+        Violation::VerbTargetUnknown {
+            concept,
+            qname,
+            spec_source,
+        } => json!({
+            "schema_version": SchemaVersion::CURRENT.as_str(),
+            "violation": "verb_target_unknown",
+            "concept": concept,
+            "qname": qname,
+            "spec_source": source_to_json(spec_source),
+        }),
+        Violation::ImplementsDraftConcept { name, draft_source } => json!({
+            "schema_version": SchemaVersion::CURRENT.as_str(),
+            "violation": "implements_draft_concept",
+            "name": name,
+            "draft_source": source_to_json(draft_source),
+        }),
+        Violation::Cohesion(c) => cohesion_violation_to_record(c),
+        _ => json!({
+            "schema_version": SchemaVersion::CURRENT.as_str(),
+            "violation": "unknown_violation",
+        }),
+    }
+}
+
+fn cohesion_violation_to_record(v: &CohesionViolation) -> Value {
+    match v {
+        CohesionViolation::ContextWithoutCohesionUnit { context, file } => json!({
+            "schema_version": SchemaVersion::CURRENT.as_str(),
+            "violation": "context_without_cohesion_unit",
+            "context": context,
+            "file": file.display().to_string(),
+        }),
+        CohesionViolation::SubConceptOrphan { sub_concept, file } => json!({
+            "schema_version": SchemaVersion::CURRENT.as_str(),
+            "violation": "sub_concept_orphan",
+            "sub_concept": sub_concept,
+            "file": file.display().to_string(),
+        }),
+        CohesionViolation::ConceptContextMismatch {
+            concept,
+            declared,
+            code_context,
+            spec_source,
+        } => json!({
+            "schema_version": SchemaVersion::CURRENT.as_str(),
+            "violation": "concept_context_mismatch",
+            "concept": concept,
+            "declared": declared,
+            "code_context": code_context,
+            "spec_source": source_to_json(spec_source),
+        }),
+        // Forward-compat with `#[non_exhaustive]`: a future variant emits a
+        // generic record rather than panicking.
+        _ => json!({
+            "schema_version": SchemaVersion::CURRENT.as_str(),
+            "violation": "unknown_cohesion_violation",
+        }),
     }
 }
 
@@ -181,6 +257,21 @@ fn context_violation_to_record(v: &ContextViolation) -> Value {
             "target_context": target_context,
             "spec_source": source_to_json(spec_source),
         }),
+        ContextViolation::CrossVerbUnauthorized {
+            concept,
+            qname,
+            owning_context,
+            target_context,
+            spec_source,
+        } => json!({
+            "schema_version": SchemaVersion::CURRENT.as_str(),
+            "violation": "cross_verb_unauthorized",
+            "concept": concept,
+            "qname": qname,
+            "owning_context": owning_context,
+            "target_context": target_context,
+            "spec_source": source_to_json(spec_source),
+        }),
         // Forward-compat: a v0.5 variant added upstream emits a generic
         // record rather than panicking. `#[non_exhaustive]` on
         // `ContextViolation` mandates this arm.
@@ -211,7 +302,7 @@ fn path_to_string(p: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use domain::EdgeKind;
+    use domain::{CohesionViolation, EdgeKind};
     use serde_json::Value;
     use std::path::PathBuf;
 
@@ -237,7 +328,7 @@ mod tests {
         let out = render_one(v);
         assert!(out.ends_with('\n'));
         let r = record(&out);
-        assert_eq!(r["schema_version"], "2");
+        assert_eq!(r["schema_version"], "3");
         assert_eq!(r["violation"], "missing_in_code");
         assert_eq!(r["concept"], "Foo");
         assert_eq!(r["source"]["kind"], "spec");
@@ -418,7 +509,7 @@ mod tests {
     }
 
     #[test]
-    fn each_record_has_schema_version_two() {
+    fn each_record_has_schema_version_three() {
         let v = Violation::MissingInCode {
             name: "X".into(),
             spec_source: Source::Spec {
@@ -427,7 +518,7 @@ mod tests {
             },
         };
         let r = record(&render_one(v));
-        assert_eq!(r["schema_version"], "2");
+        assert_eq!(r["schema_version"], "3");
     }
 
     // --- v0.4 context violation records (#26) -------------------------
@@ -445,7 +536,7 @@ mod tests {
             },
         });
         let r = record(&render_one(v));
-        assert_eq!(r["schema_version"], "2");
+        assert_eq!(r["schema_version"], "3");
         assert_eq!(r["violation"], "context_membership_unknown");
         assert_eq!(r["concept"], "Orphan");
         assert_eq!(r["owned_unit"], "stray-crate");
@@ -475,6 +566,78 @@ mod tests {
         assert_eq!(r["spec_source"]["kind"], "spec");
     }
 
+    // --- v0.5 verb violation records -----------------------------------
+
+    #[test]
+    fn verb_missing_in_code_record() {
+        let v = Violation::VerbMissingInCode {
+            concept: "Graph".into(),
+            qname: "diff".into(),
+            spec_source: Source::Spec {
+                path: PathBuf::from("specs/concepts/core.md"),
+                line: 10,
+            },
+        };
+        let r = record(&render_one(v));
+        assert_eq!(r["schema_version"], "3");
+        assert_eq!(r["violation"], "verb_missing_in_code");
+        assert_eq!(r["concept"], "Graph");
+        assert_eq!(r["qname"], "diff");
+        assert_eq!(r["spec_source"]["kind"], "spec");
+    }
+
+    #[test]
+    fn verb_missing_in_spec_record() {
+        let v = Violation::VerbMissingInSpec {
+            qname: "orphan_fn".into(),
+            code_source: Source::Code {
+                path: PathBuf::from("domain/src/lib.rs"),
+                line: 42,
+            },
+        };
+        let r = record(&render_one(v));
+        assert_eq!(r["violation"], "verb_missing_in_spec");
+        assert_eq!(r["qname"], "orphan_fn");
+        assert_eq!(r["code_source"]["kind"], "code");
+    }
+
+    #[test]
+    fn verb_target_unknown_record() {
+        let v = Violation::VerbTargetUnknown {
+            concept: "Graph".into(),
+            qname: "ghost_fn".into(),
+            spec_source: Source::Spec {
+                path: PathBuf::from("specs/concepts/core.md"),
+                line: 5,
+            },
+        };
+        let r = record(&render_one(v));
+        assert_eq!(r["violation"], "verb_target_unknown");
+        assert_eq!(r["concept"], "Graph");
+        assert_eq!(r["qname"], "ghost_fn");
+    }
+
+    #[test]
+    fn cross_verb_unauthorized_record() {
+        let v = Violation::Context(ContextViolation::CrossVerbUnauthorized {
+            concept: "Graph".into(),
+            qname: "diff".into(),
+            owning_context: "equivalence".into(),
+            target_context: "reading".into(),
+            spec_source: Source::Spec {
+                path: PathBuf::from("specs/concepts/core.md"),
+                line: 15,
+            },
+        });
+        let r = record(&render_one(v));
+        assert_eq!(r["violation"], "cross_verb_unauthorized");
+        assert_eq!(r["concept"], "Graph");
+        assert_eq!(r["qname"], "diff");
+        assert_eq!(r["owning_context"], "equivalence");
+        assert_eq!(r["target_context"], "reading");
+        assert_eq!(r["spec_source"]["kind"], "spec");
+    }
+
     #[test]
     fn cross_context_edge_undeclared_record() {
         let v = Violation::Context(ContextViolation::CrossEdgeUndeclared {
@@ -493,5 +656,48 @@ mod tests {
         assert_eq!(r["edge_kind"], "IMPLEMENTS");
         assert_eq!(r["target"], "Reader");
         assert_eq!(r["target_context"], "equivalence");
+    }
+
+    // --- RFC-010 §3.5 / R10-3 cohesion records (§12-G) ---
+
+    #[test]
+    fn concept_context_mismatch_record() {
+        let v = Violation::Cohesion(CohesionViolation::ConceptContextMismatch {
+            concept: "Widget".into(),
+            declared: "reading".into(),
+            code_context: "equivalence".into(),
+            spec_source: Source::Spec {
+                path: PathBuf::from("specs/concepts/reading.md"),
+                line: 7,
+            },
+        });
+        let r = record(&render_one(v));
+        assert_eq!(r["violation"], "concept_context_mismatch");
+        assert_eq!(r["concept"], "Widget");
+        assert_eq!(r["declared"], "reading");
+        assert_eq!(r["code_context"], "equivalence");
+        assert_eq!(r["spec_source"]["line"], 7);
+    }
+
+    #[test]
+    fn spec_side_cohesion_records_carry_file() {
+        let cwc = record(&render_one(Violation::Cohesion(
+            CohesionViolation::ContextWithoutCohesionUnit {
+                context: "lonely".into(),
+                file: PathBuf::from("specs/concepts/lonely.md"),
+            },
+        )));
+        assert_eq!(cwc["violation"], "context_without_cohesion_unit");
+        assert_eq!(cwc["context"], "lonely");
+        assert_eq!(cwc["file"], "specs/concepts/lonely.md");
+
+        let orphan = record(&render_one(Violation::Cohesion(
+            CohesionViolation::SubConceptOrphan {
+                sub_concept: "Inner".into(),
+                file: PathBuf::from("specs/concepts/x.md"),
+            },
+        )));
+        assert_eq!(orphan["violation"], "sub_concept_orphan");
+        assert_eq!(orphan["sub_concept"], "Inner");
     }
 }

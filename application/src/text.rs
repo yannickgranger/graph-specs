@@ -4,7 +4,7 @@
 //! Write`) so unit tests can exercise each variant without going
 //! through stdout. The CLI's `--format=text` dispatch calls this.
 
-use domain::{ContextViolation, Source, Violation};
+use domain::{CohesionViolation, ContextViolation, Source, Violation};
 use std::io::Write;
 use std::path::Path;
 
@@ -14,6 +14,7 @@ use std::path::Path;
 /// # Errors
 ///
 /// Propagates any [`std::io::Error`] from the underlying writer.
+#[allow(clippy::too_many_lines)]
 pub fn format_violation(v: &Violation, out: &mut impl Write) -> std::io::Result<()> {
     match v {
         Violation::MissingInCode { name, spec_source } => {
@@ -105,6 +106,79 @@ pub fn format_violation(v: &Violation, out: &mut impl Write) -> std::io::Result<
             )
         }
         Violation::Context(ctx) => format_context_violation(ctx, out),
+        Violation::VerbMissingInCode {
+            concept,
+            qname,
+            spec_source,
+        } => {
+            let (path, line) = source_pair(spec_source);
+            writeln!(
+                out,
+                "verb missing in code: {concept} claims `{qname}` but no pub fn found ({}:{line})",
+                path.display()
+            )
+        }
+        Violation::VerbMissingInSpec { qname, code_source } => {
+            let (path, line) = source_pair(code_source);
+            writeln!(
+                out,
+                "verb missing in spec: `{qname}` is unclaimed in its context ({}:{line})",
+                path.display()
+            )
+        }
+        Violation::VerbTargetUnknown {
+            concept,
+            qname,
+            spec_source,
+        } => {
+            let (path, line) = source_pair(spec_source);
+            writeln!(
+                out,
+                "verb target unknown: {concept} claims `{qname}` but fn belongs to no context ({}:{line})",
+                path.display()
+            )
+        }
+        Violation::ImplementsDraftConcept { name, draft_source } => {
+            let (path, line) = source_pair(draft_source);
+            writeln!(
+                out,
+                "implements draft spec: {name} ({}:{line}) — promote the draft (flip status:, set code_landing_pr) or remove the code",
+                path.display()
+            )
+        }
+        Violation::Cohesion(c) => format_cohesion_violation(c, out),
+        _ => writeln!(out, "unknown violation"),
+    }
+}
+
+fn format_cohesion_violation(v: &CohesionViolation, out: &mut impl Write) -> std::io::Result<()> {
+    match v {
+        CohesionViolation::ContextWithoutCohesionUnit { context, file } => writeln!(
+            out,
+            "context without cohesion unit: `{context}` declares no concept under its H1 ({})",
+            file.display()
+        ),
+        CohesionViolation::SubConceptOrphan { sub_concept, file } => writeln!(
+            out,
+            "sub-concept orphan: `{sub_concept}` has no enclosing concept (H3 without an H2) ({})",
+            file.display()
+        ),
+        CohesionViolation::ConceptContextMismatch {
+            concept,
+            declared,
+            code_context,
+            spec_source,
+        } => {
+            let (path, line) = source_pair(spec_source);
+            writeln!(
+                out,
+                "concept context mismatch: {concept} declared in `{declared}` but code resolves to `{code_context}` ({}:{line})",
+                path.display()
+            )
+        }
+        // Forward-compat: a future `#[non_exhaustive]` variant renders
+        // generically rather than panicking.
+        _ => writeln!(out, "unknown cohesion violation"),
     }
 }
 
@@ -153,8 +227,20 @@ fn format_context_violation(v: &ContextViolation, out: &mut impl Write) -> std::
                 path.display()
             )
         }
-        // Forward-compat: v0.5 variants render as a generic fallback so
-        // new variants don't panic on consumers running an older binary.
+        ContextViolation::CrossVerbUnauthorized {
+            concept,
+            qname,
+            owning_context,
+            target_context,
+            spec_source,
+        } => {
+            let (path, line) = source_pair(spec_source);
+            writeln!(
+                out,
+                "cross-context verb unauthorized: {concept} ({owning_context}) claims `{qname}` which belongs to {target_context} ({}:{line})",
+                path.display()
+            )
+        }
         _ => writeln!(out, "unknown context violation for {}", v.concept()),
     }
 }
@@ -168,7 +254,7 @@ fn source_pair(s: &Source) -> (&Path, usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use domain::{ContextViolation, EdgeKind, OwnedUnit, Source, Violation};
+    use domain::{CohesionViolation, ContextViolation, EdgeKind, OwnedUnit, Source, Violation};
     use std::path::PathBuf;
 
     fn render(v: &Violation) -> String {
@@ -244,6 +330,69 @@ mod tests {
     }
 
     #[test]
+    fn verb_missing_in_code_text() {
+        let v = Violation::VerbMissingInCode {
+            concept: "Graph".into(),
+            qname: "diff".into(),
+            spec_source: spec_src(),
+        };
+        let out = render(&v);
+        assert!(out.ends_with('\n'));
+        assert!(
+            out.contains("verb missing in code: Graph claims `diff`"),
+            "got: {out}"
+        );
+        assert!(out.contains("specs/contexts/reading.md:12"));
+    }
+
+    #[test]
+    fn verb_missing_in_spec_text() {
+        let v = Violation::VerbMissingInSpec {
+            qname: "orphan_fn".into(),
+            code_source: code_src(),
+        };
+        let out = render(&v);
+        assert!(out.ends_with('\n'));
+        assert!(
+            out.contains("verb missing in spec: `orphan_fn` is unclaimed"),
+            "got: {out}"
+        );
+        assert!(out.contains("some-crate/src/lib.rs:3"));
+    }
+
+    #[test]
+    fn verb_target_unknown_text() {
+        let v = Violation::VerbTargetUnknown {
+            concept: "Graph".into(),
+            qname: "ghost_fn".into(),
+            spec_source: spec_src(),
+        };
+        let out = render(&v);
+        assert!(out.ends_with('\n'));
+        assert!(
+            out.contains("verb target unknown: Graph claims `ghost_fn`"),
+            "got: {out}"
+        );
+    }
+
+    #[test]
+    fn cross_verb_unauthorized_text() {
+        let v = Violation::Context(ContextViolation::CrossVerbUnauthorized {
+            concept: "Graph".into(),
+            qname: "diff".into(),
+            owning_context: "equivalence".into(),
+            target_context: "reading".into(),
+            spec_source: spec_src(),
+        });
+        let out = render(&v);
+        assert!(out.ends_with('\n'));
+        assert!(
+            out.contains("cross-context verb unauthorized: Graph (equivalence) claims `diff` which belongs to reading"),
+            "got: {out}"
+        );
+    }
+
+    #[test]
     fn v03_missing_in_code_unchanged() {
         // Regression: existing text shape preserved.
         let v = Violation::MissingInCode {
@@ -255,5 +404,47 @@ mod tests {
         };
         let out = render(&v);
         assert_eq!(out, "missing in code: Foo (specs/a.md:1)\n");
+    }
+
+    // --- RFC-010 §3.5 / R10-3 cohesion rendering (§12-G) ---
+
+    #[test]
+    fn concept_context_mismatch_text_renders_path_line() {
+        let v = Violation::Cohesion(CohesionViolation::ConceptContextMismatch {
+            concept: "Widget".into(),
+            declared: "reading".into(),
+            code_context: "equivalence".into(),
+            spec_source: Source::Spec {
+                path: PathBuf::from("specs/concepts/reading.md"),
+                line: 7,
+            },
+        });
+        let out = render(&v);
+        assert!(out.contains("concept context mismatch: Widget"));
+        assert!(out.contains("declared in `reading`"));
+        assert!(out.contains("code resolves to `equivalence`"));
+        assert!(out.contains("specs/concepts/reading.md:7"));
+        assert!(!out.contains("unknown violation"));
+    }
+
+    #[test]
+    fn context_without_cohesion_unit_text() {
+        let v = Violation::Cohesion(CohesionViolation::ContextWithoutCohesionUnit {
+            context: "lonely".into(),
+            file: PathBuf::from("specs/concepts/lonely.md"),
+        });
+        let out = render(&v);
+        assert!(out.contains("context without cohesion unit: `lonely`"));
+        assert!(out.contains("specs/concepts/lonely.md"));
+    }
+
+    #[test]
+    fn sub_concept_orphan_text() {
+        let v = Violation::Cohesion(CohesionViolation::SubConceptOrphan {
+            sub_concept: "Inner".into(),
+            file: PathBuf::from("specs/concepts/x.md"),
+        });
+        let out = render(&v);
+        assert!(out.contains("sub-concept orphan: `Inner`"));
     }
 }

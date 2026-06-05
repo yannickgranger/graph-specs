@@ -28,12 +28,19 @@ cross-context. The CLI binary is its own deliverable.)
 - Source from equivalence (PublishedLanguage)
 - Reader from equivalence (PublishedLanguage)
 - ContextReader from equivalence (PublishedLanguage)
+- VerbReader from equivalence (PublishedLanguage)
 - ReaderError from equivalence (PublishedLanguage)
+- ReportOutput from equivalence (PublishedLanguage)
+- PubFnDecl from equivalence (PublishedLanguage)
+- VerbDecl from equivalence (PublishedLanguage)
+- VerbOwnership from equivalence (PublishedLanguage)
+- InvariantAnnotation from equivalence (PublishedLanguage)
 - MarkdownReader from reading (CustomerSupplier)
 - RustReader from reading (CustomerSupplier)
 
 ## Concepts
 
-This context owns no concept names of its own — `run_check` and the
-CLI types are binary-private. Every public type it touches is imported
-from `equivalence` or `reading`.
+`ReportFormat` is the one library-public type owned by `orchestration`
+— it must appear in `specs/concepts/core.md`. All other types it
+touches (CLI command structs, `Format`) are binary-private and excluded
+from concept-level equivalence checking.

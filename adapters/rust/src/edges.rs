@@ -279,13 +279,15 @@ mod tests {
     fn nodes(names: &[&str]) -> Vec<ConceptNode> {
         names
             .iter()
-            .map(|n| ConceptNode {
-                name: (*n).to_string(),
-                source: Source::Code {
-                    path: PathBuf::from("test.rs"),
-                    line: 1,
-                },
-                signature: domain::SignatureState::Absent,
+            .map(|n| {
+                ConceptNode::new(
+                    (*n).to_string(),
+                    Source::Code {
+                        path: PathBuf::from("test.rs"),
+                        line: 1,
+                    },
+                    domain::SignatureState::Absent,
+                )
             })
             .collect()
     }

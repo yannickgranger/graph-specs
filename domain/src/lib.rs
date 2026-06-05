@@ -6,15 +6,24 @@
 
 use std::path::PathBuf;
 
+mod abstraction;
+mod cohesion;
 mod context;
 mod diff;
+mod report;
 mod tokens;
 
+pub use abstraction::AbstractionLevel;
+pub use cohesion::CohesionViolation;
 pub use context::{
-    detect_import_cycle, CheckInput, ContextDecl, ContextExport, ContextImport, ContextPattern,
-    ContextViolation, OwnedUnit,
+    context_for_concept, detect_import_cycle, resolve_declared_context, CheckInput, ContextDecl,
+    ContextExport, ContextImport, ContextPattern, ContextViolation, OwnedUnit,
 };
 pub use diff::diff;
+pub use report::{
+    report_verb_coverage, HomonymAppearance, HomonymRecord, InvariantAnnotation, PubFnDecl,
+    ReportOutput, TierHistogramRecord, TierKind, VerbCoverageRecord,
+};
 pub use tokens::tokenise_target;
 
 /// NDJSON wire-contract version stamped on every record emitted by
@@ -36,11 +45,18 @@ pub use tokens::tokenise_target;
 pub enum SchemaVersion {
     V1,
     V2,
+    /// v3 (RFC-010 §3.6) — versions the abstraction-ladder `Cohesion`
+    /// record kinds (`context_without_cohesion_unit`, `sub_concept_orphan`,
+    /// `concept_context_mismatch`) added by R10-3. Consumers dispatch on
+    /// `"3"`; the qbot-core `compare-spec-change` v3 arm lockstep is tracked
+    /// separately (OQ-3). Provenance source fields are a planned additive
+    /// (non-breaking) extension that will NOT bump the version again.
+    V3,
 }
 
 impl SchemaVersion {
     /// The version stamped on every record this build emits.
-    pub const CURRENT: Self = Self::V2;
+    pub const CURRENT: Self = Self::V3;
 
     /// Wire form — the exact string literal that appears in the
     /// `schema_version` JSON field.
@@ -49,6 +65,7 @@ impl SchemaVersion {
         match self {
             Self::V1 => "1",
             Self::V2 => "2",
+            Self::V3 => "3",
         }
     }
 }
@@ -97,6 +114,58 @@ pub struct ConceptNode {
     pub name: String,
     pub source: Source,
     pub signature: SignatureState,
+    /// Language-agnostic containment provenance (RFC-010 §3.3). Populated
+    /// by a `CodeFacts`-style adapter (source-walk in R10-3, cfdb-query
+    /// ACL in R10-6); `None` on the spec side and wherever no code facts
+    /// are available. Deliberately **not** cfdb's Rust-specific prop names
+    /// (`module_qpath` / `crate` / `bounded_context`) — PHP `:Item` carries
+    /// no such props, so the agnostic triple is translated by the ACL.
+    ///
+    /// `module_path` — the owning module path, crate-root-collapsed.
+    pub module_path: Option<String>,
+    /// `unit` — the owning crate / package, relative to the code root.
+    pub unit: Option<String>,
+    /// `context` — the resolved bounded context (`specs/contexts/` Owns or
+    /// the cfdb-query ACL), used by the R10-3 cohesion pass.
+    pub context: Option<String>,
+}
+
+impl ConceptNode {
+    /// Construct a concept node with **no** containment provenance — the
+    /// spec-side / no-code-facts case. The three provenance fields default
+    /// to `None`; populate them with [`ConceptNode::with_provenance`].
+    ///
+    /// This is an explicit "provenance unknown" constructor, **not** a
+    /// `Default` escape: every site decides provenance consciously (RFC-010
+    /// §3.7 — `ConceptNode` does not derive `Default`).
+    #[must_use]
+    pub const fn new(name: String, source: Source, signature: SignatureState) -> Self {
+        Self {
+            name,
+            source,
+            signature,
+            module_path: None,
+            unit: None,
+            context: None,
+        }
+    }
+
+    /// Builder: attach the language-agnostic containment triple
+    /// (`module_path` / `unit` / `context`) derived by a code-facts
+    /// adapter. Used by the source-walk adapter (R10-3) and the cfdb-query
+    /// ACL (R10-6); the R10-1 round-trip test exercises it directly.
+    #[must_use]
+    pub fn with_provenance(
+        mut self,
+        module_path: Option<String>,
+        unit: Option<String>,
+        context: Option<String>,
+    ) -> Self {
+        self.module_path = module_path;
+        self.unit = unit;
+        self.context = context;
+        self
+    }
 }
 
 /// The signature-level payload on a [`ConceptNode`].
@@ -177,13 +246,66 @@ pub enum Source {
     Code { path: PathBuf, line: usize },
 }
 
+/// A top-level `pub fn` declaration found in code, with its owning crate
+/// and the location of its declaration site.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerbDecl {
+    pub qname: String,
+    pub owned_unit: Option<String>,
+    pub source: Source,
+}
+
+/// Spec-side anchor parsed from a `- verb: <ident>` bullet inside a
+/// concept section. `concept` names the owning concept; `qname` is the
+/// bare identifier; `raw_target` preserves the verbatim bullet text.
+///
+/// `concept` and `source` are placeholder-initialised by
+/// `parse_verb_bullet` and filled in by the caller (`finish_bullet`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerbAnchor {
+    pub concept: String,
+    pub qname: String,
+    pub raw_target: String,
+    pub source: Source,
+}
+
+/// Aggregates both sides of the verb-anchoring contract carried by [`CheckInput`].
+///
+/// `decls` are `pub fn` declarations from code; `anchors` are `- verb:` bullets
+/// from spec files. [`Default`] is derived so `CheckInput`'s `#[derive(Default)]`
+/// compiles.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct VerbOwnership {
+    pub decls: Vec<VerbDecl>,
+    pub anchors: Vec<VerbAnchor>,
+}
+
+impl From<PubFnDecl> for VerbDecl {
+    fn from(f: PubFnDecl) -> Self {
+        Self {
+            qname: f.name,
+            owned_unit: f.owned_unit,
+            source: f.source,
+        }
+    }
+}
+
 /// A single equivalence violation between spec and code graphs.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Violation {
     /// Concept declared in specs but absent from code.
     MissingInCode { name: String, spec_source: Source },
     /// Concept declared in code but absent from specs.
     MissingInSpecs { name: String, code_source: Source },
+    /// A `pub` code item whose name matches a heading living in a
+    /// `status: draft` spec. The draft imposes no code-existence
+    /// obligation, but implementing it while the spec is still draft
+    /// leaves the item with no active owning heading. Distinct from
+    /// [`Violation::MissingInSpecs`] (no heading exists anywhere) —
+    /// here a heading exists but is draft. `draft_source` points at
+    /// the draft heading. (per specs/dialect.md ## Draft specs)
+    ImplementsDraftConcept { name: String, draft_source: Source },
     /// Both sides declare the concept with a signature, but the signatures
     /// disagree after normalisation.
     SignatureDrift {
@@ -241,4 +363,91 @@ pub enum Violation {
     /// [`ContextViolation`] variants so consumers that do not opt
     /// into context checking match one arm rather than three.
     Context(ContextViolation),
+    /// Spec anchor `- verb: <qname>` found under `concept` but no
+    /// `pub fn` named `qname` exists anywhere in the code tree.
+    VerbMissingInCode {
+        concept: String,
+        qname: String,
+        spec_source: Source,
+    },
+    /// A `pub fn` named `qname` exists in a verb-anchored context but
+    /// no spec anchor claims it.
+    VerbMissingInSpec { qname: String, code_source: Source },
+    /// Spec anchor references `qname` but no `pub fn` with that name
+    /// belongs to any declared bounded context.
+    VerbTargetUnknown {
+        concept: String,
+        qname: String,
+        spec_source: Source,
+    },
+    /// A v0.6 abstraction-ladder cohesion violation (RFC-010 §3.5). Wraps
+    /// the three [`CohesionViolation`] variants so consumers that do not
+    /// opt into cohesion checking match one arm rather than three —
+    /// distinct from [`Violation::Context`] (RFC-001 cross-context edges).
+    Cohesion(CohesionViolation),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- RFC-010 §3.6 / R10-4 NDJSON schema v3 tripwire ---
+
+    #[test]
+    fn schema_version_current_is_v3() {
+        // Tripwire: the production wire version is `"3"`. A change here is a
+        // breaking NDJSON contract change and MUST be paired with a consumer
+        // lockstep (OQ-3) + a `specs/ndjson-output.md` update.
+        assert_eq!(SchemaVersion::CURRENT, SchemaVersion::V3);
+        assert_eq!(SchemaVersion::CURRENT.as_str(), "3");
+    }
+
+    #[test]
+    fn schema_version_wire_strings_are_stable() {
+        assert_eq!(SchemaVersion::V1.as_str(), "1");
+        assert_eq!(SchemaVersion::V2.as_str(), "2");
+        assert_eq!(SchemaVersion::V3.as_str(), "3");
+        assert_eq!(SchemaVersion::V3.to_string(), "3");
+    }
+
+    fn code_src() -> Source {
+        Source::Code {
+            path: PathBuf::from("domain/src/lib.rs"),
+            line: 101,
+        }
+    }
+
+    #[test]
+    fn new_leaves_provenance_unset() {
+        let n = ConceptNode::new("ConceptNode".to_owned(), code_src(), SignatureState::Absent);
+        assert_eq!(n.name, "ConceptNode");
+        assert_eq!(n.module_path, None);
+        assert_eq!(n.unit, None);
+        assert_eq!(n.context, None);
+    }
+
+    #[test]
+    fn with_provenance_round_trips_the_agnostic_triple() {
+        let n = ConceptNode::new("Graph".to_owned(), code_src(), SignatureState::Absent)
+            .with_provenance(
+                Some("domain".to_owned()),
+                Some("domain".to_owned()),
+                Some("equivalence".to_owned()),
+            );
+        assert_eq!(n.module_path.as_deref(), Some("domain"));
+        assert_eq!(n.unit.as_deref(), Some("domain"));
+        assert_eq!(n.context.as_deref(), Some("equivalence"));
+        // name / source / signature are preserved through the builder.
+        assert_eq!(n.name, "Graph");
+        assert_eq!(n.signature, SignatureState::Absent);
+    }
+
+    #[test]
+    fn with_provenance_accepts_partial_facts() {
+        // PHP `:Item` may yield context via edge-traversal but no module_path.
+        let n = ConceptNode::new("X".to_owned(), code_src(), SignatureState::Absent)
+            .with_provenance(None, None, Some("equivalence".to_owned()));
+        assert_eq!(n.module_path, None);
+        assert_eq!(n.context.as_deref(), Some("equivalence"));
+    }
 }
