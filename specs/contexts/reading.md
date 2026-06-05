@@ -13,16 +13,19 @@ equivalence publishes.
 
 - adapters/markdown
 - adapters/rust
+- adapters/cfdb-query
 
 ## Exports (Published Language)
 
 - MarkdownReader (PublishedLanguage)
 - RustReader (PublishedLanguage)
 - RustBackend (PublishedLanguage)
+- CfdbQueryReader (PublishedLanguage)
 
 ## Imports
 
 - Reader from equivalence (Conformist)
+- CodeFacts from equivalence (Conformist)
 - ContextReader from equivalence (Conformist)
 - VerbReader from equivalence (Conformist)
 - LanguageBackend from equivalence (Conformist)

@@ -5,6 +5,7 @@ members = [
     "ports",
     "adapters/markdown",
     "adapters/rust",
+    "adapters/cfdb-query",
     "application",
 ]
 
@@ -33,6 +34,7 @@ domain = { path = "domain" }
 ports = { path = "ports" }
 adapter-markdown = { path = "adapters/markdown" }
 adapter-rust = { path = "adapters/rust" }
+adapter-cfdb-query = { path = "adapters/cfdb-query" }
 application = { path = "application" }
 
 [workspace.lints.clippy]

@@ -92,6 +92,25 @@ pub trait Reader {
 }
 ```
 
+## CodeFacts
+
+The code-side containment port (RFC-010 §3.3). Where [Reader](#reader)
+produces a full type-equivalence [Graph](#graph), `CodeFacts` answers the
+narrower question of which concepts the code contains and each one's
+language-agnostic containment provenance — the `module_path` / `unit` /
+`context` triple on [ConceptNode](#conceptnode) that the cohesion pass
+reads. Two adapters implement it under the §3.3 routing rule: the
+source-walking `RustReader` for multi-crate repos (graph-specs itself) and
+the cfdb-query `CfdbQueryReader` ACL for one-per-crate repos (agentry). Both
+emit the agnostic triple, never cfdb's Rust-specific prop names, so the diff
+engine stays language-neutral. Lives in `ports`.
+
+```rust
+pub trait CodeFacts {
+    fn concepts(&self, root: &Path) -> Result<Vec<ConceptNode>, ReaderError>;
+}
+```
+
 ## ContextReader
 
 The v0.4 bounded-context port trait. Separate from [Reader](#reader)

@@ -31,6 +31,7 @@ here. No IO, no parser state — just values, traits, and the three-pass
 - CheckInput (PublishedLanguage)
 - SchemaVersion (PublishedLanguage)
 - Reader (PublishedLanguage)
+- CodeFacts (PublishedLanguage)
 - ContextReader (PublishedLanguage)
 - VerbReader (PublishedLanguage)
 - ReaderError (PublishedLanguage)

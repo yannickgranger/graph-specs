@@ -16,7 +16,7 @@ mod normalize;
 pub use normalize::normalize;
 
 use domain::{ConceptNode, Edge, Graph, PubFnDecl, SignatureState, Source};
-use ports::{Extraction, LanguageBackend, Reader, ReaderError, VerbReader};
+use ports::{CodeFacts, Extraction, LanguageBackend, Reader, ReaderError, VerbReader};
 use std::path::Path;
 use syn::{Attribute, File, Visibility};
 use walkdir::{DirEntry, WalkDir};
@@ -92,6 +92,18 @@ impl Reader for RustReader {
         } = RustBackend.extract(root)?;
         let edges = edges::filter_by_known_concepts(raw_edges, &concepts);
         Ok(Graph::new(concepts, edges))
+    }
+}
+
+impl CodeFacts for RustReader {
+    /// Source-walk `CodeFacts` (RFC-010 §3.3): the concept set the [`Reader`]
+    /// graph already carries, each node bearing the per-file containment
+    /// provenance attached by `extract_from_file` (`module_path` collapsed to
+    /// crate root, `unit` relative to the code root). This is the parity
+    /// reference the cfdb-query ACL must match (0-mismatch on
+    /// `module_path` / `unit`).
+    fn concepts(&self, root: &Path) -> Result<Vec<ConceptNode>, ReaderError> {
+        Ok(Reader::extract(self, root)?.nodes)
     }
 }
 
