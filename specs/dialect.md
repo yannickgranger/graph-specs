@@ -74,12 +74,55 @@ concept-level specs (`specs/concepts/`) and context-level specs
 
 **MissingInSpec activation:** unanchored `Type::method` decls are inspected only when concept `## Type` exists in the decl's bounded context AND carries at least one `- verb:` anchor (per-concept, context-scoped). Unanchored top-level free `pub fn`s are inspected when their bounded context has any opt-in concept (per-context).
 
+## Abstraction ladder
+
+Heading **depth** is load-bearing (RFC-010). A heading's role *is* its
+depth, and the tool enforces the mapping rather than inferring intent — a
+`pub` type documented at the wrong depth is drift the gate surfaces. The
+four rungs (`domain::AbstractionLevel`):
+
+| Depth | Rung | Meaning | Diffed? |
+|---|---|---|---|
+| `#` H1 | **Context** | the file's bounded-context identifier | cohesion (below) |
+| `##` H2 | **Concept** | one `pub` type — the concept-graph unit | yes (concept / signature / edge) |
+| `###` H3 | **SubConcept** | a nested `pub` type | yes (as a concept) |
+| `####`+ H4 | **Member** | a field / variant / param / invariant | emitted, not diffed |
+
+**H1 normalisation.** A concept file's single `# H1` is its bounded-context
+identifier. One rule normalises it — lowercase, with internal whitespace
+runs collapsed to a single `-` — and the **same** rule is applied to the
+`specs/contexts/<name>.md` H1, so both sides resolve to one identifier
+(`# AC verifier` → `ac-verifier`). An H1 that does not normalise to an
+identifier (it carries punctuation, e.g. a descriptive title like
+`# Spec: foo`) declares **no** bounded context: the ladder pass skips that
+file rather than failing (companion-dialect robustness).
+
+**The ladder is a separate pass.** It is assembled by a dedicated
+`TreeAssembler` walk, *not* by the flat concept reader described above — so
+the H1/H4 rungs participate in cohesion checking even though they never
+become concept-graph nodes (see [What the markdown reader ignores](#what-the-markdown-reader-ignores)).
+
+**Cohesion invariant (level 5).** The ladder must be coherent:
+
+- an H1 context with **no** H2/H3 concept under it declares no cohesion
+  unit → `context_without_cohesion_unit`;
+- an H3 sub-concept with **no** enclosing H2 is a depth skip →
+  `sub_concept_orphan`;
+- a concept documented under one context whose code the `specs/contexts/`
+  Owns block resolves to a *different* context →
+  `concept_context_mismatch` (code-fact-gated — needs `specs/contexts/`).
+
+These are the upward concept→context rung, complementing the downward
+concept→method rung that `- verb:` anchors check.
+
 ## What the markdown reader ignores
 
 Prose changes never affect the graph. The reader does not see:
 
 - Paragraphs, blockquotes, emphasis, strong, strikethrough
-- Level-1 and level-4+ headings
+- Level-1 and level-4+ headings — these never become **concept-graph
+  nodes**, but they are read by the separate ladder pass (H1 = context,
+  H4 = member) for cohesion checking (see [Abstraction ladder](#abstraction-ladder))
 - Fenced blocks without a recognised language tag (untagged or `txt` or
   similar)
 - Bullets without a recognised prefix
