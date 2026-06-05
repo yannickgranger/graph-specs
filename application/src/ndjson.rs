@@ -6,7 +6,7 @@
 //! `specs/ndjson-output.md` for the authoritative schema.
 //!
 //! Schema v2 invariants:
-//! - every record carries `"schema_version":"2"` at the top level
+//! - every record carries `"schema_version":"3"` at the top level
 //! - `violation` is the `snake_case` variant discriminator
 //! - record order matches the `violations` argument order
 //! - no trailing comma, no final newline suppression — each record
@@ -328,7 +328,7 @@ mod tests {
         let out = render_one(v);
         assert!(out.ends_with('\n'));
         let r = record(&out);
-        assert_eq!(r["schema_version"], "2");
+        assert_eq!(r["schema_version"], "3");
         assert_eq!(r["violation"], "missing_in_code");
         assert_eq!(r["concept"], "Foo");
         assert_eq!(r["source"]["kind"], "spec");
@@ -509,7 +509,7 @@ mod tests {
     }
 
     #[test]
-    fn each_record_has_schema_version_two() {
+    fn each_record_has_schema_version_three() {
         let v = Violation::MissingInCode {
             name: "X".into(),
             spec_source: Source::Spec {
@@ -518,7 +518,7 @@ mod tests {
             },
         };
         let r = record(&render_one(v));
-        assert_eq!(r["schema_version"], "2");
+        assert_eq!(r["schema_version"], "3");
     }
 
     // --- v0.4 context violation records (#26) -------------------------
@@ -536,7 +536,7 @@ mod tests {
             },
         });
         let r = record(&render_one(v));
-        assert_eq!(r["schema_version"], "2");
+        assert_eq!(r["schema_version"], "3");
         assert_eq!(r["violation"], "context_membership_unknown");
         assert_eq!(r["concept"], "Orphan");
         assert_eq!(r["owned_unit"], "stray-crate");
@@ -579,7 +579,7 @@ mod tests {
             },
         };
         let r = record(&render_one(v));
-        assert_eq!(r["schema_version"], "2");
+        assert_eq!(r["schema_version"], "3");
         assert_eq!(r["violation"], "verb_missing_in_code");
         assert_eq!(r["concept"], "Graph");
         assert_eq!(r["qname"], "diff");

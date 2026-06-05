@@ -45,11 +45,18 @@ pub use tokens::tokenise_target;
 pub enum SchemaVersion {
     V1,
     V2,
+    /// v3 (RFC-010 §3.6) — versions the abstraction-ladder `Cohesion`
+    /// record kinds (`context_without_cohesion_unit`, `sub_concept_orphan`,
+    /// `concept_context_mismatch`) added by R10-3. Consumers dispatch on
+    /// `"3"`; the qbot-core `compare-spec-change` v3 arm lockstep is tracked
+    /// separately (OQ-3). Provenance source fields are a planned additive
+    /// (non-breaking) extension that will NOT bump the version again.
+    V3,
 }
 
 impl SchemaVersion {
     /// The version stamped on every record this build emits.
-    pub const CURRENT: Self = Self::V2;
+    pub const CURRENT: Self = Self::V3;
 
     /// Wire form — the exact string literal that appears in the
     /// `schema_version` JSON field.
@@ -58,6 +65,7 @@ impl SchemaVersion {
         match self {
             Self::V1 => "1",
             Self::V2 => "2",
+            Self::V3 => "3",
         }
     }
 }
@@ -382,6 +390,25 @@ pub enum Violation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // --- RFC-010 §3.6 / R10-4 NDJSON schema v3 tripwire ---
+
+    #[test]
+    fn schema_version_current_is_v3() {
+        // Tripwire: the production wire version is `"3"`. A change here is a
+        // breaking NDJSON contract change and MUST be paired with a consumer
+        // lockstep (OQ-3) + a `specs/ndjson-output.md` update.
+        assert_eq!(SchemaVersion::CURRENT, SchemaVersion::V3);
+        assert_eq!(SchemaVersion::CURRENT.as_str(), "3");
+    }
+
+    #[test]
+    fn schema_version_wire_strings_are_stable() {
+        assert_eq!(SchemaVersion::V1.as_str(), "1");
+        assert_eq!(SchemaVersion::V2.as_str(), "2");
+        assert_eq!(SchemaVersion::V3.as_str(), "3");
+        assert_eq!(SchemaVersion::V3.to_string(), "3");
+    }
 
     fn code_src() -> Source {
         Source::Code {

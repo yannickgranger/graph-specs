@@ -32,7 +32,7 @@ Every record carries these two fields at the top level:
 
 | Field | Type | Value |
 |---|---|---|
-| `schema_version` | string | `"2"` — bumped on breaking schema changes (v0.4 bump: added three bounded-context variants) |
+| `schema_version` | string | `"3"` — bumped on breaking schema changes (v0.4 bump: three bounded-context variants; **v3 (RFC-010): three abstraction-ladder `Cohesion` variants**). Report records (`graph-specs report`, §Report records) version independently and remain `"2"`. |
 | `violation` | string | snake_case discriminator, one of the values below |
 
 Additional fields are per-variant (see below).
@@ -57,7 +57,7 @@ Every violation carries at least one source location. The shape is:
 Concept declared in specs, absent from code.
 
 ```json
-{"schema_version":"2","violation":"missing_in_code","concept":"Foo","source":{"kind":"spec","path":"specs/core.md","line":12}}
+{"schema_version":"3","violation":"missing_in_code","concept":"Foo","source":{"kind":"spec","path":"specs/core.md","line":12}}
 ```
 
 Field `source` is always `kind: "spec"`.
@@ -67,7 +67,7 @@ Field `source` is always `kind: "spec"`.
 Concept declared in code, absent from specs.
 
 ```json
-{"schema_version":"2","violation":"missing_in_specs","concept":"Bar","source":{"kind":"code","path":"src/lib.rs","line":3}}
+{"schema_version":"3","violation":"missing_in_specs","concept":"Bar","source":{"kind":"code","path":"src/lib.rs","line":3}}
 ```
 
 Field `source` is always `kind: "code"`.
@@ -77,7 +77,7 @@ Field `source` is always `kind: "code"`.
 Both sides declare the concept with a signature; signatures disagree after normalization.
 
 ```json
-{"schema_version":"2","violation":"signature_drift","concept":"Reader","spec_sig":"fn extract(&self)","code_sig":"fn extract(&self, root: &Path)","spec_source":{"kind":"spec","path":"specs/core.md","line":44},"code_source":{"kind":"code","path":"ports/src/lib.rs","line":15}}
+{"schema_version":"3","violation":"signature_drift","concept":"Reader","spec_sig":"fn extract(&self)","code_sig":"fn extract(&self, root: &Path)","spec_source":{"kind":"spec","path":"specs/core.md","line":44},"code_source":{"kind":"code","path":"ports/src/lib.rs","line":15}}
 ```
 
 | Extra field | Type | Meaning |
@@ -92,7 +92,7 @@ Both sides declare the concept with a signature; signatures disagree after norma
 Code declares a signature; spec has the concept heading but no fenced rust block.
 
 ```json
-{"schema_version":"2","violation":"signature_missing_in_spec","concept":"Reader","code_sig":"fn extract(&self, root: &Path)","code_source":{"kind":"code","path":"ports/src/lib.rs","line":15}}
+{"schema_version":"3","violation":"signature_missing_in_spec","concept":"Reader","code_sig":"fn extract(&self, root: &Path)","code_source":{"kind":"code","path":"ports/src/lib.rs","line":15}}
 ```
 
 ### `signature_unparseable`
@@ -100,7 +100,7 @@ Code declares a signature; spec has the concept heading but no fenced rust block
 Spec's fenced rust block failed to parse via `syn`. The concept is dropped from signature comparison until the spec is fixed. **This variant triggers exit code 2.**
 
 ```json
-{"schema_version":"2","violation":"signature_unparseable","concept":"Broken","raw":"fn foo(","error":"expected `)`","source":{"kind":"spec","path":"specs/broken.md","line":9}}
+{"schema_version":"3","violation":"signature_unparseable","concept":"Broken","raw":"fn foo(","error":"expected `)`","source":{"kind":"spec","path":"specs/broken.md","line":9}}
 ```
 
 ### `edge_missing_in_code`
@@ -108,7 +108,7 @@ Spec's fenced rust block failed to parse via `syn`. The concept is dropped from 
 Spec declares a relationship edge (`- implements: Foo`, `- depends on: Bar`, `- returns: Baz`) that the code side does not emit.
 
 ```json
-{"schema_version":"2","violation":"edge_missing_in_code","concept":"MarkdownReader","edge_kind":"IMPLEMENTS","target":"Reader","spec_source":{"kind":"spec","path":"specs/core.md","line":7}}
+{"schema_version":"3","violation":"edge_missing_in_code","concept":"MarkdownReader","edge_kind":"IMPLEMENTS","target":"Reader","spec_source":{"kind":"spec","path":"specs/core.md","line":7}}
 ```
 
 | Extra field | Type | Meaning |
@@ -122,7 +122,7 @@ Spec declares a relationship edge (`- implements: Foo`, `- depends on: Bar`, `- 
 Code emits a relationship edge the spec does not declare. Fires only for concepts whose spec section declared at least one edge bullet (opt-in per concept).
 
 ```json
-{"schema_version":"2","violation":"edge_missing_in_spec","concept":"MarkdownReader","edge_kind":"DEPENDS_ON","target":"Graph","code_source":{"kind":"code","path":"adapters/markdown/src/lib.rs","line":42}}
+{"schema_version":"3","violation":"edge_missing_in_spec","concept":"MarkdownReader","edge_kind":"DEPENDS_ON","target":"Graph","code_source":{"kind":"code","path":"adapters/markdown/src/lib.rs","line":42}}
 ```
 
 ### `edge_target_unknown`
@@ -130,7 +130,7 @@ Code emits a relationship edge the spec does not declare. Fires only for concept
 Spec bullet names a target concept that is not present as a concept in either graph.
 
 ```json
-{"schema_version":"2","violation":"edge_target_unknown","concept":"MarkdownReader","edge_kind":"RETURNS","target":"Frobnicator","spec_source":{"kind":"spec","path":"specs/core.md","line":50}}
+{"schema_version":"3","violation":"edge_target_unknown","concept":"MarkdownReader","edge_kind":"RETURNS","target":"Frobnicator","spec_source":{"kind":"spec","path":"specs/core.md","line":50}}
 ```
 
 ### `context_membership_unknown` (v2, v0.4)
@@ -138,7 +138,7 @@ Spec bullet names a target concept that is not present as a concept in either gr
 A `pub` type in code lives in a crate that is not listed under any declared context's `Owns` block.
 
 ```json
-{"schema_version":"2","violation":"context_membership_unknown","concept":"Orphan","owned_unit":"stray-crate","source":{"kind":"code","path":"stray-crate/src/lib.rs","line":3}}
+{"schema_version":"3","violation":"context_membership_unknown","concept":"Orphan","owned_unit":"stray-crate","source":{"kind":"code","path":"stray-crate/src/lib.rs","line":3}}
 ```
 
 | Extra field | Type | Meaning |
@@ -151,7 +151,7 @@ A `pub` type in code lives in a crate that is not listed under any declared cont
 A v0.3 edge targets a concept in another context that is NOT listed in the owning context's `Imports` declarations.
 
 ```json
-{"schema_version":"2","violation":"cross_context_edge_unauthorized","concept":"MarkdownReader","owning_context":"reading","edge_kind":"DEPENDS_ON","target":"TradingPort","target_context":"trading","spec_source":{"kind":"spec","path":"specs/contexts/reading.md","line":12}}
+{"schema_version":"3","violation":"cross_context_edge_unauthorized","concept":"MarkdownReader","owning_context":"reading","edge_kind":"DEPENDS_ON","target":"TradingPort","target_context":"trading","spec_source":{"kind":"spec","path":"specs/contexts/reading.md","line":12}}
 ```
 
 | Extra field | Type | Meaning |
@@ -167,17 +167,17 @@ A v0.3 edge targets a concept in another context that is NOT listed in the ownin
 A v0.3 edge crosses a context boundary, IS listed in the importing context's `Imports`, but the target context's spec does not declare the import back as an `Exports` entry (asymmetric declaration).
 
 ```json
-{"schema_version":"2","violation":"cross_context_edge_undeclared","concept":"MarkdownReader","owning_context":"reading","edge_kind":"IMPLEMENTS","target":"Reader","target_context":"equivalence","spec_source":{"kind":"spec","path":"specs/contexts/reading.md","line":12}}
+{"schema_version":"3","violation":"cross_context_edge_undeclared","concept":"MarkdownReader","owning_context":"reading","edge_kind":"IMPLEMENTS","target":"Reader","target_context":"equivalence","spec_source":{"kind":"spec","path":"specs/contexts/reading.md","line":12}}
 ```
 
 Same field shape as `cross_context_edge_unauthorized`. The difference is the cause: `unauthorized` means "you didn't ask"; `undeclared` means "you asked but they don't publish that."
 
-### `implements_draft_concept` (additive, v0.4 schema_version stays "2")
+### `implements_draft_concept` (additive at v0.4; rides the current schema_version)
 
-A `pub` code item whose name matches a concept heading living in a `status: draft` spec file. The draft imposes no code-existence obligation, but implementing it while the spec is still draft leaves the code item with no active owning heading. Distinct from `missing_in_specs` (where no heading exists anywhere) — here a draft heading exists but is not yet ratified. Does not bump `schema_version` because it is an additive new variant (see §Schema evolution — compatible non-breaking changes).
+A `pub` code item whose name matches a concept heading living in a `status: draft` spec file. The draft imposes no code-existence obligation, but implementing it while the spec is still draft leaves the code item with no active owning heading. Distinct from `missing_in_specs` (where no heading exists anywhere) — here a draft heading exists but is not yet ratified. It was added as an **additive** variant (it did not bump the version on its own — see §Schema evolution), and like every record now carries the current `schema_version` (`"3"`).
 
 ```json
-{"schema_version":"2","violation":"implements_draft_concept","name":"Widget","draft_source":{"kind":"spec","path":"specs/concepts/drafts.md","line":7}}
+{"schema_version":"3","violation":"implements_draft_concept","name":"Widget","draft_source":{"kind":"spec","path":"specs/concepts/drafts.md","line":7}}
 ```
 
 | Field | Type | Meaning |
@@ -186,6 +186,53 @@ A `pub` code item whose name matches a concept heading living in a `status: draf
 | `draft_source` | source object (kind=spec) | location of the draft heading |
 
 **Remediation:** either promote the draft (flip the `status:` field to ratified, set `code_landing_pr`) or remove the code item until the spec is ratified.
+
+## v3 cohesion variants (RFC-010 — the abstraction ladder)
+
+The `Cohesion` variants check the upward concept→context rung: that a `concepts/` file's `H1` declares a real bounded context, and that each concept is documented under the context the code resolves it to. They are the breaking change that justifies the v2 → v3 bump. Spec-side variants fire with zero code facts; `concept_context_mismatch` is code-fact-gated (needs `specs/contexts/` Owns).
+
+### `context_without_cohesion_unit`
+
+An `H1` context heading with no `H2`/`H3` concept under it — a bounded context that declares no cohesion unit.
+
+```json
+{"schema_version":"3","violation":"context_without_cohesion_unit","context":"reading","file":"specs/concepts/reading.md"}
+```
+
+| Field | Type | Meaning |
+|---|---|---|
+| `context` | string | the normalised context identifier from the `H1` |
+| `file` | string | the offending `concepts/` file |
+
+### `sub_concept_orphan`
+
+An `H3` sub-concept with no enclosing `H2` concept (a depth skip).
+
+```json
+{"schema_version":"3","violation":"sub_concept_orphan","sub_concept":"InnerThing","file":"specs/concepts/reading.md"}
+```
+
+| Field | Type | Meaning |
+|---|---|---|
+| `sub_concept` | string | the orphaned `H3` heading text |
+| `file` | string | the offending `concepts/` file |
+
+### `concept_context_mismatch`
+
+A concept's spec-side declared owning context (its `concepts/` H1, with `specs/contexts/` export precedence) disagrees with the context the code resolves it to (the `specs/contexts/` Owns block owning the crate the `pub` type lives in).
+
+```json
+{"schema_version":"3","violation":"concept_context_mismatch","concept":"Widget","declared":"reading","code_context":"equivalence","spec_source":{"kind":"spec","path":"specs/concepts/reading.md","line":7}}
+```
+
+| Field | Type | Meaning |
+|---|---|---|
+| `concept` | string | the concept name |
+| `declared` | string | the spec-side declared owning context |
+| `code_context` | string | the context the code resolves the concept to |
+| `spec_source` | source object (kind=spec) | where the concept is documented |
+
+> **Planned additive extension (no further bump, tracked at #136):** source objects on code-bearing records will gain the agnostic provenance triple (`module_path` / `unit` / `context`). Because these are optional additive fields (see §Schema evolution), they will NOT bump `schema_version` again.
 
 ## v0.5 forward-compat — `unknown_context_violation`
 
@@ -258,11 +305,16 @@ Compatible (non-breaking) changes — **no version bump**:
 - Adding a new top-level field with a default/optional meaning
 - Widening a string value's permitted set
 
-Breaking changes — **`schema_version` increments** (e.g., `"1"` → `"2"`):
+Breaking changes — **`schema_version` increments** (e.g., `"1"` → `"2"` → `"3"`):
 - Removing a field
 - Renaming a field or a `violation` discriminator value
 - Changing a field's JSON type
 - Changing the interpretation of an existing `violation` discriminator
+
+Version history:
+- `"1"` — v0.1–v0.3 (concept / signature / edge variants).
+- `"2"` — v0.4 added the bounded-context variants (`context_membership_unknown`, `cross_context_edge_*`, `cross_verb_unauthorized`).
+- `"3"` — RFC-010 added the abstraction-ladder `Cohesion` variants (`context_without_cohesion_unit`, `sub_concept_orphan`, `concept_context_mismatch`). Consumers dispatch on `"3"`; the qbot-core `compare-spec-change` lockstep arm is tracked at #135. Like `ContextViolation`, `CohesionViolation` is `#[non_exhaustive]` — an unknown future cohesion variant emits `"violation":"unknown_cohesion_violation"` as a tripwire.
 
 ## Determinism
 
