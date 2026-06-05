@@ -979,3 +979,82 @@ fn injectbite_v04_cross_edge_undeclared_surfaces_in_text_and_ndjson() {
         "ndjson: {records:?}"
     );
 }
+
+// --- RFC-010 §3.5 / R10-3 cohesion end-to-end (§12-F non-zero exit) ---
+
+#[test]
+fn spec_side_cohesion_violation_exits_non_zero() {
+    // A `concepts/` file with an H1 but no concept under it is malformed —
+    // ContextWithoutCohesionUnit. It must drive a non-zero exit and render
+    // (not "unknown violation").
+    let specs = TempDir::new().unwrap();
+    let code = TempDir::new().unwrap();
+    write_file(
+        specs.path(),
+        "concepts/lonely.md",
+        "# lonely\n\nprose only, no concept.\n",
+    );
+
+    bin()
+        .args([
+            "check",
+            "--specs",
+            specs.path().to_str().unwrap(),
+            "--code",
+            code.path().to_str().unwrap(),
+        ])
+        .assert()
+        .failure()
+        .code(1)
+        .stdout(
+            predicate::str::contains("context without cohesion unit: `lonely`")
+                .and(predicate::str::contains("unknown violation").not()),
+        );
+}
+
+#[test]
+fn concept_context_mismatch_exits_non_zero_end_to_end() {
+    // `Widget` is documented under H1 `reading` (concepts/reading.md) but
+    // its code lives in crate `domain`, which `equivalence` Owns — a real
+    // ConceptContextMismatch resolved through specs/contexts/ Owns.
+    let specs = TempDir::new().unwrap();
+    let code = TempDir::new().unwrap();
+    write_file(
+        specs.path(),
+        "contexts/equivalence.md",
+        "# equivalence\n\n## Owns\n\n- domain\n",
+    );
+    write_file(
+        specs.path(),
+        "contexts/reading.md",
+        "# reading\n\n## Owns\n\n- adapters/markdown\n",
+    );
+    write_file(
+        specs.path(),
+        "concepts/reading.md",
+        "# reading\n\n## Widget\n",
+    );
+    write_file(
+        code.path(),
+        "domain/Cargo.toml",
+        "[package]\nname = \"domain\"\n",
+    );
+    write_file(code.path(), "domain/src/lib.rs", "pub struct Widget;");
+
+    bin()
+        .args([
+            "check",
+            "--specs",
+            specs.path().to_str().unwrap(),
+            "--code",
+            code.path().to_str().unwrap(),
+        ])
+        .assert()
+        .failure()
+        .code(1)
+        .stdout(
+            predicate::str::contains("concept context mismatch: Widget")
+                .and(predicate::str::contains("declared in `reading`"))
+                .and(predicate::str::contains("code resolves to `equivalence`")),
+        );
+}

@@ -73,6 +73,27 @@ impl SpecTree {
             .and_then(|n| n.id.as_deref())
     }
 
+    /// Each `Concept` / `SubConcept` heading paired with this file's
+    /// context identifier — the spec-side **declared** owning context the
+    /// R10-3 cohesion pass compares against the code-resolved context
+    /// (RFC-010 §3.4). Empty when the file declares no `Context` H1.
+    #[must_use]
+    pub fn concept_declarations(&self) -> Vec<(&str, &str)> {
+        let Some(ctx) = self.context_id() else {
+            return Vec::new();
+        };
+        self.nodes
+            .iter()
+            .filter(|n| {
+                matches!(
+                    n.level,
+                    AbstractionLevel::Concept | AbstractionLevel::SubConcept
+                )
+            })
+            .map(|n| (n.text.as_str(), ctx))
+            .collect()
+    }
+
     /// The spec-side cohesion violations the tree's shape reveals
     /// (RFC-010 §3.5): every `Context` with no concept under it, and every
     /// orphaned `SubConcept`. Detection only — emission into the `check`
@@ -281,11 +302,18 @@ fn handle_event(st: &mut AssemblerState, event: &Event, range: std::ops::Range<u
 /// file-selection rules of [`crate::MarkdownReader::extract`]: `*.md` only,
 /// `contexts/` excluded (different dialect), drafts skipped.
 ///
+/// A file whose H1 does not normalise to a context identifier declares no
+/// bounded context — it is **skipped with a warning**, not fatal. This keeps
+/// the `check` pipeline robust against a companion's spec dialect (e.g.
+/// cfdb's `# Spec: <name>` convention pending RFC-010 §11.2 CF-2): graph-specs
+/// must not abort the whole run because one file uses a title-style H1. The
+/// strict per-file [`assemble_tree`] error is preserved for direct callers.
+///
 /// # Errors
 ///
 /// Returns [`ReaderError::WalkFailed`] / [`ReaderError::IoFailed`] on I/O
-/// failures, or [`ReaderError::ParseFailed`] when a file's H1 is a
-/// descriptive title rather than a context identifier.
+/// failures. A non-context H1 ([`ReaderError::ParseFailed`] from
+/// [`assemble_tree`]) is tolerated, not propagated.
 pub fn assemble_spec_trees(root: &Path) -> Result<Vec<SpecTree>, ReaderError> {
     let concepts_subdir = root.join("concepts");
     let walk_root: &Path = if concepts_subdir.is_dir() {
@@ -314,7 +342,15 @@ pub fn assemble_spec_trees(root: &Path) -> Result<Vec<SpecTree>, ReaderError> {
         if crate::is_draft(&source) {
             continue;
         }
-        trees.push(assemble_tree(&source, path)?);
+        match assemble_tree(&source, path) {
+            Ok(tree) => trees.push(tree),
+            // A non-context H1 declares no bounded context — skip the file
+            // rather than aborting the run (companion-dialect robustness).
+            Err(ReaderError::ParseFailed { .. }) => {
+                tracing::warn!("skipping spec file with non-context H1: {}", path.display());
+            }
+            Err(e) => return Err(e),
+        }
     }
     Ok(trees)
 }
@@ -422,6 +458,33 @@ mod tests {
         let t = tree("# equivalence\n\n## Graph\n\n#### member\n");
         assert_eq!(t.nodes[2].level, AbstractionLevel::Member);
         assert_eq!(t.nodes[2].parent, Some(1));
+    }
+
+    #[test]
+    fn assemble_spec_trees_skips_non_context_h1_files() {
+        use std::io::Write;
+        // A companion-dialect file (`# Spec: cfdb-cli` → `spec:-cfdb-cli`,
+        // not an identifier) must be skipped, not abort the walk — the
+        // valid file still yields a tree (cross-dogfood robustness).
+        let dir = tempfile::TempDir::new().expect("tempdir");
+        let write = |rel: &str, body: &str| {
+            let p = dir.path().join(rel);
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::File::create(&p)
+                .unwrap()
+                .write_all(body.as_bytes())
+                .unwrap();
+        };
+        write("concepts/cfdb-cli.md", "# Spec: cfdb-cli\n\n## Foo\n");
+        write("concepts/reading.md", "# reading\n\n## Bar\n");
+
+        let trees = assemble_spec_trees(dir.path()).expect("walk must not abort");
+        let ids: Vec<_> = trees.iter().filter_map(SpecTree::context_id).collect();
+        assert_eq!(
+            ids,
+            vec!["reading"],
+            "only the identifier-H1 file yields a tree"
+        );
     }
 
     #[test]

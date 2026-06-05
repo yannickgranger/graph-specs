@@ -5,10 +5,11 @@
 //! so integration tests can drive the check end-to-end without going
 //! through process boundaries when they choose to.
 
-use adapter_markdown::MarkdownReader;
+use adapter_markdown::{assemble_spec_trees, MarkdownReader, SpecTree};
 use adapter_rust::RustReader;
-use domain::{diff, CheckInput, VerbDecl, VerbOwnership, Violation};
+use domain::{diff, CheckInput, CohesionViolation, VerbDecl, VerbOwnership, Violation};
 use ports::{ContextReader, Reader, ReaderError, VerbReader};
+use std::collections::HashMap;
 use std::path::Path;
 
 pub mod ndjson;
@@ -34,19 +35,41 @@ pub mod text;
 /// import declarations surface as `ReaderError::ParseFailed` from the
 /// context reader.
 pub fn run_check(specs_dir: &Path, code_dir: &Path) -> Result<Vec<Violation>, ReaderError> {
-    let specs_graph = MarkdownReader.extract(specs_dir)?;
+    let mut specs_graph = MarkdownReader.extract(specs_dir)?;
     let spec_contexts = MarkdownReader.extract_contexts(specs_dir)?;
     let verb_anchors = MarkdownReader.extract_verb_anchors(specs_dir)?;
     let draft_concepts = MarkdownReader.extract_draft_concepts(specs_dir)?;
     let code_graph = RustReader.extract(code_dir)?;
     let pub_fn_decls = RustReader.extract_pub_fns(code_dir)?;
+
+    // RFC-010 R10-3: the abstraction-ladder tree gives each concept its
+    // spec-side *declared* context (the `concepts/` H1) and the spec-side
+    // structural cohesion violations. Annotate the spec concepts with their
+    // declared context so the diff's cohesion pass can compare it against
+    // the code-resolved one; collect the structural violations alongside.
+    let trees = assemble_spec_trees(specs_dir)?;
+    let declared: HashMap<&str, &str> = trees
+        .iter()
+        .flat_map(SpecTree::concept_declarations)
+        .collect();
+    for node in &mut specs_graph.nodes {
+        if let Some(ctx) = declared.get(node.name.as_str()) {
+            node.context = Some((*ctx).to_owned());
+        }
+    }
+    let spec_cohesion: Vec<CohesionViolation> = trees
+        .iter()
+        .flat_map(SpecTree::cohesion_violations)
+        .collect();
+
     let verb_ownership = VerbOwnership {
         decls: pub_fn_decls.into_iter().map(VerbDecl::from).collect(),
         anchors: verb_anchors,
     };
     Ok(diff(
         CheckInput::new(specs_graph, spec_contexts, verb_ownership)
-            .with_draft_concepts(draft_concepts),
+            .with_draft_concepts(draft_concepts)
+            .with_spec_cohesion(spec_cohesion),
         code_graph,
     ))
 }
