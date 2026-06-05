@@ -112,7 +112,7 @@ pub fn diff(spec: CheckInput, code: Graph) -> Vec<Violation> {
     );
 
     verb::verb_pass(
-        &spec_verb_ownership,
+        spec_verb_ownership,
         &code_for_verb,
         &spec_contexts,
         &mut violations,
