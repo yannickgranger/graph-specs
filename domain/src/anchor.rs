@@ -62,6 +62,20 @@ pub struct AnchorTarget {
     pub source: Source,
 }
 
+/// A concept anchor paired with its code-side resolution verdict (RFC-012
+/// §3.4).
+///
+/// Built by the application — which resolves each anchor's `target` through
+/// the `AnchorResolver` port — and handed to the diff, so the diff engine
+/// stays pure and calls no resolver itself. `target` is `Some` when the
+/// named item exists in code (at any visibility), `None` when it does not
+/// (→ [`Violation::DanglingAnchor`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedAnchor {
+    pub anchor: ConceptAnchor,
+    pub target: Option<AnchorTarget>,
+}
+
 /// The pure anchor-match decision (RFC-012 §3.4).
 ///
 /// Given a concept anchor and the resolver's verdict for its target, return

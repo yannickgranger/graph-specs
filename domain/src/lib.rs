@@ -17,6 +17,7 @@ mod tokens;
 pub use abstraction::AbstractionLevel;
 pub use anchor::{
     anchor_violation, behavioral_exemption_applies, AnchorKind, AnchorTarget, ConceptAnchor,
+    ResolvedAnchor,
 };
 pub use cohesion::CohesionViolation;
 pub use context::{

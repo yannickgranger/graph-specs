@@ -1,7 +1,8 @@
 use super::violation_key;
 use crate::{
-    CheckInput, CohesionViolation, ConceptNode, ContextViolation, Edge, EdgeKind, Graph, OwnedUnit,
-    SignatureState, Source, VerbOwnership, Violation,
+    AnchorKind, AnchorTarget, CheckInput, CohesionViolation, ConceptAnchor, ConceptNode,
+    ContextViolation, Edge, EdgeKind, Graph, OwnedUnit, ResolvedAnchor, SignatureState, Source,
+    VerbOwnership, Violation,
 };
 use std::path::PathBuf;
 
@@ -626,5 +627,84 @@ fn orphan_without_draft_match_is_missing_in_specs() {
         matches!(&v[0], Violation::MissingInSpecs { name, .. } if name == "Gadget"),
         "expected MissingInSpecs, got: {:?}",
         v[0]
+    );
+}
+
+// --- RFC-012 §3.4 / R12-3 — anchored-concept exemption + DanglingAnchor ---
+
+fn resolved_anchor(concept: &str, target: &str, resolves: bool) -> ResolvedAnchor {
+    ResolvedAnchor {
+        anchor: ConceptAnchor {
+            concept: concept.to_string(),
+            target: target.to_string(),
+            source: Source::Spec {
+                path: spec_path(),
+                line: 3,
+            },
+        },
+        target: resolves.then(|| AnchorTarget {
+            kind: AnchorKind::Fn,
+            source: Source::Code {
+                path: code_path(),
+                line: 7,
+            },
+        }),
+    }
+}
+
+#[test]
+fn anchored_concept_with_resolved_target_is_not_missing_in_code() {
+    // `## ValidateIntakeFull` has no name-matched pub type, but its `- impl:`
+    // target resolves at any visibility → the concept is satisfied.
+    let specs = Graph::new(vec![spec("ValidateIntakeFull")], Vec::new());
+    let v = super::diff(
+        CheckInput::new(specs, Vec::new(), VerbOwnership::default()).with_concept_anchors(vec![
+            resolved_anchor("ValidateIntakeFull", "validate_intake", true),
+        ]),
+        Graph::default(),
+    );
+    assert!(
+        v.is_empty(),
+        "resolved anchor must satisfy the concept: {v:?}"
+    );
+}
+
+#[test]
+fn anchored_concept_with_unresolved_target_is_dangling_not_missing() {
+    let specs = Graph::new(vec![spec("ValidateIntakeFull")], Vec::new());
+    let v = super::diff(
+        CheckInput::new(specs, Vec::new(), VerbOwnership::default())
+            .with_concept_anchors(vec![resolved_anchor("ValidateIntakeFull", "gone", false)]),
+        Graph::default(),
+    );
+    assert_eq!(v.len(), 1, "exactly one violation: {v:?}");
+    match &v[0] {
+        Violation::DanglingAnchor {
+            concept, target, ..
+        } => {
+            assert_eq!(concept, "ValidateIntakeFull");
+            assert_eq!(target, "gone");
+        }
+        other => panic!("expected DanglingAnchor, got {other:?}"),
+    }
+    assert!(
+        !v.iter()
+            .any(|x| matches!(x, Violation::MissingInCode { .. })),
+        "an anchored concept must not also be MissingInCode"
+    );
+}
+
+#[test]
+fn unanchored_missing_concept_still_missing_in_code() {
+    // Regression (§4 I1): a concept with no anchor and no code match still fires.
+    let specs = Graph::new(vec![spec("Orphan")], Vec::new());
+    let v = super::diff(
+        CheckInput::new(specs, Vec::new(), VerbOwnership::default()),
+        Graph::default(),
+    );
+    assert!(
+        v.iter()
+            .any(|x| matches!(x, Violation::MissingInCode { .. })),
+        "unanchored missing concept must still be MissingInCode: {v:?}"
     );
 }

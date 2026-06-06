@@ -72,6 +72,27 @@ the cfdb-query [CfdbQueryReader](#cfdbqueryreader) ACL must match. Lives in
 - depends on: ReaderError
 - depends on: PubFnDecl
 
+## RustAnchorResolver
+
+Source-walk [AnchorResolver](equivalence.md#anchorresolver) implementation
+(RFC-012 §3.4 / R12-3). Builds an index of code items at **any** visibility
+(the concept walk is `pub`-only) so a `- impl: <qname>` spec anchor can
+resolve a concept whose canonical implementation is legitimately
+`pub(crate)` (or a `fn` / `const`) — no manufactured `pub` ZST. The index
+is built once from the code root; `resolve` is consulted only for the
+anchor qnames, so the global concept set the [RustReader](#rustreader)
+produces is unchanged. A dedicated struct (not an `impl` on
+[RustReader](#rustreader)) because the port's `resolve(&self, qname)`
+carries no root — the resolver must hold the pre-built index. Resolves
+top-level types, `fn`s, `const`s, and `Type::method` impl methods; enum
+variants are deferred to the cfdb-query path. Returns an
+[AnchorTarget](equivalence.md#anchortarget). Lives in `adapters/rust`.
+
+- implements: AnchorResolver
+- depends on: AnchorTarget
+- depends on: ReaderError
+- depends on: RustAnchorResolver
+
 ## CfdbQueryReader
 
 The cfdb-query [CodeFacts](equivalence.md#codefacts) Anti-Corruption Layer

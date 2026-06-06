@@ -8,7 +8,9 @@
 //! lives alongside the three existing passes in `diff.rs` and consumes
 //! [`CheckInput`] as its spec-side argument.
 
-use crate::{CohesionViolation, ConceptNode, EdgeKind, Graph, Source, VerbOwnership};
+use crate::{
+    CohesionViolation, ConceptNode, EdgeKind, Graph, ResolvedAnchor, Source, VerbOwnership,
+};
 use std::collections::HashMap;
 
 /// A crate, npm package, Go module, or equivalent — named deliberately to
@@ -208,6 +210,12 @@ pub struct CheckInput {
     /// [`crate::Violation::Cohesion`] and folds them into the sorted output
     /// (RFC-010 §3.5, fact-dependency split).
     pub spec_cohesion: Vec<CohesionViolation>,
+    /// Concept anchors (`- impl: <qname>`) paired with their code-side
+    /// resolution verdict (RFC-012 §3.4). Built by the application — which
+    /// resolves each target through the `AnchorResolver` port — so the diff
+    /// stays pure. An anchored concept is exempt from `MissingInCode`; an
+    /// unresolved anchor becomes [`crate::Violation::DanglingAnchor`].
+    pub concept_anchors: Vec<ResolvedAnchor>,
 }
 
 impl CheckInput {
@@ -224,6 +232,7 @@ impl CheckInput {
             verb_ownership,
             draft_concepts: Vec::new(),
             spec_cohesion: Vec::new(),
+            concept_anchors: Vec::new(),
         }
     }
 
@@ -240,6 +249,7 @@ impl CheckInput {
             },
             draft_concepts: Vec::new(),
             spec_cohesion: Vec::new(),
+            concept_anchors: Vec::new(),
         }
     }
 
@@ -260,6 +270,18 @@ impl CheckInput {
     pub fn with_spec_cohesion(self, spec_cohesion: Vec<CohesionViolation>) -> Self {
         Self {
             spec_cohesion,
+            ..self
+        }
+    }
+
+    /// Builder: attach the resolved concept anchors (`- impl: <qname>` with
+    /// their code-side resolution verdict, RFC-012 §3.4). Wired by the
+    /// application after resolving each target through the `AnchorResolver`
+    /// port.
+    #[must_use]
+    pub fn with_concept_anchors(self, concept_anchors: Vec<ResolvedAnchor>) -> Self {
+        Self {
+            concept_anchors,
             ..self
         }
     }

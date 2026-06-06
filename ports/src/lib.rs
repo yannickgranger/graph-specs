@@ -13,7 +13,7 @@ mod lang;
 
 pub use lang::{Extraction, LanguageBackend};
 
-use domain::{ConceptNode, ContextDecl, Graph, PubFnDecl};
+use domain::{AnchorTarget, ConceptNode, ContextDecl, Graph, PubFnDecl};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
@@ -98,6 +98,27 @@ pub trait CodeFacts {
     /// read, [`ReaderError::ParseFailed`] if it cannot be parsed, or
     /// [`ReaderError::WalkFailed`] if directory traversal fails.
     fn concepts(&self, root: &Path) -> Result<Vec<ConceptNode>, ReaderError>;
+}
+
+/// Anchor-resolution port (RFC-012 §3.4).
+///
+/// A **separate** trait from [`CodeFacts`] (DD-4 / ISP): not every code
+/// adapter resolves anchors — the source-walk `RustReader` does (R12-3),
+/// the cfdb-query ACL gains it later (R12-6) — so widening `CodeFacts`
+/// would force a deferred adapter to ship a stub. An anchor resolver
+/// answers one question the concept walk does not: *does an item named
+/// `qname` exist anywhere in the code, at **any** visibility?* — so a
+/// concept whose canonical implementation is `pub(crate)` (or a `fn` /
+/// `const`) can be a spec concept without a manufactured `pub` type.
+///
+/// Resolution is consulted **only** for qnames an anchor references, so the
+/// global concept set the [`Reader`] produces is unchanged (RFC-012 §4 I1).
+pub trait AnchorResolver {
+    /// Resolve `qname` (a bare identifier or `Type::method`) to its
+    /// [`AnchorTarget`] — the code item's kind + source — or `None` when no
+    /// such item exists. Visibility is **not** filtered: a `pub(crate)`
+    /// item resolves just as a `pub` one does.
+    fn resolve(&self, qname: &str) -> Option<AnchorTarget>;
 }
 
 /// Failure modes of a [`Reader`] implementation.

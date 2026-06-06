@@ -6,11 +6,12 @@
 //! through process boundaries when they choose to.
 
 use adapter_markdown::{assemble_spec_trees, MarkdownReader, SpecTree};
-use adapter_rust::RustReader;
+use adapter_rust::{RustAnchorResolver, RustReader};
 use domain::{
-    diff, CheckInput, CohesionViolation, ConceptNode, VerbDecl, VerbOwnership, Violation,
+    diff, CheckInput, CohesionViolation, ConceptNode, ResolvedAnchor, VerbDecl, VerbOwnership,
+    Violation,
 };
-use ports::{CodeFacts, ContextReader, Reader, ReaderError, VerbReader};
+use ports::{AnchorResolver, CodeFacts, ContextReader, Reader, ReaderError, VerbReader};
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -43,6 +44,7 @@ pub fn run_check(specs_dir: &Path, code_dir: &Path) -> Result<Vec<Violation>, Re
     let draft_concepts = MarkdownReader.extract_draft_concepts(specs_dir)?;
     let code_graph = RustReader.extract(code_dir)?;
     let pub_fn_decls = RustReader.extract_pub_fns(code_dir)?;
+    let concept_anchors = MarkdownReader.extract_concept_anchors(specs_dir)?;
 
     // RFC-010 R10-3: the abstraction-ladder tree gives each concept its
     // spec-side *declared* context (the `concepts/` H1) and the spec-side
@@ -68,10 +70,29 @@ pub fn run_check(specs_dir: &Path, code_dir: &Path) -> Result<Vec<Violation>, Re
         decls: pub_fn_decls.into_iter().map(VerbDecl::from).collect(),
         anchors: verb_anchors,
     };
+
+    // RFC-012 R12-3: resolve each `- impl:` anchor's target against code,
+    // at any visibility, through the `AnchorResolver` port. Built once;
+    // consulted only for the anchor qnames (the global concept set is
+    // unchanged). The diff stays pure — it receives verdicts, not a resolver.
+    let resolved_anchors: Vec<ResolvedAnchor> = if concept_anchors.is_empty() {
+        Vec::new()
+    } else {
+        let resolver = RustAnchorResolver::index(code_dir)?;
+        concept_anchors
+            .into_iter()
+            .map(|anchor| {
+                let target = resolver.resolve(&anchor.target);
+                ResolvedAnchor { anchor, target }
+            })
+            .collect()
+    };
+
     Ok(diff(
         CheckInput::new(specs_graph, spec_contexts, verb_ownership)
             .with_draft_concepts(draft_concepts)
-            .with_spec_cohesion(spec_cohesion),
+            .with_spec_cohesion(spec_cohesion)
+            .with_concept_anchors(resolved_anchors),
         code_graph,
     ))
 }
@@ -182,6 +203,56 @@ mod tests {
         let specs = TempDir::new().unwrap();
         let code = TempDir::new().unwrap();
         assert!(run_check(specs.path(), code.path()).unwrap().is_empty());
+    }
+
+    // --- RFC-012 R12-3 — anchored concepts resolve end-to-end ---
+
+    #[test]
+    fn anchored_pub_crate_concept_resolves_end_to_end() {
+        // The motivating case: a concept whose impl is `pub(crate)` (no pub
+        // type) is satisfied by its `- impl:` anchor — no ZST, no MissingInCode.
+        let specs = TempDir::new().unwrap();
+        let code = TempDir::new().unwrap();
+        write(
+            specs.path(),
+            "concepts/intake.md",
+            "## ValidateIntakeFull\n\n- impl: validate_intake\n",
+        );
+        write(
+            code.path(),
+            "src/lib.rs",
+            "pub(crate) fn validate_intake() {}",
+        );
+        let v = run_check(specs.path(), code.path()).unwrap();
+        assert!(
+            v.is_empty(),
+            "anchored pub(crate) concept must resolve: {v:?}"
+        );
+    }
+
+    #[test]
+    fn dangling_anchor_end_to_end() {
+        let specs = TempDir::new().unwrap();
+        let code = TempDir::new().unwrap();
+        write(
+            specs.path(),
+            "concepts/intake.md",
+            "## ValidateIntakeFull\n\n- impl: nonexistent_fn\n",
+        );
+        write(code.path(), "src/lib.rs", "pub fn other() {}");
+        let v = run_check(specs.path(), code.path()).unwrap();
+        assert!(
+            v.iter().any(|x| matches!(
+                x,
+                Violation::DanglingAnchor { target, .. } if target == "nonexistent_fn"
+            )),
+            "expected DanglingAnchor: {v:?}"
+        );
+        assert!(
+            !v.iter()
+                .any(|x| matches!(x, Violation::MissingInCode { .. })),
+            "anchored concept must not also be MissingInCode"
+        );
     }
 
     #[test]

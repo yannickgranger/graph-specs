@@ -10,9 +10,11 @@
 //! Scope: only top-level items in each file are visited. Concepts nested
 //! inside `pub mod foo { ... }` are not extracted at this level.
 
+mod anchor_resolver;
 mod edges;
 mod normalize;
 
+pub use anchor_resolver::RustAnchorResolver;
 pub use normalize::normalize;
 
 use domain::{ConceptNode, Edge, Graph, PubFnDecl, SignatureState, Source};
