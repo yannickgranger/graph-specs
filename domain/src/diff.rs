@@ -184,5 +184,6 @@ const fn violation_key(v: &Violation) -> (&str, u8) {
         Violation::VerbTargetUnknown { concept, .. } => (concept.as_str(), 11),
         Violation::Cohesion(c) => (c.key(), 12),
         Violation::ImplementsDraftConcept { name, .. } => (name.as_str(), 13),
+        Violation::DanglingAnchor { concept, .. } => (concept.as_str(), 14),
     }
 }

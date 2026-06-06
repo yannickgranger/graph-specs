@@ -147,6 +147,18 @@ pub fn format_violation(v: &Violation, out: &mut impl Write) -> std::io::Result<
             )
         }
         Violation::Cohesion(c) => format_cohesion_violation(c, out),
+        Violation::DanglingAnchor {
+            concept,
+            target,
+            spec_source,
+        } => {
+            let (path, line) = source_pair(spec_source);
+            writeln!(
+                out,
+                "dangling anchor: {concept} anchors `{target}` but no such code item exists ({}:{line})",
+                path.display()
+            )
+        }
         _ => writeln!(out, "unknown violation"),
     }
 }
@@ -446,5 +458,25 @@ mod tests {
         });
         let out = render(&v);
         assert!(out.contains("sub-concept orphan: `Inner`"));
+    }
+
+    // --- RFC-012 §3.5 / R12-1 dangling-anchor rendering (no "unknown") ---
+
+    #[test]
+    fn dangling_anchor_text_renders_path_line_not_unknown() {
+        let v = Violation::DanglingAnchor {
+            concept: "ValidateIntakeFull".into(),
+            target: "validate_intake".into(),
+            spec_source: Source::Spec {
+                path: PathBuf::from("specs/concepts/intake_validation.md"),
+                line: 3,
+            },
+        };
+        let out = render(&v);
+        assert!(out.contains("dangling anchor: ValidateIntakeFull"));
+        assert!(out.contains("anchors `validate_intake`"));
+        assert!(out.contains("specs/concepts/intake_validation.md:3"));
+        // §12-G: an expected variant must NOT render as the generic fallback.
+        assert!(!out.contains("unknown violation"));
     }
 }

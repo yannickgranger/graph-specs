@@ -7,6 +7,7 @@
 use std::path::PathBuf;
 
 mod abstraction;
+mod anchor;
 mod cohesion;
 mod context;
 mod diff;
@@ -14,6 +15,9 @@ mod report;
 mod tokens;
 
 pub use abstraction::AbstractionLevel;
+pub use anchor::{
+    anchor_violation, behavioral_exemption_applies, AnchorKind, AnchorTarget, ConceptAnchor,
+};
 pub use cohesion::CohesionViolation;
 pub use context::{
     context_for_concept, detect_import_cycle, resolve_declared_context, CheckInput, ContextDecl,
@@ -385,6 +389,18 @@ pub enum Violation {
     /// opt into cohesion checking match one arm rather than three —
     /// distinct from [`Violation::Context`] (RFC-001 cross-context edges).
     Cohesion(CohesionViolation),
+    /// A v0.7 spec anchor (`- impl: <qname>`) names a code item that does
+    /// not exist anywhere in the code tree (RFC-012 §3.5). The
+    /// equivalence-defect analog of [`Violation::MissingInCode`] for an
+    /// anchored concept — kept a **top-level** arm (not nested in
+    /// [`Violation::Cohesion`]) so a consumer that opts out of cohesion
+    /// checking cannot silently suppress broken-anchor detection.
+    /// `spec_source` points at the anchor bullet for `path:line`.
+    DanglingAnchor {
+        concept: String,
+        target: String,
+        spec_source: Source,
+    },
 }
 
 #[cfg(test)]
