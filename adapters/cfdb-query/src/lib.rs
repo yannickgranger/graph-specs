@@ -26,6 +26,10 @@ use domain::{ConceptNode, SignatureState, Source};
 use ports::{CodeFacts, ReaderError};
 use serde::Deserialize;
 
+mod anchor_resolver;
+
+pub use anchor_resolver::CfdbAnchorResolver;
+
 /// Local mirror of `cfdb_petgraph::persist::KeyspaceFile`, deserialized with
 /// cfdb-core types ONLY (RFC-010 §3.3 — no cfdb-petgraph dependency).
 ///
