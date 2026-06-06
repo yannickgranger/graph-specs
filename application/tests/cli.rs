@@ -87,6 +87,63 @@ fn spec_only_concept_exits_1_with_missing_in_code() {
         .stdout(predicate::str::contains("1 violation"));
 }
 
+// --- RFC-012 R12-3 — `- impl:` anchors end-to-end via the CLI ---
+
+#[test]
+fn anchored_pub_crate_concept_passes() {
+    // A concept whose impl is `pub(crate)` resolves via its `- impl:` anchor.
+    let specs = TempDir::new().unwrap();
+    let code = TempDir::new().unwrap();
+    write_file(
+        specs.path(),
+        "concepts/intake.md",
+        "## ValidateIntakeFull\n\n- impl: validate_intake\n",
+    );
+    write_file(
+        code.path(),
+        "src/lib.rs",
+        "pub(crate) fn validate_intake() {}",
+    );
+
+    bin()
+        .args([
+            "check",
+            "--specs",
+            specs.path().to_str().unwrap(),
+            "--code",
+            code.path().to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+}
+
+#[test]
+fn dangling_anchor_exits_1() {
+    let specs = TempDir::new().unwrap();
+    let code = TempDir::new().unwrap();
+    write_file(
+        specs.path(),
+        "concepts/intake.md",
+        "## ValidateIntakeFull\n\n- impl: nonexistent_fn\n",
+    );
+    write_file(code.path(), "src/lib.rs", "pub fn other() {}");
+
+    bin()
+        .args([
+            "check",
+            "--specs",
+            specs.path().to_str().unwrap(),
+            "--code",
+            code.path().to_str().unwrap(),
+        ])
+        .assert()
+        .code(1)
+        .stdout(predicate::str::contains(
+            "dangling anchor: ValidateIntakeFull",
+        ))
+        .stdout(predicate::str::contains("nonexistent_fn"));
+}
+
 // --- v0.2 signature-level integration + inject-bite ---
 
 #[test]

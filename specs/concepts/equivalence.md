@@ -259,6 +259,7 @@ v0.5 entirely. Lives in `domain`.
 - depends on: ContextDecl
 - depends on: VerbOwnership
 - depends on: CohesionViolation
+- depends on: ResolvedAnchor
 - returns: CheckInput
 - verb: diff
 - verb: context_for_concept
@@ -267,6 +268,7 @@ v0.5 entirely. Lives in `domain`.
 - verb: CheckInput::with_graph_and_contexts
 - verb: CheckInput::with_draft_concepts
 - verb: CheckInput::with_spec_cohesion
+- verb: CheckInput::with_concept_anchors
 
 ## SchemaVersion
 
@@ -490,3 +492,26 @@ construction: it carries no infrastructure representation (`syn::Item`,
 cfdb `Node`/`PropValue`); the resolving adapter translates into this
 shape, keeping the dependency arrow pointing inward. Pairs an
 [AnchorKind](#anchorkind) with a [Source](#source). Lives in `domain`.
+
+## ResolvedAnchor
+
+A [ConceptAnchor](#conceptanchor) paired with its code-side resolution
+verdict (RFC-012 §3.4) — `Some(`[AnchorTarget](#anchortarget)`)` when the
+named item exists in code, `None` when it does not. Built by the
+application (which resolves each target through the
+[AnchorResolver](#anchorresolver) port) and handed to the diff, so the
+diff engine stays pure and calls no resolver itself. An anchored concept
+is exempt from `MissingInCode`; an unresolved anchor becomes
+[Violation](#violation)'s `DanglingAnchor` arm. Lives in `domain`.
+
+## AnchorResolver
+
+The anchor-resolution port (RFC-012 §3.4) — a **separate** trait from
+[CodeFacts](#codefacts) (ISP): not every code adapter resolves anchors, so
+widening `CodeFacts` would force a deferred adapter to ship a stub. It
+answers one question the concept walk does not: *does an item named
+`qname` exist anywhere in the code, at **any** visibility?* — so a concept
+whose canonical implementation is `pub(crate)` (or a `fn` / `const`) can be
+a spec concept without a manufactured `pub` type. Resolution is consulted
+only for the qnames an anchor references, so the global concept set is
+unchanged. Lives in `ports`.

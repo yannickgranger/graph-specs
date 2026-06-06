@@ -21,6 +21,7 @@ equivalence publishes.
 - RustReader (PublishedLanguage)
 - RustBackend (PublishedLanguage)
 - CfdbQueryReader (PublishedLanguage)
+- RustAnchorResolver (PublishedLanguage)
 
 ## Imports
 
@@ -28,6 +29,7 @@ equivalence publishes.
 - CodeFacts from equivalence (Conformist)
 - ContextReader from equivalence (Conformist)
 - VerbReader from equivalence (Conformist)
+- AnchorResolver from equivalence (Conformist)
 - LanguageBackend from equivalence (Conformist)
 - Extraction from equivalence (PublishedLanguage)
 - ReaderError from equivalence (PublishedLanguage)
@@ -45,6 +47,7 @@ equivalence publishes.
 - PubFnDecl from equivalence (PublishedLanguage)
 - VerbAnchor from equivalence (PublishedLanguage)
 - ConceptAnchor from equivalence (PublishedLanguage)
+- AnchorTarget from equivalence (PublishedLanguage)
 - InvariantAnnotation from equivalence (PublishedLanguage)
 - TierKind from equivalence (PublishedLanguage)
 - AbstractionLevel from equivalence (PublishedLanguage)

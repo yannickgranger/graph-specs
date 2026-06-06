@@ -20,7 +20,7 @@ mod verb;
 #[cfg(test)]
 mod tests;
 
-use crate::{CheckInput, ConceptNode, ContextDecl, Graph, Source, Violation};
+use crate::{anchor_violation, CheckInput, ConceptNode, ContextDecl, Graph, Source, Violation};
 use std::collections::{HashMap, HashSet};
 
 /// Snapshot each spec concept's declared owning context (its `concepts/` H1,
@@ -53,6 +53,7 @@ pub fn diff(spec: CheckInput, code: Graph) -> Vec<Violation> {
         verb_ownership: spec_verb_ownership,
         draft_concepts,
         spec_cohesion,
+        concept_anchors,
     } = spec;
     let Graph {
         nodes: spec_nodes,
@@ -101,15 +102,23 @@ pub fn diff(spec: CheckInput, code: Graph) -> Vec<Violation> {
 
     let mut violations = Vec::new();
 
+    // RFC-012: anchored concepts redirect their equivalence target to a named
+    // code item (§3.4) — emit a `DanglingAnchor` for every unresolved anchor
+    // and collect the anchored concept names so the concept pass exempts them
+    // from `MissingInCode` (their existence is governed by the anchor).
+    let anchored_concepts = anchor_pass(concept_anchors, &mut violations);
+
     for spec_node in spec_nodes {
         if let Some(code_node) = code_by_name.remove(&spec_node.name) {
             signature::compare_signatures(spec_node, code_node, &mut violations);
-        } else {
+        } else if !anchored_concepts.contains(&spec_node.name) {
             violations.push(Violation::MissingInCode {
                 name: spec_node.name,
                 spec_source: spec_node.source,
             });
         }
+        // else: anchored — existence governed by the anchor; a `DanglingAnchor`
+        // was already emitted above if its target did not resolve.
     }
     let draft_by_name: HashMap<&str, &Source> = draft_concepts
         .iter()
@@ -161,6 +170,25 @@ pub fn diff(spec: CheckInput, code: Graph) -> Vec<Violation> {
     });
 
     violations
+}
+
+/// Process the resolved concept anchors (RFC-012 §3.4): push a
+/// [`Violation::DanglingAnchor`] for every anchor whose target did not
+/// resolve, and return the set of anchored concept names — the concept pass
+/// exempts these from `MissingInCode` (an anchored concept's existence is
+/// governed by its `- impl:` target, not a name-matched top-level `pub` type).
+fn anchor_pass(
+    concept_anchors: Vec<crate::ResolvedAnchor>,
+    violations: &mut Vec<Violation>,
+) -> HashSet<String> {
+    let mut anchored = HashSet::new();
+    for resolved in concept_anchors {
+        anchored.insert(resolved.anchor.concept.clone());
+        if let Some(v) = anchor_violation(&resolved.anchor, resolved.target.as_ref()) {
+            violations.push(v);
+        }
+    }
+    anchored
 }
 
 // The `Cohesion` arm delegates to `CohesionViolation::key`. RFC-010
