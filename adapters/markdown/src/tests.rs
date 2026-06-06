@@ -770,3 +770,118 @@ fn extract_invariant_annotations_skips_draft_spec() {
         "draft invariant annotations must be skipped"
     );
 }
+
+// --- RFC-012 §3.2 / R12-2 — `- impl:` concept anchors + shared grammar ---
+
+#[test]
+fn parse_anchor_qname_accepts_bare_and_two_segment() {
+    assert_eq!(
+        parse_anchor_qname(" validate_intake "),
+        Some("validate_intake")
+    );
+    assert_eq!(parse_anchor_qname("Type::method"), Some("Type::method"));
+}
+
+#[test]
+fn parse_anchor_qname_rejects_multi_segment_and_empty() {
+    assert_eq!(parse_anchor_qname("a::b::c"), None);
+    assert_eq!(parse_anchor_qname("::lead"), None);
+    assert_eq!(parse_anchor_qname("trail::"), None);
+    assert_eq!(parse_anchor_qname("   "), None);
+    assert_eq!(parse_anchor_qname("has space"), None);
+}
+
+#[test]
+fn parse_impl_bullet_yields_concept_anchor() {
+    let a = parse_impl_bullet("impl: validate_intake").expect("anchor");
+    assert_eq!(a.target, "validate_intake");
+    // concept/source are placeholders filled by finish_bullet.
+    assert!(a.concept.is_empty());
+}
+
+#[test]
+fn parse_impl_bullet_does_not_collide_with_implements_edge() {
+    // `implements:` is an edge bullet, not an `impl:` anchor — strip_prefix
+    // is literal, so no false match.
+    assert!(parse_impl_bullet("implements: Foo").is_none());
+}
+
+#[test]
+fn parse_impl_bullet_rejects_malformed_qname() {
+    assert!(parse_impl_bullet("impl: a::b::c").is_none());
+    assert!(parse_impl_bullet("impl:").is_none());
+}
+
+#[test]
+fn impl_and_verb_share_one_qname_grammar() {
+    // §4 I7: the same qname routes identically through both prefixes.
+    let v = parse_verb_bullet("verb: Foo::bar").expect("verb");
+    let i = parse_impl_bullet("impl: Foo::bar").expect("impl");
+    assert_eq!(v.qname, i.target);
+    // ...and both reject the same malformed qname.
+    assert!(parse_verb_bullet("verb: a::b::c").is_none());
+    assert!(parse_impl_bullet("impl: a::b::c").is_none());
+}
+
+#[test]
+fn extract_concept_anchors_collects_impl_bullet() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "intake.md",
+        "## ValidateIntakeFull\n\n- impl: validate_intake\n",
+    );
+    let anchors = MarkdownReader
+        .extract_concept_anchors(d.path())
+        .expect("test");
+    assert_eq!(anchors.len(), 1);
+    assert_eq!(anchors[0].concept, "ValidateIntakeFull");
+    assert_eq!(anchors[0].target, "validate_intake");
+}
+
+#[test]
+fn extract_concept_anchors_skips_draft_and_is_empty_without_impl() {
+    let d = TempDir::new().expect("test");
+    write(d.path(), "plain.md", "## Foo\n\n- depends on: Bar\n");
+    write(
+        d.path(),
+        "draft.md",
+        "---\nstatus: draft\n---\n\n## Drafted\n\n- impl: drafted_fn\n",
+    );
+    let anchors = MarkdownReader
+        .extract_concept_anchors(d.path())
+        .expect("test");
+    assert!(anchors.is_empty(), "no impl in non-draft; draft is skipped");
+}
+
+#[test]
+fn impl_bullet_is_not_an_edge() {
+    // An `- impl:` bullet must not be parsed as a relationship edge.
+    let d = TempDir::new().expect("test");
+    write(d.path(), "a.md", "## Foo\n\n- impl: foo_fn\n");
+    let g = extract_graph(d.path());
+    assert!(g.edges.is_empty(), "impl bullet must not become an edge");
+}
+
+// --- RFC-012 §3.3 / R12-2 — `cohesion: behavioral` front-matter ---
+
+#[test]
+fn is_behavioral_context_detects_marker() {
+    assert!(is_behavioral_context(
+        "---\ncohesion: behavioral\n---\n\n# secrets\n"
+    ));
+    assert!(is_behavioral_context(
+        "---\ncohesion: \"behavioral\" # doctrine\n---\n# x\n"
+    ));
+}
+
+#[test]
+fn is_behavioral_context_rejects_absent_or_other_shapes() {
+    assert!(!is_behavioral_context("# secrets\n")); // no front-matter
+    assert!(!is_behavioral_context("---\nstatus: draft\n---\n# x\n")); // different key
+    assert!(!is_behavioral_context(
+        "---\ncohesion: load-bearing\n---\n# x\n"
+    )); // other value
+        // key only in the prose body, not the leading block:
+    assert!(!is_behavioral_context("# x\n\ncohesion: behavioral\n"));
+}
