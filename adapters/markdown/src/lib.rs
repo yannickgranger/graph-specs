@@ -386,6 +386,40 @@ fn is_draft(source: &str) -> bool {
     front_matter_value(source, "status").is_some_and(|v| v.eq_ignore_ascii_case("draft"))
 }
 
+/// Returns `true` when `source` carries machine-checkable **behavioral
+/// substance** (RFC-012 §3.3.1) — at least one `- impl:` / `- verb:` anchor
+/// bullet or one `[enforced-by:]` / `[prose-only:]` invariant annotation.
+///
+/// This is the anti-gaming gate for `cohesion: behavioral`: the marker
+/// exempts a context from `ContextWithoutCohesionUnit` only when the context
+/// demonstrates behavioral content — never against an empty file. Reuses the
+/// canonical bullet grammar ([`parse_impl_bullet`] / [`parse_verb_bullet`])
+/// so the substance set cannot drift from what the readers actually parse.
+fn has_behavioral_substance(source: &str) -> bool {
+    source.lines().any(|line| {
+        if line.contains("[enforced-by:") || line.contains("[prose-only:") {
+            return true;
+        }
+        strip_bullet_marker(line)
+            .is_some_and(|b| parse_impl_bullet(b).is_some() || parse_verb_bullet(b).is_some())
+    })
+}
+
+/// Strip a leading markdown list marker (`-` / `*` / `+` followed by
+/// whitespace) from `line`, returning the bullet text. `None` when the line
+/// is not a list item.
+fn strip_bullet_marker(line: &str) -> Option<&str> {
+    let trimmed = line.trim_start();
+    for marker in ['-', '*', '+'] {
+        if let Some(rest) = trimmed.strip_prefix(marker) {
+            if rest.starts_with([' ', '\t']) {
+                return Some(rest.trim_start());
+            }
+        }
+    }
+    None
+}
+
 /// Returns `true` when `source`'s leading front-matter declares
 /// `cohesion: behavioral` (RFC-012 §3.3).
 ///
