@@ -885,3 +885,27 @@ fn is_behavioral_context_rejects_absent_or_other_shapes() {
         // key only in the prose body, not the leading block:
     assert!(!is_behavioral_context("# x\n\ncohesion: behavioral\n"));
 }
+
+// --- RFC-012 §3.3.1 / R12-4 — behavioral substance detection ---
+
+#[test]
+fn has_behavioral_substance_detects_each_marker() {
+    assert!(has_behavioral_substance("- impl: foo\n"));
+    assert!(has_behavioral_substance("- verb: bar\n"));
+    assert!(has_behavioral_substance(
+        "- INV-x: y [enforced-by: q.cypher; retire-when: never]\n"
+    ));
+    assert!(has_behavioral_substance(
+        "- INV-x: y [prose-only: doctrine]\n"
+    ));
+    assert!(has_behavioral_substance("  * verb: indented\n")); // other markers + indent
+}
+
+#[test]
+fn has_behavioral_substance_rejects_non_substance() {
+    assert!(!has_behavioral_substance("# ctx\n\nJust prose.\n"));
+    // `- implements:` is an edge bullet, NOT an `impl:` anchor — not substance.
+    assert!(!has_behavioral_substance(
+        "- implements: Foo\n- depends on: Bar\n"
+    ));
+}
