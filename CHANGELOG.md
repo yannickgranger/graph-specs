@@ -2,6 +2,15 @@
 
 All notable changes to graph-specs-rust will be documented in this file.
 
+## [0.6.0] - 2026-06-07
+
+### 🚀 Features
+
+- *(rfc-012)* Non-pub spec anchors — `- impl:` markdown anchors resolve impl-method / non-`pub` items, removing the heading↔pub-type rule's caller-less ZST forcing (#143, #144)
+- *(rfc-012)* Source-walk `AnchorResolver` + diff wiring + `Violation::DanglingAnchor` — a spec anchor naming a non-existent target now fails the gate (#146, #148)
+- *(rfc-012)* `cohesion: behavioral` exemption + anti-gaming gate — behavioral / doctrine contexts may own no concept without a violation (#147, #149)
+- *(rfc-012)* cfdb-query `AnchorResolver` parity (#151) + dialect Anchors section + NDJSON schema (#150)
+
 ## [0.1.0] - 2026-04-21
 
 ### 🚀 Features
