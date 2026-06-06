@@ -234,6 +234,24 @@ A concept's spec-side declared owning context (its `concepts/` H1, with `specs/c
 
 > **Planned additive extension (no further bump, tracked at #136):** source objects on code-bearing records will gain the agnostic provenance triple (`module_path` / `unit` / `context`). Because these are optional additive fields (see §Schema evolution), they will NOT bump `schema_version` again.
 
+## v0.7 anchor variant (RFC-012 — non-`pub` spec anchors)
+
+### `dangling_anchor` (additive at v0.7; rides the current `schema_version` `"3"`)
+
+A concept's `- impl: <qname>` anchor (RFC-012 §3.2) names a code item that does not exist anywhere in the code tree, at any visibility. The equivalence-defect analog of `missing_in_code` for an anchored concept: the anchor redirected the concept's target to `qname`, and `qname` did not resolve. A **top-level** variant (not nested under `Cohesion`) so a consumer that opts out of cohesion checking cannot silently suppress broken-anchor detection. Added as an **additive** variant — it did not bump the version (see §Schema evolution).
+
+```json
+{"schema_version":"3","violation":"dangling_anchor","concept":"ValidateIntakeFull","target":"validate_intake","source":{"kind":"spec","path":"specs/concepts/intake_validation.md","line":3}}
+```
+
+| Field | Type | Meaning |
+|---|---|---|
+| `concept` | string | the anchored concept heading |
+| `target` | string | the `- impl:` qname that did not resolve |
+| `source` | source object (kind=spec) | where the anchor bullet is declared |
+
+> An anchor whose target **does** resolve emits **no** record — the concept is satisfied (no `missing_in_code`). Resolution honours any visibility (`pub`, `pub(crate)`, a `fn`, a `const`), so a concept whose canonical implementation is `pub(crate)` need not manufacture a `pub` type.
+
 ## v0.5 forward-compat — `unknown_context_violation`
 
 `ContextViolation` carries `#[non_exhaustive]` in the domain type. If a future v0.5 adds a variant not known to this tool version, the record emits with `"violation":"unknown_context_violation"` and the `concept` field only. Consumers SHOULD treat unknown variants as tripwires — the tool version on the producer side is ahead of the consumer's schema.

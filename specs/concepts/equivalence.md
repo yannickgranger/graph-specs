@@ -62,7 +62,11 @@ signature-, and relationship-level variants share the convention that
 the first-carried field is the concept or owner name, so CLI output can
 be sorted deterministically regardless of violation kind. The variant
 set includes `ImplementsDraftConcept` for the case where a code item
-implements a concept whose spec heading is still `status: draft`.
+implements a concept whose spec heading is still `status: draft`, and
+`DanglingAnchor` (RFC-012 §3.5) for the case where a `- impl:` anchor
+names a code item that does not exist — a **top-level** arm (not nested
+in `Cohesion`) so opting out of cohesion checking cannot suppress
+broken-anchor detection.
 
 ## Edge
 
@@ -89,6 +93,25 @@ identical shape. Lives in `ports`.
 ```rust
 pub trait Reader {
     fn extract(&self, root: &Path) -> Result<Graph, ReaderError>;
+}
+```
+
+## CodeFacts
+
+The code-side containment port (RFC-010 §3.3). Where [Reader](#reader)
+produces a full type-equivalence [Graph](#graph), `CodeFacts` answers the
+narrower question of which concepts the code contains and each one's
+language-agnostic containment provenance — the `module_path` / `unit` /
+`context` triple on [ConceptNode](#conceptnode) that the cohesion pass
+reads. Two adapters implement it under the §3.3 routing rule: the
+source-walking `RustReader` for multi-crate repos (graph-specs itself) and
+the cfdb-query `CfdbQueryReader` ACL for one-per-crate repos (agentry). Both
+emit the agnostic triple, never cfdb's Rust-specific prop names, so the diff
+engine stays language-neutral. Lives in `ports`.
+
+```rust
+pub trait CodeFacts {
+    fn concepts(&self, root: &Path) -> Result<Vec<ConceptNode>, ReaderError>;
 }
 ```
 
@@ -236,6 +259,7 @@ v0.5 entirely. Lives in `domain`.
 - depends on: ContextDecl
 - depends on: VerbOwnership
 - depends on: CohesionViolation
+- depends on: ResolvedAnchor
 - returns: CheckInput
 - verb: diff
 - verb: context_for_concept
@@ -244,6 +268,7 @@ v0.5 entirely. Lives in `domain`.
 - verb: CheckInput::with_graph_and_contexts
 - verb: CheckInput::with_draft_concepts
 - verb: CheckInput::with_spec_cohesion
+- verb: CheckInput::with_concept_anchors
 
 ## SchemaVersion
 
@@ -433,3 +458,60 @@ The *detection* logic that emits these lands in R10-3; this entry covers
 the type. Lives in `domain`.
 
 - verb: CohesionViolation::key
+
+## ConceptAnchor
+
+A concept heading explicitly bound to a named code item the concept walk
+would not otherwise surface (RFC-012 §3.2) — a `pub(crate)` type, a `fn`,
+or a `const`. Parsed from a `- impl: <qname>` bullet, it *redirects* the
+concept's equivalence target to the resolved item rather than requiring a
+top-level `pub` type named like the heading. Shares the verb-bullet qname
+grammar with [VerbAnchor](#verbanchor) (one grammar) but is a distinct
+type: a `VerbAnchor` attributes a `pub fn` to a context, a `ConceptAnchor`
+redirects a concept's equivalence target. An anchor naming a nonexistent
+item fires [Violation](#violation)'s `DanglingAnchor` arm, so the link
+stays two-way and zero-baseline. Lives in `domain`.
+
+- verb: anchor_violation
+- verb: behavioral_exemption_applies
+
+## AnchorKind
+
+The kind of code item an anchor resolved to (RFC-012 §3.4): `Type`, `Fn`,
+or `Const` — the three the source-walk MVP resolves, each a `syn::Item`
+the reader already visits. Enum-variant resolution is deferred to R12-6
+(cfdb-query, where `kind:"variant"` is native), so the enum is
+`#[non_exhaustive]` to admit it without a breaking change. Lives in
+`domain`.
+
+## AnchorTarget
+
+A resolved anchor target — the code item an `AnchorResolver` found for a
+qname, at any visibility (RFC-012 §3.4). A pure domain type by
+construction: it carries no infrastructure representation (`syn::Item`,
+cfdb `Node`/`PropValue`); the resolving adapter translates into this
+shape, keeping the dependency arrow pointing inward. Pairs an
+[AnchorKind](#anchorkind) with a [Source](#source). Lives in `domain`.
+
+## ResolvedAnchor
+
+A [ConceptAnchor](#conceptanchor) paired with its code-side resolution
+verdict (RFC-012 §3.4) — `Some(`[AnchorTarget](#anchortarget)`)` when the
+named item exists in code, `None` when it does not. Built by the
+application (which resolves each target through the
+[AnchorResolver](#anchorresolver) port) and handed to the diff, so the
+diff engine stays pure and calls no resolver itself. An anchored concept
+is exempt from `MissingInCode`; an unresolved anchor becomes
+[Violation](#violation)'s `DanglingAnchor` arm. Lives in `domain`.
+
+## AnchorResolver
+
+The anchor-resolution port (RFC-012 §3.4) — a **separate** trait from
+[CodeFacts](#codefacts) (ISP): not every code adapter resolves anchors, so
+widening `CodeFacts` would force a deferred adapter to ship a stub. It
+answers one question the concept walk does not: *does an item named
+`qname` exist anywhere in the code, at **any** visibility?* — so a concept
+whose canonical implementation is `pub(crate)` (or a `fn` / `const`) can be
+a spec concept without a manufactured `pub` type. Resolution is consulted
+only for the qnames an anchor references, so the global concept set is
+unchanged. Lives in `ports`.

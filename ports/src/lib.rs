@@ -13,7 +13,7 @@ mod lang;
 
 pub use lang::{Extraction, LanguageBackend};
 
-use domain::{ContextDecl, Graph, PubFnDecl};
+use domain::{AnchorTarget, ConceptNode, ContextDecl, Graph, PubFnDecl};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
@@ -67,6 +67,58 @@ pub trait ContextReader {
     /// (unknown pattern, missing required section, duplicate owner), or
     /// [`ReaderError::WalkFailed`] if the directory traversal fails.
     fn extract_contexts(&self, root: &Path) -> Result<Vec<ContextDecl>, ReaderError>;
+}
+
+/// Code-side containment port (RFC-010 §3.3).
+///
+/// Where [`Reader::extract`] produces a full type-equivalence [`Graph`]
+/// (concepts + edges + signatures), `CodeFacts` answers a narrower
+/// question: *what concepts does the code contain, and what is each one's
+/// language-agnostic containment provenance* — the `module_path` / `unit` /
+/// `context` triple on [`ConceptNode`]. The abstraction-ladder cohesion
+/// pass (R10-3) needs that triple to resolve each concept's code-side
+/// bounded context.
+///
+/// Two adapters implement it under the §3.3 routing rule: the source-walking
+/// `RustReader` (multi-crate repos — the parity reference) and the
+/// feature-gated cfdb-query ACL (per-crate repos). Both emit the **agnostic**
+/// triple, never cfdb's Rust-specific prop names, so the diff engine stays
+/// language-neutral.
+pub trait CodeFacts {
+    /// Return every code-side concept under `root`, each carrying its
+    /// containment provenance.
+    ///
+    /// Adapters that read a pre-extracted fact store (the cfdb-query ACL)
+    /// may treat `root` as advisory and read from a source fixed at
+    /// construction; source-walking adapters walk `root` directly.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ReaderError::IoFailed`] if a source or fact file cannot be
+    /// read, [`ReaderError::ParseFailed`] if it cannot be parsed, or
+    /// [`ReaderError::WalkFailed`] if directory traversal fails.
+    fn concepts(&self, root: &Path) -> Result<Vec<ConceptNode>, ReaderError>;
+}
+
+/// Anchor-resolution port (RFC-012 §3.4).
+///
+/// A **separate** trait from [`CodeFacts`] (DD-4 / ISP): not every code
+/// adapter resolves anchors — the source-walk `RustReader` does (R12-3),
+/// the cfdb-query ACL gains it later (R12-6) — so widening `CodeFacts`
+/// would force a deferred adapter to ship a stub. An anchor resolver
+/// answers one question the concept walk does not: *does an item named
+/// `qname` exist anywhere in the code, at **any** visibility?* — so a
+/// concept whose canonical implementation is `pub(crate)` (or a `fn` /
+/// `const`) can be a spec concept without a manufactured `pub` type.
+///
+/// Resolution is consulted **only** for qnames an anchor references, so the
+/// global concept set the [`Reader`] produces is unchanged (RFC-012 §4 I1).
+pub trait AnchorResolver {
+    /// Resolve `qname` (a bare identifier or `Type::method`) to its
+    /// [`AnchorTarget`] — the code item's kind + source — or `None` when no
+    /// such item exists. Visibility is **not** filtered: a `pub(crate)`
+    /// item resolves just as a `pub` one does.
+    fn resolve(&self, qname: &str) -> Option<AnchorTarget>;
 }
 
 /// Failure modes of a [`Reader`] implementation.

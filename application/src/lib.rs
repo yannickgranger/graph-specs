@@ -6,9 +6,12 @@
 //! through process boundaries when they choose to.
 
 use adapter_markdown::{assemble_spec_trees, MarkdownReader, SpecTree};
-use adapter_rust::RustReader;
-use domain::{diff, CheckInput, CohesionViolation, VerbDecl, VerbOwnership, Violation};
-use ports::{ContextReader, Reader, ReaderError, VerbReader};
+use adapter_rust::{RustAnchorResolver, RustReader};
+use domain::{
+    diff, CheckInput, CohesionViolation, ConceptNode, ResolvedAnchor, VerbDecl, VerbOwnership,
+    Violation,
+};
+use ports::{AnchorResolver, CodeFacts, ContextReader, Reader, ReaderError, VerbReader};
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -41,6 +44,7 @@ pub fn run_check(specs_dir: &Path, code_dir: &Path) -> Result<Vec<Violation>, Re
     let draft_concepts = MarkdownReader.extract_draft_concepts(specs_dir)?;
     let code_graph = RustReader.extract(code_dir)?;
     let pub_fn_decls = RustReader.extract_pub_fns(code_dir)?;
+    let concept_anchors = MarkdownReader.extract_concept_anchors(specs_dir)?;
 
     // RFC-010 R10-3: the abstraction-ladder tree gives each concept its
     // spec-side *declared* context (the `concepts/` H1) and the spec-side
@@ -66,12 +70,78 @@ pub fn run_check(specs_dir: &Path, code_dir: &Path) -> Result<Vec<Violation>, Re
         decls: pub_fn_decls.into_iter().map(VerbDecl::from).collect(),
         anchors: verb_anchors,
     };
+
+    // RFC-012 R12-3: resolve each `- impl:` anchor's target against code,
+    // at any visibility, through the `AnchorResolver` port. Built once;
+    // consulted only for the anchor qnames (the global concept set is
+    // unchanged). The diff stays pure — it receives verdicts, not a resolver.
+    let resolved_anchors: Vec<ResolvedAnchor> = if concept_anchors.is_empty() {
+        Vec::new()
+    } else {
+        let resolver = RustAnchorResolver::index(code_dir)?;
+        concept_anchors
+            .into_iter()
+            .map(|anchor| {
+                let target = resolver.resolve(&anchor.target);
+                ResolvedAnchor { anchor, target }
+            })
+            .collect()
+    };
+
     Ok(diff(
         CheckInput::new(specs_graph, spec_contexts, verb_ownership)
             .with_draft_concepts(draft_concepts)
-            .with_spec_cohesion(spec_cohesion),
+            .with_spec_cohesion(spec_cohesion)
+            .with_concept_anchors(resolved_anchors),
         code_graph,
     ))
+}
+
+/// Resolve the code-side concept provenance through the `CodeFacts` adapter
+/// the RFC-010 §3.3 routing rule selects:
+///
+/// - `keyspace: None` ⇒ the source-walking [`RustReader`] — the adapter for
+///   multi-crate repos (e.g. graph-specs itself), whose bounded contexts span
+///   several crates and resolve via `specs/contexts/` Owns.
+/// - `keyspace: Some(path)` ⇒ the cfdb-query ACL reading that keyspace — the
+///   adapter for one-per-crate repos (e.g. agentry), whose per-crate
+///   `bounded_context` is coherent (RFC-010 §13-A (b)-MVP).
+///
+/// The cfdb-query branch is compiled only under the `codefacts` feature (the
+/// opt-in leaf, Invariant 3); without it, a keyspace route is a configuration
+/// error, never a silent fallback to source-walk.
+///
+/// # Errors
+///
+/// Propagates any [`ReaderError`] from the selected adapter; returns
+/// [`ReaderError::WalkFailed`] when a keyspace route is requested in a build
+/// compiled without the `codefacts` feature.
+pub fn code_facts(
+    code_dir: &Path,
+    keyspace: Option<&Path>,
+) -> Result<Vec<ConceptNode>, ReaderError> {
+    keyspace.map_or_else(
+        || RustReader.concepts(code_dir),
+        |keyspace| keyspace_facts(code_dir, keyspace),
+    )
+}
+
+/// The `Some(keyspace)` arm of [`code_facts`]: read code facts from a cfdb
+/// keyspace via the cfdb-query ACL. Compiled only under the `codefacts`
+/// feature (the opt-in leaf, RFC-010 Invariant 3).
+#[cfg(feature = "codefacts")]
+fn keyspace_facts(code_dir: &Path, keyspace: &Path) -> Result<Vec<ConceptNode>, ReaderError> {
+    adapter_cfdb_query::CfdbQueryReader::new(keyspace).concepts(code_dir)
+}
+
+/// Without the `codefacts` feature, requesting a keyspace route is a
+/// configuration error — never a silent fallback to source-walk.
+#[cfg(not(feature = "codefacts"))]
+fn keyspace_facts(code_dir: &Path, _keyspace: &Path) -> Result<Vec<ConceptNode>, ReaderError> {
+    Err(ReaderError::WalkFailed {
+        root: code_dir.to_path_buf(),
+        cause: "cfdb-query keyspace routing requires the `codefacts` feature".to_owned(),
+    })
 }
 
 #[cfg(test)]
@@ -90,10 +160,99 @@ mod tests {
     }
 
     #[test]
+    fn code_facts_without_keyspace_routes_to_source_walk() {
+        // RFC-010 §3.3 routing: `None` keyspace selects the source-walk adapter
+        // — `code_facts` must return exactly what `RustReader` does.
+        let code = TempDir::new().unwrap();
+        write(
+            code.path(),
+            "mycrate/Cargo.toml",
+            "[package]\nname = \"mycrate\"\n",
+        );
+        write(code.path(), "mycrate/src/lib.rs", "pub struct Foo;");
+        let via_router = code_facts(code.path(), None).unwrap();
+        let via_adapter = RustReader.concepts(code.path()).unwrap();
+        assert_eq!(via_router, via_adapter);
+        assert!(via_router.iter().any(|c| c.name == "Foo"));
+    }
+
+    #[cfg(feature = "codefacts")]
+    #[test]
+    fn code_facts_with_keyspace_routes_to_cfdb_query() {
+        // RFC-010 §3.3 routing: `Some(keyspace)` selects the cfdb-query ACL.
+        let dir = TempDir::new().unwrap();
+        let keyspace = dir.path().join("ks.json");
+        std::fs::write(
+            &keyspace,
+            r#"{"schema_version":{"major":0,"minor":5,"patch":0},"nodes":[
+                {"id":"item:domain::Foo","label":"Item","props":{
+                    "name":"Foo","kind":"struct","crate":"domain",
+                    "bounded_context":"domain","module_qpath":"domain",
+                    "file":"/ws/domain/src/lib.rs","visibility":"pub",
+                    "is_test":false,"line":1}}],"edges":[]}"#,
+        )
+        .unwrap();
+        let facts = code_facts(Path::new("/ws"), Some(&keyspace)).unwrap();
+        assert_eq!(facts.len(), 1);
+        assert_eq!(facts[0].name, "Foo");
+        assert_eq!(facts[0].unit.as_deref(), Some("domain"));
+    }
+
+    #[test]
     fn empty_trees_yield_no_violations() {
         let specs = TempDir::new().unwrap();
         let code = TempDir::new().unwrap();
         assert!(run_check(specs.path(), code.path()).unwrap().is_empty());
+    }
+
+    // --- RFC-012 R12-3 — anchored concepts resolve end-to-end ---
+
+    #[test]
+    fn anchored_pub_crate_concept_resolves_end_to_end() {
+        // The motivating case: a concept whose impl is `pub(crate)` (no pub
+        // type) is satisfied by its `- impl:` anchor — no ZST, no MissingInCode.
+        let specs = TempDir::new().unwrap();
+        let code = TempDir::new().unwrap();
+        write(
+            specs.path(),
+            "concepts/intake.md",
+            "## ValidateIntakeFull\n\n- impl: validate_intake\n",
+        );
+        write(
+            code.path(),
+            "src/lib.rs",
+            "pub(crate) fn validate_intake() {}",
+        );
+        let v = run_check(specs.path(), code.path()).unwrap();
+        assert!(
+            v.is_empty(),
+            "anchored pub(crate) concept must resolve: {v:?}"
+        );
+    }
+
+    #[test]
+    fn dangling_anchor_end_to_end() {
+        let specs = TempDir::new().unwrap();
+        let code = TempDir::new().unwrap();
+        write(
+            specs.path(),
+            "concepts/intake.md",
+            "## ValidateIntakeFull\n\n- impl: nonexistent_fn\n",
+        );
+        write(code.path(), "src/lib.rs", "pub fn other() {}");
+        let v = run_check(specs.path(), code.path()).unwrap();
+        assert!(
+            v.iter().any(|x| matches!(
+                x,
+                Violation::DanglingAnchor { target, .. } if target == "nonexistent_fn"
+            )),
+            "expected DanglingAnchor: {v:?}"
+        );
+        assert!(
+            !v.iter()
+                .any(|x| matches!(x, Violation::MissingInCode { .. })),
+            "anchored concept must not also be MissingInCode"
+        );
     }
 
     #[test]

@@ -11,6 +11,15 @@ ports = { workspace = true }
 adapter-markdown = { workspace = true }
 adapter-rust = { workspace = true }
 serde_json = { workspace = true }
+# RFC-010 §3.3 / Invariant 3: cfdb-query is an OPT-IN leaf behind the
+# `codefacts` feature. Default builds never compile cfdb (the dual-control
+# dogfood / cross-dogfood path stays cfdb-free); only `--features codefacts`
+# links the ACL (and transitively cfdb-core) for per-crate-repo routing.
+adapter-cfdb-query = { workspace = true, optional = true }
+
+[features]
+default = []
+codefacts = ["dep:adapter-cfdb-query"]
 
 [[bin]]
 name = "graph-specs"

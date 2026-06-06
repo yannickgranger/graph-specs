@@ -29,6 +29,7 @@ Exposes `extract_invariant_annotations` (inherent method) for RFC-005
 - depends on: ContextDecl
 - depends on: InvariantAnnotation
 - depends on: VerbAnchor
+- depends on: ConceptAnchor
 
 ## RustBackend
 
@@ -57,14 +58,78 @@ signature normalisation via `adapter-rust::normalize` and v0.3 relationship
 edges from struct fields, impl blocks, and trait method signatures.
 `VerbReader::extract_pub_fns` uses a separate parallel walk (per RFC-005
 §3.2 dry-run rust-systems-A); `check` invokes it to feed the verb-
-anchoring pass with code-side `pub fn` declarations. Lives in
+anchoring pass with code-side `pub fn` declarations. Also implements
+[CodeFacts](equivalence.md#codefacts) (RFC-010 R10-6), returning the
+graph's [ConceptNode](#conceptnode)s as the source-walk parity reference
+the cfdb-query [CfdbQueryReader](#cfdbqueryreader) ACL must match. Lives in
 `adapters/rust`.
 
 - implements: Reader
 - implements: VerbReader
+- implements: CodeFacts
 - depends on: Graph
+- depends on: ConceptNode
 - depends on: ReaderError
 - depends on: PubFnDecl
+
+## RustAnchorResolver
+
+Source-walk [AnchorResolver](equivalence.md#anchorresolver) implementation
+(RFC-012 §3.4 / R12-3). Builds an index of code items at **any** visibility
+(the concept walk is `pub`-only) so a `- impl: <qname>` spec anchor can
+resolve a concept whose canonical implementation is legitimately
+`pub(crate)` (or a `fn` / `const`) — no manufactured `pub` ZST. The index
+is built once from the code root; `resolve` is consulted only for the
+anchor qnames, so the global concept set the [RustReader](#rustreader)
+produces is unchanged. A dedicated struct (not an `impl` on
+[RustReader](#rustreader)) because the port's `resolve(&self, qname)`
+carries no root — the resolver must hold the pre-built index. Resolves
+top-level types, `fn`s, `const`s, and `Type::method` impl methods; enum
+variants are deferred to the cfdb-query path. Returns an
+[AnchorTarget](equivalence.md#anchortarget). Lives in `adapters/rust`.
+
+- implements: AnchorResolver
+- depends on: AnchorTarget
+- depends on: ReaderError
+- depends on: RustAnchorResolver
+
+## CfdbQueryReader
+
+The cfdb-query [CodeFacts](equivalence.md#codefacts) Anti-Corruption Layer
+(RFC-010 §3.3 / R10-6). Reads a cfdb keyspace JSON and translates `:Item`
+nodes into agnostic [ConceptNode](#conceptnode)s — `unit` / `module_path`
+reconstructed from the `:Item.file` prop to match the source-walk
+[RustReader](#rustreader)'s derivation (the parity contract), `context`
+from cfdb's per-crate `bounded_context`. It is an ACL, not a Conformist:
+cfdb's Rust-specific props are translated, never adopted verbatim, so a
+prop-less PHP `:Item` yields empty provenance rather than a crash. Depends
+only on `cfdb-core` (plus serde) for the keyspace wire shape; compiled into
+the application solely behind the `codefacts` feature (the opt-in leaf).
+Lives in `adapters/cfdb-query`.
+
+- implements: CodeFacts
+- depends on: ConceptNode
+- depends on: ReaderError
+- returns: CfdbQueryReader
+
+## CfdbAnchorResolver
+
+cfdb-keyspace [AnchorResolver](equivalence.md#anchorresolver) (RFC-012 §3.4
+/ R12-6 — the OQ-1 parity path). The keyspace counterpart to the source-walk
+[RustAnchorResolver](#rustanchorresolver): resolves a `- impl:` anchor
+against the `:Item` facts a `cfdb extract` run already holds, for per-crate
+repos whose keyspace is the code-fact source. Lifts the concept ACL's
+`pub`-only filter — a `pub(crate)` item (cfdb reports it as `visibility:
+"private"`) resolves at any visibility. Resolves type / fn / const kinds and
+`Type::method` (reduced from cfdb's `crate::Type::method` qname); enum
+variants are **not** resolvable because cfdb (v0.5.0) emits no `variant`
+`:Item` kind — that remains deferred to a paired cfdb change. Returns an
+[AnchorTarget](equivalence.md#anchortarget). Lives in `adapters/cfdb-query`.
+
+- implements: AnchorResolver
+- depends on: AnchorTarget
+- depends on: ReaderError
+- depends on: CfdbAnchorResolver
 
 ## HeadingNode
 

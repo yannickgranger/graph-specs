@@ -44,6 +44,9 @@ Every bounded context named in the specs maps to exactly one declared set of cra
 ### 5. Cohesion (the abstraction ladder)
 Heading *depth* is load-bearing: `#` H1 = bounded context, `##` H2 = concept, `###` H3 = sub-concept, `####`+ H4 = member (RFC-010). A context must declare at least one concept under it, a sub-concept must have an enclosing concept, and a concept must be documented under the context its code actually lives in. See [`specs/dialect.md` § Abstraction ladder](specs/dialect.md#abstraction-ladder).
 
+### Anchors — when the backing code isn't a top-level `pub` type
+By default a `## Concept` must be backed by a top-level `pub` type and a `# Context` must own one. Two **opt-in** markers relax that for legitimate shapes without weakening the gate (RFC-012): a `- impl: <qname>` bullet redirects a concept to a named code item resolved at **any** visibility — so a `pub(crate)` (or `fn` / `const`) concept needs no manufactured ZST — and a `cohesion: behavioral` front-matter marker exempts a genuinely type-free doctrine context, **gated** on it carrying real behavioral substance. Each names code the tool still resolves (an unresolved anchor is a `dangling_anchor` violation), so the link stays two-way and zero-baseline. See [`specs/dialect.md` § Anchors](specs/dialect.md#anchors-rfc-012--non-pub-spec-anchors).
+
 ## Dogfooding from day zero
 
 The tool validates its own specs from the first commit. The tool's `specs/` directory contains markdown specifications for the tool itself; the tool reads those specs and its own source and diffs them. Every PR to this repository passes the same five-level check it imposes on downstream consumers.
@@ -115,7 +118,7 @@ The tool is designed for multiple language adapters behind the same port trait. 
 
 ## Status
 
-All five levels — concept, signature, relationship, bounded-context, and cohesion (the abstraction ladder, RFC-010) — are implemented end-to-end and dogfooded against this repository on every PR. PHP and TypeScript source adapters are the next planned capability (RFC-011).
+All five levels — concept, signature, relationship, bounded-context, and cohesion (the abstraction ladder, RFC-010) — are implemented end-to-end and dogfooded against this repository on every PR. Non-`pub` spec anchors (`- impl:` + `cohesion: behavioral`, RFC-012) let concepts and contexts whose backing code is legitimately not a top-level `pub` type stay on the gate without manufacturing surface. PHP and TypeScript source adapters are the next planned capability (RFC-011).
 
 ## Authorship
 

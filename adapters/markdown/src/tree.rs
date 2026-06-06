@@ -27,7 +27,7 @@ use crate::markdown_utils::{
     compute_line_starts, is_context_identifier, line_of_offset, normalize_context_id,
     path_under_dir,
 };
-use domain::{AbstractionLevel, CohesionViolation};
+use domain::{behavioral_exemption_applies, AbstractionLevel, CohesionViolation};
 use ports::ReaderError;
 use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
 use std::path::{Path, PathBuf};
@@ -60,6 +60,16 @@ pub struct SpecTree {
     /// Heading nodes in document order; `parent` indices refer back into
     /// this vector.
     pub nodes: Vec<HeadingNode>,
+    /// `true` when the file's leading front-matter declares
+    /// `cohesion: behavioral` (RFC-012 §3.3). Honoured as an exemption from
+    /// [`CohesionViolation::ContextWithoutCohesionUnit`] **only** when
+    /// [`SpecTree::has_substance`] also holds (anti-gaming, §3.3.1).
+    pub behavioral: bool,
+    /// `true` when the file carries machine-checkable behavioral substance
+    /// (≥1 `- impl:` / `- verb:` anchor or `[enforced-by:]` / `[prose-only:]`
+    /// annotation, RFC-012 §3.3.1). The anti-gaming half of the behavioral
+    /// exemption: a `behavioral` file with no substance stays a violation.
+    pub has_substance: bool,
 }
 
 impl SpecTree {
@@ -100,11 +110,15 @@ impl SpecTree {
     /// diff is R10-3.
     #[must_use]
     pub fn cohesion_violations(&self) -> Vec<CohesionViolation> {
+        // RFC-012 §3.3.1: a `cohesion: behavioral` file with demonstrated
+        // behavioral substance is exempt from `ContextWithoutCohesionUnit`
+        // (but never `SubConceptOrphan` — a depth skip is always a defect).
+        let context_exempt = behavioral_exemption_applies(self.behavioral, self.has_substance);
         let mut out = Vec::new();
         for (idx, node) in self.nodes.iter().enumerate() {
             match node.level {
                 AbstractionLevel::Context => {
-                    if !self.has_cohesion_unit(idx) {
+                    if !self.has_cohesion_unit(idx) && !context_exempt {
                         out.push(CohesionViolation::ContextWithoutCohesionUnit {
                             context: node.id.clone().unwrap_or_else(|| node.text.clone()),
                             file: self.file.clone(),
@@ -258,6 +272,14 @@ impl<'a> AssemblerState<'a> {
 /// normalise to a context identifier (RFC-010 §3.2 descriptive-title
 /// rejection).
 pub fn assemble_tree(source: &str, file: &Path) -> Result<SpecTree, ReaderError> {
+    // Detect the behavioral marker + substance on the RAW source (front-matter
+    // intact; bullets/annotations live in the body, unaffected by blanking)…
+    let behavioral = crate::is_behavioral_context(source);
+    let has_substance = crate::has_behavioral_substance(source);
+    // …then blank the front-matter so a `cohesion: behavioral` block is not
+    // mis-parsed as a setext heading (RFC-012 §3.3). Line numbers preserved.
+    let cleaned = crate::blank_front_matter(source);
+    let source = cleaned.as_ref();
     let mut st = AssemblerState::new(source, file);
     for (event, range) in Parser::new(source).into_offset_iter() {
         handle_event(&mut st, &event, range);
@@ -271,6 +293,8 @@ pub fn assemble_tree(source: &str, file: &Path) -> Result<SpecTree, ReaderError>
     Ok(SpecTree {
         file: file.to_path_buf(),
         nodes: st.nodes,
+        behavioral,
+        has_substance,
     })
 }
 
@@ -517,5 +541,91 @@ mod tests {
                 t.cohesion_violations()
             );
         }
+    }
+
+    // --- RFC-012 §3.3 / R12-2 — behavioral marker + front-matter blanking ---
+
+    #[test]
+    fn assemble_tree_sets_behavioral_and_blanks_front_matter() {
+        let t =
+            tree("---\ncohesion: behavioral\n---\n\n# secrets\n\n#### Operational invariants\n");
+        assert!(t.behavioral, "cohesion: behavioral must set the flag");
+        // No phantom setext H2 manufactured from the `key: value` line.
+        assert!(
+            t.nodes.iter().all(|n| n.text != "cohesion: behavioral"),
+            "front-matter must not become a heading: {:?}",
+            t.nodes
+        );
+        // The H1 context keeps its true line number (5) after blanking.
+        let ctx = t
+            .nodes
+            .iter()
+            .find(|n| n.level == AbstractionLevel::Context)
+            .expect("context node");
+        assert_eq!(ctx.id.as_deref(), Some("secrets"));
+        assert_eq!(ctx.line, 5);
+    }
+
+    #[test]
+    fn assemble_tree_without_front_matter_is_not_behavioral() {
+        let t = tree("# equivalence\n## Graph\n");
+        assert!(!t.behavioral);
+    }
+
+    // --- RFC-012 §3.3.1 / R12-4 — behavioral cohesion exemption (anti-gaming) ---
+
+    #[test]
+    fn behavioral_doctrine_context_with_prose_only_annotation_is_exempt() {
+        // The secrets.md shape: no `## H2`, realized as a `[prose-only:]`
+        // invariant annotation. Behavioral + substance → no violation.
+        let t = tree(
+            "---\ncohesion: behavioral\n---\n\n# secrets\n\n#### Operational invariants\n\n- INV-x: no type until a future RFC [prose-only: doctrine]\n",
+        );
+        assert!(t.behavioral && t.has_substance);
+        assert!(
+            t.cohesion_violations().is_empty(),
+            "behavioral+substance must be exempt: {:?}",
+            t.cohesion_violations()
+        );
+    }
+
+    #[test]
+    fn behavioral_with_impl_anchor_substance_is_exempt() {
+        let t = tree("---\ncohesion: behavioral\n---\n\n# fsm\n\n- impl: merge_rail\n");
+        assert!(t.has_substance);
+        assert!(t.cohesion_violations().is_empty());
+    }
+
+    #[test]
+    fn behavioral_with_verb_anchor_substance_is_exempt() {
+        let t = tree("---\ncohesion: behavioral\n---\n\n# fsm\n\n- verb: merge_rail\n");
+        assert!(t.has_substance);
+        assert!(t.cohesion_violations().is_empty());
+    }
+
+    #[test]
+    fn behavioral_without_substance_still_fires() {
+        // Anti-gaming: the marker over an empty file is NOT a free pass.
+        let t =
+            tree("---\ncohesion: behavioral\n---\n\n# empty-doctrine\n\nJust prose, no anchors.\n");
+        assert!(t.behavioral && !t.has_substance);
+        assert!(
+            t.cohesion_violations()
+                .iter()
+                .any(|v| matches!(v, CohesionViolation::ContextWithoutCohesionUnit { .. })),
+            "empty behavioral file must still be a violation"
+        );
+    }
+
+    #[test]
+    fn non_behavioral_type_free_context_still_fires() {
+        // Regression (§4 I5 default-deny): without the marker, a type-free
+        // context is still ContextWithoutCohesionUnit — even with substance.
+        let t = tree("# lonely\n\n- impl: something\n");
+        assert!(!t.behavioral);
+        assert!(t
+            .cohesion_violations()
+            .iter()
+            .any(|v| matches!(v, CohesionViolation::ContextWithoutCohesionUnit { .. })));
     }
 }

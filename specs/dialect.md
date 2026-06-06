@@ -115,6 +115,59 @@ become concept-graph nodes (see [What the markdown reader ignores](#what-the-mar
 These are the upward concept→context rung, complementing the downward
 concept→method rung that `- verb:` anchors check.
 
+## Anchors (RFC-012 — non-`pub` spec anchors)
+
+The default rule is that a `## Concept` heading is backed by a top-level
+`pub` type and a `# Context` H1 eventually owns one. Two **opt-in** markers
+relax that for legitimate shapes — without weakening it: each names real
+code the tool still resolves, so the heading↔surface link stays two-way and
+zero-baseline (delete the backing and the gate re-arms). Neither is a
+suppression or an allowlist.
+
+### `- impl:` concept anchor
+
+A concept whose canonical implementation is legitimately **not** a
+top-level `pub` type (a `pub(crate)` type, a `fn`, or a `const`) carries a
+single anchor bullet that redirects its equivalence target to a named code
+item:
+
+```
+## ValidateIntakeFull
+- impl: validate_intake
+```
+
+The `<qname>` uses the **same** grammar as `- verb:` (a bare identifier or
+`Type::method` — one shared grammar, no second parser). The anchored
+concept is satisfied when the item resolves at **any** visibility — so no
+caller-less `pub` ZST need be manufactured. If the item does not resolve,
+`dangling_anchor` fires (a top-level violation, not nested under
+cohesion). `impl:` does not collide with the `implements:` edge bullet.
+Resolution is consulted only for the anchor qnames, so the global concept
+set is unchanged.
+
+### `cohesion: behavioral` front-matter
+
+A behavioral / doctrine context that owns **no** `pub` type by design (it
+is realized as `const` + `fn` + enum variants + fences) declares so in its
+leading front-matter — a sibling to `status: draft`:
+
+```
+---
+cohesion: behavioral
+---
+
+# secrets
+```
+
+This satisfies `context_without_cohesion_unit` for that file — **but only**
+when the context also carries machine-checkable behavioral substance: at
+least one `- impl:` / `- verb:` anchor or one `[enforced-by:]` /
+`[prose-only:]` invariant annotation. A behavioral marker over an empty
+file is **not** a free pass; it stays a violation. The marker never
+exempts `sub_concept_orphan` (a depth skip is always a defect), and a
+type-free context **without** the marker still fires (default-deny). Unlike
+a draft, a behavioral file is parsed normally.
+
 ## What the markdown reader ignores
 
 Prose changes never affect the graph. The reader does not see:
@@ -189,7 +242,10 @@ Only **top-level public declarations** contribute to the concept graph.
 
 The code-side filter rules are:
 
-- Non-`pub` items
+- Non-`pub` items — for the **concept walk**. A non-`pub` item is still
+  *resolvable by an explicit `- impl:` anchor* (RFC-012 §3.4): the anchor
+  resolver indexes items at any visibility, but only the qnames an anchor
+  references are consulted, so the concept set itself is unchanged.
 - Items gated by `#[cfg(test)]` or `#[cfg(feature = "…test…")]`
 - Declarations nested inside `pub mod foo { … }` (top-level only)
 - `impl` blocks (except for verb-anchoring purposes — see ## What the Rust reader parses), `fn`, `const`, `static`, `use`, `macro_rules!`, `mod`

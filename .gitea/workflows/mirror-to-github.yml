@@ -8,11 +8,21 @@ name: Mirror to GitHub
 #   (Secret names with GITHUB_ or GITEA_ prefix are reserved by Gitea Actions.)
 #
 # Scope: develop + main + tags only. Internal branches (work/*, fix/*, chore/*) stay private.
+#
+# Known race (surfaced at v0.5.0): on a push to `main`, this mirror and
+# `release.yml` run in parallel. `release.yml` creates the `vX.Y.Z` tag, but
+# this job's `git push github --force --tags` can run *before* that tag
+# exists — and the tag-push event is emitted by the Actions token, which does
+# NOT re-trigger workflows. Net effect: `main` mirrors but the new tag does
+# not. Remedy: `workflow_dispatch` lets a maintainer re-run this mirror by
+# hand after a release (it re-pushes `--tags`, syncing any tag created
+# since). Any later push to develop/main also re-syncs all tags.
 
 on:
   push:
     branches: [main, develop]
     tags: ['v*']
+  workflow_dispatch: {}
 
 env:
   GIT_SSL_NO_VERIFY: true

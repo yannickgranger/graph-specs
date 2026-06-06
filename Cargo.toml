@@ -5,12 +5,13 @@ members = [
     "ports",
     "adapters/markdown",
     "adapters/rust",
+    "adapters/cfdb-query",
     "application",
 ]
 
 [workspace.package]
 edition = "2021"
-version = "0.5.0"
+version = "0.6.0"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/yannickgranger/graph-specs"
 
@@ -33,6 +34,7 @@ domain = { path = "domain" }
 ports = { path = "ports" }
 adapter-markdown = { path = "adapters/markdown" }
 adapter-rust = { path = "adapters/rust" }
+adapter-cfdb-query = { path = "adapters/cfdb-query" }
 application = { path = "application" }
 
 [workspace.lints.clippy]

@@ -30,8 +30,8 @@ pub use tree::{assemble_spec_trees, assemble_tree, HeadingNode, SpecTree};
 
 use crate::markdown_utils::{compute_line_starts, line_of_offset, path_under_dir};
 use domain::{
-    tokenise_target, ConceptNode, ContextDecl, Edge, EdgeKind, Graph, InvariantAnnotation,
-    SignatureState, Source, TierKind, VerbAnchor,
+    tokenise_target, ConceptAnchor, ConceptNode, ContextDecl, Edge, EdgeKind, Graph,
+    InvariantAnnotation, SignatureState, Source, TierKind, VerbAnchor,
 };
 use ports::{ContextReader, Reader, ReaderError};
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Parser, Tag, TagEnd};
@@ -93,12 +93,14 @@ impl Reader for MarkdownReader {
             }
 
             let mut verb_anchors_scratch: Vec<VerbAnchor> = Vec::new();
+            let mut concept_anchors_scratch: Vec<ConceptAnchor> = Vec::new();
             extract_from_source(
                 &source,
                 path,
                 &mut nodes,
                 &mut edges,
                 &mut verb_anchors_scratch,
+                &mut concept_anchors_scratch,
             );
         }
 
@@ -160,16 +162,80 @@ impl MarkdownReader {
 
             let mut nodes_scratch: Vec<ConceptNode> = Vec::new();
             let mut edges_scratch: Vec<Edge> = Vec::new();
+            let mut concept_anchors_scratch: Vec<ConceptAnchor> = Vec::new();
             extract_from_source(
                 &source,
                 path,
                 &mut nodes_scratch,
                 &mut edges_scratch,
                 &mut verb_anchors,
+                &mut concept_anchors_scratch,
             );
         }
 
         Ok(verb_anchors)
+    }
+
+    /// Walk `root` and collect every `- impl: <qname>` concept anchor
+    /// (RFC-012 §3.2) from concept spec files (`concepts/` subdir if
+    /// present, else root). Mirrors [`MarkdownReader::extract_verb_anchors`]:
+    /// skips `contexts/` (different dialect) and `status: draft` files.
+    /// Detection only — resolving the qname against code is the
+    /// `AnchorResolver` port's concern (R12-3).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ReaderError::IoFailed`] or [`ReaderError::WalkFailed`] on
+    /// I/O failures.
+    pub fn extract_concept_anchors(&self, root: &Path) -> Result<Vec<ConceptAnchor>, ReaderError> {
+        let mut concept_anchors: Vec<ConceptAnchor> = Vec::new();
+
+        let concepts_subdir = root.join("concepts");
+        let walk_root: &Path = if concepts_subdir.is_dir() {
+            concepts_subdir.as_path()
+        } else {
+            root
+        };
+
+        for entry in WalkDir::new(walk_root) {
+            let entry = entry.map_err(|e| ReaderError::WalkFailed {
+                root: root.to_path_buf(),
+                cause: e.to_string(),
+            })?;
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            if entry.path().extension().is_none_or(|ext| ext != "md") {
+                continue;
+            }
+            if path_under_dir(entry.path(), "contexts") {
+                continue;
+            }
+
+            let path = entry.path();
+            let source = std::fs::read_to_string(path).map_err(|e| ReaderError::IoFailed {
+                path: path.to_path_buf(),
+                cause: e.to_string(),
+            })?;
+
+            if is_draft(&source) {
+                continue;
+            }
+
+            let mut nodes_scratch: Vec<ConceptNode> = Vec::new();
+            let mut edges_scratch: Vec<Edge> = Vec::new();
+            let mut verb_anchors_scratch: Vec<VerbAnchor> = Vec::new();
+            extract_from_source(
+                &source,
+                path,
+                &mut nodes_scratch,
+                &mut edges_scratch,
+                &mut verb_anchors_scratch,
+                &mut concept_anchors,
+            );
+        }
+
+        Ok(concept_anchors)
     }
 
     /// Walk `root` and collect [`ConceptNode`]s from every `status: draft`
@@ -220,12 +286,14 @@ impl MarkdownReader {
 
             let mut edges_scratch = Vec::new();
             let mut verb_anchors_scratch = Vec::new();
+            let mut concept_anchors_scratch = Vec::new();
             extract_from_source(
                 &source,
                 path,
                 &mut nodes,
                 &mut edges_scratch,
                 &mut verb_anchors_scratch,
+                &mut concept_anchors_scratch,
             );
         }
 
@@ -315,17 +383,74 @@ impl MarkdownReader {
 /// before any `status:` line, or a file with no front-matter at all,
 /// is not draft.
 fn is_draft(source: &str) -> bool {
+    front_matter_value(source, "status").is_some_and(|v| v.eq_ignore_ascii_case("draft"))
+}
+
+/// Returns `true` when `source` carries machine-checkable **behavioral
+/// substance** (RFC-012 §3.3.1) — at least one `- impl:` / `- verb:` anchor
+/// bullet or one `[enforced-by:]` / `[prose-only:]` invariant annotation.
+///
+/// This is the anti-gaming gate for `cohesion: behavioral`: the marker
+/// exempts a context from `ContextWithoutCohesionUnit` only when the context
+/// demonstrates behavioral content — never against an empty file. Reuses the
+/// canonical bullet grammar ([`parse_impl_bullet`] / [`parse_verb_bullet`])
+/// so the substance set cannot drift from what the readers actually parse.
+fn has_behavioral_substance(source: &str) -> bool {
+    source.lines().any(|line| {
+        if line.contains("[enforced-by:") || line.contains("[prose-only:") {
+            return true;
+        }
+        strip_bullet_marker(line)
+            .is_some_and(|b| parse_impl_bullet(b).is_some() || parse_verb_bullet(b).is_some())
+    })
+}
+
+/// Strip a leading markdown list marker (`-` / `*` / `+` followed by
+/// whitespace) from `line`, returning the bullet text. `None` when the line
+/// is not a list item.
+fn strip_bullet_marker(line: &str) -> Option<&str> {
+    let trimmed = line.trim_start();
+    for marker in ['-', '*', '+'] {
+        if let Some(rest) = trimmed.strip_prefix(marker) {
+            if rest.starts_with([' ', '\t']) {
+                return Some(rest.trim_start());
+            }
+        }
+    }
+    None
+}
+
+/// Returns `true` when `source`'s leading front-matter declares
+/// `cohesion: behavioral` (RFC-012 §3.3).
+///
+/// A behavioral/doctrine context owns no `pub` type by design; this marker
+/// lets it satisfy `ContextWithoutCohesionUnit` — **gated** by behavioral
+/// substance at the cohesion pass (R12-4), never a bare free pass. Like
+/// [`is_draft`], only the leading front-matter is consulted; unlike draft,
+/// a behavioral file is **not** skipped — it is a real spec walked normally.
+fn is_behavioral_context(source: &str) -> bool {
+    front_matter_value(source, "cohesion").is_some_and(|v| v.eq_ignore_ascii_case("behavioral"))
+}
+
+/// Read one key's value from the leading YAML front-matter block, if present.
+///
+/// Returns `None` when there is no leading `---` block (the first non-empty
+/// line is not `---`) or the key does not appear before the block closes.
+/// The value is stripped of a trailing `#` comment and surrounding quotes —
+/// the shared parse for [`is_draft`] / [`is_behavioral_context`].
+fn front_matter_value(source: &str, key: &str) -> Option<String> {
     // The opening fence must be the first non-empty line.
     let mut lines = source.lines().skip_while(|l| l.trim().is_empty());
     if lines.next().map(str::trim) != Some("---") {
-        return false;
+        return None;
     }
+    let prefix = format!("{key}:");
     for line in lines {
         let trimmed = line.trim();
         if trimmed == "---" {
-            return false;
+            return None;
         }
-        if let Some(rest) = trimmed.strip_prefix("status:") {
+        if let Some(rest) = trimmed.strip_prefix(prefix.as_str()) {
             let value = rest
                 .split('#')
                 .next()
@@ -333,10 +458,49 @@ fn is_draft(source: &str) -> bool {
                 .trim()
                 .trim_matches('"')
                 .trim_matches('\'');
-            return value.eq_ignore_ascii_case("draft");
+            return Some(value.to_owned());
         }
     }
-    false
+    None
+}
+
+/// Replace a leading `---` … `---` front-matter block with blank lines,
+/// returning the result (borrowed when there is no leading block).
+///
+/// `status: draft` files are skipped wholesale, but a `cohesion: behavioral`
+/// file (RFC-012 §3.3) is parsed normally — and its `key: value` line
+/// immediately above the closing `---` would otherwise be mis-read as a
+/// **setext H2 heading**, manufacturing a phantom concept. Blanking the
+/// block (rather than stripping it) preserves the line count, so every
+/// concept/anchor below keeps its true `path:line`.
+fn blank_front_matter(source: &str) -> std::borrow::Cow<'_, str> {
+    let lead_ws_len = source.len() - source.trim_start().len();
+    let body = &source[lead_ws_len..];
+    let Some(first_nl) = body.find('\n') else {
+        return std::borrow::Cow::Borrowed(source);
+    };
+    if body[..first_nl].trim() != "---" {
+        return std::borrow::Cow::Borrowed(source);
+    }
+    let mut cursor = first_nl + 1;
+    let block_end = loop {
+        let Some(nl) = body[cursor..].find('\n') else {
+            // No closing fence — not a well-formed block; leave unchanged.
+            return std::borrow::Cow::Borrowed(source);
+        };
+        let line_end = cursor + nl;
+        if body[cursor..line_end].trim() == "---" {
+            break lead_ws_len + line_end + 1; // through the closing newline
+        }
+        cursor = line_end + 1;
+    };
+    let newlines = source[..block_end].matches('\n').count();
+    let mut out = String::with_capacity(newlines + (source.len() - block_end));
+    for _ in 0..newlines {
+        out.push('\n');
+    }
+    out.push_str(&source[block_end..]);
+    std::borrow::Cow::Owned(out)
 }
 
 /// Per-file extraction state. Grouping the state into a struct keeps
@@ -359,6 +523,11 @@ struct SectionState<'a> {
     // Bullet collection (v0.3).
     in_bullet: Option<usize>,
     bullet_buf: String,
+    // `- impl:` concept anchors collected during the walk (RFC-012 §3.2).
+    // Held on the state (not a threaded out-param like `verb_anchors`) so
+    // `finish_bullet` / `handle_event` signatures stay unchanged; drained
+    // by `extract_from_source` after the walk.
+    concept_anchors: Vec<ConceptAnchor>,
 }
 
 impl<'a> SectionState<'a> {
@@ -374,6 +543,7 @@ impl<'a> SectionState<'a> {
             block_buf: String::new(),
             in_bullet: None,
             bullet_buf: String::new(),
+            concept_anchors: Vec::new(),
         }
     }
 
@@ -388,7 +558,12 @@ fn extract_from_source(
     nodes: &mut Vec<ConceptNode>,
     edges: &mut Vec<Edge>,
     verb_anchors: &mut Vec<VerbAnchor>,
+    concept_anchors: &mut Vec<ConceptAnchor>,
 ) {
+    // Blank any leading front-matter so a `cohesion: behavioral` block is not
+    // mis-parsed as a setext heading (RFC-012 §3.3). Line numbers preserved.
+    let cleaned = blank_front_matter(source);
+    let source = cleaned.as_ref();
     let mut st = SectionState::new(source, path);
     let parser = Parser::new(source).into_offset_iter();
 
@@ -397,6 +572,7 @@ fn extract_from_source(
     }
 
     flush_pending(&mut st.pending, &st.rust_blocks, st.path, nodes);
+    concept_anchors.append(&mut st.concept_anchors);
 }
 
 fn handle_event(
@@ -488,6 +664,13 @@ fn finish_bullet(
             line,
         };
         verb_anchors.push(anchor);
+    } else if let Some(mut anchor) = parse_impl_bullet(text.as_str()) {
+        anchor.concept = concept;
+        anchor.source = Source::Spec {
+            path: st.path.to_path_buf(),
+            line,
+        };
+        st.concept_anchors.push(anchor);
     }
 }
 
@@ -505,6 +688,25 @@ static VERB_QNAME_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^[A-Za-z_][A-Za-z0-9_]*(::[A-Za-z_][A-Za-z0-9_]*)?$").expect("valid regex")
 });
 
+/// The **single** qname grammar shared by `- verb:` and `- impl:` bullets
+/// (RFC-012 §4 I7 — one grammar, no second parser).
+///
+/// Validates `qname` against [`VERB_QNAME_RE`] (bare ident or `Type::method`
+/// / `Enum::Variant`). Returns the trimmed qname, or `None` — empty silently,
+/// non-empty-but-malformed with a tolerant-skip `tracing::warn!`. Both bullet
+/// parsers route here so a grammar change touches one site (anti-split-brain).
+fn parse_anchor_qname(rest: &str) -> Option<&str> {
+    let qname = rest.trim();
+    if qname.is_empty() {
+        return None;
+    }
+    if !VERB_QNAME_RE.is_match(qname) {
+        tracing::warn!("anchor bullet has malformed qname — skipping: {qname:?}");
+        return None;
+    }
+    Some(qname)
+}
+
 /// Parse a `- verb: <qname>` bullet into a [`VerbAnchor`] with placeholder fields.
 ///
 /// The `concept` and `source` fields are left as placeholders; the caller
@@ -512,24 +714,39 @@ static VERB_QNAME_RE: LazyLock<Regex> = LazyLock::new(|| {
 /// are available.
 ///
 /// Returns `None` for bullets that do not start with `verb:` or whose qname
-/// does not satisfy `^[A-Za-z_][A-Za-z0-9_]*(::[A-Za-z_][A-Za-z0-9_]*)?$`.
-/// A non-empty, non-matching qname emits `tracing::warn!` before the skip
-/// (tolerant-skip).
+/// fails [`parse_anchor_qname`] (the shared grammar).
+#[must_use]
 pub fn parse_verb_bullet(text: &str) -> Option<VerbAnchor> {
     let trimmed = text.trim();
     let rest = trimmed.strip_prefix("verb:")?;
-    let qname = rest.trim();
-    if qname.is_empty() {
-        return None;
-    }
-    if !VERB_QNAME_RE.is_match(qname) {
-        tracing::warn!("verb bullet has malformed qname — skipping: {qname:?}");
-        return None;
-    }
+    let qname = parse_anchor_qname(rest)?;
     Some(VerbAnchor {
         concept: String::new(),
         qname: qname.to_owned(),
         raw_target: trimmed.to_owned(),
+        source: Source::Spec {
+            path: std::path::PathBuf::new(),
+            line: 0,
+        },
+    })
+}
+
+/// Parse a `- impl: <qname>` bullet into a [`ConceptAnchor`] (RFC-012 §3.2)
+/// with placeholder `concept` / `source` fields the caller (`finish_bullet`)
+/// fills in.
+///
+/// Returns `None` for bullets that do not start with `impl:` or whose qname
+/// fails [`parse_anchor_qname`] — the **same** grammar `- verb:` uses (§4 I7).
+/// `impl:` does not prefix-collide with the `implements:` edge bullet:
+/// `parse_bullet_edge` is tried first in `finish_bullet` and consumes it.
+#[must_use]
+pub fn parse_impl_bullet(text: &str) -> Option<ConceptAnchor> {
+    let trimmed = text.trim();
+    let rest = trimmed.strip_prefix("impl:")?;
+    let qname = parse_anchor_qname(rest)?;
+    Some(ConceptAnchor {
+        concept: String::new(),
+        target: qname.to_owned(),
         source: Source::Spec {
             path: std::path::PathBuf::new(),
             line: 0,
@@ -613,6 +830,10 @@ fn normalize_heading(raw: &str) -> String {
 /// extracting all well-formed bracketed annotations from bullet items.
 /// Per RFC-005 §3.2: fresh parser per file, own H4 arm, new bracket grammar.
 fn extract_annotations_from_source(source: &str, path: &Path, out: &mut Vec<InvariantAnnotation>) {
+    // Blank leading front-matter so a `cohesion: behavioral` block does not
+    // perturb the H4-invariant parse (RFC-012 §3.3); line numbers preserved.
+    let cleaned = blank_front_matter(source);
+    let source = cleaned.as_ref();
     let line_starts = compute_line_starts(source);
     let parser = Parser::new(source).into_offset_iter();
 
