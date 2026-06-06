@@ -29,6 +29,7 @@ Exposes `extract_invariant_annotations` (inherent method) for RFC-005
 - depends on: ContextDecl
 - depends on: InvariantAnnotation
 - depends on: VerbAnchor
+- depends on: ConceptAnchor
 
 ## RustBackend
 

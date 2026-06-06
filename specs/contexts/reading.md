@@ -44,6 +44,7 @@ equivalence publishes.
 - OwnedUnit from equivalence (PublishedLanguage)
 - PubFnDecl from equivalence (PublishedLanguage)
 - VerbAnchor from equivalence (PublishedLanguage)
+- ConceptAnchor from equivalence (PublishedLanguage)
 - InvariantAnnotation from equivalence (PublishedLanguage)
 - TierKind from equivalence (PublishedLanguage)
 - AbstractionLevel from equivalence (PublishedLanguage)

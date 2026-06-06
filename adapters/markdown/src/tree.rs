@@ -60,6 +60,12 @@ pub struct SpecTree {
     /// Heading nodes in document order; `parent` indices refer back into
     /// this vector.
     pub nodes: Vec<HeadingNode>,
+    /// `true` when the file's leading front-matter declares
+    /// `cohesion: behavioral` (RFC-012 §3.3). Detected here; the cohesion
+    /// pass (R12-4) honours it as an exemption from
+    /// [`CohesionViolation::ContextWithoutCohesionUnit`] **only** when the
+    /// context also carries behavioral substance (anti-gaming, §3.3.1).
+    pub behavioral: bool,
 }
 
 impl SpecTree {
@@ -258,6 +264,12 @@ impl<'a> AssemblerState<'a> {
 /// normalise to a context identifier (RFC-010 §3.2 descriptive-title
 /// rejection).
 pub fn assemble_tree(source: &str, file: &Path) -> Result<SpecTree, ReaderError> {
+    // Detect the behavioral marker on the RAW source (front-matter intact)…
+    let behavioral = crate::is_behavioral_context(source);
+    // …then blank the front-matter so a `cohesion: behavioral` block is not
+    // mis-parsed as a setext heading (RFC-012 §3.3). Line numbers preserved.
+    let cleaned = crate::blank_front_matter(source);
+    let source = cleaned.as_ref();
     let mut st = AssemblerState::new(source, file);
     for (event, range) in Parser::new(source).into_offset_iter() {
         handle_event(&mut st, &event, range);
@@ -271,6 +283,7 @@ pub fn assemble_tree(source: &str, file: &Path) -> Result<SpecTree, ReaderError>
     Ok(SpecTree {
         file: file.to_path_buf(),
         nodes: st.nodes,
+        behavioral,
     })
 }
 
@@ -517,5 +530,34 @@ mod tests {
                 t.cohesion_violations()
             );
         }
+    }
+
+    // --- RFC-012 §3.3 / R12-2 — behavioral marker + front-matter blanking ---
+
+    #[test]
+    fn assemble_tree_sets_behavioral_and_blanks_front_matter() {
+        let t =
+            tree("---\ncohesion: behavioral\n---\n\n# secrets\n\n#### Operational invariants\n");
+        assert!(t.behavioral, "cohesion: behavioral must set the flag");
+        // No phantom setext H2 manufactured from the `key: value` line.
+        assert!(
+            t.nodes.iter().all(|n| n.text != "cohesion: behavioral"),
+            "front-matter must not become a heading: {:?}",
+            t.nodes
+        );
+        // The H1 context keeps its true line number (5) after blanking.
+        let ctx = t
+            .nodes
+            .iter()
+            .find(|n| n.level == AbstractionLevel::Context)
+            .expect("context node");
+        assert_eq!(ctx.id.as_deref(), Some("secrets"));
+        assert_eq!(ctx.line, 5);
+    }
+
+    #[test]
+    fn assemble_tree_without_front_matter_is_not_behavioral() {
+        let t = tree("# equivalence\n## Graph\n");
+        assert!(!t.behavioral);
     }
 }

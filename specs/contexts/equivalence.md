@@ -40,6 +40,7 @@ here. No IO, no parser state — just values, traits, and the three-pass
 - PubFnDecl (PublishedLanguage)
 - VerbDecl (PublishedLanguage)
 - VerbAnchor (PublishedLanguage)
+- ConceptAnchor (PublishedLanguage)
 - VerbOwnership (PublishedLanguage)
 - InvariantAnnotation (PublishedLanguage)
 - TierKind (PublishedLanguage)
