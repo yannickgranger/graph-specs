@@ -167,6 +167,17 @@ fn violation_to_record(v: &Violation) -> Value {
             "draft_source": source_to_json(draft_source),
         }),
         Violation::Cohesion(c) => cohesion_violation_to_record(c),
+        Violation::DanglingAnchor {
+            concept,
+            target,
+            spec_source,
+        } => json!({
+            "schema_version": SchemaVersion::CURRENT.as_str(),
+            "violation": "dangling_anchor",
+            "concept": concept,
+            "target": target,
+            "source": source_to_json(spec_source),
+        }),
         _ => json!({
             "schema_version": SchemaVersion::CURRENT.as_str(),
             "violation": "unknown_violation",
@@ -699,5 +710,29 @@ mod tests {
         )));
         assert_eq!(orphan["violation"], "sub_concept_orphan");
         assert_eq!(orphan["sub_concept"], "Inner");
+    }
+
+    // --- RFC-012 §3.6 / R12-1 dangling-anchor record (additive, v3) ---
+
+    #[test]
+    fn dangling_anchor_record_is_additive_v3() {
+        let v = Violation::DanglingAnchor {
+            concept: "ValidateIntakeFull".into(),
+            target: "validate_intake".into(),
+            spec_source: Source::Spec {
+                path: PathBuf::from("specs/concepts/intake_validation.md"),
+                line: 3,
+            },
+        };
+        let r = record(&render_one(v));
+        // Additive: stays schema_version "3", no bump (DD-6).
+        assert_eq!(r["schema_version"], "3");
+        assert_eq!(r["violation"], "dangling_anchor");
+        assert_eq!(r["concept"], "ValidateIntakeFull");
+        assert_eq!(r["target"], "validate_intake");
+        assert_eq!(r["source"]["kind"], "spec");
+        assert_eq!(r["source"]["line"], 3);
+        // §12-G: must not fall through to the generic record.
+        assert_ne!(r["violation"], "unknown_violation");
     }
 }

@@ -62,7 +62,11 @@ signature-, and relationship-level variants share the convention that
 the first-carried field is the concept or owner name, so CLI output can
 be sorted deterministically regardless of violation kind. The variant
 set includes `ImplementsDraftConcept` for the case where a code item
-implements a concept whose spec heading is still `status: draft`.
+implements a concept whose spec heading is still `status: draft`, and
+`DanglingAnchor` (RFC-012 §3.5) for the case where a `- impl:` anchor
+names a code item that does not exist — a **top-level** arm (not nested
+in `Cohesion`) so opting out of cohesion checking cannot suppress
+broken-anchor detection.
 
 ## Edge
 
@@ -452,3 +456,37 @@ The *detection* logic that emits these lands in R10-3; this entry covers
 the type. Lives in `domain`.
 
 - verb: CohesionViolation::key
+
+## ConceptAnchor
+
+A concept heading explicitly bound to a named code item the concept walk
+would not otherwise surface (RFC-012 §3.2) — a `pub(crate)` type, a `fn`,
+or a `const`. Parsed from a `- impl: <qname>` bullet, it *redirects* the
+concept's equivalence target to the resolved item rather than requiring a
+top-level `pub` type named like the heading. Shares the verb-bullet qname
+grammar with [VerbAnchor](#verbanchor) (one grammar) but is a distinct
+type: a `VerbAnchor` attributes a `pub fn` to a context, a `ConceptAnchor`
+redirects a concept's equivalence target. An anchor naming a nonexistent
+item fires [Violation](#violation)'s `DanglingAnchor` arm, so the link
+stays two-way and zero-baseline. Lives in `domain`.
+
+- verb: anchor_violation
+- verb: behavioral_exemption_applies
+
+## AnchorKind
+
+The kind of code item an anchor resolved to (RFC-012 §3.4): `Type`, `Fn`,
+or `Const` — the three the source-walk MVP resolves, each a `syn::Item`
+the reader already visits. Enum-variant resolution is deferred to R12-6
+(cfdb-query, where `kind:"variant"` is native), so the enum is
+`#[non_exhaustive]` to admit it without a breaking change. Lives in
+`domain`.
+
+## AnchorTarget
+
+A resolved anchor target — the code item an `AnchorResolver` found for a
+qname, at any visibility (RFC-012 §3.4). A pure domain type by
+construction: it carries no infrastructure representation (`syn::Item`,
+cfdb `Node`/`PropValue`); the resolving adapter translates into this
+shape, keeping the dependency arrow pointing inward. Pairs an
+[AnchorKind](#anchorkind) with a [Source](#source). Lives in `domain`.
