@@ -22,6 +22,7 @@ equivalence publishes.
 - RustBackend (PublishedLanguage)
 - CfdbQueryReader (PublishedLanguage)
 - RustAnchorResolver (PublishedLanguage)
+- CfdbAnchorResolver (PublishedLanguage)
 
 ## Imports
 

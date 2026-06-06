@@ -112,6 +112,25 @@ Lives in `adapters/cfdb-query`.
 - depends on: ReaderError
 - returns: CfdbQueryReader
 
+## CfdbAnchorResolver
+
+cfdb-keyspace [AnchorResolver](equivalence.md#anchorresolver) (RFC-012 §3.4
+/ R12-6 — the OQ-1 parity path). The keyspace counterpart to the source-walk
+[RustAnchorResolver](#rustanchorresolver): resolves a `- impl:` anchor
+against the `:Item` facts a `cfdb extract` run already holds, for per-crate
+repos whose keyspace is the code-fact source. Lifts the concept ACL's
+`pub`-only filter — a `pub(crate)` item (cfdb reports it as `visibility:
+"private"`) resolves at any visibility. Resolves type / fn / const kinds and
+`Type::method` (reduced from cfdb's `crate::Type::method` qname); enum
+variants are **not** resolvable because cfdb (v0.5.0) emits no `variant`
+`:Item` kind — that remains deferred to a paired cfdb change. Returns an
+[AnchorTarget](equivalence.md#anchortarget). Lives in `adapters/cfdb-query`.
+
+- implements: AnchorResolver
+- depends on: AnchorTarget
+- depends on: ReaderError
+- depends on: CfdbAnchorResolver
+
 ## HeadingNode
 
 One node of the abstraction-ladder tree (RFC-010 §3.2 / R10-2) — a single
