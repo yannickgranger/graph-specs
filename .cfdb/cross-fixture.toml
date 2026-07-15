@@ -20,6 +20,6 @@
 [companion]
 repo      = "yg/cfdb"
 branch    = "develop"
-sha       = "5f3f9f590f5ee35020a1ca36fd7997127619bd90"
-bumped_at = "2026-06-26T00:00:00Z"
-bumped_by = "lockstep — cfdb #498 / RFC-050 slice 50-A (PR yg/cfdb#506). SchemaVersion V0_5_0 → V0_6_0 (additive, non-breaking): one new `:Crate.crate_tier` int attribute (topological longest-path depth in the intra-workspace normal-[dependencies] DAG), `Provenance::Extractor`, no new node/edge label, no new verb. Pinned at cfdb PR #506's HEAD (5f3f9f5, reachable from cfdb develop after merge). Pre-existing rules return zero rows against the new pin — crate_tier is a schema-vocab addition with no ban-rule surface. Merge order: cfdb #506 first, then this fixture bump (cfdb CLAUDE.md §3 / RFC-002 §3.1)."
+sha       = "ff5364534be15d9e507e48e0649e17f954e86626"
+bumped_at = "2026-07-15T11:30:00Z"
+bumped_by = "lockstep — cfdb #510 / RFC-053 slice 53-A. SchemaVersion V0_6_0 -> V0_7_0 (additive: :MatchSite node + MATCHES_AT edge; MATCHES_ON reserved for 53-B). Pinned at cfdb PR #522 HEAD (ff53645). cfdb-side cross-dogfood at this SHA: 0 violations on graph-specs-rust@f66ff89, exit 0."
