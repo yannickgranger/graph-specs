@@ -6,7 +6,7 @@
 
 use syn::Attribute;
 
-pub(super) fn is_test_gated(attrs: &[Attribute]) -> bool {
+pub fn is_test_gated(attrs: &[Attribute]) -> bool {
     attrs.iter().any(is_cfg_test_gate)
 }
 

@@ -11,7 +11,7 @@ use std::path::Path;
 /// Find the owning crate for a given source file by walking up to the
 /// nearest `Cargo.toml`, then computing the path relative to `root`.
 /// Returns `None` if no `Cargo.toml` is found in the ancestor chain.
-pub(super) fn find_owned_unit(file_path: &Path, root: &Path) -> Option<String> {
+pub fn find_owned_unit(file_path: &Path, root: &Path) -> Option<String> {
     let mut dir = file_path.parent()?;
     loop {
         if dir.join("Cargo.toml").exists() {
@@ -45,7 +45,7 @@ fn unit_name_for(dir: &Path, root: &Path) -> Option<String> {
 /// collapsed to the crate root — so `domain/src/lib.rs` → `domain`,
 /// `domain/src/diff.rs` → `domain::diff`, `domain/src/diff/mod.rs` →
 /// `domain::diff`. Returns `None` when `unit` is unknown.
-pub(super) fn module_path_of(file_path: &Path, root: &Path, unit: Option<&str>) -> Option<String> {
+pub fn module_path_of(file_path: &Path, root: &Path, unit: Option<&str>) -> Option<String> {
     let unit = unit?;
     let rel = file_path
         .strip_prefix(root)

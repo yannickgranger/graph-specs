@@ -21,7 +21,7 @@ const EXCLUDED_DIRS: &[&str] = &[
     "node_modules",
 ];
 
-pub(super) fn is_excluded_dir(entry: &DirEntry) -> bool {
+pub fn is_excluded_dir(entry: &DirEntry) -> bool {
     if !entry.file_type().is_dir() {
         return false;
     }
@@ -35,7 +35,7 @@ pub(super) fn is_excluded_dir(entry: &DirEntry) -> bool {
 /// cloning the path twice inside its walk loop (one clone per error
 /// variant) and keeps the heavy-work of per-file I/O + parsing off the
 /// hot path of the walker.
-pub(super) fn read_and_parse(path: PathBuf) -> Result<(File, PathBuf), ReaderError> {
+pub fn read_and_parse(path: PathBuf) -> Result<(File, PathBuf), ReaderError> {
     let source = match std::fs::read_to_string(&path) {
         Ok(s) => s,
         Err(e) => {

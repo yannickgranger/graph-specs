@@ -11,7 +11,7 @@ use syn::Visibility;
 /// rust-systems-A finding: the concept walk documents `Fn` as a
 /// deliberately-excluded item and MUST NOT be extended. This sibling
 /// exclusively handles `syn::Item::Fn`.
-pub(super) fn visit_top_level_fn(
+pub fn visit_top_level_fn(
     item: &syn::Item,
     path: &Path,
     owned_unit: Option<&str>,
@@ -44,7 +44,7 @@ pub(super) fn visit_top_level_fn(
 ///
 /// Does NOT modify `visit_top_level_fn` or the concept walk's own item
 /// visitor.
-pub(super) fn visit_impl_block(
+pub fn visit_impl_block(
     item: &syn::Item,
     path: &Path,
     owned_unit: Option<&str>,
@@ -90,7 +90,7 @@ pub(super) fn visit_impl_block(
 /// their outer path's first segment is the associated-type name, not the
 /// implementing type, so the qname would be wrong. Returns `None` for
 /// non-`Path` types such as slices (`[T]`) or tuples.
-pub(super) fn root_ident_of_self_ty(ty: &syn::Type) -> Option<&syn::Ident> {
+pub fn root_ident_of_self_ty(ty: &syn::Type) -> Option<&syn::Ident> {
     let syn::Type::Path(tp) = ty else {
         return None;
     };

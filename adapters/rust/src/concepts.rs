@@ -8,7 +8,7 @@ use domain::{ConceptNode, Edge, SignatureState, Source};
 use std::path::Path;
 use syn::{Attribute, File, Visibility};
 
-pub(super) fn extract_from_file(
+pub fn extract_from_file(
     file: &File,
     path: &Path,
     root: &Path,
