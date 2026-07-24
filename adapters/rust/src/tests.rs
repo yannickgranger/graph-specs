@@ -24,7 +24,7 @@ fn extract(dir: &Path) -> Vec<String> {
 
 #[test]
 fn captures_pub_struct_enum_trait_type() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("create temp dir");
     write(
         d.path(),
         "src/lib.rs",
@@ -35,14 +35,14 @@ fn captures_pub_struct_enum_trait_type() {
 
 #[test]
 fn ignores_private_items() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("create temp dir");
     write(d.path(), "src/lib.rs", "struct Priv; pub struct Pub;");
     assert_eq!(extract(d.path()), vec!["Pub"]);
 }
 
 #[test]
 fn ignores_cfg_test_items() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("create temp dir");
     write(
         d.path(),
         "src/lib.rs",
@@ -53,7 +53,7 @@ fn ignores_cfg_test_items() {
 
 #[test]
 fn ignores_items_inside_inline_mod() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("create temp dir");
     write(
         d.path(),
         "src/lib.rs",
@@ -65,7 +65,7 @@ fn ignores_items_inside_inline_mod() {
 
 #[test]
 fn ignores_tests_benches_examples_dirs() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("create temp dir");
     write(d.path(), "src/lib.rs", "pub struct Real;");
     write(d.path(), "tests/it.rs", "pub struct TestFixture;");
     write(d.path(), "benches/b.rs", "pub struct Bench;");
@@ -75,7 +75,7 @@ fn ignores_tests_benches_examples_dirs() {
 
 #[test]
 fn ignores_target_and_claude_dirs() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("create temp dir");
     write(d.path(), "src/lib.rs", "pub struct Real;");
     write(d.path(), "target/gen.rs", "pub struct Gen;");
     write(d.path(), ".claude/w.rs", "pub struct W;");
@@ -84,9 +84,9 @@ fn ignores_target_and_claude_dirs() {
 
 #[test]
 fn line_numbers_are_recorded() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("create temp dir");
     write(d.path(), "src/lib.rs", "\n\npub struct OnLine3;\n");
-    let g = RustReader.extract(d.path()).unwrap();
+    let g = RustReader.extract(d.path()).expect("extract must succeed");
     match &g.nodes[0].source {
         Source::Code { line, .. } => assert_eq!(*line, 3),
         Source::Spec { .. } => panic!("expected Code source"),
@@ -95,7 +95,7 @@ fn line_numbers_are_recorded() {
 
 #[test]
 fn rust_backend_detects_cargo_toml() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("create temp dir");
     assert!(!RustBackend.detect(d.path()), "no marker → false");
     write(d.path(), "Cargo.toml", "[package]\nname = \"x\"\n");
     assert!(RustBackend.detect(d.path()), "Cargo.toml present → true");
@@ -114,14 +114,14 @@ fn node_named<'a>(g: &'a Graph, name: &str) -> &'a ConceptNode {
 fn provenance_lib_rs_collapses_to_crate_root() {
     // A top-level type in `<crate>/src/lib.rs`: module_path == unit ==
     // the crate path relative to the code root (§12-H crate-root edge).
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("create temp dir");
     write(
         d.path(),
         "mycrate/Cargo.toml",
         "[package]\nname=\"mycrate\"\n",
     );
     write(d.path(), "mycrate/src/lib.rs", "pub struct Foo;");
-    let g = RustReader.extract(d.path()).unwrap();
+    let g = RustReader.extract(d.path()).expect("extract must succeed");
     let foo = node_named(&g, "Foo");
     assert_eq!(foo.unit.as_deref(), Some("mycrate"));
     assert_eq!(foo.module_path.as_deref(), Some("mycrate"));
@@ -130,20 +130,20 @@ fn provenance_lib_rs_collapses_to_crate_root() {
 
 #[test]
 fn provenance_main_rs_collapses_to_crate_root() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("create temp dir");
     write(d.path(), "app/Cargo.toml", "[package]\nname=\"app\"\n");
     write(d.path(), "app/src/main.rs", "pub struct Cli;");
-    let g = RustReader.extract(d.path()).unwrap();
+    let g = RustReader.extract(d.path()).expect("extract must succeed");
     assert_eq!(node_named(&g, "Cli").module_path.as_deref(), Some("app"));
 }
 
 #[test]
 fn provenance_submodule_file_and_mod_rs() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("create temp dir");
     write(d.path(), "c/Cargo.toml", "[package]\nname=\"c\"\n");
     write(d.path(), "c/src/diff.rs", "pub struct A;");
     write(d.path(), "c/src/edge/mod.rs", "pub struct B;");
-    let g = RustReader.extract(d.path()).unwrap();
+    let g = RustReader.extract(d.path()).expect("extract must succeed");
     // `diff.rs` → module segment; `edge/mod.rs` collapses the `mod`.
     assert_eq!(node_named(&g, "A").module_path.as_deref(), Some("c::diff"));
     assert_eq!(node_named(&g, "B").module_path.as_deref(), Some("c::edge"));
@@ -154,14 +154,14 @@ fn provenance_submodule_file_and_mod_rs() {
 fn provenance_unit_is_relative_to_code_root_not_walked_path() {
     // §12-I: a nested crate's `unit` is the crate path relative to the
     // code root, never the absolute walked path.
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("create temp dir");
     write(
         d.path(),
         "adapters/markdown/Cargo.toml",
         "[package]\nname=\"adapter-markdown\"\n",
     );
     write(d.path(), "adapters/markdown/src/lib.rs", "pub struct R;");
-    let g = RustReader.extract(d.path()).unwrap();
+    let g = RustReader.extract(d.path()).expect("extract must succeed");
     assert_eq!(
         node_named(&g, "R").unit.as_deref(),
         Some("adapters/markdown")
@@ -198,14 +198,16 @@ fn extract_pub_fns_self_dogfood_application_includes_run_check() {
 // Self-dogfood: extract_pub_fns on the application crate yields run_check.
 #[test]
 fn extract_pub_fns_finds_pub_fns() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("create temp dir");
     write(d.path(), "Cargo.toml", "[package]\nname = \"testcrate\"\n");
     write(
         d.path(),
         "src/lib.rs",
         "pub fn alpha() {} pub fn beta() {} fn private() {}",
     );
-    let fns = RustReader.extract_pub_fns(d.path()).unwrap();
+    let fns = RustReader
+        .extract_pub_fns(d.path())
+        .expect("extract_pub_fns must succeed");
     let mut names: Vec<&str> = fns.iter().map(|f| f.name.as_str()).collect();
     names.sort_unstable();
     assert_eq!(names, vec!["alpha", "beta"]);
@@ -213,36 +215,40 @@ fn extract_pub_fns_finds_pub_fns() {
 
 #[test]
 fn extract_pub_fns_skips_test_gated() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("create temp dir");
     write(
         d.path(),
         "src/lib.rs",
         "#[cfg(test)] pub fn skip_me() {} pub fn keep_me() {}",
     );
-    let fns = RustReader.extract_pub_fns(d.path()).unwrap();
+    let fns = RustReader
+        .extract_pub_fns(d.path())
+        .expect("extract_pub_fns must succeed");
     assert_eq!(fns.len(), 1);
     assert_eq!(fns[0].name, "keep_me");
 }
 
 #[test]
 fn extract_pub_fns_excludes_target_dir() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("create temp dir");
     write(d.path(), "src/lib.rs", "pub fn real_fn() {}");
     write(d.path(), "target/gen.rs", "pub fn generated() {}");
-    let fns = RustReader.extract_pub_fns(d.path()).unwrap();
+    let fns = RustReader
+        .extract_pub_fns(d.path())
+        .expect("extract_pub_fns must succeed");
     assert_eq!(fns.len(), 1);
     assert_eq!(fns[0].name, "real_fn");
 }
 
 #[test]
 fn rust_backend_extract_returns_concepts_and_edges() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("create temp dir");
     write(
         d.path(),
         "src/lib.rs",
         "pub struct Foo { bar: Bar } pub struct Bar;",
     );
-    let extraction = RustBackend.extract(d.path()).unwrap();
+    let extraction = RustBackend.extract(d.path()).expect("extract must succeed");
     let mut names: Vec<String> = extraction.concepts.iter().map(|n| n.name.clone()).collect();
     names.sort();
     assert_eq!(names, vec!["Bar", "Foo"]);
@@ -261,38 +267,44 @@ fn rust_backend_extract_returns_concepts_and_edges() {
 
 #[test]
 fn impl_inherent_pub_method_extracted_as_type_method_qname() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("create temp dir");
     write(
         d.path(),
         "src/lib.rs",
         "struct Foo; impl Foo { pub fn bar() {} }",
     );
-    let fns = RustReader.extract_pub_fns(d.path()).unwrap();
+    let fns = RustReader
+        .extract_pub_fns(d.path())
+        .expect("extract_pub_fns must succeed");
     assert_eq!(fns.len(), 1);
     assert_eq!(fns[0].name, "Foo::bar");
 }
 
 #[test]
 fn impl_inherent_private_method_skipped() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("create temp dir");
     write(
         d.path(),
         "src/lib.rs",
         "struct Foo; impl Foo { fn bar() {} }",
     );
-    let fns = RustReader.extract_pub_fns(d.path()).unwrap();
+    let fns = RustReader
+        .extract_pub_fns(d.path())
+        .expect("extract_pub_fns must succeed");
     assert!(fns.is_empty(), "private method must not be extracted");
 }
 
 #[test]
 fn impl_trait_method_extracted_without_pub() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("create temp dir");
     write(
         d.path(),
         "src/lib.rs",
         "trait Trait { fn bar(); } struct Foo; impl Trait for Foo { fn bar() {} }",
     );
-    let fns = RustReader.extract_pub_fns(d.path()).unwrap();
+    let fns = RustReader
+        .extract_pub_fns(d.path())
+        .expect("extract_pub_fns must succeed");
     assert_eq!(
         fns.len(),
         1,
@@ -303,13 +315,15 @@ fn impl_trait_method_extracted_without_pub() {
 
 #[test]
 fn impl_generic_type_stripped() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("create temp dir");
     write(
         d.path(),
         "src/lib.rs",
         "struct Foo<T>(T); impl<T> Foo<T> { pub fn bar() {} }",
     );
-    let fns = RustReader.extract_pub_fns(d.path()).unwrap();
+    let fns = RustReader
+        .extract_pub_fns(d.path())
+        .expect("extract_pub_fns must succeed");
     assert_eq!(fns.len(), 1);
     assert_eq!(
         fns[0].name, "Foo::bar",
@@ -319,19 +333,21 @@ fn impl_generic_type_stripped() {
 
 #[test]
 fn impl_cfg_test_gated_skipped() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("create temp dir");
     write(
         d.path(),
         "src/lib.rs",
         "#[cfg(test)] impl Foo { pub fn bar() {} }",
     );
-    let fns = RustReader.extract_pub_fns(d.path()).unwrap();
+    let fns = RustReader
+        .extract_pub_fns(d.path())
+        .expect("extract_pub_fns must succeed");
     assert!(fns.is_empty(), "cfg(test)-gated impl block must be skipped");
 }
 
 #[test]
 fn impl_qualified_self_skipped() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("create temp dir");
     // <Foo as Other>::Item as self type — qself guard must fire, no decl.
     write(
         d.path(),
@@ -340,7 +356,9 @@ fn impl_qualified_self_skipped() {
          trait Trait { fn bar(); } \
          impl Trait for <i32 as Other>::Item { fn bar() {} }",
     );
-    let fns = RustReader.extract_pub_fns(d.path()).unwrap();
+    let fns = RustReader
+        .extract_pub_fns(d.path())
+        .expect("extract_pub_fns must succeed");
     assert!(
         fns.is_empty(),
         "qualified-self impl must produce no decl; got: {fns:?}"
@@ -349,13 +367,15 @@ fn impl_qualified_self_skipped() {
 
 #[test]
 fn impl_non_path_self_skipped() {
-    let d = TempDir::new().unwrap();
+    let d = TempDir::new().expect("create temp dir");
     // [T] as self type — non-Path type guard must fire.
     write(
         d.path(),
         "src/lib.rs",
         "trait Trait { fn bar(); } impl Trait for [u8] { fn bar() {} }",
     );
-    let fns = RustReader.extract_pub_fns(d.path()).unwrap();
+    let fns = RustReader
+        .extract_pub_fns(d.path())
+        .expect("extract_pub_fns must succeed");
     assert!(fns.is_empty(), "non-Path self type must produce no decl");
 }
