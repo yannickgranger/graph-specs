@@ -15,3 +15,6 @@
 .prescriptions/
 .proofs/
 .audits/
+
+# Runner pre-diff snapshot scratch — never part of the tracked tree.
+.agentry-scratch-pre-diff-*/
