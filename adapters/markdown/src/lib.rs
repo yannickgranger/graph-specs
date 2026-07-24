@@ -274,9 +274,7 @@ fn concept_walk_root(root: &Path) -> PathBuf {
 /// Read one walked entry into a `(path, source)` pair, or `None` when the
 /// entry is skipped: not a file, not `.md`, or under a nested `contexts/`
 /// subtree (defence in depth — owned by the [`ContextReader`] impl).
-fn read_concept_entry(
-    entry: &walkdir::DirEntry,
-) -> Result<Option<(PathBuf, String)>, ReaderError> {
+fn read_concept_entry(entry: &walkdir::DirEntry) -> Result<Option<(PathBuf, String)>, ReaderError> {
     if !entry.file_type().is_file() {
         return Ok(None);
     }
