@@ -63,7 +63,7 @@ impl<'a> SectionState<'a> {
     }
 }
 
-pub(crate) fn extract_from_source(
+pub fn extract_from_source(
     source: &str,
     path: &Path,
     nodes: &mut Vec<ConceptNode>,

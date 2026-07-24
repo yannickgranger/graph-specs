@@ -7,7 +7,7 @@ use domain::{tokenise_target, ConceptAnchor, EdgeKind, Source, VerbAnchor};
 use regex::Regex;
 use std::sync::LazyLock;
 
-pub(crate) const BULLET_PREFIXES: &[(&str, EdgeKind)] = &[
+pub const BULLET_PREFIXES: &[(&str, EdgeKind)] = &[
     ("implements:", EdgeKind::Implements),
     ("depends on:", EdgeKind::DependsOn),
     ("returns:", EdgeKind::Returns),
@@ -28,7 +28,7 @@ static VERB_QNAME_RE: LazyLock<Regex> = LazyLock::new(|| {
 /// / `Enum::Variant`). Returns the trimmed qname, or `None` — empty silently,
 /// non-empty-but-malformed with a tolerant-skip `tracing::warn!`. Both bullet
 /// parsers route here so a grammar change touches one site (anti-split-brain).
-pub(crate) fn parse_anchor_qname(rest: &str) -> Option<&str> {
+pub fn parse_anchor_qname(rest: &str) -> Option<&str> {
     let qname = rest.trim();
     if qname.is_empty() {
         return None;
@@ -90,7 +90,7 @@ pub fn parse_impl_bullet(text: &str) -> Option<ConceptAnchor> {
 /// Parse a bullet's accumulated text into an (`EdgeKind`, tokenised, raw)
 /// triple, if it matches a recognised prefix. Returns `None` for prose
 /// bullets and for recognised prefixes with an empty target.
-pub(crate) fn parse_bullet_edge(text: &str) -> Option<(EdgeKind, String, String)> {
+pub fn parse_bullet_edge(text: &str) -> Option<(EdgeKind, String, String)> {
     let trimmed = text.trim();
     for (prefix, kind) in BULLET_PREFIXES {
         if let Some(rest) = trimmed.strip_prefix(prefix) {

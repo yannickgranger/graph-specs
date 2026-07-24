@@ -43,7 +43,7 @@ impl<'a> AnnotationState<'a> {
 /// Parse a single spec file for `#### Operational invariants` sections,
 /// extracting all well-formed bracketed annotations from bullet items.
 /// Per RFC-005 §3.2: fresh parser per file, own H4 arm, new bracket grammar.
-pub(crate) fn extract_annotations_from_source(
+pub fn extract_annotations_from_source(
     source: &str,
     path: &Path,
     out: &mut Vec<InvariantAnnotation>,

@@ -1,4 +1,6 @@
 use super::*;
+use crate::bullets::parse_anchor_qname;
+use domain::{EdgeKind, SignatureState, Source};
 use std::io::Write;
 use tempfile::TempDir;
 

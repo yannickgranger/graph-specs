@@ -33,7 +33,6 @@ mod tree;
 pub use bullets::{parse_impl_bullet, parse_verb_bullet};
 pub use tree::{assemble_spec_trees, assemble_tree, HeadingNode, SpecTree};
 
-use crate::bullets::parse_anchor_qname;
 use crate::front_matter::{
     blank_front_matter, has_behavioral_substance, is_behavioral_context, is_draft,
 };
@@ -41,8 +40,7 @@ use crate::invariants::extract_annotations_from_source;
 use crate::markdown_utils::path_under_dir;
 use crate::section::extract_from_source;
 use domain::{
-    ConceptAnchor, ConceptNode, ContextDecl, Edge, EdgeKind, Graph, InvariantAnnotation,
-    SignatureState, Source, VerbAnchor,
+    ConceptAnchor, ConceptNode, ContextDecl, Edge, Graph, InvariantAnnotation, VerbAnchor,
 };
 use ports::{ContextReader, Reader, ReaderError};
 use std::path::{Path, PathBuf};

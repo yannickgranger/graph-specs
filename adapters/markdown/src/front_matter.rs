@@ -23,7 +23,7 @@ use crate::bullets::{parse_impl_bullet, parse_verb_bullet};
 /// trailing `#` comment is ignored. A front-matter block that closes
 /// before any `status:` line, or a file with no front-matter at all,
 /// is not draft.
-pub(crate) fn is_draft(source: &str) -> bool {
+pub fn is_draft(source: &str) -> bool {
     front_matter_value(source, "status").is_some_and(|v| v.eq_ignore_ascii_case("draft"))
 }
 
@@ -36,7 +36,7 @@ pub(crate) fn is_draft(source: &str) -> bool {
 /// demonstrates behavioral content — never against an empty file. Reuses the
 /// canonical bullet grammar ([`parse_impl_bullet`] / [`parse_verb_bullet`])
 /// so the substance set cannot drift from what the readers actually parse.
-pub(crate) fn has_behavioral_substance(source: &str) -> bool {
+pub fn has_behavioral_substance(source: &str) -> bool {
     source.lines().any(|line| {
         if line.contains("[enforced-by:") || line.contains("[prose-only:") {
             return true;
@@ -69,7 +69,7 @@ fn strip_bullet_marker(line: &str) -> Option<&str> {
 /// substance at the cohesion pass (R12-4), never a bare free pass. Like
 /// [`is_draft`], only the leading front-matter is consulted; unlike draft,
 /// a behavioral file is **not** skipped — it is a real spec walked normally.
-pub(crate) fn is_behavioral_context(source: &str) -> bool {
+pub fn is_behavioral_context(source: &str) -> bool {
     front_matter_value(source, "cohesion").is_some_and(|v| v.eq_ignore_ascii_case("behavioral"))
 }
 
@@ -114,7 +114,7 @@ fn front_matter_value(source: &str, key: &str) -> Option<String> {
 /// **setext H2 heading**, manufacturing a phantom concept. Blanking the
 /// block (rather than stripping it) preserves the line count, so every
 /// concept/anchor below keeps its true `path:line`.
-pub(crate) fn blank_front_matter(source: &str) -> std::borrow::Cow<'_, str> {
+pub fn blank_front_matter(source: &str) -> std::borrow::Cow<'_, str> {
     let lead_ws_len = source.len() - source.trim_start().len();
     let body = &source[lead_ws_len..];
     let Some(first_nl) = body.find('\n') else {
