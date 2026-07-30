@@ -100,6 +100,24 @@ The fallback direction is the point: a typo leaves the heading's
 obligation **armed**. A marker can only narrow an obligation deliberately
 written down.
 
+**On the name.** "Grounding comment" is upstream's term
+(`parse_grounding`, `is_grounding_shaped`, "the grounding-block dialect"),
+and it is retained deliberately rather than translated — a local rename
+would create a second name for something cascade already documents, which
+costs more in cross-tool correlation than the clarity it buys. But the term
+sits oddly in this RFC, and the oddness is worth naming: *grounding* means
+**ancestorship**. Cascade's specs are a refinement forest hung off the RFC,
+where every concept declares a parent — an RFC clause (a root) or another
+concept (an internal node) — and an ungrounded heading is "an invented,
+rootless concept" (`cascade/src/lib.rs:214`). That is the `parent:` key's
+job, and rootedness is exactly what §6 non-goals.
+
+So graph-specs does **no** grounding in the sense the name denotes. It
+reads one key that happens to be carried in the same comment: `polarity:`
+is an independent axis sharing the grounding block's syntax, not part of
+its ancestry payload. Reading "graph-specs parses the grounding comment"
+as "graph-specs validates ancestry" would be exactly backwards.
+
 **This is not a reversal of RFC-012 §3.2.** That ruling (council unanimous)
 rejected issue #144's `<!-- graph-specs:anchor=… -->` because graph-specs
 *controlled that authoring surface* and a dialect-consistent bullet form
