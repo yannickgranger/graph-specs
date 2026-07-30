@@ -11,7 +11,8 @@
 //! defects fall straight out of it, both spec-side (zero code facts):
 //!
 //! - an H1 context with no H2/H3 concept under it
-//!   → [`CohesionViolation::ContextWithoutCohesionUnit`];
+//!   → [`CohesionViolation::ContextWithoutCohesionUnit`] — including in
+//!     `status: draft` files (RFC-013 §3.2 row 6);
 //! - an H3 sub-concept with no enclosing H2
 //!   → [`CohesionViolation::SubConceptOrphan`].
 //!
@@ -108,6 +109,13 @@ impl SpecTree {
     /// (RFC-010 §3.5): every `Context` with no concept under it, and every
     /// orphaned `SubConcept`. Detection only — emission into the `check`
     /// diff is R10-3.
+    ///
+    /// Marker-blind by construction (RFC-013 §3.2 row 6): the assembler
+    /// records heading *depth*, so a marked `## Concept` is an
+    /// `AbstractionLevel::Concept` node like any other and counts as its
+    /// context's cohesion unit. Marking never suppresses this check — the
+    /// `cohesion: behavioral` exemption is the only one, and it applies to
+    /// draft docs on exactly the same terms as any other doc.
     #[must_use]
     pub fn cohesion_violations(&self) -> Vec<CohesionViolation> {
         // RFC-012 §3.3.1: a `cohesion: behavioral` file with demonstrated
@@ -363,9 +371,11 @@ pub fn assemble_spec_trees(root: &Path) -> Result<Vec<SpecTree>, ReaderError> {
             path: path.to_path_buf(),
             cause: e.to_string(),
         })?;
-        if crate::is_draft(&source) {
-            continue;
-        }
+        // RFC-013 §3.2 row 6 — draft files enter the walk. The exemption they
+        // used to enjoy was an H1-only-prose evasion channel: a doc could join
+        // the enforced surface carrying no cohesion unit at all by declaring
+        // itself draft. Marking relaxes a *concept*'s code-existence
+        // obligation; it never relaxes the doc-level structural check.
         match assemble_tree(&source, path) {
             Ok(tree) => trees.push(tree),
             // A non-context H1 declares no bounded context — skip the file
@@ -508,6 +518,96 @@ mod tests {
             ids,
             vec!["reading"],
             "only the identifier-H1 file yields a tree"
+        );
+    }
+
+    // --- RFC-013 §3.2 row 6 — draft files enter the cohesion walk ---
+
+    #[test]
+    fn draft_doc_with_only_an_h1_declares_no_cohesion_unit() {
+        // The evasion channel this slice closes: before RFC-013 a doc could
+        // join the enforced surface carrying no cohesion unit at all simply
+        // by declaring itself draft.
+        let t = tree("---\nstatus: draft\n---\n\n# equivalence\n\nJust prose.\n");
+        assert_eq!(
+            t.cohesion_violations(),
+            vec![CohesionViolation::ContextWithoutCohesionUnit {
+                context: "equivalence".to_string(),
+                file: PathBuf::from("specs/concepts/equivalence.md"),
+            }]
+        );
+    }
+
+    #[test]
+    fn a_marked_heading_counts_as_a_cohesion_unit() {
+        // Marker-blind by construction: the assembler records heading depth,
+        // so a marked `## Concept` is a Concept node like any other.
+        let t = tree("---\nstatus: draft\n---\n\n# equivalence\n\n## Graph\n");
+        assert!(
+            t.cohesion_violations().is_empty(),
+            "a marked H2 satisfies its context: {:?}",
+            t.cohesion_violations()
+        );
+
+        // Same, via the per-heading bullet rather than the file front-matter.
+        let t = tree("# equivalence\n\n## Graph\n\n- status: draft\n");
+        assert!(t.cohesion_violations().is_empty());
+    }
+
+    #[test]
+    fn the_behavioral_exemption_applies_to_draft_docs_on_the_same_terms() {
+        // RFC-013 §3.2 row 6 tightens the check; it does not narrow the one
+        // exemption that exists. Substance is still required (RFC-012 §3.3.1).
+        let exempt = tree(
+            "---\nstatus: draft\ncohesion: behavioral\n---\n\n# secrets\n\n- impl: rotate_key\n",
+        );
+        assert!(
+            exempt.cohesion_violations().is_empty(),
+            "behavioral + substance exempts a draft doc: {:?}",
+            exempt.cohesion_violations()
+        );
+
+        let bare = tree("---\nstatus: draft\ncohesion: behavioral\n---\n\n# secrets\n\nProse.\n");
+        assert_eq!(
+            bare.cohesion_violations().len(),
+            1,
+            "behavioral without substance is still a violation, draft or not"
+        );
+    }
+
+    #[test]
+    fn assemble_spec_trees_walks_draft_files() {
+        use std::io::Write;
+        let dir = tempfile::TempDir::new().expect("tempdir");
+        let write = |rel: &str, body: &str| {
+            let p = dir.path().join(rel);
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::File::create(&p)
+                .unwrap()
+                .write_all(body.as_bytes())
+                .unwrap();
+        };
+        write(
+            "concepts/draft.md",
+            "---\nstatus: draft\n---\n\n# reading\n",
+        );
+        write("concepts/live.md", "# equivalence\n\n## Graph\n");
+
+        let trees = assemble_spec_trees(dir.path()).expect("walk");
+        let ids: Vec<_> = trees.iter().filter_map(SpecTree::context_id).collect();
+        assert_eq!(
+            ids,
+            vec!["reading", "equivalence"],
+            "draft files are no longer skipped by the ladder walk"
+        );
+        let violations: Vec<_> = trees
+            .iter()
+            .flat_map(SpecTree::cohesion_violations)
+            .collect();
+        assert_eq!(
+            violations.len(),
+            1,
+            "the H1-only draft doc reds; the live doc does not: {violations:?}"
         );
     }
 

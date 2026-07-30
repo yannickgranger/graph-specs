@@ -196,3 +196,60 @@ fn a_pending_concepts_verb_anchor_imposes_no_obligation() {
     );
     assert_eq!(outcome.pending.len(), 1);
 }
+
+// --- RFC-013 §3.2 row 6 — cohesion tightening (Slice B) ---
+
+#[test]
+fn an_h1_only_draft_doc_reds_the_check() {
+    // Before RFC-013 a doc could enter the enforced surface carrying no
+    // cohesion unit at all by declaring itself draft. That channel is closed:
+    // marking relaxes a concept's code-existence obligation, never the
+    // doc-level structural check.
+    let specs = TempDir::new().unwrap();
+    let code = TempDir::new().unwrap();
+    write(
+        specs.path(),
+        "concepts/reading.md",
+        "---\nstatus: draft\n---\n\n# reading\n\nJust prose, no concept.\n",
+    );
+    cargo_toml(code.path());
+    write(code.path(), "src/lib.rs", "");
+
+    let outcome = application::run_check(specs.path(), code.path()).unwrap();
+    assert!(
+        outcome.violations.iter().any(|v| matches!(
+            v,
+            Violation::Cohesion(domain::CohesionViolation::ContextWithoutCohesionUnit {
+                context,
+                ..
+            }) if context == "reading"
+        )),
+        "expected context_without_cohesion_unit on the draft doc, got: {:?}",
+        outcome.violations
+    );
+    assert!(!outcome.is_clean());
+}
+
+#[test]
+fn adding_a_marked_heading_greens_it_back_to_pending_only() {
+    // A marked heading COUNTS as a cohesion unit — the assembler records
+    // heading depth and is marker-blind by construction.
+    let specs = TempDir::new().unwrap();
+    let code = TempDir::new().unwrap();
+    write(
+        specs.path(),
+        "concepts/reading.md",
+        "---\nstatus: draft\n---\n\n# reading\n\n## Widget\n\nNot built yet.\n",
+    );
+    cargo_toml(code.path());
+    write(code.path(), "src/lib.rs", "");
+
+    let outcome = application::run_check(specs.path(), code.path()).unwrap();
+    assert!(
+        outcome.is_clean(),
+        "a marked heading satisfies its context: {:?}",
+        outcome.violations
+    );
+    assert_eq!(outcome.pending.len(), 1);
+    assert_eq!(outcome.pending[0].concept, "Widget");
+}
