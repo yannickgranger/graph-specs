@@ -21,10 +21,14 @@ Exposes `extract_invariant_annotations` (inherent method) for RFC-005
 §3.2 — extracts `[enforced-by:]` / `[prose-only:]` annotations from
 `#### Operational invariants` spec sections. Lives in `adapters/markdown`.
 
+Per RFC-013 §3.3 it no longer skips `status: draft` files: they are
+parsed like any other spec, and every concept heading in one is marked
+on the node it emits. The `extract_draft_concepts` side-index walk that
+the previous design needed is retired.
+
 - implements: Reader
 - implements: ContextReader
 - depends on: Graph
-- depends on: ConceptNode
 - depends on: ReaderError
 - depends on: ContextDecl
 - depends on: InvariantAnnotation

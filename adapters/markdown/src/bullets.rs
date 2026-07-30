@@ -87,6 +87,32 @@ pub fn parse_impl_bullet(text: &str) -> Option<ConceptAnchor> {
     })
 }
 
+/// Recognise the `- status: draft` spec-state marker (RFC-013 §3.1).
+///
+/// One legal value: there is no `- status: ratified` and no second value —
+/// ratification is **deletion of the line**, a presence flag, never a state
+/// machine. Any other `- status:` bullet is an unrecognised prefix under the
+/// existing dialect rule and stays inert text.
+///
+/// The value is matched ASCII-case-insensitively, mirroring the
+/// front-matter test. Anything after it on the same line — e.g. the upstream
+/// authoring convention `- status: draft (per <RFC>.md §<clause>)` — is
+/// tolerated and ignored; that parenthetical is enforced by the upstream
+/// tree's own fences and is never gate-parsed (RFC-013 §6).
+///
+/// Placement is **not** checked here: the marker only binds when it is the
+/// first non-blank content line below its heading, which is the caller's
+/// concern ([`crate::section`]).
+#[must_use]
+pub fn is_status_marker(text: &str) -> bool {
+    let Some(rest) = text.trim().strip_prefix("status:") else {
+        return false;
+    };
+    rest.split_whitespace()
+        .next()
+        .is_some_and(|value| value.eq_ignore_ascii_case("draft"))
+}
+
 /// Parse a bullet's accumulated text into an (`EdgeKind`, tokenised, raw)
 /// triple, if it matches a recognised prefix. Returns `None` for prose
 /// bullets and for recognised prefixes with an empty target.

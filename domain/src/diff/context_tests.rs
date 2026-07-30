@@ -1,9 +1,15 @@
 use crate::{
-    detect_import_cycle, diff, CheckInput, ConceptNode, ContextDecl, ContextExport, ContextImport,
+    detect_import_cycle, CheckInput, ConceptNode, ContextDecl, ContextExport, ContextImport,
     ContextPattern, ContextViolation, Edge, EdgeKind, Graph, OwnedUnit, SignatureState, Source,
     VerbOwnership, Violation,
 };
 use std::path::PathBuf;
+
+/// These tests assert on violations only; RFC-013 marker records are
+/// covered in [`super::tests`]. Unwrap the outcome at the seam.
+fn diff(spec: CheckInput, code: Graph) -> Vec<Violation> {
+    crate::diff(spec, code).violations
+}
 
 // --- helpers -------------------------------------------------------
 
