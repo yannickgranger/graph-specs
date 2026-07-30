@@ -12,7 +12,7 @@
 //!
 //! - an H1 context with no H2/H3 concept under it
 //!   → [`CohesionViolation::ContextWithoutCohesionUnit`] — including in
-//!     `status: draft` files (RFC-013 §3.2 row 6);
+//!   `status: draft` files (RFC-013 §3.2 row 6);
 //! - an H3 sub-concept with no enclosing H2
 //!   → [`CohesionViolation::SubConceptOrphan`].
 //!
