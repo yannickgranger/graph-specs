@@ -2,10 +2,9 @@
 title: RFC-014 — grounding polarity: conform to the upstream `polarity:` marker
 status: Ratified — 4-lens unanimous, 2026-07-30 (round 1 REQUEST CHANGES x4; round 2 RATIFY x4)
 date: 2026-07-30
-issue: yg/graph-specs-rust#168
 upstream-owner: yg/agentry docs/rfc/vocabulary/RFC-vocabulary.md (ratified)
 upstream-impl: yg/cascade src/lib.rs `resolve_polarity`
-depends-on: RFC-013 (ratified; Slice A = #169) — shares carriers, and #169 lands first
+depends-on: RFC-013 (ratified) — shares carriers; its Slice A lands first
 ---
 
 # RFC-014 — grounding polarity
@@ -123,7 +122,7 @@ minimal quote-skipping scan, **not** cascade's full `GroundingTokens` /
 **The adjacency primitive is shared with RFC-013.** "Immediately below the
 heading" and RFC-013 §3.1's "first non-blank content line" need the same
 mechanism, and `SectionState` (`adapters/markdown/src/section.rs`) has
-nothing like it today. Since #169 lands first, that primitive
+nothing like it today. Since RFC-013 Slice A lands first, that primitive
 (`first_block_since_heading`-shaped) is Slice A's to build and this RFC
 reuses it. Building it twice in parallel risks two subtly different
 "immediately below" semantics.
@@ -253,11 +252,11 @@ explicit clone.
   - **Sort slot: 15**, appended after `DanglingAnchor` (14) in
     `violation_key` (`domain/src/diff.rs:199-217`). Append-only; existing
     slots are never renumbered and RFC-013's retired slot 13 stays retired.
-- Post-#169, the push becomes `outcome.violations.push(...)` once
+- Once RFC-013 Slice A lands, the push becomes `outcome.violations.push(...)` once
   `CheckOutcome` exists, and the polarity guard sits *ahead of* the marked
   dispatch inside the same per-node function, not as a parallel `if`.
 
-**Prerequisite (owned by #169).** `domain::diff` measures cognitive
+**Prerequisite (owned by RFC-013 Slice A).** `domain::diff` measures cognitive
 complexity 11 today — "Elevated — consider splitting" — before either RFC
 lands. The concept-matching loop should be extracted into a
 `diff::concept::concept_pass` submodule, mirroring the existing
@@ -298,7 +297,7 @@ Every round-1 condition below is folded into this document.
 | `ddd-specialist` | REQUEST CHANGES | add `## Polarity` heading (§3.1); rename `…Realized` → `…Reintroduced` (§3.4); RFC-012 scoped-exception sentence (§3.2) |
 | `clean-arch` | REQUEST CHANGES | restate §3.3 as a match-attempt gate; uniform obligation-skip for edge/verb passes; `anchor_pass` polarity snapshot, not on `ConceptAnchor`; ContextPattern prose-only note |
 | `solid-architect` | REQUEST CHANGES | precedence rule (§3.3); `with_polarity` builder; explicit append-only slot 15 |
-| `rust-systems` | REQUEST CHANGES | quote-aware extraction; explicit sort slot; Integration fixture test row; OQ-4 ruling; `concept_pass` extraction as #169 prerequisite |
+| `rust-systems` | REQUEST CHANGES | quote-aware extraction; explicit sort slot; Integration fixture test row; OQ-4 ruling; `concept_pass` extraction as an RFC-013 Slice A prerequisite |
 
 **Unanimous RATIFY sub-points:** the minimal data-only type surface
 (verified against cascade's own zero-method `Polarity`), and two
@@ -314,7 +313,7 @@ terminal precedence explicitly; §(d) is superseded. Recorded rather than
 silently dropped.
 
 **Closed open questions:** OQ-1 (naming) → §3.4. OQ-2 (carrier) → two
-fields. OQ-3 (sequencing) → #169 first, §3.4. OQ-4 (anchor) → §3.3, ruled.
+fields. OQ-3 (sequencing) → RFC-013 Slice A first, §3.4. OQ-4 (anchor) → §3.3, ruled.
 Task #6 (cross-product) → §3.3 precedence rule.
 
 ## §6 — Non-goals
@@ -334,7 +333,7 @@ Task #6 (cross-product) → §3.3 precedence rule.
 
 One slice — the marker is not separable from the behaviour it changes, and
 a reader that parses polarity without enforcing it is a producer with no
-reader. **Blocked by #169** (RFC-013 Slice A): shared carriers, the shared
+reader. **Blocked by RFC-013 Slice A**: shared carriers, the shared
 adjacency primitive, and the `concept_pass` extraction all land there.
 
 **R14-1 — read `polarity:` and honour the three values.**
