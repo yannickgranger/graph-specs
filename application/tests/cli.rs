@@ -544,7 +544,7 @@ fn ndjson_missing_in_code_emits_one_record_exit_one() {
     assert_eq!(out.status.code(), Some(1));
     let records = parse_ndjson(&out.stdout);
     assert_eq!(records.len(), 1);
-    assert_eq!(records[0]["schema_version"], "3");
+    assert_eq!(records[0]["schema_version"], "4");
     assert_eq!(records[0]["violation"], "missing_in_code");
     assert_eq!(records[0]["concept"], "OnlySpec");
     assert_eq!(records[0]["source"]["kind"], "spec");
@@ -1114,4 +1114,91 @@ fn concept_context_mismatch_exits_non_zero_end_to_end() {
                 .and(predicate::str::contains("declared in `reading`"))
                 .and(predicate::str::contains("code resolves to `equivalence`")),
         );
+}
+
+// --- RFC-013 §3.5 — marker records at the CLI surface ---
+
+#[test]
+fn clean_tree_summary_names_all_three_counts() {
+    // Both marker lists are represented in the summary even at zero: an
+    // absent segment is indistinguishable from a formatter that forgot it.
+    let specs = TempDir::new().unwrap();
+    let code = TempDir::new().unwrap();
+    write_file(specs.path(), "core.md", "## Foo\n");
+    write_file(code.path(), "src/lib.rs", "pub struct Foo;");
+
+    bin()
+        .args([
+            "check",
+            "--specs",
+            specs.path().to_str().unwrap(),
+            "--code",
+            code.path().to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "0 violations, 0 pending, 0 realized-unratified",
+        ));
+}
+
+#[test]
+fn marker_records_are_enumerated_and_do_not_move_the_exit_code() {
+    let specs = TempDir::new().unwrap();
+    let code = TempDir::new().unwrap();
+    write_file(
+        specs.path(),
+        "core.md",
+        "## Widget\n\n- status: draft\n\n## Digest\n\n- status: draft\n",
+    );
+    write_file(code.path(), "src/lib.rs", "pub struct Widget;");
+
+    let out = bin()
+        .args([
+            "check",
+            "--specs",
+            specs.path().to_str().unwrap(),
+            "--code",
+            code.path().to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "RFC-013 §4 invariant 3 — exit code is a function of violations only"
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("pending: Digest ("),
+        "records are enumerated one per line, never a bare count: {stdout}"
+    );
+    assert!(
+        stdout.contains("realized — ratify: Widget ("),
+        "text: {stdout}"
+    );
+    assert!(
+        stdout.contains("0 violations, 1 pending, 1 realized-unratified"),
+        "text: {stdout}"
+    );
+}
+
+#[test]
+fn ndjson_marker_records_carry_the_marker_discriminator() {
+    let specs = TempDir::new().unwrap();
+    let code = TempDir::new().unwrap();
+    write_file(specs.path(), "core.md", "## Digest\n\n- status: draft\n");
+    write_file(code.path(), "src/lib.rs", "");
+
+    let out = run_ndjson(specs.path(), code.path());
+    assert_eq!(out.status.code(), Some(0));
+    let records = parse_ndjson(&out.stdout);
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0]["schema_version"], "4");
+    assert_eq!(records[0]["marker"], "pending");
+    assert_eq!(records[0]["concept"], "Digest");
+    assert!(
+        records[0].get("violation").is_none(),
+        "marker and violation are separate discriminator keys"
+    );
 }

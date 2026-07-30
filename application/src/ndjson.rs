@@ -5,9 +5,13 @@
 //! (e.g. qbot-core's Study 002 Phase A1 pipeline). See
 //! `specs/ndjson-output.md` for the authoritative schema.
 //!
-//! Schema v2 invariants:
-//! - every record carries `"schema_version":"3"` at the top level
-//! - `violation` is the `snake_case` variant discriminator
+//! Schema invariants:
+//! - every record carries `"schema_version":"4"` at the top level
+//! - `violation` is the `snake_case` variant discriminator on a finding
+//! - `marker` is the discriminator on an RFC-013 marker record — a
+//!   deliberately **separate** key, so the existing violation-filtered
+//!   stream is unchanged and the marker-filtered stream is the upstream
+//!   ratification worklist
 //! - record order matches the `violations` argument order
 //! - no trailing comma, no final newline suppression — each record
 //!   ends in `\n`
@@ -17,6 +21,10 @@
 //! `cross_context_edge_unauthorized`, `cross_context_edge_undeclared`.
 //! All v1 records are structurally unchanged except for the version
 //! bump. Consumers pin on `schema_version` and select a variant set.
+//!
+//! v4 (RFC-013 §3.5) adds the `marker` record kinds and **retires** the
+//! `implements_draft_concept` violation kind. The retirement is what makes
+//! the bump breaking rather than additive.
 
 mod cohesion;
 mod context;
@@ -26,24 +34,59 @@ mod tests;
 
 use cohesion::cohesion_violation_to_record;
 use context::context_violation_to_record;
-use domain::{SchemaVersion, Violation};
+use domain::{CheckOutcome, PendingRecord, RealizedRecord, SchemaVersion, Violation};
 use serde_json::{json, Value};
 use source::source_to_json;
 use std::io::Write;
 
-/// Write violations as NDJSON to `out`.
+/// Write a check outcome as NDJSON to `out` — every violation, then every
+/// pending record, then every realized record.
+///
+/// Grouping by kind rather than interleaving keeps a consumer that reads
+/// only the `violation`-keyed prefix working byte-for-byte as before.
 ///
 /// # Errors
 ///
 /// Propagates any [`std::io::Error`] from the underlying writer —
 /// typically a broken pipe when stdout is closed downstream.
-pub fn write_ndjson(violations: &[Violation], out: &mut impl Write) -> std::io::Result<()> {
-    for v in violations {
-        let record = violation_to_record(v);
-        serde_json::to_writer(&mut *out, &record)?;
-        out.write_all(b"\n")?;
+pub fn write_ndjson(outcome: &CheckOutcome, out: &mut impl Write) -> std::io::Result<()> {
+    for v in &outcome.violations {
+        write_record(&violation_to_record(v), out)?;
+    }
+    for p in &outcome.pending {
+        write_record(&pending_to_record(p), out)?;
+    }
+    for r in &outcome.realized {
+        write_record(&realized_to_record(r), out)?;
     }
     Ok(())
+}
+
+fn write_record(record: &Value, out: &mut impl Write) -> std::io::Result<()> {
+    serde_json::to_writer(&mut *out, record)?;
+    out.write_all(b"\n")
+}
+
+/// RFC-013 §3.5 — a `pending` marker record. Keyed `marker`, never
+/// `report`: the `report` subcommand's emitter already owns a `"record"`
+/// discriminator for `verb_coverage` / `tier_histogram` / `homonym`.
+fn pending_to_record(r: &PendingRecord) -> Value {
+    json!({
+        "schema_version": SchemaVersion::CURRENT.as_str(),
+        "marker": "pending",
+        "concept": r.concept,
+        "source": source_to_json(&r.spec_source),
+    })
+}
+
+/// RFC-013 §3.5 — a `realized` marker record. See [`pending_to_record`].
+fn realized_to_record(r: &RealizedRecord) -> Value {
+    json!({
+        "schema_version": SchemaVersion::CURRENT.as_str(),
+        "marker": "realized",
+        "concept": r.concept,
+        "source": source_to_json(&r.spec_source),
+    })
 }
 
 #[allow(clippy::too_many_lines)]
@@ -167,12 +210,6 @@ fn violation_to_record(v: &Violation) -> Value {
             "concept": concept,
             "qname": qname,
             "spec_source": source_to_json(spec_source),
-        }),
-        Violation::ImplementsDraftConcept { name, draft_source } => json!({
-            "schema_version": SchemaVersion::CURRENT.as_str(),
-            "violation": "implements_draft_concept",
-            "name": name,
-            "draft_source": source_to_json(draft_source),
         }),
         Violation::Cohesion(c) => cohesion_violation_to_record(c),
         Violation::DanglingAnchor {

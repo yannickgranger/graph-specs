@@ -55,13 +55,10 @@ impl Reader for MarkdownReader {
         let mut edges = Vec::new();
 
         for (path, source) in walk_concept_sources(root)? {
-            // Pre-authored draft specs declare concepts ahead of their
-            // code; skip the file so its not-yet-implemented surface emits
-            // no violation. See [`is_draft`].
-            if is_draft(&source) {
-                continue;
-            }
-
+            // RFC-013 §3.3: draft files are **parsed, not skipped**. Every
+            // concept heading in one is marked (`ConceptNode::marked`), which
+            // relaxes its code-existence obligation without hiding it — the
+            // marker surfaces as a pending/realized record instead.
             let mut verb_anchors_scratch: Vec<VerbAnchor> = Vec::new();
             let mut concept_anchors_scratch: Vec<ConceptAnchor> = Vec::new();
             extract_from_source(
@@ -97,12 +94,10 @@ impl MarkdownReader {
         let mut verb_anchors: Vec<VerbAnchor> = Vec::new();
 
         for (path, source) in walk_concept_sources(root)? {
-            // Draft specs are skipped wholesale — see [`is_draft`] and the
-            // matching guard in `extract`.
-            if is_draft(&source) {
-                continue;
-            }
-
+            // RFC-013 §3.3: draft files are parsed, not skipped. A `- verb:`
+            // anchor under a marked heading is extracted as normal; it simply
+            // imposes no obligation while the concept is pending (the diff's
+            // uniform obligation skip, RFC-013 §3.4).
             let mut nodes_scratch: Vec<ConceptNode> = Vec::new();
             let mut edges_scratch: Vec<Edge> = Vec::new();
             let mut concept_anchors_scratch: Vec<ConceptAnchor> = Vec::new();
@@ -134,10 +129,6 @@ impl MarkdownReader {
         let mut concept_anchors: Vec<ConceptAnchor> = Vec::new();
 
         for (path, source) in walk_concept_sources(root)? {
-            if is_draft(&source) {
-                continue;
-            }
-
             let mut nodes_scratch: Vec<ConceptNode> = Vec::new();
             let mut edges_scratch: Vec<Edge> = Vec::new();
             let mut verb_anchors_scratch: Vec<VerbAnchor> = Vec::new();
@@ -152,41 +143,6 @@ impl MarkdownReader {
         }
 
         Ok(concept_anchors)
-    }
-
-    /// Walk `root` and collect [`ConceptNode`]s from every `status: draft`
-    /// spec file — the inverse of what [`Reader::extract`] does. Non-draft
-    /// files are skipped; `contexts/` is excluded as usual. Edges and verb
-    /// anchors parsed alongside the headings are discarded — only the heading
-    /// nodes matter for the draft-concept index.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ReaderError::IoFailed`] or [`ReaderError::WalkFailed`] on
-    /// I/O failures.
-    pub fn extract_draft_concepts(&self, root: &Path) -> Result<Vec<ConceptNode>, ReaderError> {
-        let mut nodes = Vec::new();
-
-        for (path, source) in walk_concept_sources(root)? {
-            // Only draft files contribute to the draft-concept index.
-            if !is_draft(&source) {
-                continue;
-            }
-
-            let mut edges_scratch = Vec::new();
-            let mut verb_anchors_scratch = Vec::new();
-            let mut concept_anchors_scratch = Vec::new();
-            extract_from_source(
-                &source,
-                &path,
-                &mut nodes,
-                &mut edges_scratch,
-                &mut verb_anchors_scratch,
-                &mut concept_anchors_scratch,
-            );
-        }
-
-        Ok(nodes)
     }
 
     /// Extract all `[enforced-by:]` / `[prose-only:]` bracketed annotations
@@ -236,9 +192,9 @@ impl MarkdownReader {
 /// nested `contexts/` subtree is excluded (defence in depth — it is owned
 /// by the [`ContextReader`] impl).
 ///
-/// Draft filtering is left to the caller: different `MarkdownReader`
-/// methods want draft files included ([`MarkdownReader::extract_draft_concepts`])
-/// or excluded (every other walk).
+/// Draft files are returned like any other (RFC-013 §3.3) — their marker
+/// state is carried per-heading on [`ConceptNode::marked`], not by omitting
+/// the file from the walk.
 ///
 /// # Errors
 ///

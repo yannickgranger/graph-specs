@@ -183,12 +183,20 @@ Prose changes never affect the graph. The reader does not see:
 - Tables, images, links, raw HTML blocks, HTML comments
 - Files outside the directory passed to `--specs`
 - Any file whose extension is not `.md`
-- Every spec file declaring `status: draft` (see ## Draft specs)
 
-## Draft specs
+Draft files are **not** on that list: since RFC-013 they are parsed like
+any other spec (see [Spec-state markers](#spec-state-markers-rfc-013)).
 
-A spec file may open with a YAML front-matter block — lines delimited by
-`---` — that declares its lifecycle status:
+## Spec-state markers (RFC-013)
+
+A concept heading may be declared **ahead of its code**. The checker
+reads that state from the spec text — never from file location — via
+one marker with two scopes.
+
+### File scope — `status: draft` front-matter
+
+A spec file may open with a YAML front-matter block, delimited by lines
+containing only `---`, that declares its lifecycle status:
 
 ```
 ---
@@ -198,31 +206,76 @@ status: draft
 ## SomeConcept
 ```
 
-When the leading front-matter declares `status: draft`, the markdown
-reader **skips the whole file** for the equivalence graph: it contributes
-no concepts, no verb anchors, and no invariant annotations. A draft spec
-therefore imposes no code-existence obligation — no `missing in code`
-violation can arise from it.
-
-Its headings are still read into a separate **draft-concept index** that
-carries no obligation. This index is used solely so that a code item
-whose name matches a draft heading reports the targeted
-`implements draft spec` diagnostic (`Violation::ImplementsDraftConcept`)
-instead of the generic `missing in specs` orphan. The distinction
-matters: `MissingInSpecs` signals an undocumented item, while
-`ImplementsDraftConcept` signals an item racing ahead of a ratified spec.
-
-This exists so a canonical concept can be **authored ahead of its
-code** — ratified by review, committed to `specs/concepts/`, and filled
-in by later PRs — without blocking CI in the interim. Removing or
-changing the `status:` line re-arms the file: from that commit on, every
-concept it declares must resolve against code like any other spec.
-
-Only the leading front-matter is consulted. The value matches
+The file is **parsed, not skipped**: every concept heading in it is
+marked. Only the leading front-matter is consulted. The value matches
 case-insensitively, with or without surrounding quotes, and a trailing
 `#` comment is ignored. A front-matter block that closes before any
 `status:` line, a `status:` line in the prose body, or a file with no
-front-matter at all, is not draft.
+front-matter at all, is not draft. A per-heading bullet inside a draft
+file is redundant, inert text.
+
+### Heading scope — the `- status: draft` bullet
+
+A bullet reading `- status: draft` marks **exactly one** heading when it
+is the **first non-blank content line** below an `H2` or `H3` concept
+heading:
+
+```
+## SomeConcept
+
+- status: draft
+```
+
+Four properties, each load-bearing:
+
+- **One legal value.** There is no `- status: ratified` and no second
+  value — ratification is *deletion of the line*, a presence flag, never
+  a state machine. Any other `- status:` bullet is an unrecognised
+  prefix under the ordinary dialect rule and stays inert text.
+- **No subtree inheritance.** A marker binds only to the heading whose
+  block it opens; a marked `H2` does not mark its `H3`s. The reader
+  models `H2` and `H3` as flat peers, and inheritance would make
+  ratification non-local.
+- **Mis-placement fails loud, not silent.** A marker bullet that is not
+  the first non-blank content line is inert; the heading reads
+  *unmarked*, and `missing in code` fires if its code is absent. The
+  failure mode of a malformed marker is a visible violation, never a
+  silent suppression.
+- **Trailing text is tolerated.** Anything after the value on the same
+  line — e.g. the upstream authoring convention
+  `- status: draft (per <RFC>.md §<clause>)` — is ignored. That
+  parenthetical is enforced by the authoring tree's own fences; the gate
+  never parses it.
+
+A marker bullet under an `H1`, in a `specs/contexts/` file, or outside
+any concept block is inert — the contexts dialect is untouched.
+
+### What a marker changes
+
+| Heading | Backing code item | Result |
+|---|---|---|
+| unmarked | absent | `missing in code` |
+| unmarked | present | pass |
+| marked | absent | a `pending` record — **not** a violation |
+| marked | present | full equivalence enforced, plus a `realized` record |
+
+Neither record kind affects the exit code. See
+`specs/ndjson-output.md` §Marker records for the wire shape.
+
+"Backing item present" has two spellings, and they are one fact: a
+name-matched `pub` item, or a resolved `- impl:` anchor. A marked
+heading whose anchor does not resolve is `pending`, and its
+`dangling anchor` violation is suppressed — an unresolved target *is*
+the declared-ahead-of-code state the marker announces.
+
+While a concept is pending, every check sourced at that heading — its
+edge bullets, its `- verb:` anchors, its `- impl:` anchors — imposes no
+obligation. With no backing item there is nothing to compare.
+
+A marker never parks a divergence: once the concept is realized, drift
+under it fires the ordinary violation exactly as it would under an
+unmarked heading. Escalation happens on contradiction only — never by
+age, count, or branch.
 
 ## What the Rust reader parses
 

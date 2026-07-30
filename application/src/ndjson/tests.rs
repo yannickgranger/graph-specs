@@ -1,12 +1,22 @@
 use super::write_ndjson;
-use domain::{CohesionViolation, ContextViolation, EdgeKind, OwnedUnit, Source, Violation};
+use domain::{
+    CheckOutcome, CohesionViolation, ContextViolation, EdgeKind, OwnedUnit, PendingRecord,
+    RealizedRecord, Source, Violation,
+};
 use serde_json::Value;
 use std::path::PathBuf;
 
-fn render_one(v: Violation) -> String {
+fn render(outcome: &CheckOutcome) -> String {
     let mut buf = Vec::new();
-    write_ndjson(&[v], &mut buf).expect("write");
+    write_ndjson(outcome, &mut buf).expect("write");
     String::from_utf8(buf).expect("utf8")
+}
+
+fn render_one(v: Violation) -> String {
+    render(&CheckOutcome {
+        violations: vec![v],
+        ..CheckOutcome::empty()
+    })
 }
 
 fn record(line: &str) -> Value {
@@ -25,7 +35,7 @@ fn missing_in_code_record() {
     let out = render_one(v);
     assert!(out.ends_with('\n'));
     let r = record(&out);
-    assert_eq!(r["schema_version"], "3");
+    assert_eq!(r["schema_version"], "4");
     assert_eq!(r["violation"], "missing_in_code");
     assert_eq!(r["concept"], "Foo");
     assert_eq!(r["source"]["kind"], "spec");
@@ -170,7 +180,7 @@ fn edge_target_unknown_record() {
 #[test]
 fn empty_violations_writes_nothing() {
     let mut buf = Vec::new();
-    write_ndjson(&[], &mut buf).expect("write");
+    write_ndjson(&CheckOutcome::empty(), &mut buf).expect("write");
     assert!(buf.is_empty());
 }
 
@@ -191,7 +201,14 @@ fn multiple_violations_are_newline_delimited() {
         },
     };
     let mut buf = Vec::new();
-    write_ndjson(&[v1, v2], &mut buf).expect("write");
+    write_ndjson(
+        &CheckOutcome {
+            violations: vec![v1, v2],
+            ..CheckOutcome::empty()
+        },
+        &mut buf,
+    )
+    .expect("write");
     let out = String::from_utf8(buf).expect("utf8");
     let lines: Vec<&str> = out.lines().collect();
     assert_eq!(lines.len(), 2);
@@ -206,7 +223,7 @@ fn multiple_violations_are_newline_delimited() {
 }
 
 #[test]
-fn each_record_has_schema_version_three() {
+fn each_record_has_schema_version_four() {
     let v = Violation::MissingInCode {
         name: "X".into(),
         spec_source: Source::Spec {
@@ -215,7 +232,7 @@ fn each_record_has_schema_version_three() {
         },
     };
     let r = record(&render_one(v));
-    assert_eq!(r["schema_version"], "3");
+    assert_eq!(r["schema_version"], "4");
 }
 
 // --- v0.4 context violation records (#26) -------------------------
@@ -231,7 +248,7 @@ fn context_membership_unknown_record() {
         },
     });
     let r = record(&render_one(v));
-    assert_eq!(r["schema_version"], "3");
+    assert_eq!(r["schema_version"], "4");
     assert_eq!(r["violation"], "context_membership_unknown");
     assert_eq!(r["concept"], "Orphan");
     assert_eq!(r["owned_unit"], "stray-crate");
@@ -274,7 +291,7 @@ fn verb_missing_in_code_record() {
         },
     };
     let r = record(&render_one(v));
-    assert_eq!(r["schema_version"], "3");
+    assert_eq!(r["schema_version"], "4");
     assert_eq!(r["violation"], "verb_missing_in_code");
     assert_eq!(r["concept"], "Graph");
     assert_eq!(r["qname"], "diff");
@@ -410,7 +427,7 @@ fn dangling_anchor_record_is_additive_v3() {
     };
     let r = record(&render_one(v));
     // Additive: stays schema_version "3", no bump (DD-6).
-    assert_eq!(r["schema_version"], "3");
+    assert_eq!(r["schema_version"], "4");
     assert_eq!(r["violation"], "dangling_anchor");
     assert_eq!(r["concept"], "ValidateIntakeFull");
     assert_eq!(r["target"], "validate_intake");
@@ -418,4 +435,82 @@ fn dangling_anchor_record_is_additive_v3() {
     assert_eq!(r["source"]["line"], 3);
     // §12-G: must not fall through to the generic record.
     assert_ne!(r["violation"], "unknown_violation");
+}
+
+// --- RFC-013 §3.5 — `marker`-keyed records ---
+
+fn spec_at(path: &str, line: usize) -> Source {
+    Source::Spec {
+        path: PathBuf::from(path),
+        line,
+    }
+}
+
+#[test]
+fn pending_marker_record() {
+    let out = render(&CheckOutcome {
+        pending: vec![PendingRecord {
+            concept: "Digest".into(),
+            spec_source: spec_at("specs/concepts/execution.md", 41),
+        }],
+        ..CheckOutcome::empty()
+    });
+    let r = record(&out);
+    assert_eq!(r["schema_version"], "4");
+    assert_eq!(r["marker"], "pending");
+    assert_eq!(r["concept"], "Digest");
+    assert_eq!(r["source"]["kind"], "spec");
+    assert_eq!(r["source"]["path"], "specs/concepts/execution.md");
+    assert_eq!(r["source"]["line"], 41);
+    assert!(
+        r.get("violation").is_none(),
+        "a marker record carries no `violation` key — the two streams are          filtered separately"
+    );
+}
+
+#[test]
+fn realized_marker_record() {
+    let out = render(&CheckOutcome {
+        realized: vec![RealizedRecord {
+            concept: "InboundAcl".into(),
+            spec_source: spec_at("specs/concepts/fleet_supervision.md", 120),
+        }],
+        ..CheckOutcome::empty()
+    });
+    let r = record(&out);
+    assert_eq!(r["marker"], "realized");
+    assert_eq!(r["concept"], "InboundAcl");
+    assert_eq!(r["source"]["line"], 120);
+}
+
+#[test]
+fn violations_precede_markers_in_the_stream() {
+    // A consumer reading only the `violation`-keyed prefix sees a stream
+    // byte-identical to pre-v4 (modulo `schema_version`).
+    let out = render(&CheckOutcome {
+        violations: vec![Violation::MissingInCode {
+            name: "Foo".into(),
+            spec_source: spec_at("specs/a.md", 1),
+        }],
+        pending: vec![PendingRecord {
+            concept: "Bar".into(),
+            spec_source: spec_at("specs/a.md", 5),
+        }],
+        realized: vec![RealizedRecord {
+            concept: "Baz".into(),
+            spec_source: spec_at("specs/a.md", 9),
+        }],
+    });
+    let kinds: Vec<String> = out
+        .lines()
+        .map(|l| {
+            let r = record(l);
+            r.get("violation")
+                .or_else(|| r.get("marker"))
+                .and_then(Value::as_str)
+                .expect("each record carries one discriminator")
+                .to_owned()
+        })
+        .collect();
+    assert_eq!(kinds, vec!["missing_in_code", "pending", "realized"]);
 }

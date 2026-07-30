@@ -1,7 +1,7 @@
 //! Input to the v0.4+ diff on the spec side — concept graph plus declared
 //! bounded-context map plus verb-ownership aggregate.
 
-use crate::{CohesionViolation, ConceptNode, ContextDecl, Graph, ResolvedAnchor, VerbOwnership};
+use crate::{CohesionViolation, ContextDecl, Graph, ResolvedAnchor, VerbOwnership};
 
 /// Input to the v0.4+ diff on the spec side — concept graph plus
 /// declared bounded-context map plus verb-ownership aggregate.
@@ -13,11 +13,9 @@ pub struct CheckInput {
     pub graph: Graph,
     pub contexts: Vec<ContextDecl>,
     pub verb_ownership: VerbOwnership,
-    /// Spec-side headings parsed from `status: draft` files. Empty
-    /// until the markdown reader populates it (Slice B). Used by the
-    /// orphan pass to distinguish `ImplementsDraftConcept` from
-    /// `MissingInSpecs`.
-    pub draft_concepts: Vec<ConceptNode>,
+    // RFC-013 §3.3: the `draft_concepts` side index retired here. Marker
+    // state is carried on `ConceptNode::marked` inside `graph` — one
+    // carrier, no second object graph joined by name.
     /// Spec-side structural cohesion violations detected by the R10-2
     /// `TreeAssembler` (`ContextWithoutCohesionUnit` / `SubConceptOrphan`),
     /// pre-computed by the markdown adapter because they need the heading
@@ -45,7 +43,6 @@ impl CheckInput {
             graph,
             contexts,
             verb_ownership,
-            draft_concepts: Vec::new(),
             spec_cohesion: Vec::new(),
             concept_anchors: Vec::new(),
         }
@@ -62,20 +59,8 @@ impl CheckInput {
                 decls: Vec::new(),
                 anchors: Vec::new(),
             },
-            draft_concepts: Vec::new(),
             spec_cohesion: Vec::new(),
             concept_anchors: Vec::new(),
-        }
-    }
-
-    /// Builder: attach draft-spec concept headings parsed from
-    /// `status: draft` files. Wired by the markdown reader in Slice B;
-    /// the unit test in this slice uses it directly.
-    #[must_use]
-    pub fn with_draft_concepts(self, draft_concepts: Vec<ConceptNode>) -> Self {
-        Self {
-            draft_concepts,
-            ..self
         }
     }
 

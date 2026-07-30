@@ -14,6 +14,7 @@ fn diff(specs: Graph, code: Graph) -> Vec<Violation> {
         CheckInput::new(specs, Vec::new(), VerbOwnership::default()),
         code,
     )
+    .violations
 }
 
 fn spec_path() -> PathBuf {
@@ -525,27 +526,13 @@ fn violation_key_cohesion_uses_each_variant_key() {
     assert_eq!(rank, 12);
 }
 
-#[test]
-fn violation_key_implements_draft_concept_moves_to_rank_13() {
-    // Draft-concept rank was bumped 12 → 13 so Cohesion takes 12 (RFC-010).
-    let v = Violation::ImplementsDraftConcept {
-        name: "Widget".to_string(),
-        draft_source: Source::Spec {
-            path: spec_path(),
-            line: 1,
-        },
-    };
-    let (key, rank) = violation_key(&v);
-    assert_eq!(key, "Widget");
-    assert_eq!(rank, 13);
-}
-
 // --- v0.7 dangling-anchor violation_key rank (RFC-012 §3.5 / #146) ---
 
 #[test]
 fn violation_key_dangling_anchor_returns_rank_14() {
-    // DanglingAnchor is a top-level arm (NOT nested in Cohesion) at rank
-    // 14, sorting after ImplementsDraftConcept (13). Keyed by concept.
+    // DanglingAnchor is a top-level arm (NOT nested in Cohesion) at rank 14.
+    // Slot 13 held `ImplementsDraftConcept` until RFC-013 §3.4 retired it;
+    // the slot is retired, not reused, so this rank does NOT move down.
     let v = Violation::DanglingAnchor {
         concept: "ValidateIntakeFull".to_string(),
         target: "validate_intake".to_string(),
@@ -560,14 +547,15 @@ fn violation_key_dangling_anchor_returns_rank_14() {
 }
 
 #[test]
-fn violation_key_dangling_anchor_sorts_after_implements_draft_concept() {
-    let draft = Violation::ImplementsDraftConcept {
-        name: "Foo".to_string(),
-        draft_source: Source::Spec {
-            path: spec_path(),
-            line: 1,
-        },
-    };
+fn retired_slot_13_leaves_a_gap_between_cohesion_and_dangling_anchor() {
+    // Rewritten from `violation_key_dangling_anchor_sorts_after_implements_
+    // draft_concept` (RFC-013 §7 Slice A: rewritten, not deleted). The
+    // ordering it protected — the neighbouring ranks staying apart on a tied
+    // key — must survive the retirement, with slot 13 left empty.
+    let cohesion = Violation::Cohesion(CohesionViolation::ContextWithoutCohesionUnit {
+        context: "Foo".to_string(),
+        file: PathBuf::from("specs/concepts/foo.md"),
+    });
     let dangling = Violation::DanglingAnchor {
         concept: "Foo".to_string(),
         target: "foo_impl".to_string(),
@@ -576,52 +564,146 @@ fn violation_key_dangling_anchor_sorts_after_implements_draft_concept() {
             line: 2,
         },
     };
-    // Tied concept name ("Foo") — rank decides: 13 (draft) before 14 (anchor).
-    let (ka, da) = violation_key(&draft);
+    let (ka, da) = violation_key(&cohesion);
     let (kb, db) = violation_key(&dangling);
     assert_eq!(ka, kb);
+    assert_eq!((da, db), (12, 14), "slot 13 stays retired, not renumbered");
     assert!(da < db);
 }
 
-// --- draft concept diagnostics (#1379 slice A) ---
+// --- RFC-013 §3.2 — spec-state marker matrix rows 3 and 4 ---
+
+/// A spec node carrying the `- status: draft` marker (RFC-013 §3.3).
+fn spec_marked(name: &str) -> ConceptNode {
+    let mut n = spec(name);
+    n.marked = true;
+    n
+}
 
 #[test]
-fn implements_draft_concept_when_code_orphan_matches_draft_heading() {
-    let draft_src = Source::Spec {
-        path: spec_path(),
-        line: 5,
+fn marked_heading_without_code_is_pending_not_missing_in_code() {
+    // Matrix row 3. Rewritten from the retired `ImplementsDraftConcept`
+    // suite (RFC-013 §7 Slice A).
+    let input = CheckInput::new(
+        nodes(vec![spec_marked("Widget")]),
+        Vec::new(),
+        VerbOwnership::default(),
+    );
+    let outcome = super::diff(input, Graph::default());
+    assert!(
+        outcome.violations.is_empty(),
+        "a marked heading imposes no code-existence obligation: {:?}",
+        outcome.violations
+    );
+    assert_eq!(outcome.pending.len(), 1);
+    assert_eq!(outcome.pending[0].concept, "Widget");
+    assert!(outcome.realized.is_empty());
+    assert!(outcome.is_clean(), "pending never fails the gate");
+}
+
+#[test]
+fn marked_heading_with_code_is_realized_not_a_violation() {
+    // Matrix row 4 — the polarity flip of RFC-009. What
+    // `ImplementsDraftConcept` reported as a violation is now the
+    // ratification signal.
+    let input = CheckInput::new(
+        nodes(vec![spec_marked("Widget")]),
+        Vec::new(),
+        VerbOwnership::default(),
+    );
+    let outcome = super::diff(input, nodes(vec![code("Widget")]));
+    assert!(
+        outcome.violations.is_empty(),
+        "code backing a marked heading is the normal mid-arc state: {:?}",
+        outcome.violations
+    );
+    assert_eq!(outcome.realized.len(), 1);
+    assert_eq!(outcome.realized[0].concept, "Widget");
+    assert!(outcome.pending.is_empty());
+}
+
+#[test]
+fn a_marker_never_parks_a_divergence() {
+    // RFC-013 §4 invariant 1 / §3.2 escalation-on-contradiction: a marked
+    // heading whose backing item exists but whose signature drifted still
+    // produces the ordinary violation — alongside the realized record.
+    let specs = {
+        let mut n = spec_with_sig("Widget", "pub struct Widget;");
+        n.marked = true;
+        nodes(vec![n])
     };
-    let draft_concept = ConceptNode::new(
-        "Widget".to_string(),
-        draft_src.clone(),
-        SignatureState::Absent,
-    );
-    let input = CheckInput::new(Graph::default(), Vec::new(), VerbOwnership::default())
-        .with_draft_concepts(vec![draft_concept]);
-    let code = nodes(vec![code("Widget")]);
-    let v = super::diff(input, code);
-    assert_eq!(v.len(), 1);
-    assert!(
-        matches!(
-            &v[0],
-            Violation::ImplementsDraftConcept { name, draft_source }
-                if name == "Widget" && *draft_source == draft_src
-        ),
-        "expected ImplementsDraftConcept, got: {:?}",
-        v[0]
+    let input = CheckInput::new(specs, Vec::new(), VerbOwnership::default());
+    let outcome = super::diff(
+        input,
+        nodes(vec![code_with_sig("Widget", "pub enum Widget {}")]),
     );
     assert!(
-        !v.iter()
-            .any(|vi| matches!(vi, Violation::MissingInSpecs { .. })),
-        "MissingInSpecs must not fire when a draft heading matches"
+        outcome
+            .violations
+            .iter()
+            .any(|v| matches!(v, Violation::SignatureDrift { name, .. } if name == "Widget")),
+        "drift under a marker must still fire: {:?}",
+        outcome.violations
+    );
+    assert_eq!(outcome.realized.len(), 1, "and the record rides alongside");
+    assert!(!outcome.is_clean(), "the gate stays red");
+}
+
+#[test]
+fn unmarked_trees_produce_no_marker_records() {
+    // RFC-013 §4 invariant 2 — a tree with no markers is semantically
+    // identical to today's behavior.
+    let specs = nodes(vec![spec("Present"), spec("Absent")]);
+    let input = CheckInput::new(specs, Vec::new(), VerbOwnership::default());
+    let outcome = super::diff(input, nodes(vec![code("Present"), code("Orphan")]));
+    assert!(outcome.pending.is_empty());
+    assert!(outcome.realized.is_empty());
+    let ranks: Vec<_> = outcome.violations.iter().map(violation_key).collect();
+    assert_eq!(
+        ranks,
+        vec![("Absent", 0u8), ("Orphan", 1u8)],
+        "rows 1, 2 and 5 are byte-for-byte today's behavior: {:?}",
+        outcome.violations
     );
 }
 
 #[test]
-fn orphan_without_draft_match_is_missing_in_specs() {
+fn pending_concepts_edge_bullets_impose_no_obligation() {
+    // RFC-013 §3.4 uniform obligation skip — the edge pass satisfies it by
+    // construction (its matched-concept filter is built from code presence),
+    // and this pins that it stays satisfied.
+    let specs = Graph::new(
+        vec![spec_marked("Widget"), spec("Gear")],
+        vec![Edge {
+            source_concept: "Widget".to_string(),
+            kind: EdgeKind::DependsOn,
+            target: "Gear".to_string(),
+            raw_target: "Gear".to_string(),
+            source: Source::Spec {
+                path: spec_path(),
+                line: 9,
+            },
+        }],
+    );
+    let input = CheckInput::new(specs, Vec::new(), VerbOwnership::default());
+    let outcome = super::diff(input, nodes(vec![code("Gear")]));
+    assert!(
+        !outcome
+            .violations
+            .iter()
+            .any(|v| matches!(v, Violation::EdgeMissingInCode { .. })),
+        "a pending concept's edges impose nothing: {:?}",
+        outcome.violations
+    );
+    assert_eq!(outcome.pending.len(), 1);
+}
+
+#[test]
+fn orphan_without_a_heading_is_missing_in_specs() {
+    // Matrix row 5, unchanged. (Formerly
+    // `orphan_without_draft_match_is_missing_in_specs`.)
     let input = CheckInput::new(Graph::default(), Vec::new(), VerbOwnership::default());
-    let code = nodes(vec![code("Gadget")]);
-    let v = super::diff(input, code);
+    let v = super::diff(input, nodes(vec![code("Gadget")])).violations;
     assert_eq!(v.len(), 1);
     assert!(
         matches!(&v[0], Violation::MissingInSpecs { name, .. } if name == "Gadget"),
@@ -662,7 +744,8 @@ fn anchored_concept_with_resolved_target_is_not_missing_in_code() {
             resolved_anchor("ValidateIntakeFull", "validate_intake", true),
         ]),
         Graph::default(),
-    );
+    )
+    .violations;
     assert!(
         v.is_empty(),
         "resolved anchor must satisfy the concept: {v:?}"
@@ -676,7 +759,8 @@ fn anchored_concept_with_unresolved_target_is_dangling_not_missing() {
         CheckInput::new(specs, Vec::new(), VerbOwnership::default())
             .with_concept_anchors(vec![resolved_anchor("ValidateIntakeFull", "gone", false)]),
         Graph::default(),
-    );
+    )
+    .violations;
     assert_eq!(v.len(), 1, "exactly one violation: {v:?}");
     match &v[0] {
         Violation::DanglingAnchor {
@@ -701,7 +785,8 @@ fn unanchored_missing_concept_still_missing_in_code() {
     let v = super::diff(
         CheckInput::new(specs, Vec::new(), VerbOwnership::default()),
         Graph::default(),
-    );
+    )
+    .violations;
     assert!(
         v.iter()
             .any(|x| matches!(x, Violation::MissingInCode { .. })),

@@ -2,7 +2,8 @@
 //!
 //! Five passes over the spec and code graphs:
 //!
-//! 1. **Concept** — set-difference over concept names.
+//! 1. **Concept** — set-difference over concept names, plus the RFC-013
+//!    spec-state-marker rows (see [`concept`]).
 //! 2. **Signature** (v0.2) — per matched concept, compare signatures.
 //! 3. **Edge** (v0.3) — per matched concept with ≥1 spec edge, compare edges.
 //! 4. **Verb** (v0.5) — if `CheckInput.verb_ownership` has anchors, emit
@@ -12,6 +13,7 @@
 //!    edges. Order-independent from passes 1–3 (RFC-001 §4 invariant 9).
 
 mod cohesion;
+mod concept;
 mod context;
 mod edge;
 mod signature;
@@ -20,7 +22,11 @@ mod verb;
 #[cfg(test)]
 mod tests;
 
-use crate::{anchor_violation, CheckInput, ConceptNode, ContextDecl, Graph, Source, Violation};
+use crate::{
+    anchor_violation, CheckInput, CheckOutcome, ConceptNode, ContextDecl, Graph, PendingRecord,
+    RealizedRecord, Source, Violation,
+};
+use concept::{concept_pass, AnchorResolutions};
 use std::collections::{HashMap, HashSet};
 
 /// Snapshot each spec concept's declared owning context (its `concepts/` H1,
@@ -46,12 +52,11 @@ fn snapshot_declared_contexts(
 }
 
 #[must_use]
-pub fn diff(spec: CheckInput, code: Graph) -> Vec<Violation> {
+pub fn diff(spec: CheckInput, code: Graph) -> CheckOutcome {
     let CheckInput {
         graph: specs,
         contexts: spec_contexts,
         verb_ownership: spec_verb_ownership,
-        draft_concepts,
         spec_cohesion,
         concept_anchors,
     } = spec;
@@ -101,42 +106,41 @@ pub fn diff(spec: CheckInput, code: Graph) -> Vec<Violation> {
         .collect();
 
     let mut violations = Vec::new();
+    let mut pending: Vec<PendingRecord> = Vec::new();
+    let mut realized: Vec<RealizedRecord> = Vec::new();
 
     // RFC-012: anchored concepts redirect their equivalence target to a named
     // code item (§3.4) — emit a `DanglingAnchor` for every unresolved anchor
-    // and collect the anchored concept names so the concept pass exempts them
-    // from `MissingInCode` (their existence is governed by the anchor).
-    let anchored_concepts = anchor_pass(concept_anchors, &mut violations);
+    // and collect each anchored concept's resolution verdict, which the
+    // concept pass reads both as the `MissingInCode` exemption (RFC-012) and
+    // as the pending-vs-realized fact (RFC-013 §3.4).
+    //
+    // The marked-name snapshot is taken here, before the concept loop
+    // consumes `spec_nodes` — the same pre-snapshot pattern the matched- and
+    // known-concept sets above use.
+    let anchored_concepts = {
+        // RFC-013 §3.4: a marked heading with no name-matching code item
+        // whose `- impl:` target does not resolve is *pending*, not dangling
+        // — the unresolved target is precisely the declared-ahead-of-code
+        // state the marker announces, so the violation is suppressed.
+        let marked_without_code: HashSet<&str> = spec_nodes
+            .iter()
+            .filter(|n| n.marked && !code_by_name.contains_key(&n.name))
+            .map(|n| n.name.as_str())
+            .collect();
+        anchor_pass(concept_anchors, &marked_without_code, &mut violations)
+    };
 
-    for spec_node in spec_nodes {
-        if let Some(code_node) = code_by_name.remove(&spec_node.name) {
-            signature::compare_signatures(spec_node, code_node, &mut violations);
-        } else if !anchored_concepts.contains(&spec_node.name) {
-            violations.push(Violation::MissingInCode {
-                name: spec_node.name,
-                spec_source: spec_node.source,
-            });
-        }
-        // else: anchored — existence governed by the anchor; a `DanglingAnchor`
-        // was already emitted above if its target did not resolve.
-    }
-    let draft_by_name: HashMap<&str, &Source> = draft_concepts
-        .iter()
-        .map(|n| (n.name.as_str(), &n.source))
-        .collect();
-    for (_, code_node) in code_by_name {
-        if let Some(draft_src) = draft_by_name.get(code_node.name.as_str()) {
-            violations.push(Violation::ImplementsDraftConcept {
-                name: code_node.name,
-                draft_source: (**draft_src).clone(),
-            });
-        } else {
-            violations.push(Violation::MissingInSpecs {
-                name: code_node.name,
-                code_source: code_node.source,
-            });
-        }
-    }
+    concept_pass(
+        spec_nodes,
+        &mut code_by_name,
+        &anchored_concepts,
+        &mut violations,
+        &mut pending,
+        &mut realized,
+    );
+
+    orphan_pass(code_by_name, &mut violations);
 
     edge::edge_diff(
         spec_edges,
@@ -146,10 +150,16 @@ pub fn diff(spec: CheckInput, code: Graph) -> Vec<Violation> {
         &mut violations,
     );
 
+    // RFC-013 §3.4 — the pending-side obligation skip, stated as one uniform
+    // rule across sub-passes. The edge pass satisfies it by construction (its
+    // matched-concept filter is built from code presence, and a pending
+    // concept has none); the verb pass is told explicitly.
+    let pending_concepts: HashSet<&str> = pending.iter().map(|p| p.concept.as_str()).collect();
     verb::verb_pass(
         spec_verb_ownership,
         &code_for_verb,
         &spec_contexts,
+        &pending_concepts,
         &mut violations,
     );
 
@@ -168,24 +178,55 @@ pub fn diff(spec: CheckInput, code: Graph) -> Vec<Violation> {
         let (kb, db) = violation_key(b);
         ka.cmp(kb).then(da.cmp(&db))
     });
+    CheckOutcome::new(violations, pending, realized)
+}
 
-    violations
+/// Whatever is left in `code_by_name` after the concept pass has no spec
+/// heading at all (matrix row 5, unchanged). A marked heading satisfies its
+/// pub item — its name was removed by the concept pass — so realized pairs
+/// never surface here.
+fn orphan_pass(code_by_name: HashMap<String, ConceptNode>, violations: &mut Vec<Violation>) {
+    for (_, code_node) in code_by_name {
+        violations.push(Violation::MissingInSpecs {
+            name: code_node.name,
+            code_source: code_node.source,
+        });
+    }
 }
 
 /// Process the resolved concept anchors (RFC-012 §3.4): push a
 /// [`Violation::DanglingAnchor`] for every anchor whose target did not
-/// resolve, and return the set of anchored concept names — the concept pass
-/// exempts these from `MissingInCode` (an anchored concept's existence is
-/// governed by its `- impl:` target, not a name-matched top-level `pub` type).
+/// resolve, and return each anchored concept's verdict — `true` when every
+/// anchor it declares resolved.
+///
+/// The concept pass reads that map twice over. As a key set it is the
+/// `MissingInCode` exemption (an anchored concept's existence is governed by
+/// its `- impl:` target, not a name-matched top-level `pub` type). As a
+/// value it is the row-3-vs-row-4 fact for a marked heading: anchor
+/// resolution and "backing item present" are the same fact, not two
+/// (RFC-013 §3.4).
+///
+/// `marked_without_code` names the concepts whose `DanglingAnchor` is
+/// suppressed — see the call site.
 fn anchor_pass(
     concept_anchors: Vec<crate::ResolvedAnchor>,
+    marked_without_code: &HashSet<&str>,
     violations: &mut Vec<Violation>,
-) -> HashSet<String> {
-    let mut anchored = HashSet::new();
+) -> AnchorResolutions {
+    let mut anchored = AnchorResolutions::new();
     for resolved in concept_anchors {
-        anchored.insert(resolved.anchor.concept.clone());
-        if let Some(v) = anchor_violation(&resolved.anchor, resolved.target.as_ref()) {
-            violations.push(v);
+        let violation = anchor_violation(&resolved.anchor, resolved.target.as_ref());
+        let this_resolved = violation.is_none();
+        // A concept may declare several anchors; it is resolved only when
+        // every one of them is.
+        anchored
+            .entry(resolved.anchor.concept.clone())
+            .and_modify(|all_resolved| *all_resolved &= this_resolved)
+            .or_insert(this_resolved);
+        if let Some(v) = violation {
+            if !marked_without_code.contains(resolved.anchor.concept.as_str()) {
+                violations.push(v);
+            }
         }
     }
     anchored
@@ -211,7 +252,8 @@ const fn violation_key(v: &Violation) -> (&str, u8) {
         Violation::VerbMissingInSpec { qname, .. } => (qname.as_str(), 10),
         Violation::VerbTargetUnknown { concept, .. } => (concept.as_str(), 11),
         Violation::Cohesion(c) => (c.key(), 12),
-        Violation::ImplementsDraftConcept { name, .. } => (name.as_str(), 13),
+        // Slot 13 is retired with `ImplementsDraftConcept` (RFC-013 §3.4) —
+        // not reused; existing slots are not renumbered.
         Violation::DanglingAnchor { concept, .. } => (concept.as_str(), 14),
     }
 }

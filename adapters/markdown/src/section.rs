@@ -7,8 +7,8 @@
 //! this module's `SectionState` is shaped for H2/H3 + fenced-rust +
 //! bullet-edge dispatch, not the tree's full-depth abstraction ladder.
 
-use crate::bullets::{parse_bullet_edge, parse_impl_bullet, parse_verb_bullet};
-use crate::front_matter::blank_front_matter;
+use crate::bullets::{is_status_marker, parse_bullet_edge, parse_impl_bullet, parse_verb_bullet};
+use crate::front_matter::{blank_front_matter, is_draft};
 use crate::markdown_utils::{compute_line_starts, line_of_offset};
 use domain::{ConceptAnchor, ConceptNode, Edge, SignatureState, Source, VerbAnchor};
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Parser, Tag, TagEnd};
@@ -20,6 +20,11 @@ use std::path::Path;
 /// and fenced-block handling.
 struct SectionState<'a> {
     line_starts: Vec<usize>,
+    /// The front-matter-blanked file body. Held so the marker rule can ask
+    /// the one question `pulldown-cmark` events cannot answer directly: is
+    /// this bullet the **first non-blank content line** below its heading?
+    /// (RFC-013 §3.1 — see [`is_first_content_line`].)
+    source: &'a str,
     path: &'a Path,
     // Heading collection.
     heading_buf: String,
@@ -27,6 +32,15 @@ struct SectionState<'a> {
     // Pending concept: held until the NEXT heading (or EOF) so the
     // accumulated rust blocks for the section can be attached.
     pending: Option<(String, usize)>,
+    /// RFC-013 §3.3: whether the pending concept carries the spec-state
+    /// marker. Cleared with every new heading — a marker binds only to the
+    /// heading whose block it opens; a marked H2 does not mark its H3s
+    /// (§3.1, no subtree inheritance).
+    pending_marked: bool,
+    /// RFC-013 §3.1 file scope: `status: draft` front-matter marks **every**
+    /// concept heading in the file, so a per-heading bullet inside one is
+    /// redundant, inert text.
+    file_marked: bool,
     // Signature collection.
     rust_blocks: Vec<String>,
     in_rust_block: bool,
@@ -42,13 +56,16 @@ struct SectionState<'a> {
 }
 
 impl<'a> SectionState<'a> {
-    fn new(source: &str, path: &'a Path) -> Self {
+    fn new(source: &'a str, path: &'a Path, file_marked: bool) -> Self {
         Self {
             line_starts: compute_line_starts(source),
+            source,
             path,
             heading_buf: String::new(),
             in_heading_at: None,
             pending: None,
+            pending_marked: false,
+            file_marked,
             rust_blocks: Vec::new(),
             in_rust_block: false,
             block_buf: String::new(),
@@ -71,18 +88,28 @@ pub fn extract_from_source(
     verb_anchors: &mut Vec<VerbAnchor>,
     concept_anchors: &mut Vec<ConceptAnchor>,
 ) {
+    // RFC-013 §3.1 file scope. Read from the RAW source — the blanking pass
+    // below erases the front matter this consults. Draft files are no longer
+    // skipped; they are parsed, and every heading in them is marked.
+    let file_marked = is_draft(source);
     // Blank any leading front-matter so a `cohesion: behavioral` block is not
     // mis-parsed as a setext heading (RFC-012 §3.3). Line numbers preserved.
     let cleaned = blank_front_matter(source);
     let source = cleaned.as_ref();
-    let mut st = SectionState::new(source, path);
+    let mut st = SectionState::new(source, path, file_marked);
     let parser = Parser::new(source).into_offset_iter();
 
     for (event, range) in parser {
         handle_event(&mut st, event, range, nodes, edges, verb_anchors);
     }
 
-    flush_pending(&mut st.pending, &st.rust_blocks, st.path, nodes);
+    flush_pending(
+        &mut st.pending,
+        st.pending_marked || st.file_marked,
+        &st.rust_blocks,
+        st.path,
+        nodes,
+    );
     concept_anchors.append(&mut st.concept_anchors);
 }
 
@@ -99,7 +126,14 @@ fn handle_event(
             level: HeadingLevel::H2 | HeadingLevel::H3,
             ..
         }) => {
-            flush_pending(&mut st.pending, &st.rust_blocks, st.path, nodes);
+            flush_pending(
+                &mut st.pending,
+                st.pending_marked || st.file_marked,
+                &st.rust_blocks,
+                st.path,
+                nodes,
+            );
+            st.pending_marked = false;
             st.rust_blocks.clear();
             st.heading_buf.clear();
             st.in_heading_at = Some(line_of_offset(&st.line_starts, range.start));
@@ -157,6 +191,17 @@ fn finish_bullet(
         return;
     };
     let text = std::mem::take(&mut st.bullet_buf);
+    // RFC-013 §3.1: the spec-state marker. Checked first — it shares no
+    // prefix with any other bullet grammar, so this is ordering for
+    // legibility, not for disambiguation.
+    if is_status_marker(text.as_str()) {
+        if let Some((_, heading_line)) = st.pending.as_ref() {
+            if is_first_content_line(st.source, *heading_line, line) {
+                st.pending_marked = true;
+            }
+        }
+        return;
+    }
     if let Some((kind, token, raw)) = parse_bullet_edge(text.as_str()) {
         edges.push(Edge {
             source_concept: concept,
@@ -187,21 +232,48 @@ fn finish_bullet(
 
 fn flush_pending(
     pending: &mut Option<(String, usize)>,
+    marked: bool,
     rust_blocks: &[String],
     path: &Path,
     out: &mut Vec<ConceptNode>,
 ) {
     if let Some((name, line)) = pending.take() {
         // Spec-side nodes carry no containment provenance (RFC-010 §3.3).
-        out.push(ConceptNode::new(
+        let mut node = ConceptNode::new(
             name,
             Source::Spec {
                 path: path.to_path_buf(),
                 line,
             },
             signature_from_blocks(rust_blocks),
-        ));
+        );
+        node.marked = marked;
+        out.push(node);
     }
+}
+
+/// Is the line at `bullet_line` the first non-blank line below the heading
+/// at `heading_line`? — the placement half of the RFC-013 §3.1 marker rule.
+///
+/// Asked of the source text rather than the event stream because "first
+/// non-blank **content line**" is a line-level fact: `pulldown-cmark` would
+/// answer "first block", which differs for a bullet nested under a
+/// paragraph or a loose list.
+///
+/// Mis-placement fails **loud, not silent**: a marker bullet that is not the
+/// first content line is inert, the heading reads unmarked, and the
+/// anti-invention check (`MissingInCode`) fires if its code is absent.
+///
+/// Both line numbers are 1-indexed, as [`line_of_offset`] produces.
+fn is_first_content_line(source: &str, heading_line: usize, bullet_line: usize) -> bool {
+    if bullet_line <= heading_line {
+        return false;
+    }
+    source
+        .lines()
+        .skip(heading_line)
+        .take(bullet_line - heading_line - 1)
+        .all(|l| l.trim().is_empty())
 }
 
 fn signature_from_blocks(blocks: &[String]) -> SignatureState {
