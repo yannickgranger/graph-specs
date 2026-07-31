@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "adapter-cfdb-query"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "adapter-rust",
  "cfdb-core",
@@ -17,7 +17,7 @@ dependencies = [
 
 [[package]]
 name = "adapter-markdown"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "adapter-rust",
  "domain",
@@ -32,7 +32,7 @@ dependencies = [
 
 [[package]]
 name = "adapter-rust"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "domain",
  "ports",
@@ -110,7 +110,7 @@ checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
 name = "application"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "adapter-cfdb-query",
  "adapter-markdown",
@@ -232,7 +232,7 @@ checksum = "6184e33543162437515c2e2b48714794e37845ec9851711914eec9d308f6ebe8"
 
 [[package]]
 name = "domain"
-version = "0.6.0"
+version = "0.7.0"
 
 [[package]]
 name = "equivalent"
@@ -400,7 +400,7 @@ checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
 
 [[package]]
 name = "ports"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "domain",
  "thiserror",
