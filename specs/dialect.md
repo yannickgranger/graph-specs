@@ -186,7 +186,8 @@ Prose changes never affect the graph. The reader does not see:
   similar)
 - Bullets without a recognised prefix
 - Ordered lists
-- Tables, images, links, raw HTML blocks, HTML comments
+- Tables, images, links, raw HTML blocks, and HTML comments — with one
+  scoped exception, the grounding comment's `polarity:` key (below)
 - Files outside the directory passed to `--specs`
 - Any file whose extension is not `.md`
 
@@ -287,6 +288,100 @@ A marker never parks a divergence: once the concept is realized, drift
 under it fires the ordinary violation exactly as it would under an
 unmarked heading. Escalation happens on contradiction only — never by
 age, count, or branch.
+
+## Grounding polarity (RFC-014)
+
+A **grounding comment** is an HTML comment carried under a concept
+heading by an upstream tool (cascade / Bosun):
+
+```
+## Member
+<!-- parent:spec:Unit polarity:forbidden -->
+```
+
+graph-specs reads exactly one key from it — `polarity:` — and ignores
+every other key. It performs **no grounding** in the sense the name
+denotes: *grounding* means ancestorship, which is the `parent:` key's job
+and is explicitly out of scope. `polarity:` is an independent axis that
+happens to share the grounding block's syntax, not part of its ancestry
+payload. Reading "graph-specs parses the grounding comment" as
+"graph-specs validates ancestry" would be exactly backwards.
+
+**This concept is imported, not defined here.** The values and their
+meanings are owned upstream (see [Polarity](concepts/equivalence.md));
+this repo authors no `polarity:` markers in its own `specs/`. Reading an
+externally-authored wire format under a Conformist contract is a scoped
+exception to comment-skipping, not a new local convention — there is no
+bullet-form alternative to prefer here, because graph-specs owns neither
+the value semantics nor the comment encoding.
+
+### Placement and grammar
+
+The comment must be the **first non-blank content line** below an `H2`/`H3`
+concept heading — the same adjacency rule the `- status: draft` marker
+uses. A comment further down is inert.
+
+Three values:
+
+| Value | Meaning |
+|---|---|
+| `declared` | the ordinary obligation — the concept must exist in code (the default) |
+| `forbidden` | the name is expelled — code must **not** bear it |
+| `illustrative` | an example — the heading neither compels nor satisfies a code item |
+
+Anything else — no comment, no `polarity:` key, or an unreadable value —
+reads as `declared`, with a `tracing::warn!` on the unreadable case.
+**The fallback direction is the point:** a typo leaves the heading's
+obligation *armed*. A marker can only narrow an obligation somebody
+deliberately wrote down.
+
+**Extraction is quote-aware.** Upstream makes `anchor:"…"` mandatory for
+every RFC-rooted concept, so a real grounded corpus carries a quoted
+freeform value in the *same* comment. A `polarity:` appearing inside that
+quoted value is prose, not the key — entirely plausible on an
+architecture-methodology corpus, which may carry RFC prose *about*
+polarity — and it is not read.
+
+### What each value changes
+
+| polarity | code absent | code present |
+|---|---|---|
+| `declared` | `missing_in_code` (unchanged) | satisfied (unchanged) |
+| `forbidden` | clean | `forbidden_concept_reintroduced` |
+| `illustrative` | clean | `missing_in_specs` |
+
+The `illustrative` row is upstream's rule, not an invention: it stops the
+marker laundering unspecced public surface past the gate. It is a
+**match-attempt gate**, not a post-match dispatch — an illustrative
+heading never attempts to bind a code item at all, so the item falls
+through to the orphan sweep like any undocumented type.
+
+While a heading is non-`declared`, every check sourced at it imposes no
+obligation — its edge bullets, its `- verb:` anchors, and its `- impl:`
+anchors alike, the last including `dangling_anchor`. A heading that
+compels nothing cannot be missing anything.
+
+### Precedence over the spec-state marker
+
+`polarity != declared` is evaluated **first, and is terminal**. A marked
+heading whose polarity is `forbidden` or `illustrative` emits **no**
+marker record:
+
+| | `declared` | `forbidden` | `illustrative` |
+|---|---|---|---|
+| **unmarked** | rows 1/2 above | table above | table above |
+| **marked** | `pending` / `realized` | identical to unmarked — `marked` is inert | identical to unmarked — `marked` is inert |
+
+No cell emits both a marker record and a polarity outcome.
+
+This is principled rather than an arbitrary tiebreak. Marking exists to
+relax the code-existence obligation a `declared` heading carries.
+`forbidden` and `illustrative` carry no such obligation — absence is clean
+by definition for both — so there is nothing for marking to relax. It is
+not out-competed by polarity; it is *structurally inert*. Emitting
+`realized — ratify` on an expelled name would also be an actively wrong
+instruction: a reader would see "close this out" and "actively banned"
+on the same heading.
 
 ## What the Rust reader parses
 

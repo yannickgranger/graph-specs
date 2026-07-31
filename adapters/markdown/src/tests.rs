@@ -1,6 +1,6 @@
 use super::*;
 use crate::bullets::parse_anchor_qname;
-use domain::{EdgeKind, SignatureState, Source};
+use domain::{EdgeKind, Polarity, SignatureState, Source};
 use std::io::Write;
 use tempfile::TempDir;
 
@@ -1046,4 +1046,111 @@ fn has_behavioral_substance_rejects_non_substance() {
     assert!(!has_behavioral_substance(
         "- implements: Foo\n- depends on: Bar\n"
     ));
+}
+
+// --- RFC-014 §3.2 — grounding polarity binds to its heading ---
+
+/// `polarity` per concept name.
+fn polarities(dir: &Path) -> Vec<(String, Polarity)> {
+    let g = MarkdownReader.extract(dir).expect("test");
+    let mut out: Vec<(String, Polarity)> =
+        g.nodes.into_iter().map(|n| (n.name, n.polarity)).collect();
+    out.sort_by(|a, b| a.0.cmp(&b.0));
+    out
+}
+
+#[test]
+fn a_grounding_comment_binds_to_the_heading_it_opens() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Member\n<!-- parent:spec:Unit polarity:forbidden -->\n\n## Unit\n\nProse.\n",
+    );
+    assert_eq!(
+        polarities(d.path()),
+        vec![
+            ("Member".to_owned(), Polarity::Forbidden),
+            ("Unit".to_owned(), Polarity::Declared),
+        ],
+        "polarity binds to one heading — no inheritance to the next"
+    );
+}
+
+#[test]
+fn a_blank_line_between_heading_and_comment_still_binds() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Member\n\n<!-- polarity:illustrative -->\n",
+    );
+    assert_eq!(
+        polarities(d.path()),
+        vec![("Member".to_owned(), Polarity::Illustrative)]
+    );
+}
+
+#[test]
+fn a_comment_that_is_not_the_first_content_line_is_inert() {
+    // Same adjacency rule as the `- status: draft` marker, deliberately —
+    // one primitive, so the two cannot drift apart.
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Member\n\nSome prose first.\n\n<!-- polarity:forbidden -->\n",
+    );
+    assert_eq!(
+        polarities(d.path()),
+        vec![("Member".to_owned(), Polarity::Declared)],
+        "a comment further down the section binds nothing"
+    );
+}
+
+#[test]
+fn a_comment_above_the_first_heading_binds_nothing() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "<!-- polarity:forbidden -->\n\n## Member\n\nProse.\n",
+    );
+    assert_eq!(
+        polarities(d.path()),
+        vec![("Member".to_owned(), Polarity::Declared)]
+    );
+}
+
+#[test]
+fn a_quoted_decoy_in_a_real_grounding_block_is_not_read() {
+    // End-to-end through the reader, not just the token scanner: upstream
+    // makes `anchor:"…"` mandatory, so this shape is the common case.
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Member\n<!-- parent:rfc:RFC-9 anchor:\"why polarity:forbidden exists\" -->\n",
+    );
+    assert_eq!(
+        polarities(d.path()),
+        vec![("Member".to_owned(), Polarity::Declared)],
+        "prose inside the mandatory quoted anchor is not the key"
+    );
+}
+
+#[test]
+fn a_grounding_comment_is_not_an_edge_or_an_anchor() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Member\n<!-- parent:spec:Unit polarity:forbidden -->\n",
+    );
+    let g = extract_graph(d.path());
+    assert!(g.edges.is_empty());
+    assert!(MarkdownReader
+        .extract_concept_anchors(d.path())
+        .expect("test")
+        .is_empty());
 }

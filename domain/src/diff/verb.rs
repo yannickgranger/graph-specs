@@ -22,21 +22,22 @@ pub(super) fn verb_pass(
     verb_ownership: VerbOwnership,
     code: &Graph,
     contexts: &[ContextDecl],
-    pending_concepts: &HashSet<&str>,
+    unobliged_concepts: &HashSet<&str>,
     out: &mut Vec<Violation>,
 ) {
     // Owned so `emit_missing_in_spec` can move each decl's `qname`/`source`
     // into the emitted violation instead of cloning per loop iteration.
     let VerbOwnership { decls, mut anchors } = verb_ownership;
-    // RFC-013 §3.4 — the pending-side obligation skip. A `- verb:` bullet
-    // under a pending concept imposes nothing: with no backing item there is
-    // nothing to compare, and firing `VerbMissingInCode` on it would make
-    // matrix row 3 unreachable in practice. Dropping the anchors (rather than
-    // post-filtering the violations) also keeps a context whose only anchors
-    // sit on pending concepts correctly *un*-opted-in, so no
-    // `VerbMissingInSpec` fires against its pub fns either.
-    if !pending_concepts.is_empty() {
-        anchors.retain(|a| !pending_concepts.contains(a.concept.as_str()));
+    // The uniform obligation skip (RFC-013 §3.4 pending, RFC-014 §3.3
+    // non-`declared`). A `- verb:` bullet under a concept that compels
+    // nothing imposes nothing: there is no backing item to compare against,
+    // and firing `VerbMissingInCode` would contradict the heading's own
+    // meaning. Dropping the anchors (rather than post-filtering the
+    // violations) also keeps a context whose only anchors sit on unobliged
+    // concepts correctly *un*-opted-in, so no `VerbMissingInSpec` fires
+    // against its pub fns either.
+    if !unobliged_concepts.is_empty() {
+        anchors.retain(|a| !unobliged_concepts.contains(a.concept.as_str()));
     }
     if anchors.is_empty() {
         return;

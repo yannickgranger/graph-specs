@@ -9,8 +9,9 @@
 
 use crate::bullets::{is_status_marker, parse_bullet_edge, parse_impl_bullet, parse_verb_bullet};
 use crate::front_matter::{blank_front_matter, is_draft};
+use crate::grounding::polarity_from_comment;
 use crate::markdown_utils::{compute_line_starts, line_of_offset};
-use domain::{ConceptAnchor, ConceptNode, Edge, SignatureState, Source, VerbAnchor};
+use domain::{ConceptAnchor, ConceptNode, Edge, Polarity, SignatureState, Source, VerbAnchor};
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Parser, Tag, TagEnd};
 use std::path::Path;
 
@@ -41,6 +42,14 @@ struct SectionState<'a> {
     /// concept heading in the file, so a per-heading bullet inside one is
     /// redundant, inert text.
     file_marked: bool,
+    /// RFC-014 §3.2: the grounding polarity of the pending concept. Reset
+    /// with every new heading — like the spec-state marker, a grounding
+    /// comment binds only to the heading whose block it opens.
+    pending_polarity: Polarity,
+    /// Grounding-comment collection. `Some(line)` while inside an HTML
+    /// block that opened under a concept heading.
+    in_html_at: Option<usize>,
+    html_buf: String,
     // Signature collection.
     rust_blocks: Vec<String>,
     in_rust_block: bool,
@@ -66,6 +75,9 @@ impl<'a> SectionState<'a> {
             pending: None,
             pending_marked: false,
             file_marked,
+            pending_polarity: Polarity::Declared,
+            in_html_at: None,
+            html_buf: String::new(),
             rust_blocks: Vec::new(),
             in_rust_block: false,
             block_buf: String::new(),
@@ -106,6 +118,7 @@ pub fn extract_from_source(
     flush_pending(
         &mut st.pending,
         st.pending_marked || st.file_marked,
+        st.pending_polarity,
         &st.rust_blocks,
         st.path,
         nodes,
@@ -129,11 +142,13 @@ fn handle_event(
             flush_pending(
                 &mut st.pending,
                 st.pending_marked || st.file_marked,
+                st.pending_polarity,
                 &st.rust_blocks,
                 st.path,
                 nodes,
             );
             st.pending_marked = false;
+            st.pending_polarity = Polarity::Declared;
             st.rust_blocks.clear();
             st.heading_buf.clear();
             st.in_heading_at = Some(line_of_offset(&st.line_starts, range.start));
@@ -156,6 +171,19 @@ fn handle_event(
             st.rust_blocks.push(std::mem::take(&mut st.block_buf));
             st.in_rust_block = false;
         }
+        // RFC-014 §3.2 — the grounding comment. Collected only under a
+        // concept heading; the adjacency test in `finish_html` decides
+        // whether it actually binds.
+        Event::Start(Tag::HtmlBlock) if st.pending.is_some() => {
+            st.in_html_at = Some(line_of_offset(&st.line_starts, range.start));
+            st.html_buf.clear();
+        }
+        Event::Html(ref html) if st.in_html_at.is_some() => st.html_buf.push_str(html),
+        Event::End(TagEnd::HtmlBlock) => {
+            if let Some(line) = st.in_html_at.take() {
+                finish_html(st, line);
+            }
+        }
         Event::Start(Tag::Item) if st.pending.is_some() => {
             st.in_bullet = Some(line_of_offset(&st.line_starts, range.start));
             st.bullet_buf.clear();
@@ -167,6 +195,23 @@ fn handle_event(
         }
         Event::Text(s) | Event::Code(s) => absorb_text(st, &s),
         _ => {}
+    }
+}
+
+/// Bind a collected HTML block's `polarity:` to the pending concept, if the
+/// block is where a grounding comment has to be.
+///
+/// Adjacency reuses [`is_first_content_line`] — RFC-014 §3.2 names this the
+/// same primitive RFC-013's `- status: draft` rule needs, deliberately, so
+/// the two cannot drift into subtly different "immediately below" semantics.
+/// A comment further down the section is inert.
+fn finish_html(st: &mut SectionState, line: usize) {
+    let html = std::mem::take(&mut st.html_buf);
+    let Some((_, heading_line)) = st.pending.as_ref() else {
+        return;
+    };
+    if is_first_content_line(st.source, *heading_line, line) {
+        st.pending_polarity = polarity_from_comment(&html);
     }
 }
 
@@ -233,6 +278,7 @@ fn finish_bullet(
 fn flush_pending(
     pending: &mut Option<(String, usize)>,
     marked: bool,
+    polarity: Polarity,
     rust_blocks: &[String],
     path: &Path,
     out: &mut Vec<ConceptNode>,
@@ -246,7 +292,8 @@ fn flush_pending(
                 line,
             },
             signature_from_blocks(rust_blocks),
-        );
+        )
+        .with_polarity(polarity);
         node.marked = marked;
         out.push(node);
     }

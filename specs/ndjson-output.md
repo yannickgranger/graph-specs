@@ -292,6 +292,30 @@ A concept's `- impl: <qname>` anchor (RFC-012 §3.2) names a code item that does
 
 > An anchor whose target **does** resolve emits **no** record — the concept is satisfied (no `missing_in_code`). Resolution honours any visibility (`pub`, `pub(crate)`, a `fn`, a `const`), so a concept whose canonical implementation is `pub(crate)` need not manufacture a `pub` type.
 
+## v0.8 polarity variant (RFC-014 — grounding polarity)
+
+### `forbidden_concept_reintroduced` (additive; rides the current `schema_version`)
+
+A `pub` code item bearing a name its spec heading **expelled** — the heading carries a grounding comment with `polarity:forbidden` (see `specs/dialect.md` §Grounding polarity). Distinct from every other variant in direction: this is not a gap between spec and code, it is code doing something the spec forbids.
+
+Both sites are carried, so the record names what expelled the name and what reintroduced it.
+
+```json
+{"schema_version":"4","violation":"forbidden_concept_reintroduced","concept":"Member","spec_source":{"kind":"spec","path":"specs/concepts/topology.md","line":41},"code_source":{"kind":"code","path":"src/model.rs","line":12}}
+```
+
+| Field | Type | Meaning |
+|---|---|---|
+| `concept` | string | the expelled name |
+| `spec_source` | source object (kind=spec) | the heading that expels it |
+| `code_source` | source object (kind=code) | the item that reintroduced it |
+
+**Remediation:** remove the code item. There is no allowlist and no suppression file — deleting the item clears the finding, re-adding it brings the finding back.
+
+> Behavioural parity with `cascade::Finding::ForbiddenConceptRealized`, under a locally-disambiguated name: `Realized` already means the opposite thing in this bounded context (RFC-013's marker record — "the pending concept landed"). Parity is on inputs and outputs, not on identifier spelling.
+
+**Additive** — no `schema_version` bump. The two narrowings of `missing_in_code` that `forbidden` and `illustrative` introduce emit no record at all; like the marker suppression before them they change which headings qualify, not what the discriminator means.
+
 ## v0.5 forward-compat — `unknown_context_violation`
 
 `ContextViolation` carries `#[non_exhaustive]` in the domain type. If a future v0.5 adds a variant not known to this tool version, the record emits with `"violation":"unknown_context_violation"` and the `concept` field only. Consumers SHOULD treat unknown variants as tripwires — the tool version on the producer side is ahead of the consumer's schema.
