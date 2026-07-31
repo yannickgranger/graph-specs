@@ -20,6 +20,6 @@
 [companion]
 repo      = "yg/cfdb"
 branch    = "develop"
-sha       = "ff5364534be15d9e507e48e0649e17f954e86626"
-bumped_at = "2026-07-15T11:30:00Z"
-bumped_by = "lockstep — cfdb #510 / RFC-053 slice 53-A. SchemaVersion V0_6_0 -> V0_7_0 (additive: :MatchSite node + MATCHES_AT edge; MATCHES_ON reserved for 53-B). Pinned at cfdb PR #522 HEAD (ff53645). cfdb-side cross-dogfood at this SHA: 0 violations on graph-specs-rust@f66ff89, exit 0."
+sha       = "6a0abaa83f62f02beb014324edac65dee803dcfa"
+bumped_at = "2026-08-01T00:00:00Z"
+bumped_by = "lockstep — cfdb #557 / RFC-054 slice 54-B. SchemaVersion V0_7_0 -> V0_8_0 (target-scoped :Item identity: bin-target ids gain #bin:{name}, new always-emitted :Item.target attr; lib ids byte-stable). Pinned at cfdb PR #563 HEAD (6a0abaa). cfdb-side cross-dogfood at this SHA: 0 violations on graph-specs-rust@f66ff89, exit 0. Merge order: cfdb #563 FIRST, then this PR within minutes (exit-20 window documented in cfdb docs/cross-fixture-bump.md §4)."
