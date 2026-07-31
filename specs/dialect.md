@@ -115,6 +115,12 @@ become concept-graph nodes (see [What the markdown reader ignores](#what-the-mar
 These are the upward concept→context rung, complementing the downward
 concept→method rung that `- verb:` anchors check.
 
+**Draft files participate** (RFC-013). Spec-state markers relax a
+*concept's* code-existence obligation; they never relax this doc-level
+structural check. The `cohesion: behavioral` exemption is the only one,
+and it applies to a draft doc on exactly the same terms as any other —
+substance still required.
+
 ## Anchors (RFC-012 — non-`pub` spec anchors)
 
 The default rule is that a `## Concept` heading is backed by a top-level
@@ -261,6 +267,11 @@ any concept block is inert — the contexts dialect is untouched.
 
 Neither record kind affects the exit code. See
 `specs/ndjson-output.md` §Marker records for the wire shape.
+
+Marking is **concept-scoped**. It never suppresses the doc-level
+[cohesion invariant](#abstraction-ladder): a doc that declares no concept
+heading at all still reports `context_without_cohesion_unit`, marked or
+not — and a marked heading *counts* as its context's cohesion unit.
 
 "Backing item present" has two spellings, and they are one fact: a
 name-matched `pub` item, or a resolved `- impl:` anchor. A marked
