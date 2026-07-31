@@ -43,12 +43,24 @@ jobs:
           GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_PAT: ${{ secrets.MIRROR_PAT }}
           GH_REPO: yannickgranger/graph-specs
+          # Never let git fall back to an interactive prompt. Without this a
+          # credential problem surfaces as the misleading
+          # `could not read Password for 'https://***@github.com'` instead of
+          # the actual authentication error.
+          GIT_TERMINAL_PROMPT: "0"
         run: |
           set -euo pipefail
 
           # Defensive: strip any whitespace from PAT (Gitea UI doesn't trim on paste).
           # Done silently — PAT never echoed.
           GH_PAT=$(printf '%s' "${GH_PAT}" | tr -d '[:space:]')
+
+          if [ -z "${GH_PAT}" ]; then
+            echo "FATAL: MIRROR_PAT is empty or unset."
+            echo "Set it in Gitea → repo Settings → Actions → Secrets."
+            echo "It must be a GitHub PAT for yannickgranger with \`repo\` scope."
+            exit 1
+          fi
 
           git config --global --add safe.directory '*'
           git config --global http.sslVerify false
@@ -58,8 +70,16 @@ jobs:
           cd repo.git
           git fetch --tags origin
 
-          # Configure GitHub remote with PAT auth (inline in URL — token never persists on disk)
-          git remote add github "https://${GH_PAT}@github.com/${GH_REPO}.git"
+          # Configure GitHub remote with PAT auth (inline in URL — token never
+          # persists on disk).
+          #
+          # `oauth2:<token>` — a USERNAME:PASSWORD pair, not a bare token as
+          # username. `https://<token>@github.com` supplies a username with no
+          # password, so git must source the password from somewhere; with no
+          # credential helper and no tty it fails with
+          # `could not read Password`. That is the v0.7.0 mirror failure.
+          # This is the same form the Gitea remote above already uses.
+          git remote add github "https://oauth2:${GH_PAT}@github.com/${GH_REPO}.git"
 
           # Scoped push: develop + main + tags only. Uses --force to accept Gitea as canonical.
           git push github --force refs/heads/develop:refs/heads/develop
