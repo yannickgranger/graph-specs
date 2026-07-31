@@ -13,6 +13,7 @@ mod context;
 mod diff;
 mod marker;
 mod polarity;
+mod provenance;
 mod report;
 mod tokens;
 
@@ -29,6 +30,7 @@ pub use context::{
 pub use diff::diff;
 pub use marker::{CheckOutcome, PendingRecord, RealizedRecord};
 pub use polarity::Polarity;
+pub use provenance::Provenance;
 pub use report::{
     report_verb_coverage, HomonymAppearance, HomonymRecord, InvariantAnnotation, PubFnDecl,
     ReportOutput, TierHistogramRecord, TierKind, VerbCoverageRecord,

@@ -1,11 +1,15 @@
 //! [`ContextViolation`] → NDJSON record conversion (v0.4 bounded-context
 //! variants, plus the v0.5 verb-ownership cross-context variant).
 
-use super::source::source_to_json;
+use super::source::{code_source_to_json, source_to_json};
+use super::ProvenanceIndex;
 use domain::{ContextViolation, SchemaVersion};
 use serde_json::{json, Value};
 
-pub(super) fn context_violation_to_record(v: &ContextViolation) -> Value {
+pub(super) fn context_violation_to_record(
+    v: &ContextViolation,
+    provenance: &ProvenanceIndex,
+) -> Value {
     match v {
         ContextViolation::MembershipUnknown {
             concept,
@@ -16,7 +20,7 @@ pub(super) fn context_violation_to_record(v: &ContextViolation) -> Value {
             "violation": "context_membership_unknown",
             "concept": concept,
             "owned_unit": owned_unit.0,
-            "source": source_to_json(code_source),
+            "source": code_source_to_json(code_source, provenance.get(concept)),
         }),
         ContextViolation::CrossEdgeUnauthorized {
             concept,

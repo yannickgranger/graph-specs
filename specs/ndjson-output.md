@@ -54,6 +54,32 @@ Every violation carries at least one source location. The shape is:
 - `path` — the reader-emitted path (typically repo-relative, but the tool does not normalize — consumers SHOULD NOT assume normalization)
 - `line` — 1-based line number
 
+### Provenance triple on `kind: "code"` source objects (additive, RFC-010 §3.6 / #136)
+
+A `kind: "code"` source object MAY additionally carry the agnostic
+containment provenance triple the check resolved for the record's concept:
+
+```json
+{ "kind": "code", "path": "...", "line": <integer>,
+  "module_path": "...", "unit": "...", "context": "..." }
+```
+
+- `module_path` — the owning module path, crate-root-collapsed (e.g. `domain::diff`)
+- `unit` — the owning crate / package, relative to the code root (e.g. `adapters/markdown`)
+- `context` — the bounded context whose `specs/contexts/` Owns block owns `unit`
+
+Each field is **optional and independently absent** — omitted, never
+`null` — because each is independently unavailable: a tree without
+`specs/contexts/` resolves no `context`; a `context_membership_unknown`
+record by definition carries no `context`; a record keyed by something
+that is not a code concept (e.g. `verb_missing_in_spec`'s `qname`)
+carries none of the three. `kind: "spec"` source objects never carry
+them — provenance is a code fact (RFC-010 §3.3).
+
+These are optional additive fields (see §Schema evolution): they ride
+the current `schema_version` and did NOT bump it. A consumer that reads
+only `kind` / `path` / `line` is unaffected.
+
 ## Variants
 
 ### `missing_in_code`
@@ -71,10 +97,11 @@ Field `source` is always `kind: "spec"`.
 Concept declared in code, absent from specs.
 
 ```json
-{"schema_version":"4","violation":"missing_in_specs","concept":"Bar","source":{"kind":"code","path":"src/lib.rs","line":3}}
+{"schema_version":"4","violation":"missing_in_specs","concept":"Bar","source":{"kind":"code","path":"domain/src/lib.rs","line":3,"module_path":"domain","unit":"domain","context":"equivalence"}}
 ```
 
-Field `source` is always `kind: "code"`.
+Field `source` is always `kind: "code"`, and carries the provenance
+triple when resolved (see §Source location object).
 
 ### `signature_drift`
 
@@ -272,7 +299,7 @@ A concept's spec-side declared owning context (its `concepts/` H1, with `specs/c
 | `code_context` | string | the context the code resolves the concept to |
 | `spec_source` | source object (kind=spec) | where the concept is documented |
 
-> **Planned additive extension (no further bump, tracked at #136):** source objects on code-bearing records will gain the agnostic provenance triple (`module_path` / `unit` / `context`). Because these are optional additive fields (see §Schema evolution), they will NOT bump `schema_version` again.
+> **Shipped (#136):** code-kind source objects carry the agnostic provenance triple (`module_path` / `unit` / `context`) when resolved — see §Source location object. Optional additive fields (see §Schema evolution); they did NOT bump `schema_version`.
 
 ## v0.7 anchor variant (RFC-012 — non-`pub` spec anchors)
 

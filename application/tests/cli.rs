@@ -1202,3 +1202,65 @@ fn ndjson_marker_records_carry_the_marker_discriminator() {
         "marker and violation are separate discriminator keys"
     );
 }
+
+// --- RFC-010 §3.6 / #136 — provenance triple on code source objects ----
+
+#[test]
+fn ndjson_code_only_fixture_carries_provenance_triple() {
+    // Code-only fixture with a declared owning context: the
+    // `missing_in_specs` record's source object carries the agnostic
+    // triple end-to-end (adapter facts → diff snapshot → emitter).
+    let specs = TempDir::new().unwrap();
+    let code = TempDir::new().unwrap();
+    write_file(
+        specs.path(),
+        "contexts/fixturectx.md",
+        "# fixturectx\n\n## Owns\n\n- mycrate\n",
+    );
+    write_file(
+        code.path(),
+        "mycrate/Cargo.toml",
+        "[package]\nname = \"mycrate\"\n",
+    );
+    write_file(code.path(), "mycrate/src/lib.rs", "pub struct OnlyCode;");
+
+    let out = run_ndjson(specs.path(), code.path());
+    assert_eq!(out.status.code(), Some(1));
+    let records = parse_ndjson(&out.stdout);
+    let r = records
+        .iter()
+        .find(|r| r["violation"] == "missing_in_specs")
+        .expect("missing_in_specs record");
+    assert_eq!(r["concept"], "OnlyCode");
+    assert_eq!(r["source"]["kind"], "code");
+    assert_eq!(r["source"]["module_path"], "mycrate");
+    assert_eq!(r["source"]["unit"], "mycrate");
+    assert_eq!(r["source"]["context"], "fixturectx");
+}
+
+#[test]
+fn ndjson_without_contexts_omits_context_field() {
+    // Same fixture minus `specs/contexts/` — module_path/unit still
+    // present, `context` absent (omitted, never null).
+    let specs = TempDir::new().unwrap();
+    let code = TempDir::new().unwrap();
+    write_file(
+        code.path(),
+        "mycrate/Cargo.toml",
+        "[package]\nname = \"mycrate\"\n",
+    );
+    write_file(code.path(), "mycrate/src/lib.rs", "pub struct OnlyCode;");
+
+    let out = run_ndjson(specs.path(), code.path());
+    assert_eq!(out.status.code(), Some(1));
+    let records = parse_ndjson(&out.stdout);
+    let r = records
+        .iter()
+        .find(|r| r["violation"] == "missing_in_specs")
+        .expect("missing_in_specs record");
+    assert_eq!(r["source"]["module_path"], "mycrate");
+    assert_eq!(r["source"]["unit"], "mycrate");
+    assert!(r["source"]
+        .as_object()
+        .is_some_and(|s| !s.contains_key("context")));
+}

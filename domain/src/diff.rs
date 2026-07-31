@@ -22,12 +22,13 @@ mod verb;
 #[cfg(test)]
 mod tests;
 
+use crate::context::context_for_code_node;
 use crate::{
     anchor_violation, CheckInput, CheckOutcome, ConceptNode, ContextDecl, Graph, PendingRecord,
-    Polarity, RealizedRecord, Source, Violation,
+    Polarity, Provenance, RealizedRecord, Source, Violation,
 };
 use concept::{concept_pass, AnchorResolutions};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// Snapshot each spec concept's declared owning context (its `concepts/` H1,
 /// populated on [`ConceptNode::context`] by `run_check` from the R10-2 tree)
@@ -83,6 +84,13 @@ pub fn diff(spec: CheckInput, code: Graph) -> CheckOutcome {
     };
 
     let declared_contexts = snapshot_declared_contexts(&spec_nodes, &spec_contexts);
+
+    // RFC-010 §3.6 / #136 — snapshot each code concept's containment
+    // triple (resolving `context` through the same `specs/contexts/` Owns
+    // lookup the cohesion pass uses) before code_nodes is consumed. The
+    // NDJSON emitter reads this off the outcome; it cannot re-derive
+    // `context` itself without a split-brain on the Owns resolution.
+    let provenance = provenance_index(&code_nodes, &spec_contexts);
 
     // Index code by name, consuming code_nodes — later lookups remove the
     // match so the remainder is "code-only" (missing in specs).
@@ -214,7 +222,38 @@ pub fn diff(spec: CheckInput, code: Graph) -> CheckOutcome {
         let (kb, db) = violation_key(b);
         ka.cmp(kb).then(da.cmp(&db))
     });
-    CheckOutcome::new(violations, pending, realized)
+    let mut outcome = CheckOutcome::new(violations, pending, realized);
+    outcome.provenance = provenance;
+    outcome
+}
+
+/// Snapshot the containment triple of every code concept that has one
+/// (RFC-010 §3.6 / #136), keyed by concept name. `module_path` / `unit`
+/// come straight off the node (adapter-populated, RFC-010 §3.3);
+/// `context` is resolved through [`context_for_code_node`] — the single
+/// code-side Owns resolution site. Nodes with no facts at all are
+/// skipped, so a provenance-free corpus yields an empty index.
+fn provenance_index(
+    code_nodes: &[ConceptNode],
+    contexts: &[ContextDecl],
+) -> BTreeMap<String, Provenance> {
+    code_nodes
+        .iter()
+        .filter_map(|n| {
+            let context = context_for_code_node(n, contexts).map(|c| c.name.clone());
+            if n.module_path.is_none() && n.unit.is_none() && context.is_none() {
+                return None;
+            }
+            Some((
+                n.name.clone(),
+                Provenance {
+                    module_path: n.module_path.clone(),
+                    unit: n.unit.clone(),
+                    context,
+                },
+            ))
+        })
+        .collect()
 }
 
 /// Whatever is left in `code_by_name` after the concept pass has no spec

@@ -328,11 +328,29 @@ by name.
 - returns: CheckInput
 - verb: diff
 - verb: context_for_concept
+- verb: context_for_code_node
 - verb: resolve_declared_context
 - verb: CheckInput::new
 - verb: CheckInput::with_graph_and_contexts
 - verb: CheckInput::with_spec_cohesion
 - verb: CheckInput::with_concept_anchors
+
+## Provenance
+
+The containment-provenance record rendered into NDJSON code-kind source
+objects (RFC-010 §3.6 / #136) — the emitter-facing form of the agnostic
+triple that [ConceptNode](#conceptnode) carries as three loose `Option`
+fields: `module_path` (crate-root-collapsed module path), `unit` (the
+owning crate, relative to the code root) and `context` (the bounded
+context whose `specs/contexts/` Owns block owns `unit`). Pure data;
+every field is optional because each is independently unavailable.
+
+The diff snapshots one record per code concept, keyed by concept name,
+into `CheckOutcome::provenance` before the code nodes are consumed —
+`context` resolves through the same Owns lookup the cohesion pass uses,
+so the emitter never re-derives it (that would split-brain the
+resolution, which is why #136 was split out of #128 in the first
+place). Lives in `domain`.
 
 ## CheckOutcome
 
@@ -342,6 +360,12 @@ diff produces all three, because the pending-vs-realized decision is
 the same concept/code matching it already performs for the unmarked
 rows — deriving it in the application layer would split-brain one
 decision across two places.
+
+Since RFC-010 §3.6 / #136 it also carries `provenance` — the
+[Provenance](#provenance) index (concept name → triple) the NDJSON
+emitter reads to render code-kind source objects. A side index on the
+outcome rather than fields on [Violation](#violation), so the stable
+violation enum is untouched across its construction sites.
 
 The exit code is a function of `violations` alone: a tree whose only
 findings are marker records passes. `is_clean` names that rule so no
@@ -353,6 +377,7 @@ Lives in `domain`.
 - depends on: Violation
 - depends on: PendingRecord
 - depends on: RealizedRecord
+- depends on: Provenance
 - returns: CheckOutcome
 - verb: diff
 - verb: CheckOutcome::new
