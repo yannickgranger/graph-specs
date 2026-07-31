@@ -25,6 +25,12 @@
 //! v4 (RFC-013 §3.5) adds the `marker` record kinds and **retires** the
 //! `implements_draft_concept` violation kind. The retirement is what makes
 //! the bump breaking rather than additive.
+//!
+//! RFC-010 §3.6 / #136 (additive, no bump): code-kind source objects
+//! carry the agnostic provenance triple (`module_path` / `unit` /
+//! `context`) when [`CheckOutcome::provenance`] knows the record's
+//! concept. Fields are omitted — never `null` — when unknown; spec-kind
+//! source objects never carry them.
 
 mod cohesion;
 mod context;
@@ -34,10 +40,16 @@ mod tests;
 
 use cohesion::cohesion_violation_to_record;
 use context::context_violation_to_record;
-use domain::{CheckOutcome, PendingRecord, RealizedRecord, SchemaVersion, Violation};
+use domain::{CheckOutcome, PendingRecord, Provenance, RealizedRecord, SchemaVersion, Violation};
 use serde_json::{json, Value};
-use source::source_to_json;
+use source::{code_source_to_json, source_to_json};
+use std::collections::BTreeMap;
 use std::io::Write;
+
+/// The RFC-010 §3.6 / #136 provenance index the record builders read —
+/// [`CheckOutcome::provenance`], passed down so each code-bearing arm can
+/// look up its concept's containment triple.
+type ProvenanceIndex = BTreeMap<String, Provenance>;
 
 /// Write a check outcome as NDJSON to `out` — every violation, then every
 /// pending record, then every realized record.
@@ -51,7 +63,7 @@ use std::io::Write;
 /// typically a broken pipe when stdout is closed downstream.
 pub fn write_ndjson(outcome: &CheckOutcome, out: &mut impl Write) -> std::io::Result<()> {
     for v in &outcome.violations {
-        write_record(&violation_to_record(v), out)?;
+        write_record(&violation_to_record(v, &outcome.provenance), out)?;
     }
     for p in &outcome.pending {
         write_record(&pending_to_record(p), out)?;
@@ -90,7 +102,7 @@ fn realized_to_record(r: &RealizedRecord) -> Value {
 }
 
 #[allow(clippy::too_many_lines)]
-fn violation_to_record(v: &Violation) -> Value {
+fn violation_to_record(v: &Violation, provenance: &ProvenanceIndex) -> Value {
     match v {
         Violation::MissingInCode { name, spec_source } => json!({
             "schema_version": SchemaVersion::CURRENT.as_str(),
@@ -102,7 +114,7 @@ fn violation_to_record(v: &Violation) -> Value {
             "schema_version": SchemaVersion::CURRENT.as_str(),
             "violation": "missing_in_specs",
             "concept": name,
-            "source": source_to_json(code_source),
+            "source": code_source_to_json(code_source, provenance.get(name)),
         }),
         Violation::SignatureDrift {
             name,
@@ -117,7 +129,7 @@ fn violation_to_record(v: &Violation) -> Value {
             "spec_sig": spec_sig,
             "code_sig": code_sig,
             "spec_source": source_to_json(spec_source),
-            "code_source": source_to_json(code_source),
+            "code_source": code_source_to_json(code_source, provenance.get(name)),
         }),
         Violation::SignatureMissingInSpec {
             name,
@@ -128,7 +140,7 @@ fn violation_to_record(v: &Violation) -> Value {
             "violation": "signature_missing_in_spec",
             "concept": name,
             "code_sig": code_sig,
-            "code_source": source_to_json(code_source),
+            "code_source": code_source_to_json(code_source, provenance.get(name)),
         }),
         Violation::SignatureUnparseable {
             name,
@@ -167,7 +179,7 @@ fn violation_to_record(v: &Violation) -> Value {
             "concept": concept,
             "edge_kind": edge_kind.as_label(),
             "target": target,
-            "code_source": source_to_json(code_source),
+            "code_source": code_source_to_json(code_source, provenance.get(concept)),
         }),
         Violation::EdgeTargetUnknown {
             concept,
@@ -182,7 +194,7 @@ fn violation_to_record(v: &Violation) -> Value {
             "target": target,
             "spec_source": source_to_json(spec_source),
         }),
-        Violation::Context(ctx) => context_violation_to_record(ctx),
+        Violation::Context(ctx) => context_violation_to_record(ctx, provenance),
         Violation::VerbMissingInCode {
             concept,
             qname,
@@ -198,7 +210,7 @@ fn violation_to_record(v: &Violation) -> Value {
             "schema_version": SchemaVersion::CURRENT.as_str(),
             "violation": "verb_missing_in_spec",
             "qname": qname,
-            "code_source": source_to_json(code_source),
+            "code_source": code_source_to_json(code_source, provenance.get(qname)),
         }),
         Violation::VerbTargetUnknown {
             concept,
@@ -220,7 +232,7 @@ fn violation_to_record(v: &Violation) -> Value {
             "violation": "forbidden_concept_reintroduced",
             "concept": name,
             "spec_source": source_to_json(spec_source),
-            "code_source": source_to_json(code_source),
+            "code_source": code_source_to_json(code_source, provenance.get(name)),
         }),
         Violation::Cohesion(c) => cohesion_violation_to_record(c),
         Violation::DanglingAnchor {

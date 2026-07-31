@@ -1,7 +1,7 @@
 use super::write_ndjson;
 use domain::{
     CheckOutcome, CohesionViolation, ContextViolation, EdgeKind, OwnedUnit, PendingRecord,
-    RealizedRecord, Source, Violation,
+    Provenance, RealizedRecord, Source, Violation,
 };
 use serde_json::Value;
 use std::path::PathBuf;
@@ -500,6 +500,7 @@ fn violations_precede_markers_in_the_stream() {
             concept: "Baz".into(),
             spec_source: spec_at("specs/a.md", 9),
         }],
+        ..CheckOutcome::empty()
     });
     let kinds: Vec<String> = out
         .lines()
@@ -513,4 +514,160 @@ fn violations_precede_markers_in_the_stream() {
         })
         .collect();
     assert_eq!(kinds, vec!["missing_in_code", "pending", "realized"]);
+}
+
+// --- RFC-010 §3.6 / #136 — provenance triple on code source objects ---
+
+fn code_at(path: &str, line: usize) -> Source {
+    Source::Code {
+        path: PathBuf::from(path),
+        line,
+    }
+}
+
+fn prov_full() -> Provenance {
+    Provenance {
+        module_path: Some("domain".to_owned()),
+        unit: Some("domain".to_owned()),
+        context: Some("equivalence".to_owned()),
+    }
+}
+
+/// Render one violation with `concept` indexed to `p` in the outcome's
+/// provenance side-channel.
+fn render_with_prov(v: Violation, concept: &str, p: Provenance) -> Value {
+    let mut outcome = CheckOutcome {
+        violations: vec![v],
+        ..CheckOutcome::empty()
+    };
+    outcome.provenance.insert(concept.to_owned(), p);
+    record(&render(&outcome))
+}
+
+fn assert_triple(source: &Value) {
+    assert_eq!(source["module_path"], "domain");
+    assert_eq!(source["unit"], "domain");
+    assert_eq!(source["context"], "equivalence");
+}
+
+#[test]
+fn missing_in_specs_source_carries_provenance_triple() {
+    let v = Violation::MissingInSpecs {
+        name: "Bar".into(),
+        code_source: code_at("domain/src/lib.rs", 3),
+    };
+    let r = render_with_prov(v, "Bar", prov_full());
+    assert_eq!(r["source"]["kind"], "code");
+    assert_triple(&r["source"]);
+}
+
+#[test]
+fn signature_drift_triple_lands_on_code_source_only() {
+    let v = Violation::SignatureDrift {
+        name: "Reader".into(),
+        spec_sig: "fn extract(&self)".into(),
+        code_sig: "fn extract(&self, root: &Path)".into(),
+        spec_source: spec_at("specs/core.md", 44),
+        code_source: code_at("ports/src/lib.rs", 15),
+    };
+    let r = render_with_prov(v, "Reader", prov_full());
+    assert_triple(&r["code_source"]);
+    // The spec side is not code-bearing — provenance is a code fact.
+    assert!(r["spec_source"]["module_path"].is_null());
+    assert!(r["spec_source"]["unit"].is_null());
+    assert!(r["spec_source"]["context"].is_null());
+}
+
+#[test]
+fn signature_missing_in_spec_source_carries_provenance_triple() {
+    let v = Violation::SignatureMissingInSpec {
+        name: "Reader".into(),
+        code_sig: "fn extract(&self, root: &Path)".into(),
+        code_source: code_at("ports/src/lib.rs", 15),
+    };
+    let r = render_with_prov(v, "Reader", prov_full());
+    assert_triple(&r["code_source"]);
+}
+
+#[test]
+fn edge_missing_in_spec_source_carries_provenance_triple() {
+    let v = Violation::EdgeMissingInSpec {
+        concept: "MarkdownReader".into(),
+        edge_kind: EdgeKind::DependsOn,
+        target: "Graph".into(),
+        code_source: code_at("adapters/markdown/src/lib.rs", 42),
+    };
+    let r = render_with_prov(v, "MarkdownReader", prov_full());
+    assert_triple(&r["code_source"]);
+}
+
+#[test]
+fn context_membership_unknown_source_carries_provenance_triple() {
+    // The motivating partial case: membership unknown means no context
+    // resolved, so the triple typically carries module_path/unit only —
+    // but a full index entry renders in full.
+    let v = Violation::Context(ContextViolation::MembershipUnknown {
+        concept: "Stray".into(),
+        owned_unit: OwnedUnit("straycrate".into()),
+        code_source: code_at("straycrate/src/lib.rs", 1),
+    });
+    let r = render_with_prov(v, "Stray", prov_full());
+    assert_eq!(r["violation"], "context_membership_unknown");
+    assert_triple(&r["source"]);
+}
+
+#[test]
+fn forbidden_concept_reintroduced_code_source_carries_provenance_triple() {
+    let v = Violation::ForbiddenConceptReintroduced {
+        name: "LegacyThing".into(),
+        spec_source: spec_at("specs/core.md", 9),
+        code_source: code_at("domain/src/lib.rs", 80),
+    };
+    let r = render_with_prov(v, "LegacyThing", prov_full());
+    assert_triple(&r["code_source"]);
+    assert!(r["spec_source"]["module_path"].is_null());
+}
+
+#[test]
+fn partial_triple_renders_only_present_fields() {
+    // Optional per-field: absent facts are omitted, never null.
+    let v = Violation::MissingInSpecs {
+        name: "Bar".into(),
+        code_source: code_at("domain/src/lib.rs", 3),
+    };
+    let p = Provenance {
+        module_path: None,
+        unit: Some("domain".to_owned()),
+        context: None,
+    };
+    let r = render_with_prov(v, "Bar", p);
+    assert_eq!(r["source"]["unit"], "domain");
+    let source = r["source"].as_object().expect("source object");
+    assert!(!source.contains_key("module_path"));
+    assert!(!source.contains_key("context"));
+}
+
+#[test]
+fn unknown_concept_renders_plain_source_object() {
+    // Lookup miss (empty index) — the pre-#136 record shape, byte-stable.
+    let v = Violation::MissingInSpecs {
+        name: "Bar".into(),
+        code_source: code_at("domain/src/lib.rs", 3),
+    };
+    let r = record(&render_one(v));
+    let source = r["source"].as_object().expect("source object");
+    assert_eq!(source.len(), 3, "kind/path/line only: {source:?}");
+}
+
+#[test]
+fn spec_kind_source_never_carries_the_triple() {
+    // Even with the concept indexed, a spec-kind source stays plain —
+    // provenance is a code fact (RFC-010 §3.3).
+    let v = Violation::MissingInCode {
+        name: "Foo".into(),
+        spec_source: spec_at("specs/a.md", 12),
+    };
+    let r = render_with_prov(v, "Foo", prov_full());
+    let source = r["source"].as_object().expect("source object");
+    assert_eq!(source.len(), 3, "kind/path/line only: {source:?}");
 }

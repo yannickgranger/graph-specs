@@ -23,7 +23,8 @@
 //! concept/code matching the diff already performs, so deriving it in the
 //! application layer would be a split-brain on one decision.
 
-use crate::{Source, Violation};
+use crate::{Provenance, Source, Violation};
+use std::collections::BTreeMap;
 use std::path::Path;
 
 /// A marked concept heading with no backing code item (RFC-013 §3.2 row 3).
@@ -60,6 +61,15 @@ pub struct CheckOutcome {
     pub violations: Vec<Violation>,
     pub pending: Vec<PendingRecord>,
     pub realized: Vec<RealizedRecord>,
+    /// Containment provenance per code concept, keyed by concept name
+    /// (RFC-010 §3.6 / #136). Snapshotted by the diff before the code
+    /// nodes are consumed; read by the NDJSON emitter to render the
+    /// agnostic triple inside code-kind source objects. A side index on
+    /// the outcome rather than fields on [`Violation`] — the enum stays
+    /// stable across its ~35 construction sites. A `BTreeMap` so
+    /// [`CheckOutcome::empty`] stays `const` and iteration order is
+    /// deterministic.
+    pub provenance: BTreeMap<String, Provenance>,
 }
 
 impl CheckOutcome {
@@ -86,6 +96,7 @@ impl CheckOutcome {
             violations,
             pending,
             realized,
+            provenance: BTreeMap::new(),
         }
     }
 
@@ -96,6 +107,7 @@ impl CheckOutcome {
             violations: Vec::new(),
             pending: Vec::new(),
             realized: Vec::new(),
+            provenance: BTreeMap::new(),
         }
     }
 
@@ -138,7 +150,6 @@ mod tests {
     fn marker_records_never_make_an_outcome_unclean() {
         // RFC-013 §4 invariant 3 — exit code is a function of violations only.
         let outcome = CheckOutcome {
-            violations: Vec::new(),
             pending: vec![PendingRecord {
                 concept: "Digest".to_owned(),
                 spec_source: spec_at("specs/concepts/execution.md", 41),
@@ -147,6 +158,7 @@ mod tests {
                 concept: "InboundAcl".to_owned(),
                 spec_source: spec_at("specs/concepts/fleet.md", 120),
             }],
+            ..CheckOutcome::empty()
         };
         assert!(outcome.is_clean());
     }

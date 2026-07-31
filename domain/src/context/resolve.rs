@@ -1,7 +1,7 @@
 //! Context-lookup helpers — resolving a concept's owning bounded context
 //! from either the code-side graph or the spec-side declaration chain.
 
-use crate::{ContextDecl, Graph, Source};
+use crate::{ConceptNode, ContextDecl, Graph, Source};
 
 /// Two-hop context lookup: find the concept named `concept_name` in
 /// `graph.nodes`, extract its source path, then return the
@@ -17,23 +17,7 @@ pub fn context_for_concept<'a>(
 ) -> Option<&'a ContextDecl> {
     let node = graph.nodes.iter().find(|n| n.name == concept_name)?;
     match &node.source {
-        Source::Code { path, .. } => {
-            // Prefer the adapter-populated `unit` (relative to the code root,
-            // RFC-010 §3.3); fall back to deriving it from the path for nodes
-            // without provenance. The fallback's `split_once("/src/")` keeps
-            // the full absolute prefix on an absolute `--code` path, so it
-            // mismatches `owned_units` — the latent v0.4 bug §12-I fixes by
-            // routing through the relative `unit`.
-            let derived = || {
-                let path_str = path.to_string_lossy();
-                let trimmed = path_str.trim_start_matches("./").to_owned();
-                trimmed.split_once("/src/").map(|(u, _)| u.to_owned())
-            };
-            let unit = node.unit.clone().or_else(derived)?;
-            contexts
-                .iter()
-                .find(|ctx| ctx.owned_units.iter().any(|u| u.0 == unit))
-        }
+        Source::Code { .. } => context_for_code_node(node, contexts),
         Source::Spec { path, .. } => {
             let path_str = path.to_string_lossy();
             let trimmed = path_str.trim_start_matches("./");
@@ -44,6 +28,36 @@ pub fn context_for_concept<'a>(
             })
         }
     }
+}
+
+/// The code-side arm of [`context_for_concept`], on an already-located
+/// node: return the [`ContextDecl`] whose `owned_units` contains the
+/// node's owning unit. Shared with the diff's provenance snapshot
+/// (RFC-010 §3.6 / #136) so "which context owns this code item" has
+/// exactly one resolution site.
+///
+/// Prefers the adapter-populated `unit` (relative to the code root,
+/// RFC-010 §3.3); falls back to deriving it from the path for nodes
+/// without provenance. The fallback's `split_once("/src/")` keeps the
+/// full absolute prefix on an absolute `--code` path, so it mismatches
+/// `owned_units` — the latent v0.4 bug §12-I fixes by routing through
+/// the relative `unit`.
+pub fn context_for_code_node<'a>(
+    node: &ConceptNode,
+    contexts: &'a [ContextDecl],
+) -> Option<&'a ContextDecl> {
+    let derived = || match &node.source {
+        Source::Code { path, .. } => {
+            let path_str = path.to_string_lossy();
+            let trimmed = path_str.trim_start_matches("./").to_owned();
+            trimmed.split_once("/src/").map(|(u, _)| u.to_owned())
+        }
+        Source::Spec { .. } => None,
+    };
+    let unit = node.unit.clone().or_else(derived)?;
+    contexts
+        .iter()
+        .find(|ctx| ctx.owned_units.iter().any(|u| u.0 == unit))
 }
 
 /// Resolve a concept's **spec-side declared** owning context (RFC-010 §3.4).

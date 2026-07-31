@@ -1,8 +1,8 @@
 use super::violation_key;
 use crate::{
     AnchorKind, AnchorTarget, CheckInput, CohesionViolation, ConceptAnchor, ConceptNode,
-    ContextViolation, Edge, EdgeKind, Graph, OwnedUnit, Polarity, ResolvedAnchor, SignatureState,
-    Source, VerbOwnership, Violation,
+    ContextDecl, ContextViolation, Edge, EdgeKind, Graph, OwnedUnit, Polarity, Provenance,
+    ResolvedAnchor, SignatureState, Source, VerbOwnership, Violation,
 };
 use std::path::PathBuf;
 
@@ -1041,4 +1041,56 @@ fn an_ungrounded_corpus_is_byte_identical() {
     );
     let ranks: Vec<_> = outcome.violations.iter().map(violation_key).collect();
     assert_eq!(ranks, vec![("Absent", 0u8), ("Orphan", 1u8)]);
+}
+
+// --- RFC-010 §3.6 / #136 — provenance index on the outcome ---
+
+#[test]
+fn outcome_provenance_snapshots_the_code_triple_with_resolved_context() {
+    // `context` is resolved through the same `specs/contexts/` Owns lookup
+    // the cohesion pass uses — carried on the outcome, not re-derived by
+    // the emitter.
+    let widget =
+        code("Widget").with_provenance(Some("domain".to_owned()), Some("domain".to_owned()), None);
+    let contexts = vec![ContextDecl::new(
+        "equivalence".to_owned(),
+        vec![OwnedUnit("domain".to_owned())],
+        Vec::new(),
+        Vec::new(),
+        Source::Spec {
+            path: spec_path(),
+            line: 1,
+        },
+    )];
+    let outcome = super::diff(
+        CheckInput::new(
+            nodes(vec![spec("Widget")]),
+            contexts,
+            VerbOwnership::default(),
+        ),
+        nodes(vec![widget]),
+    );
+    assert_eq!(
+        outcome.provenance.get("Widget"),
+        Some(&Provenance {
+            module_path: Some("domain".to_owned()),
+            unit: Some("domain".to_owned()),
+            context: Some("equivalence".to_owned()),
+        })
+    );
+}
+
+#[test]
+fn outcome_provenance_skips_nodes_with_no_facts() {
+    // A provenance-free corpus (no adapter facts, no declared contexts)
+    // yields an empty index — the emitter then renders plain source objects.
+    let outcome = super::diff(
+        CheckInput::new(Graph::default(), Vec::new(), VerbOwnership::default()),
+        nodes(vec![code("Bare")]),
+    );
+    assert!(
+        outcome.provenance.is_empty(),
+        "no facts must index nothing: {:?}",
+        outcome.provenance
+    );
 }
