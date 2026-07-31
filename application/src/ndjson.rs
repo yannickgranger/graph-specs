@@ -211,6 +211,17 @@ fn violation_to_record(v: &Violation) -> Value {
             "qname": qname,
             "spec_source": source_to_json(spec_source),
         }),
+        Violation::ForbiddenConceptReintroduced {
+            name,
+            spec_source,
+            code_source,
+        } => json!({
+            "schema_version": SchemaVersion::CURRENT.as_str(),
+            "violation": "forbidden_concept_reintroduced",
+            "concept": name,
+            "spec_source": source_to_json(spec_source),
+            "code_source": source_to_json(code_source),
+        }),
         Violation::Cohesion(c) => cohesion_violation_to_record(c),
         Violation::DanglingAnchor {
             concept,

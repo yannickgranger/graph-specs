@@ -25,6 +25,7 @@
 mod bullets;
 mod contexts;
 mod front_matter;
+mod grounding;
 mod invariants;
 mod markdown_utils;
 mod section;

@@ -43,9 +43,22 @@ rather than an enum is deliberate: the only transition is deletion of
 the marker, so there is no second value to model. Always `false` on
 the code side.
 
+Since RFC-014 §3.4 it also carries [Polarity](#polarity), attached by the
+`with_polarity` builder (mirroring `with_provenance` — not a positional
+argument on `new`, which deliberately does not derive `Default`).
+Spec-side only; the code side is a fact, not a declaration.
+
+`marked` and `polarity` are two independent fields rather than one fused
+carrier: different upstream sources, different grammars, different
+extension seams.
+
 - depends on: Source
 - depends on: SignatureState
+- depends on: Polarity
 - returns: ConceptNode
+- verb: ConceptNode::new
+- verb: ConceptNode::with_provenance
+- verb: ConceptNode::with_polarity
 
 ## SignatureState
 
@@ -55,6 +68,36 @@ means the reader produced no signature (v0.1 concept-only mode).
 `adapter-rust::normalize` on a `syn::Item`. `Unparseable` surfaces a
 spec-side fenced `rust` block that failed to parse, or a section with
 more than one fenced `rust` block.
+
+## Polarity
+
+The grounding-polarity payload on a [ConceptNode](#conceptnode) — which
+direction a spec heading's obligation points (RFC-014 §3.1). `Declared`
+(the default) is the ordinary obligation: the concept must exist in code.
+`Forbidden` expels the name — code must **not** bear it. `Illustrative`
+names an example, so the heading neither compels nor satisfies a code
+item. Lives in `domain`.
+
+**This concept is imported, not defined here.** `polarity` is owned
+upstream: defined in agentry's ratified `RFC-vocabulary.md`, authored via
+Bosun's grounding key, realized as `cascade::Polarity`. graph-specs is a
+**Conformist** — it tracks that definition and does not fork it. The three
+values and their meanings are cited from cascade's `resolve_polarity`, not
+re-derived; if upstream adds a value, that is the seam that changes, which
+is why the enum is `#[non_exhaustive]`.
+
+"Conformist" here is prose, not a wired relationship: this is *not*
+[ContextPattern](#contextpattern)`::Conformist`, which is a formal enum
+scoped to this repo's own bounded contexts (RFC-001 §6). Nothing here
+formalises a cross-repo import.
+
+**Disambiguation.** This is the *concept-grounding* sense of the word —
+which way a heading's obligation points. It is not the vocabulary system's
+word-polarity; cascade itself keeps the two apart (`WordPolarity`,
+"Distinct from `Polarity`").
+
+Data only, no predicate methods: the branch table lives at its single call
+site in the diff, matching upstream, whose own `Polarity` has zero methods.
 
 ## Source
 
@@ -79,6 +122,12 @@ a marked heading is the normal mid-arc state, not a failure; it is
 reported as a [RealizedRecord](#realizedrecord) instead. The variant's
 sort slot (13) is retired, not reused — existing slots are not
 renumbered.
+
+RFC-014 §3.4 adds `ForbiddenConceptReintroduced { name, spec_source,
+code_source }` — a code item bearing a name its heading expelled
+([Polarity](#polarity)`::Forbidden`). Both sites are carried, so the
+finding names what expelled the name *and* what reintroduced it. Sort
+slot 15, appended after `DanglingAnchor` (14).
 
 ## Edge
 

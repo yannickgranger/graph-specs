@@ -194,6 +194,20 @@ pub fn format_violation(v: &Violation, out: &mut impl Write) -> std::io::Result<
                 path.display()
             )
         }
+        Violation::ForbiddenConceptReintroduced {
+            name,
+            spec_source,
+            code_source,
+        } => {
+            let (spec_path, spec_line) = source_pair(spec_source);
+            let (code_path, code_line) = source_pair(code_source);
+            writeln!(
+                out,
+                "forbidden concept reintroduced: {name}\n  expelled by ({}:{spec_line})\n  reintroduced at ({}:{code_line})",
+                spec_path.display(),
+                code_path.display()
+            )
+        }
         Violation::Cohesion(c) => format_cohesion_violation(c, out),
         Violation::DanglingAnchor {
             concept,

@@ -12,6 +12,7 @@ mod cohesion;
 mod context;
 mod diff;
 mod marker;
+mod polarity;
 mod report;
 mod tokens;
 
@@ -27,6 +28,7 @@ pub use context::{
 };
 pub use diff::diff;
 pub use marker::{CheckOutcome, PendingRecord, RealizedRecord};
+pub use polarity::Polarity;
 pub use report::{
     report_verb_coverage, HomonymAppearance, HomonymRecord, InvariantAnnotation, PubFnDecl,
     ReportOutput, TierHistogramRecord, TierKind, VerbCoverageRecord,
@@ -157,6 +159,13 @@ pub struct ConceptNode {
     /// The graph is the single carrier of marker state; there is no side
     /// index. Always `false` on the code side.
     pub marked: bool,
+    /// Grounding polarity (RFC-014 §3.4) — which direction this heading's
+    /// obligation points. Attached by [`ConceptNode::with_polarity`].
+    ///
+    /// A second field alongside `marked` rather than one fused carrier:
+    /// different upstream sources, different grammars, different extension
+    /// seams. Spec-side only — the code side is a fact, not a declaration.
+    pub polarity: Polarity,
 }
 
 impl ConceptNode {
@@ -177,7 +186,21 @@ impl ConceptNode {
             unit: None,
             context: None,
             marked: false,
+            polarity: Polarity::Declared,
         }
+    }
+
+    /// Builder: attach the grounding polarity parsed from the heading's
+    /// grounding comment (RFC-014 §3.4).
+    ///
+    /// A builder rather than a positional argument on [`ConceptNode::new`],
+    /// which deliberately does not derive `Default` — every construction
+    /// site decides provenance consciously, and polarity is the same kind
+    /// of opt-in fact.
+    #[must_use]
+    pub const fn with_polarity(mut self, polarity: Polarity) -> Self {
+        self.polarity = polarity;
+        self
     }
 
     /// Builder: attach the language-agnostic containment triple
@@ -328,6 +351,21 @@ pub enum Violation {
     MissingInCode { name: String, spec_source: Source },
     /// Concept declared in code but absent from specs.
     MissingInSpecs { name: String, code_source: Source },
+    /// A `pub` code item bearing a name its spec heading **expelled** — the
+    /// heading carries `polarity:forbidden` (RFC-014 §3.4). Both sites are
+    /// carried, so the finding names what expelled the name *and* what
+    /// reintroduced it.
+    ///
+    /// Mirrors `cascade::Finding::ForbiddenConceptRealized` under a
+    /// locally-disambiguated name — `Realized` already means the opposite
+    /// thing in this bounded context ([`crate::RealizedRecord`], "the
+    /// pending concept landed"). Parity with upstream is behavioural, not
+    /// lexical. See RFC-014 OQ-1.
+    ForbiddenConceptReintroduced {
+        name: String,
+        spec_source: Source,
+        code_source: Source,
+    },
     // RFC-013 §3.4: `ImplementsDraftConcept` retired here. Code backing a
     // marked heading is the normal mid-arc state, not a failure — it is now
     // [`crate::RealizedRecord`]. Its `violation_key` sort slot (13) is

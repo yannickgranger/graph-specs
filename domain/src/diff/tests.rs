@@ -1,8 +1,8 @@
 use super::violation_key;
 use crate::{
     AnchorKind, AnchorTarget, CheckInput, CohesionViolation, ConceptAnchor, ConceptNode,
-    ContextViolation, Edge, EdgeKind, Graph, OwnedUnit, ResolvedAnchor, SignatureState, Source,
-    VerbOwnership, Violation,
+    ContextViolation, Edge, EdgeKind, Graph, OwnedUnit, Polarity, ResolvedAnchor, SignatureState,
+    Source, VerbOwnership, Violation,
 };
 use std::path::PathBuf;
 
@@ -792,4 +792,253 @@ fn unanchored_missing_concept_still_missing_in_code() {
             .any(|x| matches!(x, Violation::MissingInCode { .. })),
         "unanchored missing concept must still be MissingInCode: {v:?}"
     );
+}
+
+// --- RFC-014 §3.3 — grounding polarity ---
+
+fn spec_with_polarity(name: &str, polarity: Polarity) -> ConceptNode {
+    spec(name).with_polarity(polarity)
+}
+
+/// The §3.3 table, asserted directly as a table.
+#[test]
+fn polarity_presence_matrix() {
+    // (polarity, code present) -> the violation ranks the diff must emit.
+    let cases: &[(Polarity, bool, &[u8])] = &[
+        (Polarity::Declared, false, &[0]),    // missing_in_code
+        (Polarity::Declared, true, &[]),      // satisfied
+        (Polarity::Forbidden, false, &[]),    // clean
+        (Polarity::Forbidden, true, &[15]),   // forbidden_concept_reintroduced
+        (Polarity::Illustrative, false, &[]), // clean
+        (Polarity::Illustrative, true, &[1]), // missing_in_specs, via the orphan sweep
+    ];
+    for (polarity, code_present, expected) in cases {
+        let specs = nodes(vec![spec_with_polarity("Member", *polarity)]);
+        let code = if *code_present {
+            nodes(vec![code("Member")])
+        } else {
+            Graph::default()
+        };
+        let outcome = super::diff(
+            CheckInput::new(specs, Vec::new(), VerbOwnership::default()),
+            code,
+        );
+        let ranks: Vec<u8> = outcome
+            .violations
+            .iter()
+            .map(|v| violation_key(v).1)
+            .collect();
+        assert_eq!(
+            ranks, *expected,
+            "polarity={polarity:?} code_present={code_present} produced {:?}",
+            outcome.violations
+        );
+        assert!(outcome.pending.is_empty() && outcome.realized.is_empty());
+    }
+}
+
+#[test]
+fn illustrative_does_not_consume_the_code_node() {
+    // The match-attempt gate, asserted directly rather than through its
+    // symptom: an illustrative heading must leave the code node unconsumed
+    // so it falls through to the orphan sweep. Removing it and re-emitting
+    // `MissingInSpecs` would be a different thing wearing the same output —
+    // and would take the concept out of the orphan set for everything else.
+    let specs = nodes(vec![spec_with_polarity("Member", Polarity::Illustrative)]);
+    let outcome = super::diff(
+        CheckInput::new(specs, Vec::new(), VerbOwnership::default()),
+        nodes(vec![code("Member")]),
+    );
+    assert!(
+        matches!(
+            outcome.violations.as_slice(),
+            [Violation::MissingInSpecs { name, .. }] if name == "Member"
+        ),
+        "expected the code node to reach the orphan sweep, got: {:?}",
+        outcome.violations
+    );
+}
+
+#[test]
+fn forbidden_reintroduction_names_both_sites() {
+    let specs = nodes(vec![spec_with_polarity("Member", Polarity::Forbidden)]);
+    let outcome = super::diff(
+        CheckInput::new(specs, Vec::new(), VerbOwnership::default()),
+        nodes(vec![code("Member")]),
+    );
+    match outcome.violations.as_slice() {
+        [Violation::ForbiddenConceptReintroduced {
+            name,
+            spec_source,
+            code_source,
+        }] => {
+            assert_eq!(name, "Member");
+            assert!(
+                matches!(spec_source, Source::Spec { .. }),
+                "expelled-by site"
+            );
+            assert!(
+                matches!(code_source, Source::Code { .. }),
+                "reintroduced-at site"
+            );
+        }
+        other => panic!("expected ForbiddenConceptReintroduced, got {other:?}"),
+    }
+    assert!(
+        !outcome
+            .violations
+            .iter()
+            .any(|v| matches!(v, Violation::MissingInSpecs { .. })),
+        "the heading documents the name — as banned — so no orphan fires too"
+    );
+}
+
+/// RFC-014 §3.3 precedence: `polarity != declared` is terminal, so a marked
+/// heading emits no marker record either way.
+#[test]
+fn non_declared_polarity_is_terminal_over_the_spec_state_marker() {
+    for polarity in [Polarity::Forbidden, Polarity::Illustrative] {
+        for code_present in [false, true] {
+            let mut node = spec_with_polarity("Member", polarity);
+            node.marked = true;
+            let code_graph = if code_present {
+                nodes(vec![code("Member")])
+            } else {
+                Graph::default()
+            };
+            let outcome = super::diff(
+                CheckInput::new(nodes(vec![node]), Vec::new(), VerbOwnership::default()),
+                code_graph,
+            );
+            assert!(
+                outcome.pending.is_empty(),
+                "marked+{polarity:?} must emit no Pending (code_present={code_present})"
+            );
+            assert!(
+                outcome.realized.is_empty(),
+                "marked+{polarity:?} must emit no Realized (code_present={code_present}) — \
+                 `realized — ratify` on an expelled name would be an actively wrong instruction"
+            );
+            if !code_present {
+                assert!(
+                    outcome.is_clean(),
+                    "marked+{polarity:?}+absent is clean: {:?}",
+                    outcome.violations
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn declared_polarity_leaves_the_marker_dispatch_intact() {
+    // The other side of terminality — `declared` must reach RFC-013's rows.
+    let mut node = spec_with_polarity("Widget", Polarity::Declared);
+    node.marked = true;
+    let outcome = super::diff(
+        CheckInput::new(nodes(vec![node]), Vec::new(), VerbOwnership::default()),
+        Graph::default(),
+    );
+    assert_eq!(outcome.pending.len(), 1);
+}
+
+#[test]
+fn a_non_declared_concepts_edge_bullets_impose_no_obligation() {
+    // RFC-014 §3.3 uniform obligation-skip. A heading that compels nothing
+    // cannot be missing anything.
+    for polarity in [Polarity::Forbidden, Polarity::Illustrative] {
+        let specs = Graph::new(
+            vec![spec_with_polarity("Member", polarity), spec("Gear")],
+            vec![Edge {
+                source_concept: "Member".to_string(),
+                kind: EdgeKind::DependsOn,
+                target: "Gear".to_string(),
+                raw_target: "Gear".to_string(),
+                source: Source::Spec {
+                    path: spec_path(),
+                    line: 9,
+                },
+            }],
+        );
+        let outcome = super::diff(
+            CheckInput::new(specs, Vec::new(), VerbOwnership::default()),
+            nodes(vec![code("Member"), code("Gear")]),
+        );
+        assert!(
+            !outcome
+                .violations
+                .iter()
+                .any(|v| matches!(v, Violation::EdgeMissingInCode { .. })),
+            "{polarity:?} concept's edges impose nothing: {:?}",
+            outcome.violations
+        );
+    }
+}
+
+#[test]
+fn a_dangling_anchor_under_a_non_declared_heading_fires_nothing() {
+    // RFC-014 §3.3, OQ-4 ruled. Polarity is read off the shared snapshot,
+    // never off `ConceptAnchor` — that would duplicate a fact `ConceptNode`
+    // already owns.
+    for polarity in [Polarity::Forbidden, Polarity::Illustrative] {
+        let specs = nodes(vec![spec_with_polarity("Member", polarity)]);
+        let outcome = super::diff(
+            CheckInput::new(specs, Vec::new(), VerbOwnership::default())
+                .with_concept_anchors(vec![resolved_anchor("Member", "gone", false)]),
+            Graph::default(),
+        );
+        assert!(
+            outcome.is_clean(),
+            "{polarity:?} heading compels nothing, so its anchor cannot dangle: {:?}",
+            outcome.violations
+        );
+    }
+
+    // Control: the same anchor under a `declared` heading still fires.
+    let specs = nodes(vec![spec("Member")]);
+    let outcome = super::diff(
+        CheckInput::new(specs, Vec::new(), VerbOwnership::default())
+            .with_concept_anchors(vec![resolved_anchor("Member", "gone", false)]),
+        Graph::default(),
+    );
+    assert!(
+        outcome
+            .violations
+            .iter()
+            .any(|v| matches!(v, Violation::DanglingAnchor { .. })),
+        "control: a declared heading's dangling anchor still fires"
+    );
+}
+
+#[test]
+fn violation_key_forbidden_reintroduced_returns_rank_15() {
+    // Append-only tripwire: slot 15 sits after DanglingAnchor (14), and the
+    // gap at 13 that RFC-013 retired stays a gap.
+    let v = Violation::ForbiddenConceptReintroduced {
+        name: "Member".to_string(),
+        spec_source: Source::Spec {
+            path: spec_path(),
+            line: 5,
+        },
+        code_source: Source::Code {
+            path: code_path(),
+            line: 12,
+        },
+    };
+    let (key, rank) = violation_key(&v);
+    assert_eq!(key, "Member");
+    assert_eq!(rank, 15);
+}
+
+#[test]
+fn an_ungrounded_corpus_is_byte_identical() {
+    // RFC-014 §4 invariant 1 — every heading `Declared` means every gate is
+    // inert and the outcome matches pre-RFC behaviour exactly.
+    let specs = nodes(vec![spec("Present"), spec("Absent")]);
+    let outcome = super::diff(
+        CheckInput::new(specs, Vec::new(), VerbOwnership::default()),
+        nodes(vec![code("Present"), code("Orphan")]),
+    );
+    let ranks: Vec<_> = outcome.violations.iter().map(violation_key).collect();
+    assert_eq!(ranks, vec![("Absent", 0u8), ("Orphan", 1u8)]);
 }
