@@ -21,10 +21,14 @@ Exposes `extract_invariant_annotations` (inherent method) for RFC-005
 §3.2 — extracts `[enforced-by:]` / `[prose-only:]` annotations from
 `#### Operational invariants` spec sections. Lives in `adapters/markdown`.
 
+Per RFC-013 §3.3 it no longer skips `status: draft` files: they are
+parsed like any other spec, and every concept heading in one is marked
+on the node it emits. The `extract_draft_concepts` side-index walk that
+the previous design needed is retired.
+
 - implements: Reader
 - implements: ContextReader
 - depends on: Graph
-- depends on: ConceptNode
 - depends on: ReaderError
 - depends on: ContextDecl
 - depends on: InvariantAnnotation
@@ -152,3 +156,9 @@ Exposes `context_id` (the file's single bounded-context identifier) and
 [CohesionViolation](#cohesionviolation)s the tree's shape reveals — an H1
 context with no concept under it, and orphaned H3 sub-concepts. Wiring the
 detection into the `check` diff is R10-3. Lives in `adapters/markdown`.
+
+Marker-blind by construction (RFC-013 §3.2 row 6): the assembler records
+heading *depth*, so a marked `## Concept` is a `Concept` node like any
+other and counts as its context's cohesion unit. Since RFC-013 the walk
+also no longer skips `status: draft` files — the doc-level structural
+check applies to them on the same terms as any other doc.

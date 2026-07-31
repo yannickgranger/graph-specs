@@ -37,6 +37,7 @@ equivalence publishes.
 - Graph from equivalence (PublishedLanguage)
 - ConceptNode from equivalence (PublishedLanguage)
 - SignatureState from equivalence (PublishedLanguage)
+- Polarity from equivalence (PublishedLanguage)
 - Source from equivalence (PublishedLanguage)
 - Edge from equivalence (PublishedLanguage)
 - EdgeKind from equivalence (PublishedLanguage)

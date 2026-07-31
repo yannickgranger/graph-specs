@@ -8,8 +8,8 @@
 use adapter_markdown::{assemble_spec_trees, MarkdownReader, SpecTree};
 use adapter_rust::{RustAnchorResolver, RustReader};
 use domain::{
-    diff, CheckInput, CohesionViolation, ConceptNode, ResolvedAnchor, VerbDecl, VerbOwnership,
-    Violation,
+    diff, CheckInput, CheckOutcome, CohesionViolation, ConceptNode, ResolvedAnchor, VerbDecl,
+    VerbOwnership,
 };
 use ports::{AnchorResolver, CodeFacts, ContextReader, Reader, ReaderError, VerbReader};
 use std::collections::HashMap;
@@ -25,6 +25,11 @@ pub mod text;
 /// current domain (concept, signature, edge, and — when context files
 /// are present — bounded context).
 ///
+/// Returns the full [`CheckOutcome`] (RFC-013 §3.5): violations plus the
+/// `pending` / `realized` marker records. The exit code is a function of
+/// `violations` alone — a tree whose only findings are marker records
+/// passes.
+///
 /// `specs_dir` is walked by both the concept reader and the context
 /// reader. Each reader skips the other's subtree (`concepts/` vs
 /// `contexts/`), so pointing `--specs specs/` at a v0.4 tree picks up
@@ -37,11 +42,10 @@ pub mod text;
 /// reader — typically I/O, parse, or directory-walk failures. Cyclic
 /// import declarations surface as `ReaderError::ParseFailed` from the
 /// context reader.
-pub fn run_check(specs_dir: &Path, code_dir: &Path) -> Result<Vec<Violation>, ReaderError> {
+pub fn run_check(specs_dir: &Path, code_dir: &Path) -> Result<CheckOutcome, ReaderError> {
     let mut specs_graph = MarkdownReader.extract(specs_dir)?;
     let spec_contexts = MarkdownReader.extract_contexts(specs_dir)?;
     let verb_anchors = MarkdownReader.extract_verb_anchors(specs_dir)?;
-    let draft_concepts = MarkdownReader.extract_draft_concepts(specs_dir)?;
     let code_graph = RustReader.extract(code_dir)?;
     let pub_fn_decls = RustReader.extract_pub_fns(code_dir)?;
     let concept_anchors = MarkdownReader.extract_concept_anchors(specs_dir)?;
@@ -90,7 +94,6 @@ pub fn run_check(specs_dir: &Path, code_dir: &Path) -> Result<Vec<Violation>, Re
 
     Ok(diff(
         CheckInput::new(specs_graph, spec_contexts, verb_ownership)
-            .with_draft_concepts(draft_concepts)
             .with_spec_cohesion(spec_cohesion)
             .with_concept_anchors(resolved_anchors),
         code_graph,
@@ -147,6 +150,7 @@ fn keyspace_facts(code_dir: &Path, _keyspace: &Path) -> Result<Vec<ConceptNode>,
 #[cfg(test)]
 mod tests {
     use super::*;
+    use domain::Violation;
     use std::io::Write;
     use tempfile::TempDir;
 
@@ -202,7 +206,7 @@ mod tests {
     fn empty_trees_yield_no_violations() {
         let specs = TempDir::new().unwrap();
         let code = TempDir::new().unwrap();
-        assert!(run_check(specs.path(), code.path()).unwrap().is_empty());
+        assert!(run_check(specs.path(), code.path()).unwrap().is_clean());
     }
 
     // --- RFC-012 R12-3 — anchored concepts resolve end-to-end ---
@@ -223,7 +227,7 @@ mod tests {
             "src/lib.rs",
             "pub(crate) fn validate_intake() {}",
         );
-        let v = run_check(specs.path(), code.path()).unwrap();
+        let v = run_check(specs.path(), code.path()).unwrap().violations;
         assert!(
             v.is_empty(),
             "anchored pub(crate) concept must resolve: {v:?}"
@@ -240,7 +244,7 @@ mod tests {
             "## ValidateIntakeFull\n\n- impl: nonexistent_fn\n",
         );
         write(code.path(), "src/lib.rs", "pub fn other() {}");
-        let v = run_check(specs.path(), code.path()).unwrap();
+        let v = run_check(specs.path(), code.path()).unwrap().violations;
         assert!(
             v.iter().any(|x| matches!(
                 x,
@@ -265,7 +269,7 @@ mod tests {
             "src/lib.rs",
             "pub struct Foo; pub enum Bar { X }",
         );
-        assert!(run_check(specs.path(), code.path()).unwrap().is_empty());
+        assert!(run_check(specs.path(), code.path()).unwrap().is_clean());
     }
 
     /// v0.4: `--specs specs/` with both `concepts/` and `contexts/`

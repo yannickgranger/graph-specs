@@ -36,9 +36,29 @@ left `None` on the spec side. `new` is the no-provenance constructor;
 `with_provenance` is the builder that attaches the triple. Lives in
 `domain`.
 
+Since RFC-013 §3.3 it also carries `marked: bool` — the spec-state
+marker, set by the markdown reader when the heading opens with a
+`- status: draft` bullet or lives in a `status: draft` file. A `bool`
+rather than an enum is deliberate: the only transition is deletion of
+the marker, so there is no second value to model. Always `false` on
+the code side.
+
+Since RFC-014 §3.4 it also carries [Polarity](#polarity), attached by the
+`with_polarity` builder (mirroring `with_provenance` — not a positional
+argument on `new`, which deliberately does not derive `Default`).
+Spec-side only; the code side is a fact, not a declaration.
+
+`marked` and `polarity` are two independent fields rather than one fused
+carrier: different upstream sources, different grammars, different
+extension seams.
+
 - depends on: Source
 - depends on: SignatureState
+- depends on: Polarity
 - returns: ConceptNode
+- verb: ConceptNode::new
+- verb: ConceptNode::with_provenance
+- verb: ConceptNode::with_polarity
 
 ## SignatureState
 
@@ -48,6 +68,36 @@ means the reader produced no signature (v0.1 concept-only mode).
 `adapter-rust::normalize` on a `syn::Item`. `Unparseable` surfaces a
 spec-side fenced `rust` block that failed to parse, or a section with
 more than one fenced `rust` block.
+
+## Polarity
+
+The grounding-polarity payload on a [ConceptNode](#conceptnode) — which
+direction a spec heading's obligation points (RFC-014 §3.1). `Declared`
+(the default) is the ordinary obligation: the concept must exist in code.
+`Forbidden` expels the name — code must **not** bear it. `Illustrative`
+names an example, so the heading neither compels nor satisfies a code
+item. Lives in `domain`.
+
+**This concept is imported, not defined here.** `polarity` is owned
+upstream: defined in agentry's ratified `RFC-vocabulary.md`, authored via
+Bosun's grounding key, realized as `cascade::Polarity`. graph-specs is a
+**Conformist** — it tracks that definition and does not fork it. The three
+values and their meanings are cited from cascade's `resolve_polarity`, not
+re-derived; if upstream adds a value, that is the seam that changes, which
+is why the enum is `#[non_exhaustive]`.
+
+"Conformist" here is prose, not a wired relationship: this is *not*
+[ContextPattern](#contextpattern)`::Conformist`, which is a formal enum
+scoped to this repo's own bounded contexts (RFC-001 §6). Nothing here
+formalises a cross-repo import.
+
+**Disambiguation.** This is the *concept-grounding* sense of the word —
+which way a heading's obligation points. It is not the vocabulary system's
+word-polarity; cascade itself keeps the two apart (`WordPolarity`,
+"Distinct from `Polarity`").
+
+Data only, no predicate methods: the branch table lives at its single call
+site in the diff, matching upstream, whose own `Polarity` has zero methods.
 
 ## Source
 
@@ -60,13 +110,24 @@ came from.
 A single equivalence violation between spec and code graphs. Concept-,
 signature-, and relationship-level variants share the convention that
 the first-carried field is the concept or owner name, so CLI output can
-be sorted deterministically regardless of violation kind. The variant
-set includes `ImplementsDraftConcept` for the case where a code item
-implements a concept whose spec heading is still `status: draft`, and
-`DanglingAnchor` (RFC-012 §3.5) for the case where a `- impl:` anchor
+be sorted deterministically regardless of violation kind. The variant set
+includes `DanglingAnchor` (RFC-012 §3.5) for the case where a `- impl:`
+anchor
 names a code item that does not exist — a **top-level** arm (not nested
 in `Cohesion`) so opting out of cohesion checking cannot suppress
 broken-anchor detection.
+
+RFC-013 §3.4 **retired** `ImplementsDraftConcept`. A code item backing
+a marked heading is the normal mid-arc state, not a failure; it is
+reported as a [RealizedRecord](#realizedrecord) instead. The variant's
+sort slot (13) is retired, not reused — existing slots are not
+renumbered.
+
+RFC-014 §3.4 adds `ForbiddenConceptReintroduced { name, spec_source,
+code_source }` — a code item bearing a name its heading expelled
+([Polarity](#polarity)`::Forbidden`). Both sites are carried, so the
+finding names what expelled the name *and* what reintroduced it. Sort
+slot 15, appended after `DanglingAnchor` (14).
 
 ## Edge
 
@@ -254,8 +315,12 @@ alongside. An empty `contexts` list reduces diff behavior to v0.3
 (context pass is a no-op); an empty `verb_ownership.anchors` skips
 v0.5 entirely. Lives in `domain`.
 
+Carries no draft-concept side index: RFC-013 §3.3 consolidated
+spec-state onto [ConceptNode](#conceptnode)'s `marked` field, so the
+graph is the single carrier and there is no second object graph joined
+by name.
+
 - depends on: Graph
-- depends on: ConceptNode
 - depends on: ContextDecl
 - depends on: VerbOwnership
 - depends on: CohesionViolation
@@ -266,9 +331,62 @@ v0.5 entirely. Lives in `domain`.
 - verb: resolve_declared_context
 - verb: CheckInput::new
 - verb: CheckInput::with_graph_and_contexts
-- verb: CheckInput::with_draft_concepts
 - verb: CheckInput::with_spec_cohesion
 - verb: CheckInput::with_concept_anchors
+
+## CheckOutcome
+
+The full result of one equivalence check (RFC-013 §3.5): the violation
+list plus the two marker-record lists, `pending` and `realized`. The
+diff produces all three, because the pending-vs-realized decision is
+the same concept/code matching it already performs for the unmarked
+rows — deriving it in the application layer would split-brain one
+decision across two places.
+
+The exit code is a function of `violations` alone: a tree whose only
+findings are marker records passes. `is_clean` names that rule so no
+consumer has to re-derive it. `new` is the assembling constructor — it
+sorts both marker lists into their stable order (concept name, then
+spec site) so record order is deterministic for a fixed input tree.
+Lives in `domain`.
+
+- depends on: Violation
+- depends on: PendingRecord
+- depends on: RealizedRecord
+- returns: CheckOutcome
+- verb: diff
+- verb: CheckOutcome::new
+- verb: CheckOutcome::empty
+- verb: CheckOutcome::is_clean
+
+## PendingRecord
+
+A marked concept heading with no backing code item — row 3 of the
+RFC-013 §3.2 enforcement matrix. Emitted **instead of**
+`Violation::MissingInCode`: the marker announces that the concept is
+declared ahead of its code, so no code-existence obligation applies,
+and every check sourced at that heading (its edge bullets, verb
+anchors, `- impl:` anchors) is skipped for the same reason.
+
+Not a failure. The pending list is the transcription worklist the
+ratification workflow reads every run — a state field with a producer
+and no reader rots. Lives in `domain`.
+
+- depends on: Source
+
+## RealizedRecord
+
+A marked concept heading whose backing code item exists — row 4 of the
+RFC-013 §3.2 enforcement matrix, by name match or by `- impl:` anchor
+resolution, exactly as an unmarked heading binds.
+
+Emitted **in addition to** the normal, fully enforced equivalence
+checks for that pair: a marker never parks a divergence, so drift under
+a marked heading still fires its ordinary violation. The record is the
+ratification signal — ratification is deletion of the marker line,
+performed by a human. Lives in `domain`.
+
+- depends on: Source
 
 ## SchemaVersion
 
@@ -279,7 +397,8 @@ consumers (notably qbot-core's `compare-spec-change` pipeline, tracked
 in `yg/qbot-core#4034`) import this type and dispatch parse behavior
 against it rather than re-typing `"1"` / `"2"` magic strings per
 consumer. The current production value is the associated constant
-`SchemaVersion::CURRENT` (today: `V2`). Retaining `V1` keeps the
+`SchemaVersion::CURRENT` (today: `V4`, per RFC-013 §3.5). Retaining the
+superseded variants keeps the
 overlap-window reader path typed — consumers gating on this enum at
 parse time get an exhaustiveness check the day a future RFC bumps
 `CURRENT`. Marked `#[non_exhaustive]` so future-version additions

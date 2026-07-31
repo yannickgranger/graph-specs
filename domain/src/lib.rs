@@ -11,6 +11,8 @@ mod anchor;
 mod cohesion;
 mod context;
 mod diff;
+mod marker;
+mod polarity;
 mod report;
 mod tokens;
 
@@ -25,6 +27,8 @@ pub use context::{
     ContextExport, ContextImport, ContextPattern, ContextViolation, OwnedUnit,
 };
 pub use diff::diff;
+pub use marker::{CheckOutcome, PendingRecord, RealizedRecord};
+pub use polarity::Polarity;
 pub use report::{
     report_verb_coverage, HomonymAppearance, HomonymRecord, InvariantAnnotation, PubFnDecl,
     ReportOutput, TierHistogramRecord, TierKind, VerbCoverageRecord,
@@ -57,11 +61,21 @@ pub enum SchemaVersion {
     /// separately (OQ-3). Provenance source fields are a planned additive
     /// (non-breaking) extension that will NOT bump the version again.
     V3,
+    /// v4 (RFC-013 §3.5) — versions the `marker`-keyed record kinds
+    /// (`pending`, `realized`) **and** the retirement of the
+    /// `implements_draft_concept` violation kind.
+    ///
+    /// The `marker` key alone would have been additive; removing a
+    /// `violation` discriminator value entirely is breaking (a
+    /// discriminator that silently stops appearing is a worse failure mode
+    /// for a pattern-matching consumer than a hard version bump), so the
+    /// version moves. See `specs/ndjson-output.md` §Schema evolution.
+    V4,
 }
 
 impl SchemaVersion {
     /// The version stamped on every record this build emits.
-    pub const CURRENT: Self = Self::V3;
+    pub const CURRENT: Self = Self::V4;
 
     /// Wire form — the exact string literal that appears in the
     /// `schema_version` JSON field.
@@ -71,6 +85,7 @@ impl SchemaVersion {
             Self::V1 => "1",
             Self::V2 => "2",
             Self::V3 => "3",
+            Self::V4 => "4",
         }
     }
 }
@@ -133,6 +148,24 @@ pub struct ConceptNode {
     /// `context` — the resolved bounded context (`specs/contexts/` Owns or
     /// the cfdb-query ACL), used by the R10-3 cohesion pass.
     pub context: Option<String>,
+    /// Spec-state marker (RFC-013 §3.3): `true` when this heading carries a
+    /// `- status: draft` bullet as its first content line, or lives in a
+    /// `status: draft` file. The concept is declared ahead of its code.
+    ///
+    /// A `bool`, not an enum, deliberately: the only transition is
+    /// **deletion** of the marker — there is no `ratified` value and no
+    /// state machine (RFC-013 §3.1).
+    ///
+    /// The graph is the single carrier of marker state; there is no side
+    /// index. Always `false` on the code side.
+    pub marked: bool,
+    /// Grounding polarity (RFC-014 §3.4) — which direction this heading's
+    /// obligation points. Attached by [`ConceptNode::with_polarity`].
+    ///
+    /// A second field alongside `marked` rather than one fused carrier:
+    /// different upstream sources, different grammars, different extension
+    /// seams. Spec-side only — the code side is a fact, not a declaration.
+    pub polarity: Polarity,
 }
 
 impl ConceptNode {
@@ -152,7 +185,22 @@ impl ConceptNode {
             module_path: None,
             unit: None,
             context: None,
+            marked: false,
+            polarity: Polarity::Declared,
         }
+    }
+
+    /// Builder: attach the grounding polarity parsed from the heading's
+    /// grounding comment (RFC-014 §3.4).
+    ///
+    /// A builder rather than a positional argument on [`ConceptNode::new`],
+    /// which deliberately does not derive `Default` — every construction
+    /// site decides provenance consciously, and polarity is the same kind
+    /// of opt-in fact.
+    #[must_use]
+    pub const fn with_polarity(mut self, polarity: Polarity) -> Self {
+        self.polarity = polarity;
+        self
     }
 
     /// Builder: attach the language-agnostic containment triple
@@ -303,14 +351,25 @@ pub enum Violation {
     MissingInCode { name: String, spec_source: Source },
     /// Concept declared in code but absent from specs.
     MissingInSpecs { name: String, code_source: Source },
-    /// A `pub` code item whose name matches a heading living in a
-    /// `status: draft` spec. The draft imposes no code-existence
-    /// obligation, but implementing it while the spec is still draft
-    /// leaves the item with no active owning heading. Distinct from
-    /// [`Violation::MissingInSpecs`] (no heading exists anywhere) —
-    /// here a heading exists but is draft. `draft_source` points at
-    /// the draft heading. (per specs/dialect.md ## Draft specs)
-    ImplementsDraftConcept { name: String, draft_source: Source },
+    /// A `pub` code item bearing a name its spec heading **expelled** — the
+    /// heading carries `polarity:forbidden` (RFC-014 §3.4). Both sites are
+    /// carried, so the finding names what expelled the name *and* what
+    /// reintroduced it.
+    ///
+    /// Mirrors `cascade::Finding::ForbiddenConceptRealized` under a
+    /// locally-disambiguated name — `Realized` already means the opposite
+    /// thing in this bounded context ([`crate::RealizedRecord`], "the
+    /// pending concept landed"). Parity with upstream is behavioural, not
+    /// lexical. See RFC-014 OQ-1.
+    ForbiddenConceptReintroduced {
+        name: String,
+        spec_source: Source,
+        code_source: Source,
+    },
+    // RFC-013 §3.4: `ImplementsDraftConcept` retired here. Code backing a
+    // marked heading is the normal mid-arc state, not a failure — it is now
+    // [`crate::RealizedRecord`]. Its `violation_key` sort slot (13) is
+    // retired, not reused; existing slots are not renumbered.
     /// Both sides declare the concept with a signature, but the signatures
     /// disagree after normalisation.
     SignatureDrift {
@@ -408,23 +467,26 @@ pub enum Violation {
 mod tests {
     use super::*;
 
-    // --- RFC-010 §3.6 / R10-4 NDJSON schema v3 tripwire ---
+    // --- RFC-013 §3.5 NDJSON schema v4 tripwire ---
 
     #[test]
-    fn schema_version_current_is_v3() {
-        // Tripwire: the production wire version is `"3"`. A change here is a
+    fn schema_version_current_is_v4() {
+        // Tripwire: the production wire version is `"4"`. A change here is a
         // breaking NDJSON contract change and MUST be paired with a consumer
         // lockstep (OQ-3) + a `specs/ndjson-output.md` update.
-        assert_eq!(SchemaVersion::CURRENT, SchemaVersion::V3);
-        assert_eq!(SchemaVersion::CURRENT.as_str(), "3");
+        assert_eq!(SchemaVersion::CURRENT, SchemaVersion::V4);
+        assert_eq!(SchemaVersion::CURRENT.as_str(), "4");
     }
 
     #[test]
     fn schema_version_wire_strings_are_stable() {
+        // Retired versions keep their wire strings — a consumer reading an
+        // archived fixture must still resolve them.
         assert_eq!(SchemaVersion::V1.as_str(), "1");
         assert_eq!(SchemaVersion::V2.as_str(), "2");
         assert_eq!(SchemaVersion::V3.as_str(), "3");
-        assert_eq!(SchemaVersion::V3.to_string(), "3");
+        assert_eq!(SchemaVersion::V4.as_str(), "4");
+        assert_eq!(SchemaVersion::V4.to_string(), "4");
     }
 
     fn code_src() -> Source {

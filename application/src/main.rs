@@ -3,6 +3,11 @@
 //! Thin shell over [`application::run_check`]. Parses flags, delegates,
 //! prints violations one per line, emits a terse summary and exit code.
 //!
+//! RFC-013 §3.5: the summary also carries the `pending` and `realized`
+//! marker-record counts, and each record is enumerated one per line. The
+//! exit code is a function of **violations alone** — a tree whose only
+//! findings are marker records exits 0.
+//!
 //! Exit codes:
 //! - `0` — zero violations (specs and code agree)
 //! - `1` — one or more violations found (drift, missing-in-code, missing-in-specs)
@@ -12,7 +17,7 @@
 
 use application::report::ReportFormat;
 use clap::{Parser, Subcommand, ValueEnum};
-use domain::Violation;
+use domain::{CheckOutcome, Violation};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -98,7 +103,7 @@ fn main() -> ExitCode {
 
 fn run_check_command(specs: &std::path::Path, code: &std::path::Path, format: Format) -> ExitCode {
     match application::run_check(specs, code) {
-        Ok(violations) => emit(&violations, format),
+        Ok(outcome) => emit(&outcome, format),
         Err(e) => {
             eprintln!("reader error: {e}");
             ExitCode::from(2)
@@ -106,47 +111,56 @@ fn run_check_command(specs: &std::path::Path, code: &std::path::Path, format: Fo
     }
 }
 
-fn emit(violations: &[Violation], format: Format) -> ExitCode {
+fn emit(outcome: &CheckOutcome, format: Format) -> ExitCode {
     match format {
-        Format::Text => emit_text(violations),
-        Format::Ndjson => emit_ndjson(violations),
+        Format::Text => emit_text(outcome),
+        Format::Ndjson => emit_ndjson(outcome),
     }
 }
 
-fn emit_text(violations: &[Violation]) -> ExitCode {
-    if violations.is_empty() {
-        println!("0 violations.");
-        return ExitCode::SUCCESS;
-    }
+fn emit_text(outcome: &CheckOutcome) -> ExitCode {
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();
-    for v in violations {
-        if let Err(e) = application::text::format_violation(v, &mut handle) {
-            eprintln!("text write error: {e}");
-            return ExitCode::from(2);
-        }
+    if let Err(e) = write_text(outcome, &mut handle) {
+        eprintln!("text write error: {e}");
+        return ExitCode::from(2);
     }
     drop(handle);
-    println!("{} violation(s) found.", violations.len());
-    exit_code_for(violations)
+    exit_code_for(outcome)
 }
 
-fn emit_ndjson(violations: &[Violation]) -> ExitCode {
+fn write_text(outcome: &CheckOutcome, out: &mut impl std::io::Write) -> std::io::Result<()> {
+    for v in &outcome.violations {
+        application::text::format_violation(v, out)?;
+    }
+    for p in &outcome.pending {
+        application::text::format_pending(p, out)?;
+    }
+    for r in &outcome.realized {
+        application::text::format_realized(r, out)?;
+    }
+    application::text::format_summary(outcome, out)
+}
+
+fn emit_ndjson(outcome: &CheckOutcome) -> ExitCode {
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();
-    if let Err(e) = application::ndjson::write_ndjson(violations, &mut handle) {
+    if let Err(e) = application::ndjson::write_ndjson(outcome, &mut handle) {
         eprintln!("ndjson write error: {e}");
         return ExitCode::from(2);
     }
-    if violations.is_empty() {
-        ExitCode::SUCCESS
-    } else {
-        exit_code_for(violations)
-    }
+    drop(handle);
+    exit_code_for(outcome)
 }
 
-fn exit_code_for(violations: &[Violation]) -> ExitCode {
-    if violations
+/// RFC-013 §4 invariant 3 — computed from `violations` only. Marker records
+/// never move it.
+fn exit_code_for(outcome: &CheckOutcome) -> ExitCode {
+    if outcome.violations.is_empty() {
+        return ExitCode::SUCCESS;
+    }
+    if outcome
+        .violations
         .iter()
         .any(|v| matches!(v, Violation::SignatureUnparseable { .. }))
     {

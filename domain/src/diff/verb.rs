@@ -22,11 +22,23 @@ pub(super) fn verb_pass(
     verb_ownership: VerbOwnership,
     code: &Graph,
     contexts: &[ContextDecl],
+    unobliged_concepts: &HashSet<&str>,
     out: &mut Vec<Violation>,
 ) {
     // Owned so `emit_missing_in_spec` can move each decl's `qname`/`source`
     // into the emitted violation instead of cloning per loop iteration.
-    let VerbOwnership { decls, anchors } = verb_ownership;
+    let VerbOwnership { decls, mut anchors } = verb_ownership;
+    // The uniform obligation skip (RFC-013 §3.4 pending, RFC-014 §3.3
+    // non-`declared`). A `- verb:` bullet under a concept that compels
+    // nothing imposes nothing: there is no backing item to compare against,
+    // and firing `VerbMissingInCode` would contradict the heading's own
+    // meaning. Dropping the anchors (rather than post-filtering the
+    // violations) also keeps a context whose only anchors sit on unobliged
+    // concepts correctly *un*-opted-in, so no `VerbMissingInSpec` fires
+    // against its pub fns either.
+    if !unobliged_concepts.is_empty() {
+        anchors.retain(|a| !unobliged_concepts.contains(a.concept.as_str()));
+    }
     if anchors.is_empty() {
         return;
     }
@@ -257,8 +269,82 @@ mod tests {
         let code = Graph::new(code_nodes, vec![]);
         let verb_ownership = VerbOwnership { decls, anchors };
         let mut out = Vec::new();
-        verb_pass(verb_ownership, &code, &contexts, &mut out);
+        verb_pass(verb_ownership, &code, &contexts, &HashSet::new(), &mut out);
         out
+    }
+
+    /// As [`run`], but with `concept` pending (RFC-013 §3.4).
+    #[allow(clippy::needless_pass_by_value)]
+    fn run_with_pending(
+        pending: &str,
+        anchors: Vec<VerbAnchor>,
+        decls: Vec<VerbDecl>,
+        code_nodes: Vec<ConceptNode>,
+        contexts: Vec<ContextDecl>,
+    ) -> Vec<Violation> {
+        let code = Graph::new(code_nodes, vec![]);
+        let verb_ownership = VerbOwnership { decls, anchors };
+        let mut out = Vec::new();
+        let pending_concepts: HashSet<&str> = std::iter::once(pending).collect();
+        verb_pass(
+            verb_ownership,
+            &code,
+            &contexts,
+            &pending_concepts,
+            &mut out,
+        );
+        out
+    }
+
+    #[test]
+    fn pending_concepts_verb_anchors_impose_no_obligation() {
+        // RFC-013 §3.4 uniform obligation skip: a `- verb:` bullet under a
+        // pending concept would otherwise fire `VerbMissingInCode` and make
+        // matrix row 3 unreachable.
+        let ctx = make_ctx("eq", &["domain"]);
+        let anchor = make_anchor("Reconciler", "reconcile");
+        let node = make_code_node("Reconciler", "domain");
+        let armed = run(
+            vec![anchor.clone()],
+            vec![],
+            vec![node.clone()],
+            vec![ctx.clone()],
+        );
+        assert!(
+            armed
+                .iter()
+                .any(|v| matches!(v, Violation::VerbMissingInCode { .. })),
+            "control: an unmarked concept's dangling verb anchor still fires: {armed:?}"
+        );
+
+        let pending = run_with_pending("Reconciler", vec![anchor], vec![], vec![node], vec![ctx]);
+        assert!(
+            pending.is_empty(),
+            "pending concept's verb anchors must impose nothing: {pending:?}"
+        );
+    }
+
+    #[test]
+    fn pending_concept_does_not_opt_its_context_into_verb_anchoring() {
+        // Dropping the anchor (rather than post-filtering violations) keeps a
+        // context whose only anchors sit on pending concepts un-opted-in, so
+        // its pub fns raise no `VerbMissingInSpec` either.
+        let ctx = make_ctx("eq", &["domain"]);
+        let anchor = make_anchor("Reconciler", "reconcile");
+        let decl = make_decl("unrelated_fn", "domain");
+        let node = make_code_node("Reconciler", "domain");
+        let out = run_with_pending(
+            "Reconciler",
+            vec![anchor],
+            vec![decl],
+            vec![node],
+            vec![ctx],
+        );
+        assert!(
+            !out.iter()
+                .any(|v| matches!(v, Violation::VerbMissingInSpec { .. })),
+            "pending-only context must not be verb-anchored: {out:?}"
+        );
     }
 
     #[test]

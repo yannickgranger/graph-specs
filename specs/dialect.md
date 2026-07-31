@@ -115,6 +115,12 @@ become concept-graph nodes (see [What the markdown reader ignores](#what-the-mar
 These are the upward concept→context rung, complementing the downward
 concept→method rung that `- verb:` anchors check.
 
+**Draft files participate** (RFC-013). Spec-state markers relax a
+*concept's* code-existence obligation; they never relax this doc-level
+structural check. The `cohesion: behavioral` exemption is the only one,
+and it applies to a draft doc on exactly the same terms as any other —
+substance still required.
+
 ## Anchors (RFC-012 — non-`pub` spec anchors)
 
 The default rule is that a `## Concept` heading is backed by a top-level
@@ -180,15 +186,24 @@ Prose changes never affect the graph. The reader does not see:
   similar)
 - Bullets without a recognised prefix
 - Ordered lists
-- Tables, images, links, raw HTML blocks, HTML comments
+- Tables, images, links, raw HTML blocks, and HTML comments — with one
+  scoped exception, the grounding comment's `polarity:` key (below)
 - Files outside the directory passed to `--specs`
 - Any file whose extension is not `.md`
-- Every spec file declaring `status: draft` (see ## Draft specs)
 
-## Draft specs
+Draft files are **not** on that list: since RFC-013 they are parsed like
+any other spec (see [Spec-state markers](#spec-state-markers-rfc-013)).
 
-A spec file may open with a YAML front-matter block — lines delimited by
-`---` — that declares its lifecycle status:
+## Spec-state markers (RFC-013)
+
+A concept heading may be declared **ahead of its code**. The checker
+reads that state from the spec text — never from file location — via
+one marker with two scopes.
+
+### File scope — `status: draft` front-matter
+
+A spec file may open with a YAML front-matter block, delimited by lines
+containing only `---`, that declares its lifecycle status:
 
 ```
 ---
@@ -198,31 +213,175 @@ status: draft
 ## SomeConcept
 ```
 
-When the leading front-matter declares `status: draft`, the markdown
-reader **skips the whole file** for the equivalence graph: it contributes
-no concepts, no verb anchors, and no invariant annotations. A draft spec
-therefore imposes no code-existence obligation — no `missing in code`
-violation can arise from it.
-
-Its headings are still read into a separate **draft-concept index** that
-carries no obligation. This index is used solely so that a code item
-whose name matches a draft heading reports the targeted
-`implements draft spec` diagnostic (`Violation::ImplementsDraftConcept`)
-instead of the generic `missing in specs` orphan. The distinction
-matters: `MissingInSpecs` signals an undocumented item, while
-`ImplementsDraftConcept` signals an item racing ahead of a ratified spec.
-
-This exists so a canonical concept can be **authored ahead of its
-code** — ratified by review, committed to `specs/concepts/`, and filled
-in by later PRs — without blocking CI in the interim. Removing or
-changing the `status:` line re-arms the file: from that commit on, every
-concept it declares must resolve against code like any other spec.
-
-Only the leading front-matter is consulted. The value matches
+The file is **parsed, not skipped**: every concept heading in it is
+marked. Only the leading front-matter is consulted. The value matches
 case-insensitively, with or without surrounding quotes, and a trailing
 `#` comment is ignored. A front-matter block that closes before any
 `status:` line, a `status:` line in the prose body, or a file with no
-front-matter at all, is not draft.
+front-matter at all, is not draft. A per-heading bullet inside a draft
+file is redundant, inert text.
+
+### Heading scope — the `- status: draft` bullet
+
+A bullet reading `- status: draft` marks **exactly one** heading when it
+is the **first non-blank content line** below an `H2` or `H3` concept
+heading:
+
+```
+## SomeConcept
+
+- status: draft
+```
+
+Four properties, each load-bearing:
+
+- **One legal value.** There is no `- status: ratified` and no second
+  value — ratification is *deletion of the line*, a presence flag, never
+  a state machine. Any other `- status:` bullet is an unrecognised
+  prefix under the ordinary dialect rule and stays inert text.
+- **No subtree inheritance.** A marker binds only to the heading whose
+  block it opens; a marked `H2` does not mark its `H3`s. The reader
+  models `H2` and `H3` as flat peers, and inheritance would make
+  ratification non-local.
+- **Mis-placement fails loud, not silent.** A marker bullet that is not
+  the first non-blank content line is inert; the heading reads
+  *unmarked*, and `missing in code` fires if its code is absent. The
+  failure mode of a malformed marker is a visible violation, never a
+  silent suppression.
+- **Trailing text is tolerated.** Anything after the value on the same
+  line — e.g. the upstream authoring convention
+  `- status: draft (per <RFC>.md §<clause>)` — is ignored. That
+  parenthetical is enforced by the authoring tree's own fences; the gate
+  never parses it.
+
+A marker bullet under an `H1`, in a `specs/contexts/` file, or outside
+any concept block is inert — the contexts dialect is untouched.
+
+### What a marker changes
+
+| Heading | Backing code item | Result |
+|---|---|---|
+| unmarked | absent | `missing in code` |
+| unmarked | present | pass |
+| marked | absent | a `pending` record — **not** a violation |
+| marked | present | full equivalence enforced, plus a `realized` record |
+
+Neither record kind affects the exit code. See
+`specs/ndjson-output.md` §Marker records for the wire shape.
+
+Marking is **concept-scoped**. It never suppresses the doc-level
+[cohesion invariant](#abstraction-ladder): a doc that declares no concept
+heading at all still reports `context_without_cohesion_unit`, marked or
+not — and a marked heading *counts* as its context's cohesion unit.
+
+"Backing item present" has two spellings, and they are one fact: a
+name-matched `pub` item, or a resolved `- impl:` anchor. A marked
+heading whose anchor does not resolve is `pending`, and its
+`dangling anchor` violation is suppressed — an unresolved target *is*
+the declared-ahead-of-code state the marker announces.
+
+While a concept is pending, every check sourced at that heading — its
+edge bullets, its `- verb:` anchors, its `- impl:` anchors — imposes no
+obligation. With no backing item there is nothing to compare.
+
+A marker never parks a divergence: once the concept is realized, drift
+under it fires the ordinary violation exactly as it would under an
+unmarked heading. Escalation happens on contradiction only — never by
+age, count, or branch.
+
+## Grounding polarity (RFC-014)
+
+A **grounding comment** is an HTML comment carried under a concept
+heading by an upstream tool (cascade / Bosun):
+
+```
+## Member
+<!-- parent:spec:Unit polarity:forbidden -->
+```
+
+graph-specs reads exactly one key from it — `polarity:` — and ignores
+every other key. It performs **no grounding** in the sense the name
+denotes: *grounding* means ancestorship, which is the `parent:` key's job
+and is explicitly out of scope. `polarity:` is an independent axis that
+happens to share the grounding block's syntax, not part of its ancestry
+payload. Reading "graph-specs parses the grounding comment" as
+"graph-specs validates ancestry" would be exactly backwards.
+
+**This concept is imported, not defined here.** The values and their
+meanings are owned upstream (see [Polarity](concepts/equivalence.md));
+this repo authors no `polarity:` markers in its own `specs/`. Reading an
+externally-authored wire format under a Conformist contract is a scoped
+exception to comment-skipping, not a new local convention — there is no
+bullet-form alternative to prefer here, because graph-specs owns neither
+the value semantics nor the comment encoding.
+
+### Placement and grammar
+
+The comment must be the **first non-blank content line** below an `H2`/`H3`
+concept heading — the same adjacency rule the `- status: draft` marker
+uses. A comment further down is inert.
+
+Three values:
+
+| Value | Meaning |
+|---|---|
+| `declared` | the ordinary obligation — the concept must exist in code (the default) |
+| `forbidden` | the name is expelled — code must **not** bear it |
+| `illustrative` | an example — the heading neither compels nor satisfies a code item |
+
+Anything else — no comment, no `polarity:` key, or an unreadable value —
+reads as `declared`, with a `tracing::warn!` on the unreadable case.
+**The fallback direction is the point:** a typo leaves the heading's
+obligation *armed*. A marker can only narrow an obligation somebody
+deliberately wrote down.
+
+**Extraction is quote-aware.** Upstream makes `anchor:"…"` mandatory for
+every RFC-rooted concept, so a real grounded corpus carries a quoted
+freeform value in the *same* comment. A `polarity:` appearing inside that
+quoted value is prose, not the key — entirely plausible on an
+architecture-methodology corpus, which may carry RFC prose *about*
+polarity — and it is not read.
+
+### What each value changes
+
+| polarity | code absent | code present |
+|---|---|---|
+| `declared` | `missing_in_code` (unchanged) | satisfied (unchanged) |
+| `forbidden` | clean | `forbidden_concept_reintroduced` |
+| `illustrative` | clean | `missing_in_specs` |
+
+The `illustrative` row is upstream's rule, not an invention: it stops the
+marker laundering unspecced public surface past the gate. It is a
+**match-attempt gate**, not a post-match dispatch — an illustrative
+heading never attempts to bind a code item at all, so the item falls
+through to the orphan sweep like any undocumented type.
+
+While a heading is non-`declared`, every check sourced at it imposes no
+obligation — its edge bullets, its `- verb:` anchors, and its `- impl:`
+anchors alike, the last including `dangling_anchor`. A heading that
+compels nothing cannot be missing anything.
+
+### Precedence over the spec-state marker
+
+`polarity != declared` is evaluated **first, and is terminal**. A marked
+heading whose polarity is `forbidden` or `illustrative` emits **no**
+marker record:
+
+| | `declared` | `forbidden` | `illustrative` |
+|---|---|---|---|
+| **unmarked** | rows 1/2 above | table above | table above |
+| **marked** | `pending` / `realized` | identical to unmarked — `marked` is inert | identical to unmarked — `marked` is inert |
+
+No cell emits both a marker record and a polarity outcome.
+
+This is principled rather than an arbitrary tiebreak. Marking exists to
+relax the code-existence obligation a `declared` heading carries.
+`forbidden` and `illustrative` carry no such obligation — absence is clean
+by definition for both — so there is nothing for marking to relax. It is
+not out-competed by polarity; it is *structurally inert*. Emitting
+`realized — ratify` on an expelled name would also be an actively wrong
+instruction: a reader would see "close this out" and "actively banned"
+on the same heading.
 
 ## What the Rust reader parses
 

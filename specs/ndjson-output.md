@@ -20,22 +20,26 @@ Identical to `--format=text`:
 - `1` — one or more violations, none fatal
 - `2` — reader error **or** any `SignatureUnparseable` violation
 
+Computed from violations alone (RFC-013 §4 invariant 3): `pending` and
+`realized` marker records never move the exit code.
+
 ## Output shape
 
-One line per violation. Each line is a single JSON object terminated by `\n`. A clean tree produces **no output** (not `[]`, not `{}`, not `0 violations.` — empty stdout).
+One line per record. Each line is a single JSON object terminated by `\n`. A tree with no violations **and no markers** produces no output at all (not `[]`, not `{}`, not a summary line — empty stdout).
 
 Consumers MUST parse line-by-line. The file is NOT a JSON array.
 
 ## Record: top-level fields
 
-Every record carries these two fields at the top level:
+Every record carries `schema_version` plus exactly one discriminator key:
 
 | Field | Type | Value |
 |---|---|---|
-| `schema_version` | string | `"3"` — bumped on breaking schema changes (v0.4 bump: three bounded-context variants; **v3 (RFC-010): three abstraction-ladder `Cohesion` variants**). Report records (`graph-specs report`, §Report records) version independently and remain `"2"`. |
-| `violation` | string | snake_case discriminator, one of the values below |
+| `schema_version` | string | `"4"` — bumped on breaking schema changes (v0.4 bump: three bounded-context variants; v3 (RFC-010): three abstraction-ladder `Cohesion` variants; **v4 (RFC-013): retirement of the `implements_draft_concept` discriminator value**). Report records (`graph-specs report`, §Report records) version independently and remain `"2"`. |
+| `violation` | string | snake_case discriminator on a **finding**, one of the values below |
+| `marker` | string | discriminator on an RFC-013 **marker record** — `"pending"` or `"realized"`. See §Marker records |
 
-Additional fields are per-variant (see below).
+Exactly one of `violation` / `marker` is present on any given record; the two are never combined. Additional fields are per-variant (see below).
 
 ## Source location object
 
@@ -57,7 +61,7 @@ Every violation carries at least one source location. The shape is:
 Concept declared in specs, absent from code.
 
 ```json
-{"schema_version":"3","violation":"missing_in_code","concept":"Foo","source":{"kind":"spec","path":"specs/core.md","line":12}}
+{"schema_version":"4","violation":"missing_in_code","concept":"Foo","source":{"kind":"spec","path":"specs/core.md","line":12}}
 ```
 
 Field `source` is always `kind: "spec"`.
@@ -67,7 +71,7 @@ Field `source` is always `kind: "spec"`.
 Concept declared in code, absent from specs.
 
 ```json
-{"schema_version":"3","violation":"missing_in_specs","concept":"Bar","source":{"kind":"code","path":"src/lib.rs","line":3}}
+{"schema_version":"4","violation":"missing_in_specs","concept":"Bar","source":{"kind":"code","path":"src/lib.rs","line":3}}
 ```
 
 Field `source` is always `kind: "code"`.
@@ -77,7 +81,7 @@ Field `source` is always `kind: "code"`.
 Both sides declare the concept with a signature; signatures disagree after normalization.
 
 ```json
-{"schema_version":"3","violation":"signature_drift","concept":"Reader","spec_sig":"fn extract(&self)","code_sig":"fn extract(&self, root: &Path)","spec_source":{"kind":"spec","path":"specs/core.md","line":44},"code_source":{"kind":"code","path":"ports/src/lib.rs","line":15}}
+{"schema_version":"4","violation":"signature_drift","concept":"Reader","spec_sig":"fn extract(&self)","code_sig":"fn extract(&self, root: &Path)","spec_source":{"kind":"spec","path":"specs/core.md","line":44},"code_source":{"kind":"code","path":"ports/src/lib.rs","line":15}}
 ```
 
 | Extra field | Type | Meaning |
@@ -92,7 +96,7 @@ Both sides declare the concept with a signature; signatures disagree after norma
 Code declares a signature; spec has the concept heading but no fenced rust block.
 
 ```json
-{"schema_version":"3","violation":"signature_missing_in_spec","concept":"Reader","code_sig":"fn extract(&self, root: &Path)","code_source":{"kind":"code","path":"ports/src/lib.rs","line":15}}
+{"schema_version":"4","violation":"signature_missing_in_spec","concept":"Reader","code_sig":"fn extract(&self, root: &Path)","code_source":{"kind":"code","path":"ports/src/lib.rs","line":15}}
 ```
 
 ### `signature_unparseable`
@@ -100,7 +104,7 @@ Code declares a signature; spec has the concept heading but no fenced rust block
 Spec's fenced rust block failed to parse via `syn`. The concept is dropped from signature comparison until the spec is fixed. **This variant triggers exit code 2.**
 
 ```json
-{"schema_version":"3","violation":"signature_unparseable","concept":"Broken","raw":"fn foo(","error":"expected `)`","source":{"kind":"spec","path":"specs/broken.md","line":9}}
+{"schema_version":"4","violation":"signature_unparseable","concept":"Broken","raw":"fn foo(","error":"expected `)`","source":{"kind":"spec","path":"specs/broken.md","line":9}}
 ```
 
 ### `edge_missing_in_code`
@@ -108,7 +112,7 @@ Spec's fenced rust block failed to parse via `syn`. The concept is dropped from 
 Spec declares a relationship edge (`- implements: Foo`, `- depends on: Bar`, `- returns: Baz`) that the code side does not emit.
 
 ```json
-{"schema_version":"3","violation":"edge_missing_in_code","concept":"MarkdownReader","edge_kind":"IMPLEMENTS","target":"Reader","spec_source":{"kind":"spec","path":"specs/core.md","line":7}}
+{"schema_version":"4","violation":"edge_missing_in_code","concept":"MarkdownReader","edge_kind":"IMPLEMENTS","target":"Reader","spec_source":{"kind":"spec","path":"specs/core.md","line":7}}
 ```
 
 | Extra field | Type | Meaning |
@@ -122,7 +126,7 @@ Spec declares a relationship edge (`- implements: Foo`, `- depends on: Bar`, `- 
 Code emits a relationship edge the spec does not declare. Fires only for concepts whose spec section declared at least one edge bullet (opt-in per concept).
 
 ```json
-{"schema_version":"3","violation":"edge_missing_in_spec","concept":"MarkdownReader","edge_kind":"DEPENDS_ON","target":"Graph","code_source":{"kind":"code","path":"adapters/markdown/src/lib.rs","line":42}}
+{"schema_version":"4","violation":"edge_missing_in_spec","concept":"MarkdownReader","edge_kind":"DEPENDS_ON","target":"Graph","code_source":{"kind":"code","path":"adapters/markdown/src/lib.rs","line":42}}
 ```
 
 ### `edge_target_unknown`
@@ -130,7 +134,7 @@ Code emits a relationship edge the spec does not declare. Fires only for concept
 Spec bullet names a target concept that is not present as a concept in either graph.
 
 ```json
-{"schema_version":"3","violation":"edge_target_unknown","concept":"MarkdownReader","edge_kind":"RETURNS","target":"Frobnicator","spec_source":{"kind":"spec","path":"specs/core.md","line":50}}
+{"schema_version":"4","violation":"edge_target_unknown","concept":"MarkdownReader","edge_kind":"RETURNS","target":"Frobnicator","spec_source":{"kind":"spec","path":"specs/core.md","line":50}}
 ```
 
 ### `context_membership_unknown` (v2, v0.4)
@@ -138,7 +142,7 @@ Spec bullet names a target concept that is not present as a concept in either gr
 A `pub` type in code lives in a crate that is not listed under any declared context's `Owns` block.
 
 ```json
-{"schema_version":"3","violation":"context_membership_unknown","concept":"Orphan","owned_unit":"stray-crate","source":{"kind":"code","path":"stray-crate/src/lib.rs","line":3}}
+{"schema_version":"4","violation":"context_membership_unknown","concept":"Orphan","owned_unit":"stray-crate","source":{"kind":"code","path":"stray-crate/src/lib.rs","line":3}}
 ```
 
 | Extra field | Type | Meaning |
@@ -151,7 +155,7 @@ A `pub` type in code lives in a crate that is not listed under any declared cont
 A v0.3 edge targets a concept in another context that is NOT listed in the owning context's `Imports` declarations.
 
 ```json
-{"schema_version":"3","violation":"cross_context_edge_unauthorized","concept":"MarkdownReader","owning_context":"reading","edge_kind":"DEPENDS_ON","target":"TradingPort","target_context":"trading","spec_source":{"kind":"spec","path":"specs/contexts/reading.md","line":12}}
+{"schema_version":"4","violation":"cross_context_edge_unauthorized","concept":"MarkdownReader","owning_context":"reading","edge_kind":"DEPENDS_ON","target":"TradingPort","target_context":"trading","spec_source":{"kind":"spec","path":"specs/contexts/reading.md","line":12}}
 ```
 
 | Extra field | Type | Meaning |
@@ -167,25 +171,61 @@ A v0.3 edge targets a concept in another context that is NOT listed in the ownin
 A v0.3 edge crosses a context boundary, IS listed in the importing context's `Imports`, but the target context's spec does not declare the import back as an `Exports` entry (asymmetric declaration).
 
 ```json
-{"schema_version":"3","violation":"cross_context_edge_undeclared","concept":"MarkdownReader","owning_context":"reading","edge_kind":"IMPLEMENTS","target":"Reader","target_context":"equivalence","spec_source":{"kind":"spec","path":"specs/contexts/reading.md","line":12}}
+{"schema_version":"4","violation":"cross_context_edge_undeclared","concept":"MarkdownReader","owning_context":"reading","edge_kind":"IMPLEMENTS","target":"Reader","target_context":"equivalence","spec_source":{"kind":"spec","path":"specs/contexts/reading.md","line":12}}
 ```
 
 Same field shape as `cross_context_edge_unauthorized`. The difference is the cause: `unauthorized` means "you didn't ask"; `undeclared` means "you asked but they don't publish that."
 
-### `implements_draft_concept` (additive at v0.4; rides the current schema_version)
+### `implements_draft_concept` — **RETIRED at v4** (RFC-013 §3.4)
 
-A `pub` code item whose name matches a concept heading living in a `status: draft` spec file. The draft imposes no code-existence obligation, but implementing it while the spec is still draft leaves the code item with no active owning heading. Distinct from `missing_in_specs` (where no heading exists anywhere) — here a draft heading exists but is not yet ratified. It was added as an **additive** variant (it did not bump the version on its own — see §Schema evolution), and like every record now carries the current `schema_version` (`"3"`).
+This variant reported a `pub` code item whose name matched a heading in a `status: draft` spec. Under RFC-013 that condition is the normal, expected mid-arc state — the signal that a concept is **realized and ready to ratify** — not a failure. It is now a [`realized` marker record](#marker-records-v4-rfc-013), which does not affect the exit code.
+
+The discriminator value `implements_draft_concept` is **no longer emitted**. Its removal is what makes v4 a breaking change rather than an additive one (see §Schema evolution). Consumers pinned to `"3"` keep working against archived output; consumers moving to `"4"` must drop their `implements_draft_concept` arm and read `marker` records instead.
+
+## Marker records (v4, RFC-013)
+
+Marker records report **spec state**, not failures. They ride the same NDJSON stream as violations under a separate top-level discriminator key — `marker`, never `violation` — so that:
+
+- the existing `violation`-filtered stream is unchanged in shape, and
+- the `marker`-filtered stream is exactly the ratification worklist.
+
+The key is `marker` and not `report`, because `report` already names the `graph-specs report` subcommand, whose own emitter owns the `"record"` discriminator (see §Report records). Three discriminator keys, three disjoint meanings.
+
+Records are emitted **after** all violations, `pending` before `realized`, each list sorted by concept name then by spec site.
+
+**Marker records never affect the exit code.** A tree whose only findings are markers exits `0`.
+
+### `pending`
+
+A marked concept heading with no backing code item. Emitted **instead of** `missing_in_code`.
 
 ```json
-{"schema_version":"3","violation":"implements_draft_concept","name":"Widget","draft_source":{"kind":"spec","path":"specs/concepts/drafts.md","line":7}}
+{"schema_version":"4","marker":"pending","concept":"Digest","source":{"kind":"spec","path":"specs/concepts/execution.md","line":41}}
 ```
 
 | Field | Type | Meaning |
 |---|---|---|
-| `name` | string | the concept name (code item name = draft heading name) |
-| `draft_source` | source object (kind=spec) | location of the draft heading |
+| `marker` | string | always `"pending"` |
+| `concept` | string | the marked concept name |
+| `source` | source object (kind=spec) | location of the marked heading |
 
-**Remediation:** either promote the draft (flip the `status:` field to ratified, set `code_landing_pr`) or remove the code item until the spec is ratified.
+**Remediation:** none required — this is the transcription worklist. Write the code, and the record becomes `realized`.
+
+### `realized`
+
+A marked concept heading whose backing code item exists — by name match or by `- impl:` anchor resolution. Emitted **in addition to** the fully enforced equivalence checks for that pair: a marker never parks a divergence.
+
+```json
+{"schema_version":"4","marker":"realized","concept":"InboundAcl","source":{"kind":"spec","path":"specs/concepts/fleet_supervision.md","line":120}}
+```
+
+| Field | Type | Meaning |
+|---|---|---|
+| `marker` | string | always `"realized"` |
+| `concept` | string | the marked concept name |
+| `source` | source object (kind=spec) | location of the marked heading |
+
+**Remediation:** ratify the heading — delete its `- status: draft` line. Ratification is a human act; the checker never mutates spec text.
 
 ## v3 cohesion variants (RFC-010 — the abstraction ladder)
 
@@ -196,7 +236,7 @@ The `Cohesion` variants check the upward concept→context rung: that a `concept
 An `H1` context heading with no `H2`/`H3` concept under it — a bounded context that declares no cohesion unit.
 
 ```json
-{"schema_version":"3","violation":"context_without_cohesion_unit","context":"reading","file":"specs/concepts/reading.md"}
+{"schema_version":"4","violation":"context_without_cohesion_unit","context":"reading","file":"specs/concepts/reading.md"}
 ```
 
 | Field | Type | Meaning |
@@ -209,7 +249,7 @@ An `H1` context heading with no `H2`/`H3` concept under it — a bounded context
 An `H3` sub-concept with no enclosing `H2` concept (a depth skip).
 
 ```json
-{"schema_version":"3","violation":"sub_concept_orphan","sub_concept":"InnerThing","file":"specs/concepts/reading.md"}
+{"schema_version":"4","violation":"sub_concept_orphan","sub_concept":"InnerThing","file":"specs/concepts/reading.md"}
 ```
 
 | Field | Type | Meaning |
@@ -222,7 +262,7 @@ An `H3` sub-concept with no enclosing `H2` concept (a depth skip).
 A concept's spec-side declared owning context (its `concepts/` H1, with `specs/contexts/` export precedence) disagrees with the context the code resolves it to (the `specs/contexts/` Owns block owning the crate the `pub` type lives in).
 
 ```json
-{"schema_version":"3","violation":"concept_context_mismatch","concept":"Widget","declared":"reading","code_context":"equivalence","spec_source":{"kind":"spec","path":"specs/concepts/reading.md","line":7}}
+{"schema_version":"4","violation":"concept_context_mismatch","concept":"Widget","declared":"reading","code_context":"equivalence","spec_source":{"kind":"spec","path":"specs/concepts/reading.md","line":7}}
 ```
 
 | Field | Type | Meaning |
@@ -236,12 +276,12 @@ A concept's spec-side declared owning context (its `concepts/` H1, with `specs/c
 
 ## v0.7 anchor variant (RFC-012 — non-`pub` spec anchors)
 
-### `dangling_anchor` (additive at v0.7; rides the current `schema_version` `"3"`)
+### `dangling_anchor` (additive at v0.7; rides the current `schema_version`)
 
 A concept's `- impl: <qname>` anchor (RFC-012 §3.2) names a code item that does not exist anywhere in the code tree, at any visibility. The equivalence-defect analog of `missing_in_code` for an anchored concept: the anchor redirected the concept's target to `qname`, and `qname` did not resolve. A **top-level** variant (not nested under `Cohesion`) so a consumer that opts out of cohesion checking cannot silently suppress broken-anchor detection. Added as an **additive** variant — it did not bump the version (see §Schema evolution).
 
 ```json
-{"schema_version":"3","violation":"dangling_anchor","concept":"ValidateIntakeFull","target":"validate_intake","source":{"kind":"spec","path":"specs/concepts/intake_validation.md","line":3}}
+{"schema_version":"4","violation":"dangling_anchor","concept":"ValidateIntakeFull","target":"validate_intake","source":{"kind":"spec","path":"specs/concepts/intake_validation.md","line":3}}
 ```
 
 | Field | Type | Meaning |
@@ -251,6 +291,30 @@ A concept's `- impl: <qname>` anchor (RFC-012 §3.2) names a code item that does
 | `source` | source object (kind=spec) | where the anchor bullet is declared |
 
 > An anchor whose target **does** resolve emits **no** record — the concept is satisfied (no `missing_in_code`). Resolution honours any visibility (`pub`, `pub(crate)`, a `fn`, a `const`), so a concept whose canonical implementation is `pub(crate)` need not manufacture a `pub` type.
+
+## v0.8 polarity variant (RFC-014 — grounding polarity)
+
+### `forbidden_concept_reintroduced` (additive; rides the current `schema_version`)
+
+A `pub` code item bearing a name its spec heading **expelled** — the heading carries a grounding comment with `polarity:forbidden` (see `specs/dialect.md` §Grounding polarity). Distinct from every other variant in direction: this is not a gap between spec and code, it is code doing something the spec forbids.
+
+Both sites are carried, so the record names what expelled the name and what reintroduced it.
+
+```json
+{"schema_version":"4","violation":"forbidden_concept_reintroduced","concept":"Member","spec_source":{"kind":"spec","path":"specs/concepts/topology.md","line":41},"code_source":{"kind":"code","path":"src/model.rs","line":12}}
+```
+
+| Field | Type | Meaning |
+|---|---|---|
+| `concept` | string | the expelled name |
+| `spec_source` | source object (kind=spec) | the heading that expels it |
+| `code_source` | source object (kind=code) | the item that reintroduced it |
+
+**Remediation:** remove the code item. There is no allowlist and no suppression file — deleting the item clears the finding, re-adding it brings the finding back.
+
+> Behavioural parity with `cascade::Finding::ForbiddenConceptRealized`, under a locally-disambiguated name: `Realized` already means the opposite thing in this bounded context (RFC-013's marker record — "the pending concept landed"). Parity is on inputs and outputs, not on identifier spelling.
+
+**Additive** — no `schema_version` bump. The two narrowings of `missing_in_code` that `forbidden` and `illustrative` introduce emit no record at all; like the marker suppression before them they change which headings qualify, not what the discriminator means.
 
 ## v0.5 forward-compat — `unknown_context_violation`
 
@@ -323,11 +387,14 @@ Compatible (non-breaking) changes — **no version bump**:
 - Adding a new top-level field with a default/optional meaning
 - Widening a string value's permitted set
 
-Breaking changes — **`schema_version` increments** (e.g., `"1"` → `"2"` → `"3"`):
+Breaking changes — **`schema_version` increments** (e.g., `"1"` → `"2"` → `"3"` → `"4"`):
 - Removing a field
 - Renaming a field or a `violation` discriminator value
+- **Removing a `violation` discriminator value entirely** (RFC-013 §3.5 — a discriminator that silently stops appearing is a worse failure mode for a pattern-matching consumer than a hard version bump; this closed a pre-existing gap in the taxonomy, which covered renaming but not removal)
 - Changing a field's JSON type
 - Changing the interpretation of an existing `violation` discriminator
+
+Adding a **new top-level discriminator key** (as v4 did with `marker`) is on its own additive — it was the retirement of `implements_draft_concept` in the same release that forced the v3 → v4 bump.
 
 Version history:
 - `"1"` — v0.1–v0.3 (concept / signature / edge variants).
@@ -336,8 +403,8 @@ Version history:
 
 ## Determinism
 
-Record order reflects the order `domain::diff()` returns violations, which is deterministic for a fixed input tree. Consumers SHOULD NOT rely on a particular order across tool versions.
+Record order reflects the order `domain::diff()` returns its outcome, which is deterministic for a fixed input tree: all violations first, then `pending`, then `realized`. Consumers SHOULD NOT rely on a particular order across tool versions.
 
 ## Relationship to `--format=text`
 
-The two formats emit the same **set** of violations; they differ only in wire form. Exit codes are identical. When both are needed, run the tool twice; the cost is linear in the input tree.
+The two formats emit the same **set** of records — violations and markers alike; they differ only in wire form. Exit codes are identical, and in both cases a function of violations alone. Text additionally prints a summary line (`N violations, M pending, K realized-unratified`) that has no NDJSON counterpart: a counting consumer counts records. When both are needed, run the tool twice; the cost is linear in the input tree.

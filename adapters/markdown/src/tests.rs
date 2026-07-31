@@ -1,4 +1,6 @@
 use super::*;
+use crate::bullets::parse_anchor_qname;
+use domain::{EdgeKind, Polarity, SignatureState, Source};
 use std::io::Write;
 use tempfile::TempDir;
 
@@ -678,26 +680,131 @@ fn parse_verb_bullet_accepts_bare_ident_unchanged() {
     assert_eq!(anchor.qname, "foo");
 }
 
-// --- draft concept index ---
+// --- RFC-013 §3.1/§3.3 — spec-state marker ---
+
+/// `marked` flag per concept name, for the marker tests.
+fn marks(dir: &Path) -> Vec<(String, bool)> {
+    let g = MarkdownReader.extract(dir).expect("test");
+    let mut out: Vec<(String, bool)> = g.nodes.into_iter().map(|n| (n.name, n.marked)).collect();
+    out.sort();
+    out
+}
 
 #[test]
-fn extract_draft_concepts_returns_headings_of_draft_files_only() {
+fn per_heading_marker_bullet_marks_exactly_that_heading() {
+    // Rewritten from `extract_draft_concepts_returns_headings_of_draft_files_only`
+    // (RFC-013 §7 Slice A) — the side index it exercised is retired; marker
+    // state now rides on the node itself.
     let d = TempDir::new().expect("test");
     write(
         d.path(),
-        "draft.md",
-        "---\nstatus: draft\n---\n\n## Widget\n",
+        "a.md",
+        "## Widget\n\n- status: draft\n\n## Gadget\n\nPlain prose.\n",
     );
-    write(d.path(), "live.md", "## Gadget\n");
-    let nodes = MarkdownReader
-        .extract_draft_concepts(d.path())
+    assert_eq!(
+        marks(d.path()),
+        vec![("Gadget".to_owned(), false), ("Widget".to_owned(), true)]
+    );
+}
+
+#[test]
+fn marker_tolerates_the_upstream_citation_parenthetical() {
+    // RFC-013 §3.1/§6: anything after the value is tolerated and ignored —
+    // the parenthetical is an upstream authoring convention, never gate-parsed.
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Widget\n\n- status: draft (per RFC-vocabulary.md §4)\n",
+    );
+    assert_eq!(marks(d.path()), vec![("Widget".to_owned(), true)]);
+}
+
+#[test]
+fn marker_value_matches_case_insensitively() {
+    let d = TempDir::new().expect("test");
+    write(d.path(), "a.md", "## Widget\n\n- status: Draft\n");
+    assert_eq!(marks(d.path()), vec![("Widget".to_owned(), true)]);
+}
+
+#[test]
+fn there_is_no_second_marker_value() {
+    // RFC-013 §3.1: one legal value. Ratification is deletion of the line,
+    // a presence flag — never a state machine. `- status: ratified` is an
+    // unrecognised prefix and stays inert text.
+    let d = TempDir::new().expect("test");
+    write(d.path(), "a.md", "## Widget\n\n- status: ratified\n");
+    assert_eq!(marks(d.path()), vec![("Widget".to_owned(), false)]);
+}
+
+#[test]
+fn misplaced_marker_is_inert_and_the_heading_reads_unmarked() {
+    // RFC-013 §3.1 fail-loud: a marker that is not the first non-blank
+    // content line binds nothing. The heading stays unmarked, so the
+    // anti-invention check fires on it downstream — a visible violation,
+    // never a silent suppression.
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Widget\n\nSome prose first.\n\n- status: draft\n",
+    );
+    assert_eq!(marks(d.path()), vec![("Widget".to_owned(), false)]);
+}
+
+#[test]
+fn marker_after_a_sibling_bullet_is_inert() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Widget\n\n- depends on: Gear\n- status: draft\n\n## Gear\n",
+    );
+    let seen = marks(d.path());
+    assert_eq!(
+        seen,
+        vec![("Gear".to_owned(), false), ("Widget".to_owned(), false)]
+    );
+}
+
+#[test]
+fn a_marker_does_not_inherit_to_sub_concepts() {
+    // RFC-013 §3.1: no subtree inheritance — the checker models H2 and H3 as
+    // flat peers, and inheritance would make ratification non-local.
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Widget\n\n- status: draft\n\n### Cog\n\nProse.\n",
+    );
+    assert_eq!(
+        marks(d.path()),
+        vec![("Cog".to_owned(), false), ("Widget".to_owned(), true)]
+    );
+}
+
+#[test]
+fn marker_bullet_is_not_an_edge_or_an_anchor() {
+    let d = TempDir::new().expect("test");
+    write(d.path(), "a.md", "## Widget\n\n- status: draft\n");
+    let g = extract_graph(d.path());
+    assert!(g.edges.is_empty(), "marker must not become an edge");
+    let anchors = MarkdownReader
+        .extract_concept_anchors(d.path())
         .expect("test");
-    let names: Vec<&str> = nodes.iter().map(|n| n.name.as_str()).collect();
-    assert!(names.contains(&"Widget"), "draft heading must be included");
-    assert!(
-        !names.contains(&"Gadget"),
-        "non-draft heading must be excluded"
-    );
+    assert!(anchors.is_empty(), "marker must not become an anchor");
+}
+
+#[test]
+fn is_status_marker_grammar() {
+    use crate::bullets::is_status_marker;
+    assert!(is_status_marker("status: draft"));
+    assert!(is_status_marker("status:draft"));
+    assert!(is_status_marker("status: DRAFT (per x.md §1)"));
+    assert!(!is_status_marker("status: drafty"));
+    assert!(!is_status_marker("status: ratified"));
+    assert!(!is_status_marker("status:"));
+    assert!(!is_status_marker("depends on: draft"));
 }
 
 // --- draft front-matter suppression ---
@@ -730,20 +837,47 @@ fn is_draft_false_when_front_matter_closes_before_status() {
 }
 
 #[test]
-fn extract_skips_draft_spec_keeps_siblings() {
+fn draft_front_matter_marks_every_heading_in_the_file() {
+    // RFC-013 §3.1/§3.3 file scope — the file is **parsed, not skipped**, and
+    // every concept heading in it is marked. (Rewritten from
+    // `extract_skips_draft_spec_keeps_siblings`.)
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "draft.md",
+        "---\nstatus: draft\n---\n\n## Reconciler\n\n```rust\npub trait Reconciler {}\n```\n\n## Ledger\n",
+    );
+    write(d.path(), "live.md", "## Live\n");
+    assert_eq!(
+        marks(d.path()),
+        vec![
+            ("Ledger".to_owned(), true),
+            ("Live".to_owned(), false),
+            ("Reconciler".to_owned(), true)
+        ]
+    );
+}
+
+#[test]
+fn draft_file_signatures_are_still_parsed() {
+    // Marking relaxes the code-existence obligation, not the equivalence
+    // check that follows once the concept is realized (§3.2 row 4).
     let d = TempDir::new().expect("test");
     write(
         d.path(),
         "draft.md",
         "---\nstatus: draft\n---\n\n## Reconciler\n\n```rust\npub trait Reconciler {}\n```\n",
     );
-    write(d.path(), "live.md", "## Live\n");
-    // Only the non-draft concept survives.
-    assert_eq!(extract(d.path()), vec!["Live"]);
+    assert!(matches!(
+        extract_sig(d.path(), "Reconciler"),
+        SignatureState::Normalized(_)
+    ));
 }
 
 #[test]
-fn extract_verb_anchors_skips_draft_spec() {
+fn extract_verb_anchors_reads_draft_specs() {
+    // RFC-013 §3.3: anchors under a marked heading are extracted as normal;
+    // the obligation skip is the diff's concern, not the reader's.
     let d = TempDir::new().expect("test");
     write(
         d.path(),
@@ -751,7 +885,8 @@ fn extract_verb_anchors_skips_draft_spec() {
         "---\nstatus: draft\n---\n\n## Reconciler\n\n- verb: reconcile\n",
     );
     let anchors = MarkdownReader.extract_verb_anchors(d.path()).expect("test");
-    assert!(anchors.is_empty(), "draft verb anchors must be skipped");
+    assert_eq!(anchors.len(), 1, "draft verb anchors are extracted");
+    assert_eq!(anchors[0].qname, "reconcile");
 }
 
 #[test]
@@ -840,7 +975,9 @@ fn extract_concept_anchors_collects_impl_bullet() {
 }
 
 #[test]
-fn extract_concept_anchors_skips_draft_and_is_empty_without_impl() {
+fn extract_concept_anchors_is_empty_without_impl_and_reads_draft_files() {
+    // RFC-013 §3.3: draft files are parsed. A bullet-free non-draft file
+    // still contributes nothing.
     let d = TempDir::new().expect("test");
     write(d.path(), "plain.md", "## Foo\n\n- depends on: Bar\n");
     write(
@@ -851,7 +988,8 @@ fn extract_concept_anchors_skips_draft_and_is_empty_without_impl() {
     let anchors = MarkdownReader
         .extract_concept_anchors(d.path())
         .expect("test");
-    assert!(anchors.is_empty(), "no impl in non-draft; draft is skipped");
+    assert_eq!(anchors.len(), 1, "the draft file's anchor is extracted");
+    assert_eq!(anchors[0].target, "drafted_fn");
 }
 
 #[test]
@@ -908,4 +1046,111 @@ fn has_behavioral_substance_rejects_non_substance() {
     assert!(!has_behavioral_substance(
         "- implements: Foo\n- depends on: Bar\n"
     ));
+}
+
+// --- RFC-014 §3.2 — grounding polarity binds to its heading ---
+
+/// `polarity` per concept name.
+fn polarities(dir: &Path) -> Vec<(String, Polarity)> {
+    let g = MarkdownReader.extract(dir).expect("test");
+    let mut out: Vec<(String, Polarity)> =
+        g.nodes.into_iter().map(|n| (n.name, n.polarity)).collect();
+    out.sort_by(|a, b| a.0.cmp(&b.0));
+    out
+}
+
+#[test]
+fn a_grounding_comment_binds_to_the_heading_it_opens() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Member\n<!-- parent:spec:Unit polarity:forbidden -->\n\n## Unit\n\nProse.\n",
+    );
+    assert_eq!(
+        polarities(d.path()),
+        vec![
+            ("Member".to_owned(), Polarity::Forbidden),
+            ("Unit".to_owned(), Polarity::Declared),
+        ],
+        "polarity binds to one heading — no inheritance to the next"
+    );
+}
+
+#[test]
+fn a_blank_line_between_heading_and_comment_still_binds() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Member\n\n<!-- polarity:illustrative -->\n",
+    );
+    assert_eq!(
+        polarities(d.path()),
+        vec![("Member".to_owned(), Polarity::Illustrative)]
+    );
+}
+
+#[test]
+fn a_comment_that_is_not_the_first_content_line_is_inert() {
+    // Same adjacency rule as the `- status: draft` marker, deliberately —
+    // one primitive, so the two cannot drift apart.
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Member\n\nSome prose first.\n\n<!-- polarity:forbidden -->\n",
+    );
+    assert_eq!(
+        polarities(d.path()),
+        vec![("Member".to_owned(), Polarity::Declared)],
+        "a comment further down the section binds nothing"
+    );
+}
+
+#[test]
+fn a_comment_above_the_first_heading_binds_nothing() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "<!-- polarity:forbidden -->\n\n## Member\n\nProse.\n",
+    );
+    assert_eq!(
+        polarities(d.path()),
+        vec![("Member".to_owned(), Polarity::Declared)]
+    );
+}
+
+#[test]
+fn a_quoted_decoy_in_a_real_grounding_block_is_not_read() {
+    // End-to-end through the reader, not just the token scanner: upstream
+    // makes `anchor:"…"` mandatory, so this shape is the common case.
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Member\n<!-- parent:rfc:RFC-9 anchor:\"why polarity:forbidden exists\" -->\n",
+    );
+    assert_eq!(
+        polarities(d.path()),
+        vec![("Member".to_owned(), Polarity::Declared)],
+        "prose inside the mandatory quoted anchor is not the key"
+    );
+}
+
+#[test]
+fn a_grounding_comment_is_not_an_edge_or_an_anchor() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Member\n<!-- parent:spec:Unit polarity:forbidden -->\n",
+    );
+    let g = extract_graph(d.path());
+    assert!(g.edges.is_empty());
+    assert!(MarkdownReader
+        .extract_concept_anchors(d.path())
+        .expect("test")
+        .is_empty());
 }

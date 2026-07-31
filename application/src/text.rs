@@ -4,9 +4,65 @@
 //! Write`) so unit tests can exercise each variant without going
 //! through stdout. The CLI's `--format=text` dispatch calls this.
 
-use domain::{CohesionViolation, ContextViolation, Source, Violation};
+use domain::{
+    CheckOutcome, CohesionViolation, ContextViolation, PendingRecord, RealizedRecord, Source,
+    Violation,
+};
 use std::io::Write;
 use std::path::Path;
+
+/// Write one `pending` marker record (RFC-013 §3.5).
+///
+/// A marked heading with no backing item. The pending list is the
+/// transcription worklist, so records are enumerated one per line, never
+/// collapsed to a bare count.
+///
+/// # Errors
+///
+/// Propagates any [`std::io::Error`] from the underlying writer.
+pub fn format_pending(r: &PendingRecord, out: &mut impl Write) -> std::io::Result<()> {
+    let (path, line) = source_pair(&r.spec_source);
+    writeln!(out, "pending: {} ({}:{line})", r.concept, path.display())
+}
+
+/// Write one `realized` marker record (RFC-013 §3.5).
+///
+/// A marked heading whose backing item exists. The suffix names the action
+/// it invites: ratification is deletion of the marker line, performed by a
+/// human.
+///
+/// # Errors
+///
+/// Propagates any [`std::io::Error`] from the underlying writer.
+pub fn format_realized(r: &RealizedRecord, out: &mut impl Write) -> std::io::Result<()> {
+    let (path, line) = source_pair(&r.spec_source);
+    writeln!(
+        out,
+        "realized — ratify: {} ({}:{line})",
+        r.concept,
+        path.display()
+    )
+}
+
+/// Write the summary line (RFC-013 §3.5).
+///
+/// All three counts are always represented, even at zero: a clean tree
+/// reads `0 violations, 0 pending, 0 realized-unratified`. An absent
+/// segment would be indistinguishable from a formatter that forgot to
+/// render it.
+///
+/// # Errors
+///
+/// Propagates any [`std::io::Error`] from the underlying writer.
+pub fn format_summary(outcome: &CheckOutcome, out: &mut impl Write) -> std::io::Result<()> {
+    writeln!(
+        out,
+        "{} violations, {} pending, {} realized-unratified",
+        outcome.violations.len(),
+        outcome.pending.len(),
+        outcome.realized.len()
+    )
+}
 
 /// Write one violation as a human-readable line (or block for
 /// multi-field variants). Lines end with `\n`.
@@ -138,12 +194,18 @@ pub fn format_violation(v: &Violation, out: &mut impl Write) -> std::io::Result<
                 path.display()
             )
         }
-        Violation::ImplementsDraftConcept { name, draft_source } => {
-            let (path, line) = source_pair(draft_source);
+        Violation::ForbiddenConceptReintroduced {
+            name,
+            spec_source,
+            code_source,
+        } => {
+            let (spec_path, spec_line) = source_pair(spec_source);
+            let (code_path, code_line) = source_pair(code_source);
             writeln!(
                 out,
-                "implements draft spec: {name} ({}:{line}) — promote the draft (flip status:, set code_landing_pr) or remove the code",
-                path.display()
+                "forbidden concept reintroduced: {name}\n  expelled by ({}:{spec_line})\n  reintroduced at ({}:{code_line})",
+                spec_path.display(),
+                code_path.display()
             )
         }
         Violation::Cohesion(c) => format_cohesion_violation(c, out),

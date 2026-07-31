@@ -2,6 +2,49 @@
 
 All notable changes to graph-specs-rust will be documented in this file.
 
+
+## [0.7.0] - 2026-07-31
+
+> **⚠️ Breaking wire change — NDJSON `schema_version` `"3"` → `"4"`.**
+>
+> - The `implements_draft_concept` violation discriminator is **removed**. A
+>   consumer matching on it now holds dead code that will never fire again;
+>   the condition it reported is a `marker` record instead.
+> - Two new record kinds arrive under a separate top-level `marker` key
+>   (`pending`, `realized`). The `violation`-keyed stream is unchanged in
+>   shape for every surviving variant.
+> - `forbidden_concept_reintroduced` is additive and rides the same version.
+>
+> Consumers pinned to `"3"` must add a v4 arm before upgrading. See
+> `specs/ndjson-output.md` §Schema evolution and issue #135.
+
+### 🚀 Features
+
+- *(rfc-013 [#169](https://github.com/yannickgranger/graph-specs/issues/169))* Slice A — spec-state marker, pending/realized records
+- *(rfc-013 [#170](https://github.com/yannickgranger/graph-specs/issues/170))* Slice B — cohesion tightening (matrix row 6)
+- *(rfc-014 [#168](https://github.com/yannickgranger/graph-specs/issues/168))* R14-1 — read `polarity:` and honour the three values
+
+### 🐛 Bug Fixes
+
+- *(ci)* Relocate test-only imports into the test module; drop redundant pub(crate) in private modules (clippy pedantic)
+- *(rfc-013 [#170](https://github.com/yannickgranger/graph-specs/issues/170))* Unindent a doc list continuation line
+
+### 📚 Documentation
+
+- *(rfc)* RFC-013 — spec state marker: 4-lens unanimous RATIFY
+- *(rfc)* RFC-014 — grounding polarity: 4-lens unanimous RATIFY
+- *(rfc-014)* Drop issue references — RFCs are not derived from issues
+- *(rfc-014)* Name the grounding/rootedness mismatch explicitly
+
+### 🎨 Styling
+
+- Cargo fmt — formatter leg never ran (v3 died at the phantom fence, agentry [#2875](https://github.com/yannickgranger/graph-specs/issues/2875))
+- Visibility narrowing per the workspace nursery lane (redundant_pub_crate) + fmt
+
+### ⚙️ Miscellaneous Tasks
+
+- *(cross-fixture)* Lockstep bump cfdb pin → V0_6_0 (cfdb [#498](https://github.com/yannickgranger/graph-specs/issues/498) / PR [#506](https://github.com/yannickgranger/graph-specs/issues/506))
+- *(lockstep)* Pin cross-fixture to cfdb [#510](https://github.com/yannickgranger/graph-specs/issues/510) (RFC-053 53-A, V0_7_0)
 ## [0.6.0] - 2026-06-07
 
 ### 🚀 Features

@@ -17,7 +17,9 @@
 //! methods (`Type::method`) → [`AnchorKind::Fn`]. Enum **variants** are
 //! deferred to R12-6 (cfdb-query, where `kind:"variant"` is native).
 
-use crate::{is_excluded_dir, is_test_gated, read_and_parse, root_ident_of_self_ty};
+use crate::cfg_gate::is_test_gated;
+use crate::pub_fns::root_ident_of_self_ty;
+use crate::walk::{is_excluded_dir, read_and_parse};
 use domain::{AnchorKind, AnchorTarget, Source};
 use ports::{AnchorResolver, ReaderError};
 use std::collections::HashMap;
