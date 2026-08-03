@@ -82,6 +82,61 @@ fn ignores_target_and_claude_dirs() {
     assert_eq!(extract(d.path()), vec!["Real"]);
 }
 
+/// Cargo writes this header into every build directory it creates,
+/// whatever `--target-dir` names it.
+const CACHEDIR_TAG: &str = "Signature: 8a477f597d28d172789f06886806bc55\n\
+                            # This file is a cache directory tag.\n";
+
+#[test]
+fn cache_tagged_build_dir_is_excluded_whatever_its_name() {
+    let d = TempDir::new().expect("create temp dir");
+    write(d.path(), "src/lib.rs", "pub struct Real;");
+    // `cargo build --target-dir target-musl` — the name list cannot see
+    // this, but the tag Cargo leaves behind can.
+    write(d.path(), "target-musl/CACHEDIR.TAG", CACHEDIR_TAG);
+    write(
+        d.path(),
+        "target-musl/release/build/libsqlite3-sys-abc/out/bindgen.rs",
+        "pub struct sqlite3_stmt; pub struct sqlite3_vfs;",
+    );
+    assert_eq!(extract(d.path()), vec!["Real"]);
+}
+
+#[test]
+fn untagged_dir_sharing_an_excluded_prefix_is_still_walked() {
+    let d = TempDir::new().expect("create temp dir");
+    write(d.path(), "src/lib.rs", "pub struct Real;");
+    // Named like a build dir but carrying no tag: it is ordinary source and
+    // must stay on the surface. This is what makes the rule a test of the
+    // property rather than of the spelling.
+    write(d.path(), "targets/registry.rs", "pub struct Registry;");
+    assert_eq!(extract(d.path()), vec!["Real", "Registry"]);
+}
+
+#[test]
+fn foreign_cachedir_signature_does_not_exclude() {
+    let d = TempDir::new().expect("create temp dir");
+    write(d.path(), "src/lib.rs", "pub struct Real;");
+    write(
+        d.path(),
+        "generated/CACHEDIR.TAG",
+        "Signature: not-a-cache\n",
+    );
+    write(d.path(), "generated/g.rs", "pub struct Generated;");
+    assert_eq!(extract(d.path()), vec!["Generated", "Real"]);
+}
+
+#[test]
+fn source_file_named_like_an_excluded_dir_is_still_read() {
+    let d = TempDir::new().expect("create temp dir");
+    // The name list is matched against directories only. A source file
+    // whose stem collides with an entry on that list — or with any prefix
+    // of one — carries real concepts and must be parsed.
+    write(d.path(), "src/target.rs", "pub struct TargetRepo;");
+    write(d.path(), "src/tests.rs", "pub struct TestHarness;");
+    assert_eq!(extract(d.path()), vec!["TargetRepo", "TestHarness"]);
+}
+
 #[test]
 fn line_numbers_are_recorded() {
     let d = TempDir::new().expect("create temp dir");

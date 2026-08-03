@@ -5,7 +5,9 @@
 //! `pub type`. Honours the filter rules documented in `specs/dialect.md`:
 //! non-public items, `#[cfg(test)]`-gated items, and files under
 //! `target/` / `.git/` / `.claude/` / `.proofs/` / per-crate `tests/`,
-//! `benches/`, `examples/` are skipped.
+//! `benches/`, `examples/` are skipped, as is any directory carrying a
+//! `CACHEDIR.TAG` marker — a build tree keeps its generated `pub` items off
+//! the surface however `--target-dir` happened to name it.
 //!
 //! Scope: only top-level items in each file are visited. Concepts nested
 //! inside `pub mod foo { ... }` are not extracted at this level.
