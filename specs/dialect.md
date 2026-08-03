@@ -410,6 +410,14 @@ The code-side filter rules are:
 - `impl` blocks (except for verb-anchoring purposes — see ## What the Rust reader parses), `fn`, `const`, `static`, `use`, `macro_rules!`, `mod`
 - Per-crate `tests/`, `benches/`, `examples/` directories
 - `target/`, `.git/`, `.claude/`, `.proofs/`, `node_modules/` directories
+- Any directory carrying a `CACHEDIR.TAG` file that opens with the canonical
+  Cache Directory Tagging Specification signature. Cargo writes this marker
+  into every build tree it creates, so a workspace built with a
+  `--target-dir` other than `target` keeps its generated bindings off the
+  concept surface. The name list above cannot see such a tree; this rule
+  tests what a directory declares itself to be rather than what it is
+  called. A directory whose tag is absent, unreadable, or differently
+  signed is ordinary source and is walked.
 - Any file whose extension is not `.rs`
 
 ## Meta note
