@@ -1174,3 +1174,20 @@ fn a_grounding_comment_is_not_an_edge_or_an_anchor() {
         .expect("test")
         .is_empty());
 }
+
+#[test]
+fn a_misplaced_retired_marker_is_inert_and_the_heading_reads_unmarked() {
+    // RFC-015 §3.1 — mis-placement fails loud, unchanged by the second
+    // value. A `- status: retired` bullet that is not the first non-blank
+    // content line binds nothing; the heading reads unmarked and rows 1/5
+    // fire as today. The failure mode of a malformed marker is a visible
+    // violation, never a silent suppression — which matters more under
+    // `retired`, where a silent suppression would hide a live code item.
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Widget\n\nSome prose first.\n\n- status: retired\n",
+    );
+    assert_eq!(marks(d.path()), vec![("Widget".to_owned(), false)]);
+}
