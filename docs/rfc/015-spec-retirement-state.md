@@ -1,6 +1,6 @@
 ---
 title: RFC-015 — spec retirement state: a second marker value, its two marker records, and the obligation rule the edge pass was never given
-status: Draft (revision 13) — the canonical block is contiguous; D17 narrowed to its true reason
+status: Draft (revision 14) — the mirror stated as the only collision discriminator; awaiting §2.3 review
 date: 2026-08-09
 authors: agentry-captain-2026-08-09
 companion: yg/agentry docs/rfc/RFC-spec-state-marker.md §11 (Amendment A2, council-produced, operator-ratified 2026-08-09)
@@ -9,7 +9,7 @@ prior-art: RFC-013 (spec state marker — this RFC amends its §3.1 "One legal v
 
 # RFC-015 — spec retirement state
 
-**Revision 13.** Revision 1 was reviewed by three lenses and returned
+**Revision 14.** Revision 1 was reviewed by three lenses and returned
 REQUEST CHANGES from each (`clean-arch` C0–C3, `ddd` D1–D8, `solid`
 F1–F12). This revision folds every blocking condition. §5 records what
 the review found, including the three findings that were withdrawn by
@@ -753,6 +753,14 @@ also filed the verb-pass half of F3 independently, supplied the general
 cause for F4 (an anchor-backed concept can never be a code-edge target,
 `edges.rs:37-43`), and settled the amendment-ledger fix.
 
+**One rule about reviewing that this document earned, and it is not
+about the design.** A verdict rendered on text shaped by the reviewer's
+own condition must check what the fix **admits**, not only what it
+**excludes** — those are different questions, and a ratification here
+was reached by asking only the second. The definition written to satisfy
+B1 was cleared against the cell B1 complained about, while its repair
+silently admitted the cell the whole predicate exists to exclude.
+
 **Findings withdrawn by their own authors after re-execution.** Each is
 kept because a live clause elsewhere rests on it, named inline:
 
@@ -1042,16 +1050,17 @@ Tests:
     colour.
   - Integration fixture (D12, the MIRROR — the suppress direction): the
     same shape with BOTH headings non-`Declared`, so the name IS
-    `unpointable`. The edge MUST be suppressed. The unit matrices above
-    are all single-heading, so they never reach the per-name conjunction;
-    the fire-direction fixture covers only the case where one heading is
-    `declared`. Without this clause the uncovered implementation is one
-    that declines to suppress whenever a name is carried by more than one
-    heading — it fires correctly on the fixture, passes both unit
-    matrices, and silently disables the rule on exactly the corpus shape
-    D12 exists for. A plausible slip rather than a contrived one:
-    "if any heading disagrees, don't suppress" over-simplifies to "if
-    there's more than one heading, don't suppress" in a single edit.
+    `unpointable`. The edge MUST be suppressed. **This is the only test
+    in the slice that can distinguish the collision rule from a no-op.**
+    The unit matrices are all single-heading, so they never reach the
+    per-name conjunction at all; the fire-direction fixture reaches it
+    once, in the one direction where a correct implementation and a
+    no-op AGREE — its correct answer is also "not `unpointable`". So
+    without the mirror, an implementation correct on single-heading names
+    that always answers "not `unpointable`" on a collision passes the
+    entire slice. A plausible slip rather than a contrived one: "if any
+    heading disagrees, don't suppress" over-simplifies to "if there's
+    more than one heading, don't suppress" in a single edit.
   - Target dogfood: none — rationale: no live tree carries the value.
 ```
 
