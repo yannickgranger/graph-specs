@@ -35,20 +35,23 @@ use std::collections::HashMap;
 /// declares no anchor at all.
 pub(super) type AnchorResolutions = HashMap<String, bool>;
 
-/// The four marker-record sinks, grouped so [`concept_pass`] keeps its
-/// parameter list inside the lint ceiling.
+/// The four marker-record lists the concept pass produces, grouped so
+/// [`concept_pass`] keeps its parameter list inside the lint ceiling and so
+/// [`super::diff`] carries one binding instead of four.
 ///
-/// Deliberately **not** `pub`: this is a borrow bundle, not a domain
+/// Deliberately **not** `pub`: this is a collection of sinks, not a domain
 /// concept, and a `pub` struct here would owe `specs/concepts/` a heading
-/// for plumbing.
-pub(super) struct MarkerSinks<'a> {
-    pub pending: &'a mut Vec<PendingRecord>,
-    pub realized: &'a mut Vec<RealizedRecord>,
-    pub retirement_incomplete: &'a mut Vec<RetirementIncompleteRecord>,
-    pub retirement_complete: &'a mut Vec<RetirementCompleteRecord>,
+/// for plumbing. [`crate::CheckOutcome`] is where these become public, one
+/// list per field, which is the shape the wire format already describes.
+#[derive(Default)]
+pub(super) struct MarkerRecords {
+    pub pending: Vec<PendingRecord>,
+    pub realized: Vec<RealizedRecord>,
+    pub retirement_incomplete: Vec<RetirementIncompleteRecord>,
+    pub retirement_complete: Vec<RetirementCompleteRecord>,
 }
 
-impl MarkerSinks<'_> {
+impl MarkerRecords {
     /// Rows 4 and 7 — a marked heading whose backing item is present. The
     /// record rides *alongside* full equivalence enforcement in both cases;
     /// a marker never parks a divergence.
@@ -101,7 +104,7 @@ pub(super) fn concept_pass(
     code_by_name: &mut HashMap<String, ConceptNode>,
     anchored: &AnchorResolutions,
     violations: &mut Vec<Violation>,
-    sinks: &mut MarkerSinks<'_>,
+    sinks: &mut MarkerRecords,
 ) {
     for spec_node in spec_nodes {
         // RFC-014 §3.3 — evaluated first, and terminal. A non-`declared`

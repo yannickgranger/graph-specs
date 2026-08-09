@@ -116,7 +116,7 @@ pub fn parse_status_marker(text: &str) -> Option<Marker> {
 /// bullet and front-matter grammars differ in how they *reach* the word,
 /// never in which words count.
 #[must_use]
-pub fn marker_from_value(value: &str) -> Option<Marker> {
+pub const fn marker_from_value(value: &str) -> Option<Marker> {
     if value.eq_ignore_ascii_case("draft") {
         Some(Marker::Draft)
     } else if value.eq_ignore_ascii_case("retired") {
