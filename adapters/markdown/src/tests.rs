@@ -1191,3 +1191,79 @@ fn a_misplaced_retired_marker_is_inert_and_the_heading_reads_unmarked() {
     );
     assert_eq!(marks(d.path()), vec![("Widget".to_owned(), false)]);
 }
+
+/// Marker **values** per heading, where [`marks`] only reports presence.
+fn marker_values(dir: &Path) -> Vec<(String, Marker)> {
+    let g = MarkdownReader.extract(dir).expect("test");
+    let mut out: Vec<(String, Marker)> = g.nodes.into_iter().map(|n| (n.name, n.marker)).collect();
+    out.sort_by(|a, b| a.0.cmp(&b.0));
+    out
+}
+
+#[test]
+fn file_scope_wins_when_it_disagrees_with_a_headings_own_bullet() {
+    // CHARACTERIZATION — this cell is **unspecified** by RFC-015 §3.1.
+    //
+    // Under one legal value the two carriers were indistinguishable and the
+    // reader combined them with an `||`. With two values they can disagree,
+    // and something has to win. File scope does, because `specs/dialect.md`
+    // already rules that a per-heading bullet inside a marked file is
+    // "redundant, inert text".
+    //
+    // This test pins the behaviour so it cannot drift silently; it does not
+    // claim the RFC ruled it. Flipping the precedence is a one-line change
+    // here plus a spec sentence, and needs a ruling first.
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "---\nstatus: draft\n---\n\n## Widget\n\n- status: retired\n",
+    );
+    assert_eq!(
+        marker_values(d.path()),
+        vec![("Widget".to_owned(), Marker::Draft)],
+        "the file's value wins; the heading's own bullet is inert inside it"
+    );
+}
+
+#[test]
+fn a_retired_file_still_contributes_its_invariant_annotations() {
+    // CHARACTERIZATION — also **unspecified**. The annotation walk skips
+    // `status: draft` files wholesale, and RFC-015 says nothing about
+    // `retired` there: §3.2's obligation skip names edge bullets, `- verb:`
+    // anchors and `- impl:` anchors, and stops.
+    //
+    // Left un-widened deliberately. A draft file's annotations describe code
+    // that does not exist yet; a retired file's describe code that is on its
+    // way out but may still be there, and silently dropping them would
+    // suppress live invariants on the strength of a marker whose own
+    // enforcement row (7) keeps equivalence fully armed.
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "retired.md",
+        "---\nstatus: retired\n---\n\n## Concept\n\n#### Operational invariants\n\n- INV-001: desc [enforced-by: .cfdb/queries/rule.cypher; retire-when: never]\n",
+    );
+    let retired = MarkdownReader
+        .extract_invariant_annotations(d.path())
+        .expect("test");
+    assert_eq!(
+        retired.len(),
+        1,
+        "a retired file is walked like any other for annotations"
+    );
+
+    let d2 = TempDir::new().expect("test");
+    write(
+        d2.path(),
+        "draft.md",
+        "---\nstatus: draft\n---\n\n## Concept\n\n#### Operational invariants\n\n- INV-001: desc [enforced-by: .cfdb/queries/rule.cypher; retire-when: never]\n",
+    );
+    let draft = MarkdownReader
+        .extract_invariant_annotations(d2.path())
+        .expect("test");
+    assert!(
+        draft.is_empty(),
+        "the contrast that makes the asymmetry deliberate rather than an oversight"
+    );
+}

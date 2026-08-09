@@ -1550,3 +1550,75 @@ fn the_target_side_mirror_of_the_source_side_marker_skip() {
     );
     assert_eq!(outcome.pending.len(), 1, "and it is still pending");
 }
+
+#[test]
+fn the_source_side_per_name_conversion_stays_permissive() {
+    // CHARACTERIZATION of a deliberate asymmetry, so it cannot drift
+    // silently and so the next reader finds it stated rather than inferred.
+    //
+    // RFC-015 §3.4 rules the per-name conversion CONSERVATIVE — a name is
+    // `unpointable` only if every heading carrying it is — and it rules that
+    // for the TARGET side. It says nothing about the source side, which has
+    // been permissive since RFC-014: a name is `unobliged` if ANY heading
+    // carrying it is.
+    //
+    // Here the two headings disagree: `T` is `illustrative` in one file
+    // (unobliged) and `declared` with a backing item in another (not). Under
+    // the permissive conversion the name is unobliged, so a `- verb:` bullet
+    // under it imposes nothing and `VerbMissingInCode` does not fire.
+    //
+    // Making this conservative would be an INVENTION — the RFC rules one
+    // direction and this is the other. It ships as it always was.
+    let ctx = ContextDecl::new(
+        "eq".to_owned(),
+        vec![OwnedUnit("domain".to_owned())],
+        vec![],
+        vec![],
+        Source::Spec {
+            path: spec_path(),
+            line: 1,
+        },
+    );
+    let anchor = VerbAnchor {
+        concept: "T".to_owned(),
+        qname: "build_t".to_owned(),
+        raw_target: "verb: build_t".to_owned(),
+        source: Source::Spec {
+            path: spec_path(),
+            line: 3,
+        },
+    };
+    let specs = Graph::new(
+        vec![spec_with_polarity("T", Polarity::Illustrative), spec("T")],
+        Vec::new(),
+    );
+    let outcome = super::diff(
+        CheckInput::new(
+            specs,
+            vec![ctx],
+            VerbOwnership {
+                decls: vec![],
+                anchors: vec![anchor],
+            },
+        ),
+        Graph::new(
+            vec![ConceptNode::new(
+                "T".to_owned(),
+                Source::Code {
+                    path: PathBuf::from("domain/src/lib.rs"),
+                    line: 7,
+                },
+                SignatureState::Absent,
+            )],
+            Vec::new(),
+        ),
+    );
+    assert!(
+        !outcome
+            .violations
+            .iter()
+            .any(|v| matches!(v, Violation::VerbMissingInCode { .. })),
+        "one unobliged heading carries the whole name on the source side: {:?}",
+        outcome.violations
+    );
+}
