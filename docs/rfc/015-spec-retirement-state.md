@@ -1,6 +1,6 @@
 ---
 title: RFC-015 — spec retirement state: a second marker value, its two marker records, and the obligation rule the edge pass was never given
-status: Draft (revision 4) — D9/D10/G1-G3 folded; awaiting §2.3 review of THIS text
+status: Draft (revision 5) — D12 + the RFC-014 reframing folded; awaiting §2.3 review of THIS text
 date: 2026-08-09
 authors: agentry-captain-2026-08-09
 companion: yg/agentry docs/rfc/RFC-spec-state-marker.md §11 (Amendment A2, council-produced, operator-ratified 2026-08-09)
@@ -9,7 +9,7 @@ prior-art: RFC-013 (spec state marker — this RFC amends its §3.1 "One legal v
 
 # RFC-015 — spec retirement state
 
-**Revision 4.** Revision 1 was reviewed by three lenses and returned
+**Revision 5.** Revision 1 was reviewed by three lenses and returned
 REQUEST CHANGES from each (`clean-arch` C0–C3, `ddd` D1–D8, `solid`
 F1–F12). This revision folds every blocking condition. §5 records what
 the review found, including the three findings that were withdrawn by
@@ -75,6 +75,18 @@ and `diff.rs:322` sorts it the same way. **A one-place sentence can only
 reach the endpoint the finding is keyed to, and that endpoint is the
 source.**
 
+**The pattern appears three times, not once.** Two comments in the tree
+assert an inheritance that does not exist, each source-side only:
+`diff.rs:193-199` — *"the edge pass inherits the same rule by
+construction, via the `matched_concepts` filter above"* (RFC-013's) —
+and `diff.rs:122-127` — *"which is how the edge pass inherits RFC-014
+§3.3's uniform obligation skip"* (RFC-014's). This RFC's own first
+drafts made it a third time, keying the target side on a source-side
+predicate. Three independent authors, one shape, and the third instance
+occurred inside the fix for the first two. That is the strongest
+evidence available that the defect is structural rather than an
+oversight.
+
 So *"sourced at"* was never sloppy vocabulary. It is the only scoping a
 one-place phrasing can express, and the omission was forced by the
 sentence's arity. That explains what carelessness cannot: why RFC-014
@@ -128,11 +140,15 @@ design record that gets corrected in place stops being a record.
 - Any change to `EdgeMissingInSpec`, under any marker, on either
   endpoint (§4 invariant 5).
 - Any new violation variant, including an anti-resurrection one (§6).
-- Any change to **`polarity:` values or semantics**. The obligation set
-  the edge pass consumes already carries non-`Declared` names
-  (`diff.rs:113-117`), so polarity targets are covered as a consequence;
-  that is a consistency repair, not a polarity change. §6 names the
-  resulting silence as a deliberate non-goal.
+- Any change to **`polarity:` values or semantics** — and the
+  disclaimer is exact rather than approximate. `diff.rs:122-127` already
+  states that *"a non-`declared` concept is excluded from
+  `matched_concepts`, which is how the edge pass inherits RFC-014 §3.3's
+  uniform obligation skip"*. That claim is **source-side only**, and the
+  target side never inherited it. So this RFC does not change behaviour
+  RFC-014 governs; it **completes RFC-014's own stated rule at the one
+  seam that missed it**, exactly as it completes RFC-013's. The axis is
+  untouched. §6 names the resulting silence as a deliberate non-goal.
 - **`unbound`'s under-enforcement** (§3.4) — pre-existing, RFC-014's
   implementation, filed as #187. RFC-015 is an **obligation-axis** RFC;
   that is a **binding-axis** defect. A category boundary, not a scope
@@ -269,6 +285,33 @@ cited, never restated, by every carrier.
 > heading describes that item. **Known under-enforced — see §6 and
 > issue #187.**
 
+**The predicates are per-HEADING; the key is per-NAME. That conversion
+must be stated, because the tree performs it permissively today.**
+Two headings may share a name across files — `marker.rs`'s own
+`record_key` contemplates it — and the edge pass keys on an edge's
+target, which is a name, not a heading. `diff.rs:113-117` resolves the
+collision in the permissive direction: **any** heading with that name
+carrying a non-`Declared` polarity puts the name into the set.
+
+**A name is `unpointable` only if EVERY heading carrying it is.** The
+conservative direction, and it is not a preference — the permissive one
+parks a real divergence, executed:
+
+```
+alpha.md  ## S  - depends on: T   |  ## T  <!-- polarity:illustrative -->
+beta.md   ## T                    (declared, and it owns the code item)
+code      pub struct S;  pub struct T;   (no code edge)
+
+→ edge missing in code: S --DEPENDS_ON--> T      1 violation
+```
+
+`missing in specs: T` does **not** co-fire — the declared heading in
+`beta` consumed the code node, so the orphan sweep never sees it. The
+edge finding is the only violation, and a permissive key suppresses it
+to `0 violations, exit 0` with a satisfiable divergence behind it. Note
+this is the *canonical* use of `illustrative` — a heading in one context
+illustrating a type really declared in another — not an exotic shape.
+
 **Why the target side needs its own predicate, and why that is not
 obvious.** The source-side question is *what does this heading oblige*;
 the target-side question is *can this edge exist*. Those come apart in
@@ -293,10 +336,24 @@ that fits the source side, extended to the target side without re-asking
 whether the question is the same. It was caught because a lens ran the
 cell rather than read the definition.
 
-**Two named predicates, not one rule with a caveat, and the difference
-is not stylistic.** Three separate wordings of the subordinated form
-were drafted during review and every one of them banned
+**Named predicates rather than one rule with caveats — and the names and
+the guard below rest on different grounds, which matters because one of
+those grounds was withdrawn.** The **names** rest on untransmissibility
+(a caveat clause cannot be faithfully copied, which is this document's
+own central finding one level down) and on distinct change axes,
+demonstrated inside this amendment: `unobliged` and `unpointable` gain
+`retired`+absent, `unbound` gains nothing.
+
+**The guard below is separate and PROSPECTIVE.** It binds the author
+Slice B creates — a fresh transcriber landing the canonical statement in
+`specs/dialect.md`, handling predicates whose member sets nest, with no
+access to this review. Its evidence is that three separate wordings of
+the subordinated form were drafted here and every one of them banned
 `ForbiddenConceptReintroduced` — the finding RFC-014 exists to produce.
+That evidence is unaffected by the later ruling that the subordinated
+form was never present in *this* text: the guard is not scored against
+this document, and retiring it on that basis would remove it in the
+revision immediately before the one where it does its only work.
 `forbidden` is the witness: it is **`unobliged` and bound**. The guard
 consumes the code node precisely because *"the heading documents it, as
 banned"* (`concept.rs:111-113`), and the violation carries `code_source`
@@ -437,8 +494,12 @@ No new subcommand, no new flags.
    because its remedy is self-defeating — creating the edge requires the
    expelled item to persist, which `ForbiddenConceptReintroduced`
    forbids. The one cell answering to neither ground —
-   `illustrative` + present — is **not** suppressed. But the design does
-   create
+   `illustrative` + present — is **not** suppressed. Revision 3's
+   single-ground justification is recorded as withdrawn rather than
+   quietly replaced: it produced two false findings from two lenses in
+   one round, in opposite directions, which is a better argument for
+   stating both grounds than any reasoning about them. But the design
+   does create
    assertions true by suppression rather than by verification, and §6
    names that class rather than leaving it inside this invariant.
 2. **The unmarked tree is untouched.** Rows 1, 2, 5 byte-for-byte;
