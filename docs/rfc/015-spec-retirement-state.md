@@ -1,6 +1,6 @@
 ---
 title: RFC-015 — spec retirement state: a second marker value, its two marker records, and the obligation rule the edge pass was never given
-status: Draft (revision 14) — the mirror stated as the only collision discriminator; awaiting §2.3 review
+status: Ratified (revision 14, 2026-08-09) — three seats RATIFY on this text (#189, `7fff334`); the fourth seat was absent and is carried by a single author-documented override per CLAUDE.md §2.3, recorded in §5.1
 date: 2026-08-09
 authors: agentry-captain-2026-08-09
 companion: yg/agentry docs/rfc/RFC-spec-state-marker.md §11 (Amendment A2, council-produced, operator-ratified 2026-08-09)
@@ -739,10 +739,10 @@ No new subcommand, no new flags.
 ## §5 — Architect lenses
 
 **Revision 1 review: four lenses, all REQUEST CHANGES**
-(`clean-arch` C0–C3, `ddd` D1–D8, `solid` F1–F12, `rust-sys`). Every
-verdict was rendered against revision 1 at `951b3b9`; none speaks to
-this text, and **this revision is not ratified** — §2.3 requires four
-verdicts on the text under review.
+(`clean-arch` C0–C3, `ddd` D1–D8, `solid` F1–F12, `rust-sys`). Those
+verdicts were rendered against revision 1 at `951b3b9` and speak to no
+later text. The round that speaks to **this** text, and the override it
+rests on, are recorded in §5.1.
 
 `rust-sys`'s seat reached the record through the other three lenses
 rather than directly, and the attribution is corrected here: **D6 — the
@@ -820,11 +820,51 @@ bounding what it can assert, with an author who is being faithful** —
 which is why "sourced at" survived three RFCs and eight lens verdicts
 without anyone being careless.
 
-**Open for this review:** the canonical statement's placement (§3.4
-states it; `specs/dialect.md` is ruled its home, in a section of its
-own under neither axis); the `retirement_incomplete` /
-`retirement_complete` names; and whether `unbound`'s boundary is drawn in
-the right place.
+**Put to this round, carried as ratified-as-written (§5.1):** the
+canonical statement's placement (§3.4 states it; `specs/dialect.md` is
+ruled its home, in a section of its own under neither axis); the
+`retirement_incomplete` / `retirement_complete` names; and whether
+`unbound`'s boundary is drawn in the right place.
+
+### §5.1 — Ratification, and the one override it rests on
+
+**Ratified at revision 14 on 2026-08-09.** Three seats returned RATIFY
+against this exact text. The round is recorded in the tree rather than
+in a session log: `#189` / `7fff334`, whose subject carries the tally,
+and the text ratified there is byte-identical to what this file holds
+apart from this section and the front matter.
+
+**The override, stated at its true width.** CLAUDE.md §2.3 admits *"a
+single author-documented override"* where the four verdicts are not all
+RATIFY. RFC-005 §5.5 spent its override on one contested placement, with
+three seats voting. This one is spent differently, and the difference is
+the point: it carries an **absent seat**, not a dissent. `rust-sys`
+rendered no verdict on this text. Nothing rejected it; the fourth chair
+was empty.
+
+What that leaves unadjudicated is nameable rather than vague. It is the
+three questions the paragraph above put to this round — cleared by the
+three voting lenses, and chartered to the seat that did not vote:
+
+1. the canonical statement's placement;
+2. the `retirement_incomplete` / `retirement_complete` names;
+3. whether `unbound`'s boundary is drawn in the right place — the
+   question #187 owns and this RFC declines (§6).
+
+All three ship as written. `rust-sys`'s lens — crate granularity,
+placement, trait-object safety — is the one chartered to press item 1
+hardest, and item 1 is a placement ruling. **A reader who later finds
+that placement wrong should read this section, not a lens verdict, as
+its warrant.**
+
+**§2.3's second condition is met on the face of the document:** both
+slices in §7 carry a named `Tests:` block, and §2.4 copies them into the
+issue bodies verbatim.
+
+**Directed by the operator, 2026-08-09**, declining a second round on
+text three seats had already cleared. Recorded inline because §2.3
+requires it inline — and because an override whose warrant lives outside
+the document is not documented.
 
 ## §6 — Non-goals, and the residual class
 
