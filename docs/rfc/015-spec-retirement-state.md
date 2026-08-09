@@ -1,6 +1,6 @@
 ---
 title: RFC-015 — spec retirement state: a second marker value, its two marker records, and the obligation rule the edge pass was never given
-status: Draft (revision 2) — three lens verdicts folded; awaiting §2.3 four-lens review of this text
+status: Draft (revision 3) — four rounds of lens findings folded; awaiting §2.3 four-lens review of this text
 date: 2026-08-09
 authors: agentry-captain-2026-08-09
 companion: yg/agentry docs/rfc/RFC-spec-state-marker.md §11 (Amendment A2, council-produced, operator-ratified 2026-08-09)
@@ -9,7 +9,7 @@ prior-art: RFC-013 (spec state marker — this RFC amends its §3.1 "One legal v
 
 # RFC-015 — spec retirement state
 
-**Revision 2.** Revision 1 was reviewed by three lenses and returned
+**Revision 3.** Revision 1 was reviewed by three lenses and returned
 REQUEST CHANGES from each (`clean-arch` C0–C3, `ddd` D1–D8, `solid`
 F1–F12). This revision folds every blocking condition. §5 records what
 the review found, including the three findings that were withdrawn by
@@ -65,20 +65,32 @@ shared words:
 | 4 | `specs/dialect.md:283-285` | enforced |
 | 5 | `specs/dialect.md:359-362` | enforced |
 
-**Why it propagated, which is what makes it a class.** The rule is
-stated in terms of the checker's **mechanism** — *where a check is
-sourced* — rather than the domain fact of *what a heading obliges*. A
-mechanically-scoped sentence gives an adopter nowhere to notice a
-missing direction, because it never claimed to be about direction.
-RFC-014 §3.3 did the responsible thing — adopted a ratified rule
-verbatim rather than improvising — and inherited the blind spot
-*because* it was faithful. Two councils, eight lens verdicts, one
-missing noun: `Edge.source_concept` is a modelled field and there is no
-target-side counterpart, so both authors reached for the only endpoint
-word the model offered.
+**Why it propagated, and the reason is grammatical rather than
+careless.** All five carriers are **one-place predicates governing a
+two-place check.** Each phrases the rule as a property of *a heading*.
+But `EdgeMissingInCode` ranges over an ordered **pair** — a source
+heading's bullet and a target heading — and the finding is keyed to one
+endpoint: `edge.rs:76` constructs it with `concept: spec_edge.source_concept`
+and `diff.rs:322` sorts it the same way. **A one-place sentence can only
+reach the endpoint the finding is keyed to, and that endpoint is the
+source.**
 
-So the remedy that prevents a third adoption is a **rule stated once,
-non-directionally**, not a fourth per-case repair. §3.4 carries it.
+So *"sourced at"* was never sloppy vocabulary. It is the only scoping a
+one-place phrasing can express, and the omission was forced by the
+sentence's arity. That explains what carelessness cannot: why RFC-014
+§3.3 adopted the rule verbatim while looking directly at the ungated
+pass list and still drew only the source-side conclusion, and why no
+amount of careful re-reading surfaces it. **You cannot re-read a
+one-place sentence into a two-place gap.**
+
+It also disposes of the option this RFC's own first revision reached
+for. **There is no correct statement of this rule anywhere in the tree**,
+and none of the five carriers is promotable. `specs/dialect.md:361-362`
+— *"A heading that compels nothing cannot be missing anything"* — is
+closer only in *vocabulary*, obligation rather than mechanism; it is
+still wrong in arity, because on `## S - depends on: Ghost` the finding
+fires against **S**, and S compels plenty. **The canonical statement
+must be authored, not promoted.** §3.4 authors it.
 
 **Grounding, stated as measured rather than as a bare number.** Upstream
 carries **19 marked headings** = 18 `pending` (marked, item absent) + 1
@@ -121,9 +133,11 @@ design record that gets corrected in place stops being a record.
   (`diff.rs:113-117`), so polarity targets are covered as a consequence;
   that is a consistency repair, not a polarity change. §6 names the
   resulting silence as a deliberate non-goal.
-- **Leg 2 of the obligation rule** (§3.4) — the description/identity
-  leg. Known-incomplete, pre-existing, RFC-014's implementation, filed
-  as #187 (§6).
+- **`unbound`'s under-enforcement** (§3.4) — pre-existing, RFC-014's
+  implementation, filed as #187. RFC-015 is an **obligation-axis** RFC;
+  that is a **binding-axis** defect. A category boundary, not a scope
+  judgement — which is why no amount of goodwill lets this RFC absorb
+  it (§6).
 - Any NDJSON breaking change. `schema_version` stays `"4"`; §3.5 carries
   the precedent and the one thing the precedent does not cover.
 
@@ -218,33 +232,58 @@ needs only "compels no code item".
 **The rule, non-directional and mechanism-free.** It is stated here, in
 two legs, and every other carrier cites it rather than restating it.
 
-> **Leg 1 — obligation (existence).** A heading that compels no code
-> item neither imposes a code-existence demand through its own
-> declarations, nor bears one demanded of it by another heading's
-> declarations.
+> **`unobliged`** — this heading compels no code item to exist.
+> Members: a heading marked with either value whose item is absent,
+> `forbidden`, and `illustrative`. It governs existence-shaped findings:
+> an `unobliged` heading neither imposes a code-existence demand through
+> its own declarations, **nor bears one demanded of it by another
+> heading's declarations.** *This is the whole of what RFC-015 fixes.*
 >
-> **Leg 2 — description (identity).** For any heading that describes no
-> code item, no check presupposing that the heading describes that item
-> may fire on the pair. **Known-incomplete — see §6 and issue #187.**
+> **`unbound`** — this heading describes no code item. Member:
+> `illustrative`, alone. It governs every check presupposing that the
+> heading describes that item. **Known under-enforced — see §6 and
+> issue #187.**
 
-Three properties of leg 1, each load-bearing: **directional-complete**,
-so no direction is left to omit on the next adoption;
-**mechanism-free**, naming no pass or snapshot, so it cannot go stale
-when the pass structure changes; and **source-agnostic** — "compels no
-code item" is satisfied by markedness-with-absence *and* by
-non-`Declared` polarity, which is what the obligation set already means
-at `diff.rs:200-201`.
+**Two named predicates, not one rule with a caveat, and the difference
+is not stylistic.** Three separate wordings of the subordinated form
+were drafted during review and every one of them banned
+`ForbiddenConceptReintroduced` — the finding RFC-014 exists to produce.
+`forbidden` is the witness: it is **`unobliged` and bound**. The guard
+consumes the code node precisely because *"the heading documents it, as
+banned"* (`concept.rs:111-113`), and the violation carries `code_source`
+from the matched node, so it is definitionally a check over a bound pair.
 
-**Leg 2 is stated because RFC-015 does not fix it.** A rule that
-declared only leg 1 would read complete and would be the same defect one
-level up. Naming the boundary is the whole difference between naming the
-class and naming the instance.
+The trap is that the member **sets** nest — `unbound` ⊂ `unobliged` —
+while the **predicates** do not, and `forbidden` is the row that proves
+it. **Set inclusion does not license clause subordination:** a
+subordinate clause quantifies over its main clause's subject, so hanging
+the binding predicate off "compels no code item" asserts it of the whole
+`unobliged` extension rather than of the subset. The containment makes
+the premise true and the conclusion false, which is why three careful
+authors made the same move. **The subordinate form is forbidden here on
+grammatical grounds, with `forbidden` named as the witness.**
 
-**What the rule is keyed on: markedness, never the literal value.** The
-suppression applies when the target **compels no code item** — which
-covers `draft` targets (§1.1's defect) and `retired` targets alike. A
-key on the `retired` value would fix retirement and leave the creation
-defect open.
+Defining `unbound` by **membership** rather than by a polarity-class
+quantifier is what makes `ForbiddenConceptReintroduced` safe by
+construction rather than by a carve-out someone has to reason about.
+
+Required properties differ by predicate, because their arities differ.
+`unobliged` must be **two-place** — `EdgeMissingInCode` ranges over two
+headings, so reaching the target endpoint requires it — and stated in
+**obligation vocabulary**, never mechanism, so it cannot go stale when
+the pass structure changes. `unbound` is **one-place**:
+`ConceptContextMismatch` ranges over one heading and its code item, and
+misfires not because a second endpoint went unconsulted but because it
+presupposes a binding the heading refuses. Stating it two-place would
+assert a symmetry that does not exist. **Both must carry explicit
+boundedness** — complete, or visibly incomplete with a reference. That
+is the property whose absence produced this entire class.
+
+**What the rule is keyed on: `unobliged`, never the literal value.**
+The suppression applies when the target **compels no code item** —
+covering `draft` targets (§1.1's defect), `retired` targets, and
+non-`Declared` polarity alike. A key on the `retired` value would fix
+retirement and leave the creation defect open.
 
 **What answers "compels no code item": the concept pass's own row
 verdicts**, never a re-derived name-match set. RFC-013 §3.4 ruled that
@@ -372,13 +411,27 @@ how much the surviving findings are worth:
   code-absent cell and generalised from it."*
 - `clean-arch` proposed the canonical rule, then corrected it as
   incomplete in exactly the way it diagnoses — one leg reading as though
-  it covered the field. §3.4's two-leg form is the result.
+  it covered the field.
+- `clean-arch` and `solid` then drafted a binding leg each, and **both
+  were false** — each banned `ForbiddenConceptReintroduced`, by
+  different routes. `ddd` refuted both with the same witness and ruled
+  two named predicates instead. Three wordings of one error, from three
+  authors, is why §3.4 forbids the subordinate form on grammatical
+  grounds rather than warning against it.
 
-A fourth correction was the author's: revision 1 offered
-`specs/dialect.md:361-362` as the corrected rule already in the tree.
-`ddd` refuted it — that sentence attributes to the wrong heading, since
-the finding fires against the *source*, which does compel a code item.
-Adopting it would have shipped the defect again in shorter words.
+Two corrections were the author's. Revision 1 offered
+`specs/dialect.md:361-362` as the corrected rule already in the tree;
+`ddd` refuted it by execution — that sentence attributes to the wrong
+heading, since the finding fires against the *source*, which does compel
+a code item. And revision 2 scribed the two-leg form after the lenses
+had already begun refuting it; this revision replaces it.
+
+**The reusable finding, one level above this RFC.** A one-place sentence
+cannot express a two-place rule, and a subordinate clause cannot express
+an independent predicate. Both are cases of **a sentence's form silently
+bounding what it can assert, with an author who is being faithful** —
+which is why "sourced at" survived three RFCs and eight lens verdicts
+without anyone being careless.
 
 **Open for this review:** the canonical statement's placement (§3.4
 states it; `specs/dialect.md` is ruled its home, in a section of its
@@ -408,8 +461,32 @@ accumulated as separate bullets:
    self-defeating, and silence is worse than a right finding and better
    than a harmful one.
 
-**Leg 2 is known-incomplete, and the adjacent instance is two cells with
-two different mechanisms.** `ConceptContextMismatch` fires on a
+**What this RFC changes about the two predicates, which refutes the
+collapse a reader will reach for.** `retired`+absent joins `unobliged`
+— it compels no code item, which is exactly the argument for row 8's
+verb-pass skip. It does **not** join `unbound`: with no code item there
+is nothing for a binding-presupposing check to fire on, and row 7
+describes its item in full.
+
+| | `unobliged` | `unbound` |
+|---|---|---|
+| today | `draft`+absent, `forbidden`, `illustrative` | `illustrative` |
+| after RFC-015 | `draft`+absent, **`retired`+absent**, `forbidden`, `illustrative` | `illustrative` |
+
+**One predicate grows in this RFC and the other does not.** A reader
+tempted to collapse them as *"`unbound` is just a special case of
+`unobliged`"* is refuted by the document they are reading.
+
+**Naming, as measured.** `unobliged` has **nine call sites** across
+`domain/src/diff.rs` and `domain/src/diff/verb.rs`, and **zero** in
+`specs/` or `docs/rfc/`. `unbound` has **zero hits anywhere**. The
+concept every lens converged on had a name in the code and none in the
+intent layer — the most economical account of how a defective sentence
+survived three RFCs and eight lens verdicts: the right word already
+existed, in the one place no RFC author reads.
+
+**`unbound` is under-enforced, and the adjacent instance is two cells
+with two different mechanisms.** `ConceptContextMismatch` fires on a
 non-`Declared` heading — asserting that the heading's declared context
 disagrees with the code item's, on a premise the polarity falsifies:
 
@@ -424,8 +501,8 @@ disagrees with the code item's, on a premise the polarity falsifies:
   context disagrees with where the item lives"* — guidance about where
   to put an item the other finding says must not exist.
 
-**The marker axis passes leg 2 cleanly** — rows 3 and 8 have no code
-node, and row 7 firing a mismatch is correct, since row 7 enforces
+**The marker axis is clean on the binding axis** — rows 3 and 8 have no
+code node, and row 7 firing a mismatch is correct, since row 7 enforces
 equivalence in full. This is a **polarity-axis defect only**,
 pre-existing, RFC-014's implementation, not created by this RFC and not
 closed by the obligation verdict (the cohesion pass consumes no
