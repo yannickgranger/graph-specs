@@ -1,6 +1,6 @@
 ---
 title: RFC-015 — spec retirement state: a second marker value, its two marker records, and the obligation rule the edge pass was never given
-status: Draft (revision 10) — D16: the rule is derived from the enumeration; awaiting §2.3 review
+status: Draft (revision 11) — the derivation is checkable cell by cell; awaiting §2.3 review
 date: 2026-08-09
 authors: agentry-captain-2026-08-09
 companion: yg/agentry docs/rfc/RFC-spec-state-marker.md §11 (Amendment A2, council-produced, operator-ratified 2026-08-09)
@@ -9,7 +9,7 @@ prior-art: RFC-013 (spec state marker — this RFC amends its §3.1 "One legal v
 
 # RFC-015 — spec retirement state
 
-**Revision 10.** Revision 1 was reviewed by three lenses and returned
+**Revision 11.** Revision 1 was reviewed by three lenses and returned
 REQUEST CHANGES from each (`clean-arch` C0–C3, `ddd` D1–D8, `solid`
 F1–F12). This revision folds every blocking condition. §5 records what
 the review found, including the three findings that were withdrawn by
@@ -289,6 +289,41 @@ cited, never restated, by every carrier.
 > demand made of it by another heading's declarations. *This is what
 > RFC-015 adds.*
 
+**The derivation is checkable cell by cell, and it is stated that way
+because spot-checking the motivating cell is how both previous versions
+passed review.** Every heading state × item presence, with the ground:
+
+| heading state | item | member? | ground |
+|---|---|---|---|
+| unmarked `declared` | absent | **no** | nothing accounts for the absence — that absence *is* the finding (row 1) |
+| unmarked `declared` | present | **no** | there is a legitimate item to point at |
+| marked (`draft`/`retired`) | absent | **yes** | the marker accounts for it: owed to exist, or owed to be gone |
+| marked | present | **no** | there is a legitimate item to point at |
+| `illustrative` | absent | **yes** | the heading compels nothing, so its absence is legitimate |
+| `illustrative` | **present** | **no** | **the item IS a legitimate target** — see below |
+| `forbidden` | absent | **yes** | the name is expelled |
+| `forbidden` | present | **yes** | the name is expelled; the item's existence is itself the violation |
+
+**The `illustrative` + present row is falsified by the checker, not just
+by this list.** With the code edge actually present, executed:
+
+```
+## S - depends on: T   |   ## T <!-- polarity:illustrative -->
+code: pub struct T;  pub struct S { pub f: T }
+
+→ missing in specs: T      1 violation
+  (no `edge missing in code` — the edge MATCHED)
+```
+
+The checker **accepts** an item under an `illustrative` heading as a
+legitimate edge target. `polarity.rs:40-43` states why: such an item
+*"falls through to the orphan sweep as `MissingInSpecs` — the marker
+cannot launder unspecced public surface past the gate."* **Unspecced,
+not illegitimate.** Contrast `forbidden`, where
+`ForbiddenConceptReintroduced` means *remove the item*: there the name
+genuinely is illegitimate, and that is the only class the expulsion
+ground covers.
+
 **The accounting clause is load-bearing and is not a restatement of the
 member list.** Without it the definition reads on **item absence
 alone** — and an *unmarked, `declared`* heading whose item is absent
@@ -564,7 +599,22 @@ Naming a governing statement was not enough, because three independent
 statements of one membership is a structure that **manufactures** this
 defect rather than merely permitting it, and it did so twice running.
 The rule is now a reading of the list; there is nothing left for the two
-to disagree about. Stating which carrier
+to disagree about.
+
+**This is not a local repair — it is §3.4's own opening rule, extended
+to membership.** That rule reads *"each is stated once here and cited,
+never restated, by every carrier."* It governed the **predicates** and
+was silent on their **membership**, and membership is what broke, twice.
+Stated once and derived from is the same discipline one level down; a
+future revision that restates membership anywhere new is the fourth
+instance, not a new problem.
+
+**And the shape is one this review has already diagnosed in code.** F5
+found *four independent carriers of one predicate* in `diff.rs`; this is
+*three independent statements of one membership* in prose. Identical
+failure mode: each statement is established against the cells its author
+had in mind and then asserted of the class, with nothing marking where
+the narrowing stopped. Stating which carrier
 answers which class is mandatory — an unanswerable leg gets answered by
 whatever set is nearest to hand, which is the name-match set this
 section already warns about.
