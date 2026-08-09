@@ -9,8 +9,8 @@ Repo-local methodology. Sets the contribution and review discipline for this rep
 | Work type | Path |
 |---|---|
 | New capability (output format, equivalence level, CLI subcommand, violation variant, schema-version bump) | RFC → architect review → issues → dual-control PRs |
-| Bug fix (wrong behavior on existing capability) | Issue → `/work-issue-lib` → dual-control PR |
-| Mechanical (rename, file split, dedup) | Issue → `/fix-mechanical` → dual-control PR |
+| Bug fix (wrong behavior on existing capability) | Issue → regression-first fix → dual-control PR |
+| Mechanical (rename, file split, dedup) | Issue → behaviour-neutral change → dual-control PR |
 | Docs, CI config, chore | Issue → direct PR → dual-control PR |
 
 "RFC-first" means: no implementation issue is filed until the RFC is ratified. Writing implementation without a ratified RFC is a methodology violation — the shape of the solution must be negotiated in the RFC, not in the PR.
@@ -54,7 +54,7 @@ Invocation is via `Agent(subagent_type=...)` or agent teams — whichever afford
 
 ### §2.4 — Ratification → issues
 
-Once ratified, the RFC's "Issue decomposition" section becomes the concrete backlog. Each vertical slice is filed as a `forge_create_issue` with body linking back to the RFC (`Refs: docs/rfc/NNN-...md`) and carrying the prescribed `Tests:` section from the RFC verbatim. Issues are worked via `/work-issue-lib`. A PR against an issue without the prescribed test is not merged.
+Once ratified, the RFC's "Issue decomposition" section becomes the concrete backlog. Each vertical slice is filed as a `forge_create_issue` with body linking back to the RFC (`Refs: docs/rfc/NNN-...md`) and carrying the prescribed `Tests:` section from the RFC verbatim. A PR against an issue without the prescribed test is not merged.
 
 ### §2.5 — Tests and real infra
 
@@ -106,19 +106,7 @@ Every PR passes these gates. CI enforces them (`.gitea/workflows/ci.yml` jobs `d
 
 **`cfdb::SchemaVersion` bumps require a lockstep PR on this repo** (RFC-002 §4 I3 / cfdb RFC-033 §4 I2). When cfdb bumps `cfdb_core::SchemaVersion`, a draft PR on `yg/graph-specs-rust` MUST bump `.cfdb/cross-fixture.toml` to cfdb's HEAD SHA. Merge order: cfdb first, then graph-specs within minutes. During that window the cross-dogfood step may return exit 20 briefly — the documented reason for that code. If graph-specs' `cfdb-check` CI cannot absorb the new shape (e.g. the new `SchemaVersion` breaks the existing `.cfdb/cfdb.rev`-pinned binary), graph-specs does NOT merge the bump PR — it instead bumps `.cfdb/cfdb.rev` too, in the same PR, to pick up the matching new cfdb binary. See [`docs/cross-fixture-bump.md`](docs/cross-fixture-bump.md) §4 for the full flow and exit-code contract.
 
-## §4 — Skill selection
-
-| Scenario | Skill |
-|---|---|
-| New vertical slice derived from a ratified RFC | `/work-issue-lib` |
-| Bug fix on existing behavior | `/work-issue-lib` (or `/fix-issue` if framing is regression-first) |
-| Rename / move / dedup / file split | `/fix-mechanical` |
-| N parallel mechanical refactors | `/sweep-epic` |
-| Pre-push | `/ship` — the only authorized push + PR path |
-
-The full `/work-issue` orchestrator (with Podman, BDD, bounded-context raid) is overkill for this repo — it is a pure library with no external infrastructure.
-
-## §5 — Self-hosting discipline
+## §4 — Self-hosting discipline
 
 graph-specs-rust dogfoods itself from day zero:
 
@@ -128,7 +116,7 @@ graph-specs-rust dogfoods itself from day zero:
 
 The tool's own `check` runs against `specs/` + `.` on every CI push — picking up both `specs/concepts/` (concept-level, v0.1–v0.3) and `specs/contexts/` (bounded-context level, v0.4). A new concept in code without a spec entry blocks the PR; a cross-context edge without a matching `Imports` declaration does too. This is the REUSE / CREATE test; no sub-agent discovery is needed for this codebase.
 
-## §6 — Quick reference
+## §5 — Quick reference
 
 ```bash
 # Local dual-control check before pushing
@@ -136,11 +124,8 @@ cargo build --release -p application
 ./target/release/graph-specs check --specs specs/ --code .
 mkdir -p .cfdb/db && cfdb extract --workspace . --db .cfdb/db --keyspace graph-specs
 for r in .cfdb/queries/*.cypher; do cfdb violations --db .cfdb/db --keyspace graph-specs --rule "$r"; done
-
-# Ship
-/ship <issue> <repo-url> --workspace <path>
 ```
 
-## §7 — Companion policy
+## §6 — Companion policy
 
 The same RFC-first + architect-review methodology applies to `yg/cfdb`. See that repo's `CLAUDE.md`.
