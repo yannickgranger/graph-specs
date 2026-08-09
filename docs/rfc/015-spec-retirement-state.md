@@ -1,6 +1,6 @@
 ---
 title: RFC-015 — spec retirement state: a second marker value, its two marker records, and the obligation rule the edge pass was never given
-status: Draft (revision 9) — enumeration-governs, the output-identical proof, the divergent-carrier bound; awaiting §2.3 review
+status: Draft (revision 10) — D16: the rule is derived from the enumeration; awaiting §2.3 review
 date: 2026-08-09
 authors: agentry-captain-2026-08-09
 companion: yg/agentry docs/rfc/RFC-spec-state-marker.md §11 (Amendment A2, council-produced, operator-ratified 2026-08-09)
@@ -9,7 +9,7 @@ prior-art: RFC-013 (spec state marker — this RFC amends its §3.1 "One legal v
 
 # RFC-015 — spec retirement state
 
-**Revision 9.** Revision 1 was reviewed by three lenses and returned
+**Revision 10.** Revision 1 was reviewed by three lenses and returned
 REQUEST CHANGES from each (`clean-arch` C0–C3, `ddd` D1–D8, `solid`
 F1–F12). This revision folds every blocking condition. §5 records what
 the review found, including the three findings that were withdrawn by
@@ -273,14 +273,21 @@ cited, never restated, by every carrier.
 > declarations. This is what the verb pass and the anchor pass already
 > consume.
 >
-> **`unpointable`** — this heading offers no legitimate code item to
-> point at, **and its own declared state accounts for that**: the
-> heading is marked, so an item is owed to exist or owed to be gone; or
-> its polarity is non-`Declared`, so no item of that name is legitimate.
-> Members: marked-with-either-value + absent, `illustrative` + absent,
-> `forbidden` + absent, and `forbidden` + present. It governs the
-> **target side**: no heading bears a code-existence demand made of it
-> by another heading's declarations. *This is what RFC-015 adds.*
+> **`unpointable`** — **the members are normative and are stated
+> first**: marked-with-either-value + absent; `illustrative` + absent;
+> `forbidden` + absent; `forbidden` + present.
+>
+> **Read as a rule, derived from that list and never stated beside it**:
+> this heading offers no legitimate code item to point at, and its own
+> declared state accounts for that, on exactly three grounds —
+> **marked**, so an item is owed to exist or owed to be gone;
+> **`illustrative`**, so the heading compels nothing and an absent item
+> is legitimate; **`forbidden`**, so the name is expelled and no item of
+> it is legitimate, present or absent.
+>
+> It governs the **target side**: no heading bears a code-existence
+> demand made of it by another heading's declarations. *This is what
+> RFC-015 adds.*
 
 **The accounting clause is load-bearing and is not a restatement of the
 member list.** Without it the definition reads on **item absence
@@ -525,15 +532,39 @@ row verdicts cannot separate the member (`illustrative` + absent) from
 the non-member (`illustrative` + present) **even in principle** — and
 that is exactly the cell this predicate was created to discriminate.
 
-**Where the three statements disagree, the ENUMERATION governs.** This
-membership is stated three times — as a definition, as an enumeration,
-and as a carrier — and each is individually plausible. The enumeration
-is normative; the definition is narrowed to match it (above); the
-carriers answer it per member class (this table). Three statements of
-one membership with nothing marking the gap between them is this
-document's own thesis at its most economical, and naming which one
-governs is the only thing that stops the next reader picking a
-different one. Stating which carrier
+**Name presence is right on a second, independent ground**, which
+matters for a carrier rule that has already failed once: an
+anchor-backed concept can never be a code-edge target at all
+(`edges.rs:37-43` retains only edges whose target is a discovered code
+concept; `concept.rs:47` tries the name match first, so an anchored
+concept never name-matches). So for an anchored `illustrative` target
+the edge is unsatisfiable regardless, and name presence gives the
+correct outcome **by construction** rather than only because the anchor
+question is moot there.
+
+**The enumeration is normative and the rule is DERIVED from it — which
+is a structural change, not a statement of precedence.** This membership
+was previously stated three times, independently: a definition, an
+enumeration, and a carrier table, each individually plausible. **No two
+agreed, in two consecutive revisions, in opposite directions** — the
+definition first read wider than the list (an unmarked `declared`
+heading with an absent item satisfied it), and the repair then read
+wider again in a new direction, admitting `illustrative` + present by
+declaring no non-`Declared` item legitimate. That second reading is D9
+verbatim, re-created inside the fix for D9.
+
+The word that over-reached was one: *legitimate* is true of `forbidden`,
+whose expelled name genuinely has no legitimate item, and **false of
+`illustrative`**, whose item is not illegitimate but merely
+*undescribed by that heading* — which is the `unbound` axis, not this
+one. `illustrative` + absent is a member via **absence**, on the marked
+cells' ground.
+
+Naming a governing statement was not enough, because three independent
+statements of one membership is a structure that **manufactures** this
+defect rather than merely permitting it, and it did so twice running.
+The rule is now a reading of the list; there is nothing left for the two
+to disagree about. Stating which carrier
 answers which class is mandatory — an unanswerable leg gets answered by
 whatever set is nearest to hand, which is the name-match set this
 section already warns about.
@@ -628,8 +659,8 @@ No new subcommand, no new flags.
    single-ground justification is recorded as withdrawn rather than
    quietly replaced: it produced two false findings from two lenses in
    one round, in opposite directions, which is a better argument for
-   stating both grounds than any reasoning about them. But the design
-   does create
+   stating both grounds than any reasoning about them. But the design does
+   create
    assertions true by suppression rather than by verification, and §6
    names that class rather than leaving it inside this invariant.
 2. **The unmarked tree is untouched**, and this is an independent ground
