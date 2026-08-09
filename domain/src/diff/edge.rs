@@ -1,4 +1,11 @@
 //! Edge-level (v0.3 relationship) comparison on matched concepts.
+//!
+//! Two obligation questions meet here and only one of them is this pass's
+//! own. The **source** side — whose edges participate at all — is the
+//! `matched_concepts` grouping below. The **target** side is RFC-015 §3.4's
+//! `unpointable`, stated in [`super::obligation`] and consumed here: no
+//! heading bears a code-existence demand made of it by *another* heading's
+//! declarations.
 
 use crate::{Edge, Violation};
 use std::collections::{HashMap, HashSet};
@@ -12,6 +19,7 @@ pub(super) fn edge_diff(
     code_edges: Vec<Edge>,
     known_concepts: &HashSet<String>,
     matched_concepts: &HashSet<String>,
+    unpointable: &HashSet<String>,
     out: &mut Vec<Violation>,
 ) {
     let spec_by_concept = group_by_matched_concept(spec_edges, matched_concepts);
@@ -19,7 +27,13 @@ pub(super) fn edge_diff(
 
     for (concept, spec_for_concept) in spec_by_concept {
         let code_for_concept = code_by_concept.remove(&concept).unwrap_or_default();
-        compare_edges(spec_for_concept, code_for_concept, known_concepts, out);
+        compare_edges(
+            spec_for_concept,
+            code_for_concept,
+            known_concepts,
+            unpointable,
+            out,
+        );
     }
 }
 
@@ -46,6 +60,7 @@ fn compare_edges(
     spec: Vec<Edge>,
     code: Vec<Edge>,
     known_concepts: &HashSet<String>,
+    unpointable: &HashSet<String>,
     out: &mut Vec<Violation>,
 ) {
     let spec_matched: Vec<bool> = spec
@@ -64,6 +79,15 @@ fn compare_edges(
         .collect();
 
     for (spec_edge, matched) in spec.into_iter().zip(spec_matched) {
+        if unpointable.contains(&spec_edge.target) {
+            // RFC-015 §3.4, target side. Checked BEFORE the known-target
+            // short-circuit: an unpointable name is declared in specs, so it
+            // is in `known_concepts` and would otherwise fall straight to
+            // `EdgeMissingInCode`. `known_concepts` itself is never filtered
+            // — the name is still declared, so a bullet aimed at it is not
+            // aiming at a mirage, and `EdgeTargetUnknown` keeps its meaning.
+            continue;
+        }
         if !known_concepts.contains(&spec_edge.target) {
             out.push(Violation::EdgeTargetUnknown {
                 concept: spec_edge.source_concept,
@@ -81,6 +105,10 @@ fn compare_edges(
         }
     }
 
+    // Invariant 5 — `EdgeMissingInSpec` is untouched by the exemption, on
+    // either endpoint. The rule is one-directional: code may not carry a
+    // relationship the specs do not declare, whatever the target's marker or
+    // polarity says.
     for (code_edge, matched) in code.into_iter().zip(code_matched) {
         if !matched {
             out.push(Violation::EdgeMissingInSpec {

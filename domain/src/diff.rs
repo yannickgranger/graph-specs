@@ -16,6 +16,7 @@ mod cohesion;
 mod concept;
 mod context;
 mod edge;
+mod obligation;
 mod signature;
 mod verb;
 
@@ -138,6 +139,10 @@ pub fn diff(spec: CheckInput, code: Graph) -> CheckOutcome {
         &mut violations,
     );
 
+    // RFC-015 §3.4 — both obligation keys, taken before the concept pass
+    // consumes `spec_nodes` and mutates `code_by_name`.
+    let keys = obligation::obligation_keys(&spec_nodes, &code_by_name, &anchored_concepts);
+
     concept_pass(
         spec_nodes,
         &mut code_by_name,
@@ -153,30 +158,18 @@ pub fn diff(spec: CheckInput, code: Graph) -> CheckOutcome {
         code_edges,
         &known_concepts,
         &matched_concepts,
+        &keys.unpointable,
         &mut violations,
     );
 
-    // The uniform obligation skip, from both RFCs, as one set: a `- verb:`
-    // bullet under a concept that compels nothing imposes nothing.
-    //
-    // - RFC-013 §3.4 — pending concepts (marked, no backing item).
-    // - RFC-014 §3.3 — non-`declared` concepts (forbidden / illustrative).
-    // - RFC-015 §3.2 — row 8, retired with the backing item already gone.
-    //
-    // Row 8 is listed rather than inherited, because **silence resolves to
-    // armed**: this set is the verb pass's only skip vector, a row-8 concept
-    // is not in `pending`, and `verb.rs` carries a control asserting the
-    // violation *does* fire on an empty unobliged set. "The mirror of row 3"
-    // would not have been enough.
-    //
-    // The edge pass inherits the same rule by construction, via the
-    // `matched_concepts` filter above; the verb pass is told explicitly.
-    let unobliged = unobliged_set(&records, &unobliged_concepts);
+    // RFC-015 §3.4 — the source-side rule, now consumed from where it is
+    // STATED rather than reassembled here from the record lists it happens
+    // to produce. Same extension, one carrier.
     verb::verb_pass(
         spec_verb_ownership,
         &code_for_verb,
         &spec_contexts,
-        &unobliged,
+        &keys.unobliged,
         &mut violations,
     );
 
@@ -262,33 +255,6 @@ fn run_anchor_pass(
         .collect();
     suppressed.extend(non_declared.iter().map(String::as_str));
     anchor_pass(concept_anchors, &suppressed, violations)
-}
-
-/// The uniform obligation skip as one set of concept names, from all three
-/// rules that produce it — RFC-013 §3.4 (pending), RFC-014 §3.3
-/// (non-`declared`), RFC-015 §3.2 (row 8, retired with the item already
-/// gone).
-///
-/// Row 8 is listed rather than inherited, because **silence resolves to
-/// armed**: this set is the verb pass's only skip vector, a row-8 concept is
-/// not in `pending`, and the pass carries a control asserting the violation
-/// *does* fire on an empty set.
-fn unobliged_set<'a>(
-    records: &'a MarkerRecords,
-    non_declared: &'a HashSet<String>,
-) -> HashSet<&'a str> {
-    records
-        .pending
-        .iter()
-        .map(|p| p.concept.as_str())
-        .chain(
-            records
-                .retirement_complete
-                .iter()
-                .map(|r| r.concept.as_str()),
-        )
-        .chain(non_declared.iter().map(String::as_str))
-        .collect()
 }
 
 /// Snapshot the containment triple of every code concept that has one

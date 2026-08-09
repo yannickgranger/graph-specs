@@ -22,7 +22,7 @@ pub(super) fn verb_pass(
     verb_ownership: VerbOwnership,
     code: &Graph,
     contexts: &[ContextDecl],
-    unobliged_concepts: &HashSet<&str>,
+    unobliged_concepts: &HashSet<String>,
     out: &mut Vec<Violation>,
 ) {
     // Owned so `emit_missing_in_spec` can move each decl's `qname`/`source`
@@ -285,7 +285,7 @@ mod tests {
         let code = Graph::new(code_nodes, vec![]);
         let verb_ownership = VerbOwnership { decls, anchors };
         let mut out = Vec::new();
-        let pending_concepts: HashSet<&str> = std::iter::once(pending).collect();
+        let pending_concepts: HashSet<String> = std::iter::once(pending.to_owned()).collect();
         verb_pass(
             verb_ownership,
             &code,
