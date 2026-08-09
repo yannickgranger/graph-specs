@@ -1340,3 +1340,213 @@ fn row_8_verb_anchors_impose_no_obligation() {
         "row 8 skips identically, and it is listed rather than inherited"
     );
 }
+
+// --- RFC-015 §3.4 — the target-side obligation rule, at the edge pass ---
+
+/// A spec graph of `## Source - depends on: Target`, with `Target`'s heading
+/// in the given state. `Source` always has a backing code item so its edges
+/// participate at all (that is the source-side rule, unchanged here).
+fn edge_into(target_state: ConceptNode, target_has_code: bool) -> (CheckInput, Graph) {
+    let specs = Graph::new(
+        vec![spec("Source"), target_state],
+        vec![spec_edge("Source", EdgeKind::DependsOn, "Target")],
+    );
+    let mut code_nodes = vec![code("Source")];
+    if target_has_code {
+        code_nodes.push(code("Target"));
+    }
+    (
+        CheckInput::new(specs, Vec::new(), VerbOwnership::default()),
+        Graph::new(code_nodes, Vec::new()),
+    )
+}
+
+fn target(marker: Marker, polarity: Polarity) -> ConceptNode {
+    let mut n = spec_with_polarity("Target", polarity);
+    n.marker = marker;
+    n
+}
+
+fn fires_edge_missing_in_code(input: CheckInput, code: Graph) -> bool {
+    super::diff(input, code)
+        .violations
+        .iter()
+        .any(|v| matches!(v, Violation::EdgeMissingInCode { target, .. } if target == "Target"))
+}
+
+#[test]
+fn the_marker_matrix_suppresses_in_exactly_the_two_marked_and_absent_cells() {
+    // RFC-015 §3.4 — the six-cell marker matrix. Suppression is keyed on
+    // "marked AND absent", never on absence alone: the unmarked+absent cell
+    // is matrix row 1, where nothing accounts for the absence, and moving it
+    // would break invariant 2.
+    for marker in [Marker::Unmarked, Marker::Draft, Marker::Retired] {
+        for present in [false, true] {
+            let (input, code) = edge_into(target(marker, Polarity::Declared), present);
+            // Suppressed exactly when marked AND absent; armed otherwise.
+            let want = !marker.is_marked() || present;
+            assert_eq!(
+                fires_edge_missing_in_code(input, code),
+                want,
+                "{marker:?} + present={present}"
+            );
+        }
+    }
+}
+
+#[test]
+fn an_anchored_target_counts_as_present_and_is_not_suppressed() {
+    // "Backing item present" has two spellings and the target side reads the
+    // same fact as the concept pass. A marked target backed by a RESOLVED
+    // `- impl:` anchor is PRESENT, so the edge into it still fires.
+    let (input, code) = edge_into(target(Marker::Draft, Polarity::Declared), false);
+    let input = input.with_concept_anchors(vec![resolved_anchor("Target", "build_target", true)]);
+    assert!(
+        fires_edge_missing_in_code(input, code),
+        "a resolved anchor is a backing item — the marker has nothing to account for"
+    );
+}
+
+#[test]
+fn the_polarity_matrix_fires_only_for_illustrative_with_an_item() {
+    // RFC-015 §3.4 — the witness cell. `illustrative` + present is
+    // `unobliged` and yet POINTABLE: the item is a legitimate edge target,
+    // and keying the target side on `unobliged` would park that divergence.
+    for (polarity, present, want_fire) in [
+        (Polarity::Forbidden, false, false),
+        (Polarity::Forbidden, true, false),
+        (Polarity::Illustrative, false, false),
+        (Polarity::Illustrative, true, true),
+    ] {
+        let (input, code) = edge_into(target(Marker::Unmarked, polarity), present);
+        assert_eq!(
+            fires_edge_missing_in_code(input, code),
+            want_fire,
+            "{polarity:?} + present={present}"
+        );
+    }
+}
+
+#[test]
+fn adding_the_field_clears_the_illustrative_present_finding() {
+    // The remedy is clean and actionable, which is the whole reason that
+    // cell must stay armed: 2 violations → 1, and nothing is introduced.
+    let armed = super::diff(
+        edge_into(target(Marker::Unmarked, Polarity::Illustrative), true).0,
+        Graph::new(vec![code("Source"), code("Target")], Vec::new()),
+    );
+    let cleared = super::diff(
+        edge_into(target(Marker::Unmarked, Polarity::Illustrative), true).0,
+        Graph::new(
+            vec![code("Source"), code("Target")],
+            vec![code_edge("Source", EdgeKind::DependsOn, "Target")],
+        ),
+    );
+    assert_eq!(armed.violations.len(), 2, "{:?}", armed.violations);
+    assert_eq!(cleared.violations.len(), 1, "{:?}", cleared.violations);
+    assert!(
+        cleared
+            .violations
+            .iter()
+            .all(|v| matches!(v, Violation::MissingInSpecs { .. })),
+        "only the unspecced-item finding survives: {:?}",
+        cleared.violations
+    );
+}
+
+#[test]
+fn edge_missing_in_spec_fires_in_every_cell_of_both_matrices() {
+    // Invariant 5 — the exemption is one-directional. Code may not carry a
+    // relationship the specs do not declare, whatever the target's marker or
+    // polarity says. This is the reverse tooth.
+    let states = [
+        (Marker::Unmarked, Polarity::Declared),
+        (Marker::Draft, Polarity::Declared),
+        (Marker::Retired, Polarity::Declared),
+        (Marker::Unmarked, Polarity::Forbidden),
+        (Marker::Unmarked, Polarity::Illustrative),
+    ];
+    for (marker, polarity) in states {
+        for present in [false, true] {
+            // `Source` carries a spec edge so it participates at all (edge
+            // comparison is opt-in on concepts with >=1 spec edge), and the
+            // CODE edge is of a different kind, so it has no spec
+            // counterpart whatever the target's state.
+            let specs = Graph::new(
+                vec![spec("Source"), target(marker, polarity)],
+                vec![spec_edge("Source", EdgeKind::DependsOn, "Target")],
+            );
+            let mut code_nodes = vec![code("Source")];
+            if present {
+                code_nodes.push(code("Target"));
+            }
+            let outcome = super::diff(
+                CheckInput::new(specs, Vec::new(), VerbOwnership::default()),
+                Graph::new(
+                    code_nodes,
+                    vec![code_edge("Source", EdgeKind::Implements, "Target")],
+                ),
+            );
+            assert!(
+                outcome
+                    .violations
+                    .iter()
+                    .any(|v| matches!(v, Violation::EdgeMissingInSpec { .. })),
+                "{marker:?} + {polarity:?} + present={present}: {:?}",
+                outcome.violations
+            );
+        }
+    }
+}
+
+#[test]
+fn a_suppressed_target_yields_no_edge_target_unknown_and_a_mirage_still_does() {
+    // `known_concepts` is never filtered — the name is still declared in
+    // specs, so the two findings keep their distinct meanings.
+    let (input, code_graph) = edge_into(target(Marker::Retired, Polarity::Declared), false);
+    let suppressed = super::diff(input, code_graph);
+    assert!(
+        !suppressed
+            .violations
+            .iter()
+            .any(|v| matches!(v, Violation::EdgeTargetUnknown { .. })),
+        "a declared-but-unpointable name is not a mirage: {:?}",
+        suppressed.violations
+    );
+
+    let mirage = super::diff(
+        CheckInput::new(
+            Graph::new(
+                vec![spec("Source")],
+                vec![spec_edge("Source", EdgeKind::DependsOn, "Ghost")],
+            ),
+            Vec::new(),
+            VerbOwnership::default(),
+        ),
+        nodes(vec![code("Source")]),
+    );
+    assert!(
+        mirage
+            .violations
+            .iter()
+            .any(|v| matches!(v, Violation::EdgeTargetUnknown { .. })),
+        "a genuinely unknown target still does: {:?}",
+        mirage.violations
+    );
+}
+
+#[test]
+fn the_target_side_mirror_of_the_source_side_marker_skip() {
+    // The missing mirror: the source-side assertion has been pinned since
+    // RFC-013, while the target side was only claimed to hold "by
+    // construction" — which is §1.1's defect, and this is the assertion
+    // that was red before this slice.
+    let (input, code) = edge_into(target(Marker::Draft, Polarity::Declared), false);
+    let outcome = super::diff(input, code);
+    assert!(
+        outcome.is_clean(),
+        "a draft-marked absent target bears no code-existence demand: {:?}",
+        outcome.violations
+    );
+    assert_eq!(outcome.pending.len(), 1, "and it is still pending");
+}

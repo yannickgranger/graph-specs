@@ -294,13 +294,11 @@ heading whose anchor does not resolve is `pending`, and its
 `dangling anchor` violation is suppressed — an unresolved target *is*
 the declared-ahead-of-code state the marker announces.
 
-While a concept is pending, every check sourced at that heading — its
-edge bullets, its `- verb:` anchors, its `- impl:` anchors — imposes no
-obligation. With no backing item there is nothing to compare. **A row-8
-heading carries that skip in full**, on the same ground and by the same
-rule. It is stated rather than left to inference, because silence
-resolves to *armed*: the skip is a set the passes are handed, and a
-heading nobody put in it is enforced.
+A pending concept, and a row-8 one, impose nothing through their own
+declarations. That is `unobliged`, and it is **stated once** under [what
+a heading obliges](#what-a-heading-obliges-and-what-it-describes-rfc-015)
+— cited here, never restated, because a rule written out under one
+record kind reads as scoped to it.
 
 A marker never parks a divergence: once the concept is realized, drift
 under it fires the ordinary violation exactly as it would under an
@@ -374,10 +372,11 @@ marker laundering unspecced public surface past the gate. It is a
 heading never attempts to bind a code item at all, so the item falls
 through to the orphan sweep like any undocumented type.
 
-While a heading is non-`declared`, every check sourced at it imposes no
-obligation — its edge bullets, its `- verb:` anchors, and its `- impl:`
-anchors alike, the last including `dangling_anchor`. A heading that
-compels nothing cannot be missing anything.
+A non-`declared` heading likewise imposes nothing through its own
+declarations — the same `unobliged` rule, [stated
+once](#what-a-heading-obliges-and-what-it-describes-rfc-015) and cited
+here. Both polarity values are members; so is a marked heading whose item
+is absent.
 
 ### Precedence over the spec-state marker
 
@@ -400,6 +399,76 @@ not out-competed by polarity; it is *structurally inert*. Emitting
 `realized — ratify` on an expelled name would also be an actively wrong
 instruction: a reader would see "close this out" and "actively banned"
 on the same heading.
+
+## What a heading obliges, and what it describes (RFC-015)
+
+Its own section deliberately, under neither the marker section nor the
+polarity section. Placed under either, one rule drawing on two sources
+would read as that axis's rule which the other happens to obey — and
+both axes contribute members.
+
+Three named predicates. Each is stated **here** and cited, never
+restated, by every carrier.
+
+**`unobliged`** — this heading compels no code item to exist. Members: a
+heading marked with either value whose item is absent, `forbidden`, and
+`illustrative`. It governs the **source side**: an `unobliged` heading
+imposes no code-existence demand through its own declarations — its edge
+bullets, its `- verb:` anchors, and its `- impl:` anchors alike, the last
+including `dangling anchor`.
+
+**`unpointable`** — this heading offers no legitimate code item to point
+at, and its own declared state accounts for that. Members: marked with
+either value + absent; `illustrative` + absent; `forbidden` + absent;
+`forbidden` + present. It governs the **target side**: no heading bears a
+code-existence demand made of it by *another* heading's declarations.
+
+**`unbound`** — this heading describes no code item. Member:
+`illustrative`, alone. It governs every check presupposing that the
+heading describes that item. **Known under-enforced** — the cohesion pass
+still fires `concept context mismatch` on non-`declared` headings.
+
+### Why three names and not one rule with caveats
+
+The member sets nest — `unpointable` ⊂ `unobliged` — while the predicates
+do not, and each containment has a witness:
+
+- **`forbidden`** is `unobliged` **and bound**. Hanging the binding
+  predicate off "compels no code item" bans
+  `forbidden concept reintroduced`, the finding the polarity axis exists
+  to produce.
+- **`illustrative` with its item present** is `unobliged` **and
+  pointable**. The item is a legitimate edge target: adding the field
+  clears the finding and introduces nothing, so keying the target side on
+  `unobliged` would park a real divergence.
+
+Set inclusion does not license clause subordination. A subordinate clause
+quantifies over its main clause's subject, so hanging either predicate
+off "compels no code item" asserts it of the whole `unobliged` extension
+rather than of the subset — which is why the names are separate and the
+subordinate form is not used here.
+
+**The accounting clause in `unpointable` is load-bearing and is not a
+restatement of the member list.** An unmarked `declared` heading whose
+item is absent is *not* a member: that is the first row of the marker
+table, where nothing accounts for the absence, because the absence *is*
+the finding. Keying on absence alone would silently move that row.
+
+### The predicates are per-heading; the key is per-name
+
+Two headings may share a name across files, and the edge pass keys on an
+edge's target, which is a name rather than a heading. The conversion is
+**conservative for `unpointable`: a name is unpointable only if every
+heading carrying it is.** A heading in one context illustrating a type
+really declared in another is the canonical use of `illustrative`, and a
+permissive key would suppress an edge into that name while the declared
+heading's item sits there satisfiable.
+
+### One direction only
+
+`edge missing in spec` is untouched by the exemption, on either endpoint
+and under every marker value and polarity. Code may not carry a
+relationship the specs do not declare.
 
 ## What the Rust reader parses
 

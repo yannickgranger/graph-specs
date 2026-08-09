@@ -429,9 +429,13 @@ spelling.
 A marked concept heading with no backing code item — row 3 of the
 RFC-013 §3.2 enforcement matrix. Emitted **instead of**
 `Violation::MissingInCode`: the marker announces that the concept is
-declared ahead of its code, so no code-existence obligation applies,
-and every check sourced at that heading (its edge bullets, verb
-anchors, `- impl:` anchors) is skipped for the same reason.
+declared ahead of its code, so no code-existence obligation applies.
+
+The skip that follows is `unobliged`, and it is **cited, not restated**:
+it is stated once in `specs/dialect.md`, under what a heading obliges.
+Written out here it would read as a rule about this record kind, and it
+is not one — row 8 and both polarity values are members too, and after
+RFC-015 a rule scoped to `PendingRecord` is false where it sits.
 
 Not a failure. The pending list is the transcription worklist the
 ratification workflow reads every run — a state field with a producer
