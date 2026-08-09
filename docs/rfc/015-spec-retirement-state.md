@@ -1,6 +1,6 @@
 ---
 title: RFC-015 — spec retirement state: a second marker value, its two marker records, and the obligation rule the edge pass was never given
-status: Draft (revision 3) — all four r1 verdicts folded, plus ddd's r2 audit; awaiting §2.3 review of THIS text
+status: Draft (revision 4) — D9/D10/G1-G3 folded; awaiting §2.3 review of THIS text
 date: 2026-08-09
 authors: agentry-captain-2026-08-09
 companion: yg/agentry docs/rfc/RFC-spec-state-marker.md §11 (Amendment A2, council-produced, operator-ratified 2026-08-09)
@@ -9,7 +9,7 @@ prior-art: RFC-013 (spec state marker — this RFC amends its §3.1 "One legal v
 
 # RFC-015 — spec retirement state
 
-**Revision 3.** Revision 1 was reviewed by three lenses and returned
+**Revision 4.** Revision 1 was reviewed by three lenses and returned
 REQUEST CHANGES from each (`clean-arch` C0–C3, `ddd` D1–D8, `solid`
 F1–F12). This revision folds every blocking condition. §5 records what
 the review found, including the three findings that were withdrawn by
@@ -247,20 +247,51 @@ needs only "compels no code item".
 
 ### §3.4 — What a heading obliges, and what it describes
 
-**The rule, non-directional and mechanism-free.** It is stated here, in
-two legs, and every other carrier cites it rather than restating it.
+**The rule, stated as named predicates.** Each is stated once here and
+cited, never restated, by every carrier.
 
 > **`unobliged`** — this heading compels no code item to exist.
 > Members: a heading marked with either value whose item is absent,
-> `forbidden`, and `illustrative`. It governs existence-shaped findings:
-> an `unobliged` heading neither imposes a code-existence demand through
-> its own declarations, **nor bears one demanded of it by another
-> heading's declarations.** *This is the whole of what RFC-015 fixes.*
+> `forbidden`, and `illustrative`. It governs the **source side**: an
+> `unobliged` heading imposes no code-existence demand through its own
+> declarations. This is what the verb pass and the anchor pass already
+> consume.
+>
+> **`unpointable`** — this heading offers no legitimate code item to
+> point at: the item is **absent**, or it is **expelled**. Members:
+> marked-with-either-value + absent, `illustrative` + absent,
+> `forbidden` + absent, and `forbidden` + present. It governs the
+> **target side**: no heading bears a code-existence demand made of it
+> by another heading's declarations. *This is what RFC-015 adds.*
 >
 > **`unbound`** — this heading describes no code item. Member:
 > `illustrative`, alone. It governs every check presupposing that the
 > heading describes that item. **Known under-enforced — see §6 and
 > issue #187.**
+
+**Why the target side needs its own predicate, and why that is not
+obvious.** The source-side question is *what does this heading oblige*;
+the target-side question is *can this edge exist*. Those come apart in
+exactly one cell: an `illustrative` heading **whose item is present**.
+It compels nothing — so it is `unobliged` — but an edge into it is
+perfectly satisfiable, and the remedy is clean and actionable:
+
+```
+illustrative + item present + no code edge  → edge missing in code + missing in specs   2
+illustrative + item present + code edge     → missing in specs                          1
+```
+
+Adding the field clears the edge finding and introduces nothing. Keying
+the target side on `unobliged` would suppress that — **parking a real
+spec↔code divergence**, which RFC-013 §3.2 forbids in the words the
+whole marker design rests on.
+
+`unobliged` is a correct predicate in the wrong job, and obligation
+genuinely is independent of whether code happens to exist. Two questions
+answered by one name is the "sourced at" defect one turn later: a name
+that fits the source side, extended to the target side without re-asking
+whether the question is the same. It was caught because a lens ran the
+cell rather than read the definition.
 
 **Two named predicates, not one rule with a caveat, and the difference
 is not stylistic.** Three separate wordings of the subordinated form
@@ -293,14 +324,22 @@ the pass structure changes. `unbound` is **one-place**:
 `ConceptContextMismatch` ranges over one heading and its code item, and
 misfires not because a second endpoint went unconsulted but because it
 presupposes a binding the heading refuses. Stating it two-place would
-assert a symmetry that does not exist. **Both must carry explicit
-boundedness** — complete, or visibly incomplete with a reference. That
-is the property whose absence produced this entire class.
+assert a symmetry that does not exist **on the current check
+inventory** — every binding-presupposing check today
+(`ConceptContextMismatch`, `compare_signatures`,
+`ForbiddenConceptReintroduced`, `DanglingAnchor`) ranges over one
+heading and its item. That bound is stated rather than assumed: a
+future two-place binding check would be unreachable from a one-place
+`unbound`, and by this document's own thesis unnoticeable, so the
+arity is recorded as bounded by inventory and not as a property of the
+concept. **All three must carry explicit boundedness** — complete, or
+visibly incomplete with a reference, in enforcement **and** in arity.
+That is the property whose absence produced this entire class.
 
-**What the rule is keyed on: `unobliged`, never the literal value.**
-The suppression applies when the target **compels no code item** —
-covering `draft` targets (§1.1's defect), `retired` targets, and
-non-`Declared` polarity alike. A key on the `retired` value would fix
+**What the suppression is keyed on: `unpointable`, never the literal
+value.** It applies when the target offers no legitimate item to point
+at — covering `draft` targets (§1.1's defect), `retired` targets, and
+the non-`Declared` cells that qualify. A key on the `retired` value would fix
 retirement and leave the creation defect open.
 
 **What answers "compels no code item": the concept pass's own row
@@ -392,8 +431,14 @@ No new subcommand, no new flags.
 
 1. **A marker never parks a spec↔code divergence.** Rows 4 and 7 both
    enforce equivalence in full. Precisified from revision 1: no
-   spec↔code divergence is parked — the suppressed edge cannot exist in
-   code, because the target does not — but the design does create
+   spec↔code divergence is parked, on **two** grounds and not one: in
+   the absent cells the suppressed edge cannot exist, because the target
+   does not; in `forbidden` + present it can exist, and is suppressed
+   because its remedy is self-defeating — creating the edge requires the
+   expelled item to persist, which `ForbiddenConceptReintroduced`
+   forbids. The one cell answering to neither ground —
+   `illustrative` + present — is **not** suppressed. But the design does
+   create
    assertions true by suppression rather than by verification, and §6
    names that class rather than leaving it inside this invariant.
 2. **The unmarked tree is untouched.** Rows 1, 2, 5 byte-for-byte;
@@ -424,9 +469,8 @@ also filed the verb-pass half of F3 independently, supplied the general
 cause for F4 (an anchor-backed concept can never be a code-edge target,
 `edges.rs:37-43`), and settled the amendment-ledger fix.
 
-**Three findings were withdrawn by their own authors after
-re-execution**, and the record keeps them because it is evidence about
-how much the surviving findings are worth:
+**Findings withdrawn by their own authors after re-execution.** Each is
+kept because a live clause elsewhere rests on it, named inline:
 
 - `clean-arch` filed, then withdrew, a claim that a name-match key would
   park a real divergence — refuted by its own fixture showing the case
@@ -448,8 +492,18 @@ how much the surviving findings are worth:
   document**, on audit: the two predicates here carry independent
   subjects and so never inherit each other's extension. The named form
   is kept because a named predicate cannot be silently dropped in
-  transcription the way a caveat can — the adoption-safety property, not
-  a correction of a live error. Three wordings of one error from three
+  transcription the way a caveat can. **That rationale is withdrawn**: it
+  describes a PARTIAL-transcription failure, and RFC-014 §3.3
+  transcribed fully and faithfully — which is §1.1's whole force. Shipped
+  as written it would have invited a future reader to check the reason,
+  find it aimed at a non-occurrence, and retire the names on this
+  document's own logic. The names are kept on three grounds that
+  survive: they close the **layer gap** §1.1 diagnoses and §6 measures —
+  a concept load-bearing in the inner layer with no name in the layer
+  that governs it; **restatement is the propagation mechanism** this RFC
+  documents five times, and a named predicate is cited rather than
+  restated; and **#187 needs a subject**, since an unnamed deferred rule
+  is precisely how a fourth carrier gets authored. Three wordings of one error from three
   authors is why §3.4 forbids the subordinate form on grammatical
   grounds rather than warning against it.
 
@@ -470,7 +524,7 @@ without anyone being careless.
 **Open for this review:** the canonical statement's placement (§3.4
 states it; `specs/dialect.md` is ruled its home, in a section of its
 own under neither axis); the `retirement_incomplete` /
-`retirement_complete` names; and whether leg 2's boundary is drawn in
+`retirement_complete` names; and whether `unbound`'s boundary is drawn in
 the right place.
 
 ## §6 — Non-goals, and the residual class
@@ -511,9 +565,14 @@ describes its item in full.
 tempted to collapse them as *"`unbound` is just a special case of
 `unobliged`"* is refuted by the document they are reading.
 
-**Naming, as measured.** `unobliged` has **nine call sites** across
-`domain/src/diff.rs` and `domain/src/diff/verb.rs`, and **zero** in
-`specs/` or `docs/rfc/`. `unbound` has **zero hits anywhere**. The
+**Naming, as measured — scoped, because this document falsifies the
+unscoped claim.** In the tree **before this RFC**, `unobliged` appeared
+at nine sites across `domain/src/diff.rs` and `domain/src/diff/verb.rs`
+— a local, a parameter, a comment and uses, none of them call sites —
+and **zero** times in `specs/` or `docs/rfc/`; `unbound` appeared
+nowhere. `specs/` remains at zero for all three names and is the
+load-bearing half. This RFC itself now carries them, which is the point
+rather than a counterexample. The
 concept every lens converged on had a name in the code and none in the
 intent layer — the most economical account of how a defective sentence
 survived three RFCs and eight lens verdicts: the right word already
@@ -640,17 +699,24 @@ sources reads as that axis's rule which the other happens to obey.
 
 ```
 Tests:
-  - Unit: the six-cell matrix {unmarked, draft, retired} × {target item
-    present, absent}, asserting suppression in exactly the two
-    compels-nothing-and-absent cells; plus the anchored-presence cell (a
-    marked target backed by a resolved `- impl:` is PRESENT, not absent).
+  - Unit: the six-cell marker matrix {unmarked, draft, retired} × {target
+    item present, absent}, asserting suppression in exactly the two
+    marked-and-absent cells; plus the anchored-presence cell (a marked
+    target backed by a resolved `- impl:` is PRESENT, not absent).
+  - Unit: the polarity matrix WITH the presence axis —
+    {forbidden, illustrative} × {item present, absent} — asserting
+    suppression in three of the four and `EdgeMissingInCode` FIRING in
+    illustrative+present, plus a fixture pinning that adding the field
+    clears it (2 violations → 1). Without the presence axis the one cell
+    where the rule was wrong could not fail, which is how it reached
+    revision 3.
   - Unit: EdgeMissingInSpec fires in all six cells — invariant 5, and the
     one-directionality of the exemption.
   - Unit: EdgeTargetUnknown precedence — a suppressed target yields no
     EdgeTargetUnknown, a genuinely unknown target still does, and
     known_concepts is never filtered (pinned today at diff/tests.rs:341).
-  - Unit: the polarity cross-check — an edge into a non-`Declared` target
-    is suppressed by the same rule, and its reverse tooth still fires.
+  - Unit: the reverse tooth — `EdgeMissingInSpec` fires on every cell of
+    both matrices, under either marker value and either polarity.
   - Unit: the missing mirror of diff/tests.rs:671, which pins the source
     side while its comment claims the edge pass "satisfies it by
     construction" — more than it proves. The target-side assertion for a
