@@ -4,7 +4,7 @@ status: Draft — awaiting §2.3 four-lens architect review
 date: 2026-08-09
 authors: agentry-captain-2026-08-09
 companion: yg/agentry docs/rfc/RFC-spec-state-marker.md §11 (Amendment A2, council-produced, operator-ratified 2026-08-09)
-prior-art: RFC-013 (spec state marker — this RFC amends its §3.1 "One legal value" clause), RFC-014 (grounding polarity — a different axis, §6), RFC-012 §3.3 (anchor resolution as backing-item presence)
+prior-art: RFC-013 (spec state marker — this RFC amends its §3.1 "One legal value" clause AND its §3.4 skip rule, whose source-side scoping leaves the target side uncovered), RFC-014 (grounding polarity — a different axis, §6), RFC-012 §3.3 (anchor resolution as backing-item presence)
 ---
 
 # RFC-015 — spec retirement state
@@ -40,15 +40,31 @@ the half-done removal legal. Upstream's three-strike backstop tripped,
 and the diagnosis was not "the checker is wrong" — the edge diff is
 doing exactly its job — but "the state machine has no state for this".
 
-**A second, independent motivation, local to this repo.** The same
-missing consultation is a **live latent defect in RFC-013's creation
-path**. `Pending` skips the code-obligating checks *sourced at* a marked
-heading (§3.4), but nothing skips an edge whose **target** is marked.
-So a marked heading reds the tree the moment any live concept declares
-`- depends on:` it — which makes a pre-landed marked heading unusable
-for exactly the concepts most worth pre-landing. This has never fired
-only because this repo's pending set and its edge-target set are
-disjoint by accident of the corpus. The exemption in §3.4 repairs it.
+**A second, independent motivation: RFC-013 §3.4 is incomplete, and this
+RFC amends it.** The gap is in the *rule*, not in its implementation.
+
+§3.4 scopes its skip to "all code-obligating checks **sourced at** that
+heading", then examines the edge pass and concludes "the edge pass
+already satisfies it by construction (its matched-concept filter is
+built from code presence)". That conclusion is **true for the source
+side and silent on the target side**, and the code is faithful to it:
+`domain/src/diff/edge.rs` filters on `e.source_concept`, and `marked` is
+read in `diff/concept.rs` and nowhere in the edge pass.
+
+The consequence is that **a marked heading reds the tree the moment any
+live concept declares `- depends on:` it** — which makes a pre-landed
+marked heading unusable for precisely the concepts most worth
+pre-landing. §3.4's own stated rationale reaches this case and its rule
+does not: *"firing `EdgeMissingInCode` on a pending concept would make
+row 3 unreachable in practice"* is exactly as true when the pending
+concept is the edge's target.
+
+Nothing has fired yet, and the reason is corpus accident rather than
+design. This repo carries **no marked heading at all** (`0 pending`), so
+the case is unreachable here today. Upstream carries 18 pending
+concepts and 15 distinct edge targets whose intersection is **empty**
+(executed 2026-08-09) — one `- depends on:` bullet naming a pending
+concept would fire it. Slice B repairs the rule.
 
 ## §2 — Scope
 
@@ -58,7 +74,10 @@ disjoint by accident of the corpus. The exemption in §3.4 repairs it.
    `- status:` prefix and the existing front-matter trigger.
 2. Two new marker records for its two matrix rows, both non-violation.
 3. **One** suppression rule on `EdgeMissingInCode`, keyed on a
-   conjunction (§3.4).
+   conjunction (§3.4). This **amends RFC-013 §3.4**: that rule's
+   "checks sourced at that heading" scoping, and its finding that the
+   edge pass "already satisfies it by construction", hold source-side
+   only.
 
 **Does not ship.**
 
