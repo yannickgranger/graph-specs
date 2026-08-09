@@ -235,9 +235,13 @@ heading:
 
 Four properties, each load-bearing:
 
-- **One legal value.** There is no `- status: ratified` and no second
-  value — ratification is *deletion of the line*, a presence flag, never
-  a state machine. Any other `- status:` bullet is an unrecognised
+- **Two legal values, and no transition between them.** `draft` declares
+  code owed to *exist*; ratification is *deletion of the line*. `retired`
+  declares code owed to be *gone*; it is written while the backing item
+  is still present, and it is **never** deleted. There is no
+  `- status: ratified`, and neither value rewrites into the other — still
+  a presence flag per value, never a state machine, because the progress
+  axis is the code. Any other `- status:` bullet is an unrecognised
   prefix under the ordinary dialect rule and stays inert text.
 - **No subtree inheritance.** A marker binds only to the heading whose
   block it opens; a marked `H2` does not mark its `H3`s. The reader
@@ -263,11 +267,21 @@ any concept block is inert — the contexts dialect is untouched.
 |---|---|---|
 | unmarked | absent | `missing in code` |
 | unmarked | present | pass |
-| marked | absent | a `pending` record — **not** a violation |
-| marked | present | full equivalence enforced, plus a `realized` record |
+| `draft` | absent | a `pending` record — **not** a violation |
+| `draft` | present | full equivalence enforced, plus a `realized` record |
+| `retired` | present | full equivalence enforced, plus a `retirement incomplete` record — **not** a violation |
+| `retired` | absent | a `retirement complete` record — **not** a violation |
 
-Neither record kind affects the exit code. See
+The marker value picks the pair; the backing item picks the member. No
+record kind affects the exit code, under either value. See
 `specs/ndjson-output.md` §Marker records for the wire shape.
+
+The two `retired` rows do not mean symmetric things. Row 7 is the window
+every correct retirement opens — announced, not yet done — and a clean
+tree carries none of them. Row 8 is terminal: the marker line is never
+deleted, so that list never drains, which is why it is rendered and is
+still not a cleanliness term. A never-draining count inside the clean
+state would put the clean state out of reach.
 
 Marking is **concept-scoped**. It never suppresses the doc-level
 [cohesion invariant](#abstraction-ladder): a doc that declares no concept
@@ -282,7 +296,11 @@ the declared-ahead-of-code state the marker announces.
 
 While a concept is pending, every check sourced at that heading — its
 edge bullets, its `- verb:` anchors, its `- impl:` anchors — imposes no
-obligation. With no backing item there is nothing to compare.
+obligation. With no backing item there is nothing to compare. **A row-8
+heading carries that skip in full**, on the same ground and by the same
+rule. It is stated rather than left to inference, because silence
+resolves to *armed*: the skip is a set the passes are handed, and a
+heading nobody put in it is enforced.
 
 A marker never parks a divergence: once the concept is realized, drift
 under it fires the ordinary violation exactly as it would under an

@@ -24,10 +24,10 @@ mod tests;
 
 use crate::context::context_for_code_node;
 use crate::{
-    anchor_violation, CheckInput, CheckOutcome, ConceptNode, ContextDecl, Graph, PendingRecord,
-    Polarity, Provenance, RealizedRecord, Source, Violation,
+    anchor_violation, CheckInput, CheckOutcome, ConceptNode, ContextDecl, Graph, Polarity,
+    Provenance, Source, Violation,
 };
-use concept::{concept_pass, AnchorResolutions};
+use concept::{concept_pass, AnchorResolutions, MarkerRecords};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// Snapshot each spec concept's declared owning context (its `concepts/` H1,
@@ -116,30 +116,10 @@ pub fn diff(spec: CheckInput, code: Graph) -> CheckOutcome {
         .map(|n| n.name.clone())
         .collect();
 
-    // Name-sets are needed by the edge pass, which runs after spec_nodes
-    // is consumed. Snapshot them before the concept/signature loop.
-    //
-    // A non-`declared` concept is excluded from `matched_concepts`, which is
-    // how the edge pass inherits RFC-014 §3.3's uniform obligation skip: the
-    // pass groups BOTH sides by that set, so neither its spec edges nor its
-    // code edges impose anything. `known_concepts` is deliberately NOT
-    // filtered — the name is still declared in specs, so another concept
-    // pointing at it is not aiming at a mirage.
-    let matched_concepts: HashSet<String> = spec_nodes
-        .iter()
-        .filter(|n| n.polarity == Polarity::Declared && code_by_name.contains_key(&n.name))
-        .map(|n| n.name.clone())
-        .collect();
-    let known_concepts: HashSet<String> = spec_nodes
-        .iter()
-        .map(|n| n.name.as_str())
-        .chain(code_by_name.keys().map(String::as_str))
-        .map(str::to_owned)
-        .collect();
+    let (matched_concepts, known_concepts) = snapshot_name_sets(&spec_nodes, &code_by_name);
 
     let mut violations = Vec::new();
-    let mut pending: Vec<PendingRecord> = Vec::new();
-    let mut realized: Vec<RealizedRecord> = Vec::new();
+    let mut records = MarkerRecords::default();
 
     // RFC-012: anchored concepts redirect their equivalence target to a named
     // code item (§3.4) — emit a `DanglingAnchor` for every unresolved anchor
@@ -150,33 +130,20 @@ pub fn diff(spec: CheckInput, code: Graph) -> CheckOutcome {
     // The marked-name snapshot is taken here, before the concept loop
     // consumes `spec_nodes` — the same pre-snapshot pattern the matched- and
     // known-concept sets above use.
-    let anchored_concepts = {
-        // Two sources, one rule: a heading that compels nothing cannot have
-        // a *missing* anchor target.
-        //
-        // RFC-013 §3.4 — a marked heading with no name-matching code item
-        // whose `- impl:` target does not resolve is *pending*, not dangling:
-        // the unresolved target is precisely the declared-ahead-of-code state
-        // the marker announces.
-        //
-        // RFC-014 §3.3 (OQ-4, ruled) — a non-`declared` heading compels
-        // nothing at all, so a dangling anchor under one fires nothing.
-        let mut suppressed: HashSet<&str> = spec_nodes
-            .iter()
-            .filter(|n| n.marked && !code_by_name.contains_key(&n.name))
-            .map(|n| n.name.as_str())
-            .collect();
-        suppressed.extend(unobliged_concepts.iter().map(String::as_str));
-        anchor_pass(concept_anchors, &suppressed, &mut violations)
-    };
+    let anchored_concepts = run_anchor_pass(
+        concept_anchors,
+        &spec_nodes,
+        &code_by_name,
+        &unobliged_concepts,
+        &mut violations,
+    );
 
     concept_pass(
         spec_nodes,
         &mut code_by_name,
         &anchored_concepts,
         &mut violations,
-        &mut pending,
-        &mut realized,
+        &mut records,
     );
 
     orphan_pass(code_by_name, &mut violations);
@@ -194,11 +161,17 @@ pub fn diff(spec: CheckInput, code: Graph) -> CheckOutcome {
     //
     // - RFC-013 §3.4 — pending concepts (marked, no backing item).
     // - RFC-014 §3.3 — non-`declared` concepts (forbidden / illustrative).
+    // - RFC-015 §3.2 — row 8, retired with the backing item already gone.
+    //
+    // Row 8 is listed rather than inherited, because **silence resolves to
+    // armed**: this set is the verb pass's only skip vector, a row-8 concept
+    // is not in `pending`, and `verb.rs` carries a control asserting the
+    // violation *does* fire on an empty unobliged set. "The mirror of row 3"
+    // would not have been enough.
     //
     // The edge pass inherits the same rule by construction, via the
     // `matched_concepts` filter above; the verb pass is told explicitly.
-    let mut unobliged: HashSet<&str> = pending.iter().map(|p| p.concept.as_str()).collect();
-    unobliged.extend(unobliged_concepts.iter().map(String::as_str));
+    let unobliged = unobliged_set(&records, &unobliged_concepts);
     verb::verb_pass(
         spec_verb_ownership,
         &code_for_verb,
@@ -222,9 +195,100 @@ pub fn diff(spec: CheckInput, code: Graph) -> CheckOutcome {
         let (kb, db) = violation_key(b);
         ka.cmp(kb).then(da.cmp(&db))
     });
-    let mut outcome = CheckOutcome::new(violations, pending, realized);
+    let mut outcome = CheckOutcome::new(
+        violations,
+        records.pending,
+        records.realized,
+        records.retirement_incomplete,
+        records.retirement_complete,
+    );
     outcome.provenance = provenance;
     outcome
+}
+
+/// The two name-sets the edge pass needs, snapshotted before the concept
+/// loop consumes `spec_nodes`.
+///
+/// A non-`declared` concept is excluded from `matched_concepts`, which is
+/// how the edge pass inherits RFC-014 §3.3's uniform obligation skip: the
+/// pass groups BOTH sides by that set, so neither its spec edges nor its
+/// code edges impose anything. `known_concepts` is deliberately NOT
+/// filtered — the name is still declared in specs, so another concept
+/// pointing at it is not aiming at a mirage.
+fn snapshot_name_sets(
+    spec_nodes: &[ConceptNode],
+    code_by_name: &HashMap<String, ConceptNode>,
+) -> (HashSet<String>, HashSet<String>) {
+    let matched = spec_nodes
+        .iter()
+        .filter(|n| n.polarity == Polarity::Declared && code_by_name.contains_key(&n.name))
+        .map(|n| n.name.clone())
+        .collect();
+    let known = spec_nodes
+        .iter()
+        .map(|n| n.name.as_str())
+        .chain(code_by_name.keys().map(String::as_str))
+        .map(str::to_owned)
+        .collect();
+    (matched, known)
+}
+
+/// Run the RFC-012 anchor pass behind the suppression set it needs.
+///
+/// Two sources, one rule: a heading that compels nothing cannot have a
+/// *missing* anchor target.
+///
+/// - RFC-013 §3.4 (widened by RFC-015 §3.3) — a **marked** heading with no
+///   name-matching code item whose `- impl:` target does not resolve is a
+///   marker record, not dangling: the unresolved target is precisely the
+///   state the marker announces. True under either marker value, which is
+///   why the filter asks `is_marked` rather than dispatching on the value.
+/// - RFC-014 §3.3 (OQ-4, ruled) — a non-`declared` heading compels nothing
+///   at all, so a dangling anchor under one fires nothing.
+///
+/// Called before the concept loop consumes `spec_nodes` — the same
+/// pre-snapshot pattern the matched- and known-concept sets use.
+fn run_anchor_pass(
+    concept_anchors: Vec<crate::ResolvedAnchor>,
+    spec_nodes: &[ConceptNode],
+    code_by_name: &HashMap<String, ConceptNode>,
+    non_declared: &HashSet<String>,
+    violations: &mut Vec<Violation>,
+) -> AnchorResolutions {
+    let mut suppressed: HashSet<&str> = spec_nodes
+        .iter()
+        .filter(|n| n.marker.is_marked() && !code_by_name.contains_key(&n.name))
+        .map(|n| n.name.as_str())
+        .collect();
+    suppressed.extend(non_declared.iter().map(String::as_str));
+    anchor_pass(concept_anchors, &suppressed, violations)
+}
+
+/// The uniform obligation skip as one set of concept names, from all three
+/// rules that produce it — RFC-013 §3.4 (pending), RFC-014 §3.3
+/// (non-`declared`), RFC-015 §3.2 (row 8, retired with the item already
+/// gone).
+///
+/// Row 8 is listed rather than inherited, because **silence resolves to
+/// armed**: this set is the verb pass's only skip vector, a row-8 concept is
+/// not in `pending`, and the pass carries a control asserting the violation
+/// *does* fire on an empty set.
+fn unobliged_set<'a>(
+    records: &'a MarkerRecords,
+    non_declared: &'a HashSet<String>,
+) -> HashSet<&'a str> {
+    records
+        .pending
+        .iter()
+        .map(|p| p.concept.as_str())
+        .chain(
+            records
+                .retirement_complete
+                .iter()
+                .map(|r| r.concept.as_str()),
+        )
+        .chain(non_declared.iter().map(String::as_str))
+        .collect()
 }
 
 /// Snapshot the containment triple of every code concept that has one

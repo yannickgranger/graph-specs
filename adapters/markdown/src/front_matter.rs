@@ -3,7 +3,8 @@
 //! pass shared by the concept walk ([`crate::section`]) and the heading
 //! tree assembler ([`crate::tree`]).
 
-use crate::bullets::{parse_impl_bullet, parse_verb_bullet};
+use crate::bullets::{marker_from_value, parse_impl_bullet, parse_verb_bullet};
+use domain::Marker;
 
 /// Returns `true` when `source` opens with a YAML front-matter block
 /// (delimited by lines containing only `---`) that declares
@@ -24,7 +25,26 @@ use crate::bullets::{parse_impl_bullet, parse_verb_bullet};
 /// before any `status:` line, or a file with no front-matter at all,
 /// is not draft.
 pub fn is_draft(source: &str) -> bool {
-    front_matter_value(source, "status").is_some_and(|v| v.eq_ignore_ascii_case("draft"))
+    file_marker(source) == Some(Marker::Draft)
+}
+
+/// The file-scope spec-state marker, if the leading front matter declares a
+/// legal `status:` value (RFC-013 §3.1 file scope, RFC-015 §3.1).
+///
+/// Same whole-file semantics as before, now carrying **which** value was
+/// read: every concept heading in the file inherits it. Value recognition is
+/// [`crate::bullets::marker_from_value`]'s — the bullet and front-matter
+/// grammars differ in how they reach the word, never in which words count.
+///
+/// Distinct from [`is_draft`], which answers the narrower question the
+/// invariant-annotation walk asks. That walk skips `draft` files wholesale
+/// and is deliberately left alone here: RFC-015 gives `retired` an
+/// obligation skip over verb bullets, `- impl:` anchors and edge bullets,
+/// and says nothing about invariant annotations.
+pub fn file_marker(source: &str) -> Option<Marker> {
+    front_matter_value(source, "status")
+        .as_deref()
+        .and_then(marker_from_value)
 }
 
 /// Returns `true` when `source` carries machine-checkable **behavioral

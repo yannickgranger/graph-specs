@@ -1,9 +1,13 @@
-//! Marker records and the widened check outcome — RFC-013 §3.4 / §3.5.
+//! Marker records and the widened check outcome — RFC-013 §3.4 / §3.5,
+//! widened by RFC-015 §3.2 / §3.5.
 //!
 //! A **marker record** is not a failure. It reports the state of a concept
-//! heading carrying the `- status: draft` marker (or living in a
-//! `status: draft` file): the concept is declared ahead of its code, and
-//! ratification is pending. Two kinds, mutually exclusive per heading:
+//! heading carrying a [`Marker`] (on the heading, or file-wide via front
+//! matter). Four kinds, mutually exclusive per heading — the marker value
+//! picks the pair, the backing item picks the member.
+//!
+//! Under `- status: draft`, the concept is declared ahead of its code and
+//! ratification is pending:
 //!
 //! - [`PendingRecord`] — marked heading, no backing item. Emitted *instead
 //!   of* [`crate::Violation::MissingInCode`]; the heading's own
@@ -13,6 +17,16 @@
 //!   addition to* the normal, fully enforced equivalence checks for that
 //!   pair. This is the ratification signal: the marker line is now ready to
 //!   be deleted by a human upstream.
+//!
+//! Under `- status: retired`, the code is owed to be *gone*, and the marker
+//! line is never deleted:
+//!
+//! - [`RetirementIncompleteRecord`] — retired heading, backing item still
+//!   present. Emitted *in addition to* full equivalence enforcement, exactly
+//!   as [`RealizedRecord`] is. The window every correct retirement opens.
+//! - [`RetirementCompleteRecord`] — retired heading, backing item gone.
+//!   Emitted *instead of* [`crate::Violation::MissingInCode`], and carrying
+//!   [`PendingRecord`]'s obligation skip in full.
 //!
 //! "Marker record", never "report record": `report` already names the
 //! RFC-005 verb-coverage subcommand and its [`crate::ReportOutput`]
@@ -26,6 +40,42 @@
 use crate::{Provenance, Source, Violation};
 use std::collections::BTreeMap;
 use std::path::Path;
+
+/// Which spec-state marker a concept heading carries (RFC-015 §3.1).
+///
+/// Two legal values, and **neither transitions to the other**: `draft`
+/// declares code owed to *exist* and is deleted at ratification; `retired`
+/// declares code owed to be *gone*, is written while the backing item is
+/// still present, and is never deleted. RFC-013 §3.1's rationale — *"a
+/// presence flag, never a state machine"* — survives the second value
+/// intact, because the progress axis is the **code**, not the marker.
+///
+/// An enum rather than the original `bool` because the concept pass
+/// dispatches on the *value* (rows 3/4 versus rows 7/8), while other sites
+/// ask only whether a marker is present at all (RFC-015 §3.3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Marker {
+    /// No marker bullet, and no `status:` front matter — the ordinary
+    /// heading. Rows 1 and 2.
+    #[default]
+    Unmarked,
+    /// `- status: draft` — declared ahead of its code. Rows 3 and 4.
+    Draft,
+    /// `- status: retired` — its code is owed to be gone. Rows 7 and 8.
+    Retired,
+}
+
+impl Marker {
+    /// Whether the heading carries a marker at all.
+    ///
+    /// The question the anchor-suppression set asks (RFC-015 §3.3): an
+    /// unresolved `- impl:` target under **either** value is the state the
+    /// marker announces, not a dangling anchor.
+    #[must_use]
+    pub const fn is_marked(self) -> bool {
+        !matches!(self, Self::Unmarked)
+    }
+}
 
 /// A marked concept heading with no backing code item (RFC-013 §3.2 row 3).
 ///
@@ -51,8 +101,40 @@ pub struct RealizedRecord {
     pub spec_source: Source,
 }
 
-/// The full result of one equivalence check — violations plus the two
-/// marker-record kinds (RFC-013 §3.5).
+/// A `retired` heading whose backing code item is still present
+/// (RFC-015 §3.2 row 7).
+///
+/// The retirement was announced and the code has not gone yet. Emitted *in
+/// addition to* fully enforced equivalence for the pair — a marker never
+/// parks a divergence, so a retired heading whose backing item diverges
+/// still produces that ordinary violation. Marker/code co-presence is not
+/// itself a contradiction: it is the window every correct retirement opens.
+///
+/// A cleanliness term (RFC-015 §3.5): a clean tree carries none.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetirementIncompleteRecord {
+    pub concept: String,
+    pub spec_source: Source,
+}
+
+/// A `retired` heading with no backing code item (RFC-015 §3.2 row 8).
+///
+/// The retirement is complete. Emitted *instead of*
+/// [`crate::Violation::MissingInCode`], and the heading's own
+/// code-obligating declarations impose nothing — row 8 carries row 3's
+/// obligation skip in full (RFC-015 §3.2).
+///
+/// Rendered but **not** a cleanliness term: the marker line is never
+/// deleted, so this list never drains, and a never-draining term inside the
+/// clean state would make the clean state unreachable (RFC-015 §3.5).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetirementCompleteRecord {
+    pub concept: String,
+    pub spec_source: Source,
+}
+
+/// The full result of one equivalence check — violations plus the four
+/// marker-record kinds (RFC-013 §3.5, widened by RFC-015 §3.5).
 ///
 /// The exit code is a function of `violations` alone: a tree whose only
 /// findings are pending/realized records exits 0.
@@ -61,6 +143,8 @@ pub struct CheckOutcome {
     pub violations: Vec<Violation>,
     pub pending: Vec<PendingRecord>,
     pub realized: Vec<RealizedRecord>,
+    pub retirement_incomplete: Vec<RetirementIncompleteRecord>,
+    pub retirement_complete: Vec<RetirementCompleteRecord>,
     /// Containment provenance per code concept, keyed by concept name
     /// (RFC-010 §3.6 / #136). Snapshotted by the diff before the code
     /// nodes are consumed; read by the NDJSON emitter to render the
@@ -85,17 +169,19 @@ impl CheckOutcome {
         violations: Vec<Violation>,
         mut pending: Vec<PendingRecord>,
         mut realized: Vec<RealizedRecord>,
+        mut retirement_incomplete: Vec<RetirementIncompleteRecord>,
+        mut retirement_complete: Vec<RetirementCompleteRecord>,
     ) -> Self {
-        pending.sort_by(|a, b| {
-            record_key(&a.concept, &a.spec_source).cmp(&record_key(&b.concept, &b.spec_source))
-        });
-        realized.sort_by(|a, b| {
-            record_key(&a.concept, &a.spec_source).cmp(&record_key(&b.concept, &b.spec_source))
-        });
+        sort_records(&mut pending);
+        sort_records(&mut realized);
+        sort_records(&mut retirement_incomplete);
+        sort_records(&mut retirement_complete);
         Self {
             violations,
             pending,
             realized,
+            retirement_incomplete,
+            retirement_complete,
             provenance: BTreeMap::new(),
         }
     }
@@ -107,6 +193,8 @@ impl CheckOutcome {
             violations: Vec::new(),
             pending: Vec::new(),
             realized: Vec::new(),
+            retirement_incomplete: Vec::new(),
+            retirement_complete: Vec::new(),
             provenance: BTreeMap::new(),
         }
     }
@@ -117,6 +205,37 @@ impl CheckOutcome {
     pub const fn is_clean(&self) -> bool {
         self.violations.is_empty()
     }
+}
+
+/// The one shape every marker record has: a concept name and the spec site
+/// that declared it. Private — it exists so the four kinds sort through one
+/// implementation, not to name a domain concept, and a `pub` trait here
+/// would put a fifth heading in `specs/concepts/` for plumbing.
+trait MarkerRecord {
+    fn sort_key(&self) -> (&str, &Path, usize);
+}
+
+macro_rules! marker_record {
+    ($($t:ty),+ $(,)?) => {$(
+        impl MarkerRecord for $t {
+            fn sort_key(&self) -> (&str, &Path, usize) {
+                record_key(&self.concept, &self.spec_source)
+            }
+        }
+    )+};
+}
+
+marker_record!(
+    PendingRecord,
+    RealizedRecord,
+    RetirementIncompleteRecord,
+    RetirementCompleteRecord,
+);
+
+/// Sort one marker list into its stable order (concept name, then spec site
+/// — two headings may share a name across files).
+fn sort_records<T: MarkerRecord>(records: &mut [T]) {
+    records.sort_by(|a, b| a.sort_key().cmp(&b.sort_key()));
 }
 
 /// Stable ordering key for a marker record: concept name first, then the
@@ -164,6 +283,35 @@ mod tests {
     }
 
     #[test]
+    fn retirement_records_never_make_an_outcome_unclean() {
+        // RFC-015 §4 — the exit code stays a function of violations alone,
+        // and BOTH retirement kinds are non-violations. Row 7 is a
+        // cleanliness term for the human reading the summary; it is not an
+        // exit-code term, and that distinction is the whole of §3.5.
+        let outcome = CheckOutcome {
+            retirement_incomplete: vec![RetirementIncompleteRecord {
+                concept: "AssertionScope".to_owned(),
+                spec_source: spec_at("specs/concepts/brief_contract.md", 56),
+            }],
+            retirement_complete: vec![RetirementCompleteRecord {
+                concept: "PrePushRebaseDecision".to_owned(),
+                spec_source: spec_at("specs/concepts/agent_contract.md", 665),
+            }],
+            ..CheckOutcome::empty()
+        };
+        assert!(outcome.is_clean());
+    }
+
+    #[test]
+    fn marker_is_unmarked_by_default_and_both_values_read_as_marked() {
+        // The anchor-suppression set asks only this question (RFC-015 §3.3).
+        assert_eq!(Marker::default(), Marker::Unmarked);
+        assert!(!Marker::Unmarked.is_marked());
+        assert!(Marker::Draft.is_marked());
+        assert!(Marker::Retired.is_marked());
+    }
+
+    #[test]
     fn pending_sorts_by_concept_then_source() {
         let records = vec![
             PendingRecord {
@@ -179,7 +327,7 @@ mod tests {
                 spec_source: spec_at("a.md", 3),
             },
         ];
-        let outcome = CheckOutcome::new(Vec::new(), records, Vec::new());
+        let outcome = CheckOutcome::new(Vec::new(), records, Vec::new(), Vec::new(), Vec::new());
         let seen: Vec<_> = outcome
             .pending
             .iter()

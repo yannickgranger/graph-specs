@@ -253,3 +253,104 @@ fn adding_a_marked_heading_greens_it_back_to_pending_only() {
     assert_eq!(outcome.pending.len(), 1);
     assert_eq!(outcome.pending[0].concept, "Widget");
 }
+
+#[test]
+fn both_retirement_records_emit_end_to_end_and_the_tree_exits_clean() {
+    // RFC-015 §3.2 rows 7 and 8, through the real reader and the real diff:
+    // one retired heading whose item is still present, one whose item is
+    // gone. Exactly one record of each kind, and the gate stays green — the
+    // whole point of the RFC is that a retirement has a legal intermediate
+    // commit for whoever moves first.
+    let specs = TempDir::new().unwrap();
+    let code = TempDir::new().unwrap();
+
+    write(
+        specs.path(),
+        "concepts/widget.md",
+        "## Widget\n\n- status: retired\n\n## Gadget\n\n- status: retired\n",
+    );
+    cargo_toml(code.path());
+    write(code.path(), "src/lib.rs", "pub struct Widget;\n");
+
+    let outcome = application::run_check(specs.path(), code.path()).unwrap();
+
+    assert_eq!(
+        outcome.retirement_incomplete.len(),
+        1,
+        "Widget's item is still present — row 7: {outcome:?}"
+    );
+    assert_eq!(outcome.retirement_incomplete[0].concept, "Widget");
+    assert_eq!(
+        outcome.retirement_complete.len(),
+        1,
+        "Gadget's item is gone — row 8: {outcome:?}"
+    );
+    assert_eq!(outcome.retirement_complete[0].concept, "Gadget");
+    assert!(
+        outcome.pending.is_empty() && outcome.realized.is_empty(),
+        "the `draft` pair must stay empty — the values do not bleed"
+    );
+    assert!(
+        outcome.is_clean(),
+        "neither retirement record moves the exit code: {:?}",
+        outcome.violations
+    );
+}
+
+#[test]
+fn retirement_records_carry_the_v4_schema_version_on_the_wire() {
+    // RFC-015 §3.5 — two new values under the EXISTING `marker`
+    // discriminator, so `schema_version` stays "4": they change which
+    // headings qualify, not what the discriminator means.
+    let specs = TempDir::new().unwrap();
+    let code = TempDir::new().unwrap();
+
+    write(
+        specs.path(),
+        "concepts/widget.md",
+        "## Widget\n\n- status: retired\n\n## Gadget\n\n- status: retired\n",
+    );
+    cargo_toml(code.path());
+    write(code.path(), "src/lib.rs", "pub struct Widget;\n");
+
+    let outcome = application::run_check(specs.path(), code.path()).unwrap();
+    let mut buf = Vec::new();
+    application::ndjson::write_ndjson(&outcome, &mut buf).unwrap();
+    let out = String::from_utf8(buf).unwrap();
+
+    for marker in ["retirement_incomplete", "retirement_complete"] {
+        let line = out
+            .lines()
+            .find(|l| l.contains(&format!("\"marker\":\"{marker}\"")))
+            .unwrap_or_else(|| panic!("no {marker} record in:\n{out}"));
+        assert!(
+            line.contains("\"schema_version\":\"4\""),
+            "{marker} must not bump the schema: {line}"
+        );
+        assert!(
+            !line.contains("\"violation\""),
+            "exactly one of violation/marker is present: {line}"
+        );
+    }
+}
+
+#[test]
+fn the_text_summary_renders_every_list_even_at_zero() {
+    // RFC-015 §3.5 — the RENDERING rule, which is not the cleanliness rule.
+    // An absent segment would be indistinguishable from a formatter that
+    // forgot to render it, so a clean tree still prints both new counts.
+    let specs = TempDir::new().unwrap();
+    let code = TempDir::new().unwrap();
+    write(specs.path(), "concepts/widget.md", "## Widget\n");
+    cargo_toml(code.path());
+    write(code.path(), "src/lib.rs", "pub struct Widget;\n");
+
+    let outcome = application::run_check(specs.path(), code.path()).unwrap();
+    let mut buf = Vec::new();
+    application::text::format_summary(&outcome, &mut buf).unwrap();
+
+    assert_eq!(
+        String::from_utf8(buf).unwrap().trim_end(),
+        "0 violations, 0 pending, 0 realized-unratified, 0 retirement-incomplete, 0 retirement-complete"
+    );
+}

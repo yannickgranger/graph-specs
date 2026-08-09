@@ -1,6 +1,6 @@
 use super::*;
 use crate::bullets::parse_anchor_qname;
-use domain::{EdgeKind, Polarity, SignatureState, Source};
+use domain::{EdgeKind, Marker, Polarity, SignatureState, Source};
 use std::io::Write;
 use tempfile::TempDir;
 
@@ -685,7 +685,11 @@ fn parse_verb_bullet_accepts_bare_ident_unchanged() {
 /// `marked` flag per concept name, for the marker tests.
 fn marks(dir: &Path) -> Vec<(String, bool)> {
     let g = MarkdownReader.extract(dir).expect("test");
-    let mut out: Vec<(String, bool)> = g.nodes.into_iter().map(|n| (n.name, n.marked)).collect();
+    let mut out: Vec<(String, bool)> = g
+        .nodes
+        .into_iter()
+        .map(|n| (n.name, n.marker.is_marked()))
+        .collect();
     out.sort();
     out
 }
@@ -796,15 +800,31 @@ fn marker_bullet_is_not_an_edge_or_an_anchor() {
 }
 
 #[test]
-fn is_status_marker_grammar() {
-    use crate::bullets::is_status_marker;
-    assert!(is_status_marker("status: draft"));
-    assert!(is_status_marker("status:draft"));
-    assert!(is_status_marker("status: DRAFT (per x.md §1)"));
-    assert!(!is_status_marker("status: drafty"));
-    assert!(!is_status_marker("status: ratified"));
-    assert!(!is_status_marker("status:"));
-    assert!(!is_status_marker("depends on: draft"));
+fn parse_status_marker_grammar() {
+    use crate::bullets::parse_status_marker;
+    // RFC-015 §3.1 — two legal values, both ASCII-case-insensitive, both
+    // tolerating the upstream trailing parenthetical. Everything else is an
+    // unrecognised prefix and stays inert text.
+    assert_eq!(parse_status_marker("status: draft"), Some(Marker::Draft));
+    assert_eq!(parse_status_marker("status:draft"), Some(Marker::Draft));
+    assert_eq!(
+        parse_status_marker("status: DRAFT (per x.md §1)"),
+        Some(Marker::Draft)
+    );
+    assert_eq!(
+        parse_status_marker("status: retired"),
+        Some(Marker::Retired)
+    );
+    assert_eq!(parse_status_marker("status:retired"), Some(Marker::Retired));
+    assert_eq!(
+        parse_status_marker("status: ReTiReD (per 015.md §3.1)"),
+        Some(Marker::Retired)
+    );
+    assert_eq!(parse_status_marker("status: drafty"), None);
+    assert_eq!(parse_status_marker("status: retiring"), None);
+    assert_eq!(parse_status_marker("status: ratified"), None);
+    assert_eq!(parse_status_marker("status:"), None);
+    assert_eq!(parse_status_marker("depends on: draft"), None);
 }
 
 // --- draft front-matter suppression ---
@@ -1153,4 +1173,21 @@ fn a_grounding_comment_is_not_an_edge_or_an_anchor() {
         .extract_concept_anchors(d.path())
         .expect("test")
         .is_empty());
+}
+
+#[test]
+fn a_misplaced_retired_marker_is_inert_and_the_heading_reads_unmarked() {
+    // RFC-015 §3.1 — mis-placement fails loud, unchanged by the second
+    // value. A `- status: retired` bullet that is not the first non-blank
+    // content line binds nothing; the heading reads unmarked and rows 1/5
+    // fire as today. The failure mode of a malformed marker is a visible
+    // violation, never a silent suppression — which matters more under
+    // `retired`, where a silent suppression would hide a live code item.
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "## Widget\n\nSome prose first.\n\n- status: retired\n",
+    );
+    assert_eq!(marks(d.path()), vec![("Widget".to_owned(), false)]);
 }

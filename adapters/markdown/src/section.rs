@@ -7,11 +7,15 @@
 //! this module's `SectionState` is shaped for H2/H3 + fenced-rust +
 //! bullet-edge dispatch, not the tree's full-depth abstraction ladder.
 
-use crate::bullets::{is_status_marker, parse_bullet_edge, parse_impl_bullet, parse_verb_bullet};
-use crate::front_matter::{blank_front_matter, is_draft};
+use crate::bullets::{
+    parse_bullet_edge, parse_impl_bullet, parse_status_marker, parse_verb_bullet,
+};
+use crate::front_matter::{blank_front_matter, file_marker};
 use crate::grounding::polarity_from_comment;
 use crate::markdown_utils::{compute_line_starts, line_of_offset};
-use domain::{ConceptAnchor, ConceptNode, Edge, Polarity, SignatureState, Source, VerbAnchor};
+use domain::{
+    ConceptAnchor, ConceptNode, Edge, Marker, Polarity, SignatureState, Source, VerbAnchor,
+};
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Parser, Tag, TagEnd};
 use std::path::Path;
 
@@ -33,15 +37,17 @@ struct SectionState<'a> {
     // Pending concept: held until the NEXT heading (or EOF) so the
     // accumulated rust blocks for the section can be attached.
     pending: Option<(String, usize)>,
-    /// RFC-013 §3.3: whether the pending concept carries the spec-state
-    /// marker. Cleared with every new heading — a marker binds only to the
-    /// heading whose block it opens; a marked H2 does not mark its H3s
-    /// (§3.1, no subtree inheritance).
-    pending_marked: bool,
-    /// RFC-013 §3.1 file scope: `status: draft` front-matter marks **every**
-    /// concept heading in the file, so a per-heading bullet inside one is
-    /// redundant, inert text.
-    file_marked: bool,
+    /// RFC-013 §3.3 (RFC-015 §3.3): which spec-state marker the pending
+    /// concept carries, if any. Cleared with every new heading — a marker
+    /// binds only to the heading whose block it opens; a marked H2 does not
+    /// mark its H3s (§3.1, no subtree inheritance).
+    pending_marker: Option<Marker>,
+    /// RFC-013 §3.1 file scope: a `status:` front-matter value marks
+    /// **every** concept heading in the file, so a per-heading bullet inside
+    /// one is redundant, inert text — which is why the file value wins the
+    /// combination in [`SectionState::effective_marker`] rather than the
+    /// heading's.
+    file_marker: Option<Marker>,
     /// RFC-014 §3.2: the grounding polarity of the pending concept. Reset
     /// with every new heading — like the spec-state marker, a grounding
     /// comment binds only to the heading whose block it opens.
@@ -65,7 +71,7 @@ struct SectionState<'a> {
 }
 
 impl<'a> SectionState<'a> {
-    fn new(source: &'a str, path: &'a Path, file_marked: bool) -> Self {
+    fn new(source: &'a str, path: &'a Path, file_marker: Option<Marker>) -> Self {
         Self {
             line_starts: compute_line_starts(source),
             source,
@@ -73,8 +79,8 @@ impl<'a> SectionState<'a> {
             heading_buf: String::new(),
             in_heading_at: None,
             pending: None,
-            pending_marked: false,
-            file_marked,
+            pending_marker: None,
+            file_marker,
             pending_polarity: Polarity::Declared,
             in_html_at: None,
             html_buf: String::new(),
@@ -85,6 +91,17 @@ impl<'a> SectionState<'a> {
             bullet_buf: String::new(),
             concept_anchors: Vec::new(),
         }
+    }
+
+    /// The marker that binds to the pending concept: the file-scope value
+    /// when the file declares one, else the heading's own bullet.
+    ///
+    /// File scope wins because a per-heading bullet inside a marked file is
+    /// redundant, inert text (RFC-013 §3.1 file scope). Under one value the
+    /// two were indistinguishable and this was an `||`; under two
+    /// (RFC-015 §3.1) the precedence has to be stated.
+    fn effective_marker(&self) -> Option<Marker> {
+        self.file_marker.or(self.pending_marker)
     }
 
     fn current_concept(&self) -> Option<&str> {
@@ -103,21 +120,22 @@ pub fn extract_from_source(
     // RFC-013 §3.1 file scope. Read from the RAW source — the blanking pass
     // below erases the front matter this consults. Draft files are no longer
     // skipped; they are parsed, and every heading in them is marked.
-    let file_marked = is_draft(source);
+    let file_marker = file_marker(source);
     // Blank any leading front-matter so a `cohesion: behavioral` block is not
     // mis-parsed as a setext heading (RFC-012 §3.3). Line numbers preserved.
     let cleaned = blank_front_matter(source);
     let source = cleaned.as_ref();
-    let mut st = SectionState::new(source, path, file_marked);
+    let mut st = SectionState::new(source, path, file_marker);
     let parser = Parser::new(source).into_offset_iter();
 
     for (event, range) in parser {
         handle_event(&mut st, event, range, nodes, edges, verb_anchors);
     }
 
+    let marker = st.effective_marker();
     flush_pending(
         &mut st.pending,
-        st.pending_marked || st.file_marked,
+        marker,
         st.pending_polarity,
         &st.rust_blocks,
         st.path,
@@ -139,15 +157,16 @@ fn handle_event(
             level: HeadingLevel::H2 | HeadingLevel::H3,
             ..
         }) => {
+            let marker = st.effective_marker();
             flush_pending(
                 &mut st.pending,
-                st.pending_marked || st.file_marked,
+                marker,
                 st.pending_polarity,
                 &st.rust_blocks,
                 st.path,
                 nodes,
             );
-            st.pending_marked = false;
+            st.pending_marker = None;
             st.pending_polarity = Polarity::Declared;
             st.rust_blocks.clear();
             st.heading_buf.clear();
@@ -239,10 +258,10 @@ fn finish_bullet(
     // RFC-013 §3.1: the spec-state marker. Checked first — it shares no
     // prefix with any other bullet grammar, so this is ordering for
     // legibility, not for disambiguation.
-    if is_status_marker(text.as_str()) {
+    if let Some(marker) = parse_status_marker(text.as_str()) {
         if let Some((_, heading_line)) = st.pending.as_ref() {
             if is_first_content_line(st.source, *heading_line, line) {
-                st.pending_marked = true;
+                st.pending_marker = Some(marker);
             }
         }
         return;
@@ -277,7 +296,7 @@ fn finish_bullet(
 
 fn flush_pending(
     pending: &mut Option<(String, usize)>,
-    marked: bool,
+    marker: Option<Marker>,
     polarity: Polarity,
     rust_blocks: &[String],
     path: &Path,
@@ -294,7 +313,7 @@ fn flush_pending(
             signature_from_blocks(rust_blocks),
         )
         .with_polarity(polarity);
-        node.marked = marked;
+        node.marker = marker.unwrap_or_default();
         out.push(node);
     }
 }

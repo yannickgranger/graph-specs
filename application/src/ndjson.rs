@@ -40,7 +40,9 @@ mod tests;
 
 use cohesion::cohesion_violation_to_record;
 use context::context_violation_to_record;
-use domain::{CheckOutcome, PendingRecord, Provenance, RealizedRecord, SchemaVersion, Violation};
+use domain::{
+    CheckOutcome, PendingRecord, Provenance, RealizedRecord, SchemaVersion, Source, Violation,
+};
 use serde_json::{json, Value};
 use source::{code_source_to_json, source_to_json};
 use std::collections::BTreeMap;
@@ -52,7 +54,8 @@ use std::io::Write;
 type ProvenanceIndex = BTreeMap<String, Provenance>;
 
 /// Write a check outcome as NDJSON to `out` — every violation, then every
-/// pending record, then every realized record.
+/// pending record, then every realized record, then the two retirement
+/// kinds (RFC-015 §3.5).
 ///
 /// Grouping by kind rather than interleaving keeps a consumer that reads
 /// only the `violation`-keyed prefix working byte-for-byte as before.
@@ -71,6 +74,18 @@ pub fn write_ndjson(outcome: &CheckOutcome, out: &mut impl Write) -> std::io::Re
     for r in &outcome.realized {
         write_record(&realized_to_record(r), out)?;
     }
+    for r in &outcome.retirement_incomplete {
+        write_record(
+            &retirement_record("retirement_incomplete", &r.concept, &r.spec_source),
+            out,
+        )?;
+    }
+    for r in &outcome.retirement_complete {
+        write_record(
+            &retirement_record("retirement_complete", &r.concept, &r.spec_source),
+            out,
+        )?;
+    }
     Ok(())
 }
 
@@ -88,6 +103,22 @@ fn pending_to_record(r: &PendingRecord) -> Value {
         "marker": "pending",
         "concept": r.concept,
         "source": source_to_json(&r.spec_source),
+    })
+}
+
+/// RFC-015 §3.5 — the two retirement marker records. Two new values under
+/// the existing `marker` discriminator, so `schema_version` stays `"4"`:
+/// they change which headings qualify, not what the discriminator means.
+///
+/// One constructor for both kinds — the records are shape-identical and the
+/// discriminator is the only difference, so a second copy would be a
+/// split-brain on the wire shape.
+fn retirement_record(marker: &str, concept: &str, source: &Source) -> Value {
+    json!({
+        "schema_version": SchemaVersion::CURRENT.as_str(),
+        "marker": marker,
+        "concept": concept,
+        "source": source_to_json(source),
     })
 }
 

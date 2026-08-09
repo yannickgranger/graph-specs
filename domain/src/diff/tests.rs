@@ -1,8 +1,8 @@
 use super::violation_key;
 use crate::{
     AnchorKind, AnchorTarget, CheckInput, CohesionViolation, ConceptAnchor, ConceptNode,
-    ContextDecl, ContextViolation, Edge, EdgeKind, Graph, OwnedUnit, Polarity, Provenance,
-    ResolvedAnchor, SignatureState, Source, VerbOwnership, Violation,
+    ContextDecl, ContextViolation, Edge, EdgeKind, Graph, Marker, OwnedUnit, Polarity, Provenance,
+    ResolvedAnchor, SignatureState, Source, VerbAnchor, VerbOwnership, Violation,
 };
 use std::path::PathBuf;
 
@@ -576,7 +576,7 @@ fn retired_slot_13_leaves_a_gap_between_cohesion_and_dangling_anchor() {
 /// A spec node carrying the `- status: draft` marker (RFC-013 §3.3).
 fn spec_marked(name: &str) -> ConceptNode {
     let mut n = spec(name);
-    n.marked = true;
+    n.marker = Marker::Draft;
     n
 }
 
@@ -629,7 +629,7 @@ fn a_marker_never_parks_a_divergence() {
     // produces the ordinary violation — alongside the realized record.
     let specs = {
         let mut n = spec_with_sig("Widget", "pub struct Widget;");
-        n.marked = true;
+        n.marker = Marker::Draft;
         nodes(vec![n])
     };
     let input = CheckInput::new(specs, Vec::new(), VerbOwnership::default());
@@ -900,7 +900,7 @@ fn non_declared_polarity_is_terminal_over_the_spec_state_marker() {
     for polarity in [Polarity::Forbidden, Polarity::Illustrative] {
         for code_present in [false, true] {
             let mut node = spec_with_polarity("Member", polarity);
-            node.marked = true;
+            node.marker = Marker::Draft;
             let code_graph = if code_present {
                 nodes(vec![code("Member")])
             } else {
@@ -934,7 +934,7 @@ fn non_declared_polarity_is_terminal_over_the_spec_state_marker() {
 fn declared_polarity_leaves_the_marker_dispatch_intact() {
     // The other side of terminality — `declared` must reach RFC-013's rows.
     let mut node = spec_with_polarity("Widget", Polarity::Declared);
-    node.marked = true;
+    node.marker = Marker::Draft;
     let outcome = super::diff(
         CheckInput::new(nodes(vec![node]), Vec::new(), VerbOwnership::default()),
         Graph::default(),
@@ -1092,5 +1092,251 @@ fn outcome_provenance_skips_nodes_with_no_facts() {
         outcome.provenance.is_empty(),
         "no facts must index nothing: {:?}",
         outcome.provenance
+    );
+}
+
+// --- RFC-015 §3.2 — the `retired` value, matrix rows 7 and 8 ---
+
+/// A spec node carrying the `- status: retired` marker (RFC-015 §3.1).
+fn spec_retired(name: &str) -> ConceptNode {
+    let mut n = spec(name);
+    n.marker = Marker::Retired;
+    n
+}
+
+#[test]
+fn retired_heading_with_code_is_retirement_incomplete() {
+    // Matrix row 7. The retirement was announced and the code has not gone
+    // yet — the window every correct retirement opens, not a failure.
+    let input = CheckInput::new(
+        nodes(vec![spec_retired("Widget")]),
+        Vec::new(),
+        VerbOwnership::default(),
+    );
+    let outcome = super::diff(input, nodes(vec![code("Widget")]));
+    assert!(
+        outcome.violations.is_empty(),
+        "marker/code co-presence is not itself the contradiction: {:?}",
+        outcome.violations
+    );
+    assert_eq!(outcome.retirement_incomplete.len(), 1);
+    assert_eq!(outcome.retirement_incomplete[0].concept, "Widget");
+    assert!(outcome.retirement_complete.is_empty());
+    assert!(
+        outcome.realized.is_empty(),
+        "row 7 is not row 4 — `realized — ratify` would invite deleting a \
+         marker line that is never deleted"
+    );
+    assert!(outcome.is_clean(), "row 7 never fails the gate");
+}
+
+#[test]
+fn retired_heading_without_code_is_retirement_complete_not_missing_in_code() {
+    // Matrix row 8 — the state RFC-013 had no cell for. Whoever moved first
+    // used to be red; this is the legal terminal state.
+    let input = CheckInput::new(
+        nodes(vec![spec_retired("Widget")]),
+        Vec::new(),
+        VerbOwnership::default(),
+    );
+    let outcome = super::diff(input, Graph::default());
+    assert!(
+        outcome.violations.is_empty(),
+        "a retired heading imposes no code-existence obligation: {:?}",
+        outcome.violations
+    );
+    assert_eq!(outcome.retirement_complete.len(), 1);
+    assert_eq!(outcome.retirement_complete[0].concept, "Widget");
+    assert!(outcome.retirement_incomplete.is_empty());
+    assert!(
+        outcome.pending.is_empty(),
+        "row 8 is not row 3 — nothing here is a transcription worklist item"
+    );
+    assert!(outcome.is_clean());
+}
+
+#[test]
+fn rows_7_and_8_are_selected_by_the_same_backing_item_fact_as_rows_3_and_4() {
+    // RFC-015 §3.2: "backing item present" is ONE fact with two spellings —
+    // a name-matched pub item, or a resolved `- impl:` anchor. Both marker
+    // values read the same fact, so both spellings are exercised for both.
+    for (marker, spelling_by_name) in [
+        (Marker::Draft, true),
+        (Marker::Draft, false),
+        (Marker::Retired, true),
+        (Marker::Retired, false),
+    ] {
+        for backed in [false, true] {
+            let mut node = spec("Widget");
+            node.marker = marker;
+            let mut input =
+                CheckInput::new(nodes(vec![node]), Vec::new(), VerbOwnership::default());
+            let code_graph = if spelling_by_name && backed {
+                nodes(vec![code("Widget")])
+            } else {
+                Graph::default()
+            };
+            if !spelling_by_name {
+                input = input.with_concept_anchors(vec![resolved_anchor(
+                    "Widget",
+                    "build_widget",
+                    backed,
+                )]);
+            }
+            let outcome = super::diff(input, code_graph);
+            let backed_len = match marker {
+                Marker::Draft => outcome.realized.len(),
+                _ => outcome.retirement_incomplete.len(),
+            };
+            let unbacked_len = match marker {
+                Marker::Draft => outcome.pending.len(),
+                _ => outcome.retirement_complete.len(),
+            };
+            let (want_backed, want_unbacked) = if backed { (1, 0) } else { (0, 1) };
+            assert_eq!(
+                (backed_len, unbacked_len),
+                (want_backed, want_unbacked),
+                "{marker:?}, by_name={spelling_by_name}, backed={backed}"
+            );
+            assert!(
+                !outcome
+                    .violations
+                    .iter()
+                    .any(|v| matches!(v, Violation::DanglingAnchor { .. })),
+                "an unresolved anchor under EITHER marker is the state the \
+                 marker announces, not a dangling anchor: {:?}",
+                outcome.violations
+            );
+        }
+    }
+}
+
+#[test]
+fn a_retired_marker_never_parks_a_divergence() {
+    // RFC-015 §3.2, escalation on contradiction only. Row 7 enforces
+    // equivalence in full: a retired heading whose backing item exists and
+    // whose signature drifted still produces the ordinary violation.
+    let specs = {
+        let mut n = spec_with_sig("Widget", "pub struct Widget;");
+        n.marker = Marker::Retired;
+        nodes(vec![n])
+    };
+    let input = CheckInput::new(specs, Vec::new(), VerbOwnership::default());
+    let outcome = super::diff(
+        input,
+        nodes(vec![code_with_sig("Widget", "pub enum Widget {}")]),
+    );
+    assert!(
+        outcome
+            .violations
+            .iter()
+            .any(|v| matches!(v, Violation::SignatureDrift { name, .. } if name == "Widget")),
+        "drift under a retired heading must still fire: {:?}",
+        outcome.violations
+    );
+    assert_eq!(
+        outcome.retirement_incomplete.len(),
+        1,
+        "and the record rides alongside"
+    );
+    assert!(!outcome.is_clean(), "the gate stays red");
+}
+
+#[test]
+fn non_declared_polarity_is_terminal_over_the_retired_value_too() {
+    // RFC-015 §3.2, the 3×3 product stated rather than inferred. RFC-014's
+    // inertness rationale was "there is nothing for `marked` to relax" —
+    // true of `draft`, and it does NOT transfer unexamined, because row 7
+    // ADDS an emission alongside full enforcement rather than relaxing.
+    for polarity in [Polarity::Forbidden, Polarity::Illustrative] {
+        for code_present in [false, true] {
+            let mut node = spec_with_polarity("Member", polarity);
+            node.marker = Marker::Retired;
+            let code_graph = if code_present {
+                nodes(vec![code("Member")])
+            } else {
+                Graph::default()
+            };
+            let outcome = super::diff(
+                CheckInput::new(nodes(vec![node]), Vec::new(), VerbOwnership::default()),
+                code_graph,
+            );
+            assert!(
+                outcome.retirement_incomplete.is_empty() && outcome.retirement_complete.is_empty(),
+                "retired+{polarity:?} must emit no marker record at all \
+                 (code_present={code_present})"
+            );
+        }
+    }
+}
+
+#[test]
+fn row_8_verb_anchors_impose_no_obligation() {
+    // RFC-015 §3.2 — row 8 carries row 3's obligation skip IN FULL, and the
+    // mechanism is a SET the verb pass is handed, not an inference it makes.
+    // Silence resolves to armed: a row-8 concept is not in `pending`, so if
+    // `diff` failed to add it to the unobliged set, this bullet would fire.
+    let ctx = ContextDecl::new(
+        "eq".to_owned(),
+        vec![OwnedUnit("domain".to_owned())],
+        vec![],
+        vec![],
+        Source::Spec {
+            path: spec_path(),
+            line: 1,
+        },
+    );
+    let anchor = VerbAnchor {
+        concept: "Widget".to_owned(),
+        qname: "build_widget".to_owned(),
+        raw_target: "verb: build_widget".to_owned(),
+        source: Source::Spec {
+            path: spec_path(),
+            line: 3,
+        },
+    };
+    // A second, ordinary pair so the context owns a live member; `Widget`
+    // itself is absent from code in both arms, which is what makes it row 8.
+    let neighbour_code = ConceptNode::new(
+        "Anchorage".to_owned(),
+        Source::Code {
+            path: PathBuf::from("domain/src/lib.rs"),
+            line: 7,
+        },
+        SignatureState::Absent,
+    );
+    let verbs_of = |marker: Marker| {
+        let mut node = spec("Widget");
+        node.marker = marker;
+        super::diff(
+            CheckInput::new(
+                nodes(vec![node, spec("Anchorage")]),
+                vec![ctx.clone()],
+                VerbOwnership {
+                    decls: vec![],
+                    anchors: vec![anchor.clone()],
+                },
+            ),
+            Graph::new(vec![neighbour_code.clone()], vec![]),
+        )
+        .violations
+        .into_iter()
+        .filter(|v| matches!(v, Violation::VerbMissingInCode { .. }))
+        .count()
+    };
+    assert_eq!(
+        verbs_of(Marker::Unmarked),
+        1,
+        "control: an unmarked concept's dangling verb anchor still fires"
+    );
+    assert_eq!(
+        verbs_of(Marker::Draft),
+        0,
+        "row 3 skips — the rule this one is claimed to mirror"
+    );
+    assert_eq!(
+        verbs_of(Marker::Retired),
+        0,
+        "row 8 skips identically, and it is listed rather than inherited"
     );
 }
