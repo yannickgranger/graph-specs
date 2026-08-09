@@ -1,6 +1,6 @@
 ---
 title: RFC-015 — spec retirement state: a second marker value, its two marker records, and the obligation rule the edge pass was never given
-status: Draft (revision 8) — H1 complete, D12 test, endpoint-coverage framing; awaiting §2.3 review
+status: Draft (revision 9) — enumeration-governs, the output-identical proof, the divergent-carrier bound; awaiting §2.3 review
 date: 2026-08-09
 authors: agentry-captain-2026-08-09
 companion: yg/agentry docs/rfc/RFC-spec-state-marker.md §11 (Amendment A2, council-produced, operator-ratified 2026-08-09)
@@ -9,7 +9,7 @@ prior-art: RFC-013 (spec state marker — this RFC amends its §3.1 "One legal v
 
 # RFC-015 — spec retirement state
 
-**Revision 8.** Revision 1 was reviewed by three lenses and returned
+**Revision 9.** Revision 1 was reviewed by three lenses and returned
 REQUEST CHANGES from each (`clean-arch` C0–C3, `ddd` D1–D8, `solid`
 F1–F12). This revision folds every blocking condition. §5 records what
 the review found, including the three findings that were withdrawn by
@@ -510,7 +510,30 @@ defect, one more turn:
 
 `illustrative`'s carrier is name presence and nothing more: RFC-014
 OQ-4 already rules that anchors under a non-`Declared` heading fire
-nothing, so the anchor spelling is vacuous there. Stating which carrier
+nothing, so the anchor spelling is vacuous there.
+
+**Why row verdicts fail there is stronger than "the dispatch is never
+reached" — the two cells are output-identical.** Executed:
+
+```
+illustrative + item PRESENT   → missing in specs: T   1 violations, 0 pending, 0 realized
+illustrative + item ABSENT    →                       0 violations, 0 pending, 0 realized
+```
+
+Neither emits a marker record of any kind. So an implementer keying on
+row verdicts cannot separate the member (`illustrative` + absent) from
+the non-member (`illustrative` + present) **even in principle** — and
+that is exactly the cell this predicate was created to discriminate.
+
+**Where the three statements disagree, the ENUMERATION governs.** This
+membership is stated three times — as a definition, as an enumeration,
+and as a carrier — and each is individually plausible. The enumeration
+is normative; the definition is narrowed to match it (above); the
+carriers answer it per member class (this table). Three statements of
+one membership with nothing marking the gap between them is this
+document's own thesis at its most economical, and naming which one
+governs is the only thing that stops the next reader picking a
+different one. Stating which carrier
 answers which class is mandatory — an unanswerable leg gets answered by
 whatever set is nearest to hand, which is the name-match set this
 section already warns about.
@@ -652,6 +675,13 @@ cause for F4 (an anchor-backed concept can never be a code-edge target,
 **Findings withdrawn by their own authors after re-execution.** Each is
 kept because a live clause elsewhere rests on it, named inline:
 
+- The `(a)` polarity ruling was **right about the question put to it and
+  wrong about a question nobody put to it** — correct for the source
+  side, over-reaching on the target side, which D9 corrects. Recorded as
+  a **scope** error rather than a detection error, because its author's
+  own first account was harsher than the facts and a later lens checked
+  whether any condition actually leaned on the harsher version. None
+  did.
 - `clean-arch` filed, then withdrew, a claim that a name-match key would
   park a real divergence — refuted by its own fixture showing the case
   fires today with no marker present and is structurally un-actionable.
@@ -784,6 +814,20 @@ closed by the obligation verdict (the cohesion pass consumes no
 obligation verdict, and `declared_contexts` is snapshotted at
 `diff.rs:86` before the concept pass runs). **Filed as #187; not a
 deliverable of these slices.**
+
+**The two carriers answer one structural fact two ways, and that is
+bounded rather than an oversight.** A row-7 target that is anchored and
+resolved reads *present*, so it is not suppressed and
+`EdgeMissingInCode` fires un-actionably (F4a). An `illustrative` target
+that is anchored and resolved reads *absent* under name presence, so it
+is suppressed and does not fire. **Both edges are equally unmatchable**
+— an anchor-backed concept can never be a code-edge target, since the
+code edge carries the anchored item's name and never the concept's. The
+divergence is deliberate: row 7 must stay enforced in full, and
+`illustrative` need not. It is bounded entirely by F4a being a
+pre-existing, out-of-scope false positive, and **if F4a is ever fixed
+the two answers converge and this paragraph dissolves.** Recorded so the
+next reader does not read it as an inconsistency nobody noticed.
 
 **Not the polarity axis.** `polarity:forbidden` means *this name was
 never legitimate*; retirement means *this concept was legitimate and was
