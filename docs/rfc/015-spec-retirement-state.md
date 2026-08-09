@@ -1,6 +1,6 @@
 ---
 title: RFC-015 — spec retirement state: a second marker value, its two marker records, and the obligation rule the edge pass was never given
-status: Draft (revision 11) — the derivation is checkable cell by cell; awaiting §2.3 review
+status: Draft (revision 12) — D17: the per-name rule gains its suppress-direction mirror; awaiting §2.3 review
 date: 2026-08-09
 authors: agentry-captain-2026-08-09
 companion: yg/agentry docs/rfc/RFC-spec-state-marker.md §11 (Amendment A2, council-produced, operator-ratified 2026-08-09)
@@ -9,7 +9,7 @@ prior-art: RFC-013 (spec state marker — this RFC amends its §3.1 "One legal v
 
 # RFC-015 — spec retirement state
 
-**Revision 11.** Revision 1 was reviewed by three lenses and returned
+**Revision 12.** Revision 1 was reviewed by three lenses and returned
 REQUEST CHANGES from each (`clean-arch` C0–C3, `ddd` D1–D8, `solid`
 F1–F12). This revision folds every blocking condition. §5 records what
 the review found, including the three findings that were withdrawn by
@@ -1040,6 +1040,14 @@ Tests:
     is what the permissive resolution produces. This is the cell where no
     other violation co-fires, so the suppression alone decides the gate
     colour.
+  - Integration fixture (D12, the MIRROR — the suppress direction): the
+    same shape with BOTH headings non-`Declared`, so the name IS
+    `unpointable`. The edge MUST be suppressed. Without this clause an
+    implementation that resolves the per-name rule so conservatively that
+    no name is ever `unpointable` passes every other test in this slice —
+    the fire-direction fixture asserts a finding fires, and a
+    never-suppressing implementation fires everything. The mirror is what
+    pins the rule as a rule rather than as a disabled feature.
   - Target dogfood: none — rationale: no live tree carries the value.
 ```
 
