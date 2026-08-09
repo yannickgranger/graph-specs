@@ -1,6 +1,6 @@
 ---
 title: RFC-015 — spec retirement state: a second marker value, its two marker records, and the obligation rule the edge pass was never given
-status: Draft (revision 3) — four rounds of lens findings folded; awaiting §2.3 four-lens review of this text
+status: Draft (revision 3) — all four r1 verdicts folded, plus ddd's r2 audit; awaiting §2.3 review of THIS text
 date: 2026-08-09
 authors: agentry-captain-2026-08-09
 companion: yg/agentry docs/rfc/RFC-spec-state-marker.md §11 (Amendment A2, council-produced, operator-ratified 2026-08-09)
@@ -50,7 +50,7 @@ heading unusable for precisely the concepts most worth pre-landing.
 its skip to *"all code-obligating checks **sourced at** that heading"*,
 then examines the edge pass and concludes it *"already satisfies it by
 construction"*. That is true source-side and silent target-side, and
-`domain/src/diff/edge.rs:35` is faithful to it — it filters on
+`domain/src/diff/edge.rs:36` is faithful to it — it filters on
 `e.source_concept`, and `marked` is read in `diff/concept.rs` and at
 `diff.rs:166`, never in the edge pass.
 
@@ -205,6 +205,24 @@ from the `pending` list (`diff.rs:200`), a row-8 concept is not in it,
 and `verb.rs:307-318` carries a control asserting the violation *does*
 fire on an empty unobliged set.
 
+**The product with polarity, stated rather than left inferable.**
+RFC-014 §3.3's precedence is **terminal and evaluated first** — the code
+says so at `concept.rs:41-45`: *"evaluated first, and terminal. A
+non-`declared` heading never reaches the marked dispatch below."* This
+RFC extends that precedence to the new value unchanged: **a heading
+carrying `- status: retired` AND a non-`Declared` polarity emits no
+marker record at all**, exactly as a `draft` one does not.
+
+It is stated because it is not inferable. RFC-014's inertness rationale
+was *"there is nothing for `marked` to relax"* — true of `draft`, and it
+does **not** transfer unexamined, because `retired` does not only relax:
+row 7 *adds* an emission alongside full enforcement. Row 8 read alone
+says a record is emitted; §3.3's precedence says none is. Today's code
+answers correctly, but that is the code answering a question no RFC
+asked — which is precisely why RFC-014 published its 2×3 product rather
+than leaving it derivable. The rows above plus this paragraph are the
+3×3.
+
 **Escalation on contradiction only, unchanged.** Row 7 enforces
 equivalence in full: a retired heading whose backing item exists and
 whose equivalence *fails* produces that ordinary violation. Marker/code
@@ -227,7 +245,7 @@ dispatches on the value (rows 3/4 vs 7/8); the anchor-suppression set at
 `diff.rs:164-168` needs only "is marked"; the obligation verdict (§3.4)
 needs only "compels no code item".
 
-### §3.4 — The obligation rule, stated once
+### §3.4 — What a heading obliges, and what it describes
 
 **The rule, non-directional and mechanism-free.** It is stated here, in
 two legs, and every other carrier cites it rather than restating it.
@@ -391,11 +409,20 @@ No new subcommand, no new flags.
 
 ## §5 — Architect lenses
 
-**Revision 1 review: three verdicts, all REQUEST CHANGES**
-(`clean-arch` C0–C3, `ddd` D1–D8, `solid` F1–F12). `rust-sys` did not
-return a seat; its findings reached the record through the other three
-and are attributed where used. **This revision is not ratified** —
-§2.3 requires four verdicts on this text.
+**Revision 1 review: four lenses, all REQUEST CHANGES**
+(`clean-arch` C0–C3, `ddd` D1–D8, `solid` F1–F12, `rust-sys`). Every
+verdict was rendered against revision 1 at `951b3b9`; none speaks to
+this text, and **this revision is not ratified** — §2.3 requires four
+verdicts on the text under review.
+
+`rust-sys`'s seat reached the record through the other three lenses
+rather than directly, and the attribution is corrected here: **D6 — the
+`target dogfood` collision, its `cross-fixture-bump.md:62`/`:64`
+evidence and the "payload, not a bug" argument — is entirely
+`rust-sys`'s finding**, relayed under `ddd`'s number at its request. It
+also filed the verb-pass half of F3 independently, supplied the general
+cause for F4 (an anchor-backed concept can never be a code-edge target,
+`edges.rs:37-43`), and settled the amendment-ledger fix.
 
 **Three findings were withdrawn by their own authors after
 re-execution**, and the record keeps them because it is evidence about
@@ -413,10 +440,17 @@ how much the surviving findings are worth:
   incomplete in exactly the way it diagnoses — one leg reading as though
   it covered the field.
 - `clean-arch` and `solid` then drafted a binding leg each, and **both
-  were false** — each banned `ForbiddenConceptReintroduced`, by
-  different routes. `ddd` refuted both with the same witness and ruled
-  two named predicates instead. Three wordings of one error, from three
-  authors, is why §3.4 forbids the subordinate form on grammatical
+  were false as they wrote them** — each banned
+  `ForbiddenConceptReintroduced`, by different routes, because each
+  subordinated the binding predicate to the obligation one. `ddd`
+  refuted both with the same witness and ruled two named predicates.
+  **`ddd` subsequently withdrew that refutation as against this
+  document**, on audit: the two predicates here carry independent
+  subjects and so never inherit each other's extension. The named form
+  is kept because a named predicate cannot be silently dropped in
+  transcription the way a caveat can — the adoption-safety property, not
+  a correction of a live error. Three wordings of one error from three
+  authors is why §3.4 forbids the subordinate form on grammatical
   grounds rather than warning against it.
 
 Two corrections were the author's. Revision 1 offered
@@ -515,11 +549,14 @@ never legitimate*; retirement means *this concept was legitimate and was
 removed by decision X*. They differ in re-entry rules — and that
 difference is **upstream-governed and not on the wire**, since the
 checker sees a tree and never a sequence. They are distinct in meaning,
-in re-entry, and in **every code-present cell** — `draft`→`realized`,
-`retired`→row 7, `forbidden`→`ForbiddenConceptReintroduced`,
-`illustrative`→`MissingInSpecs` — and they **converge in every
-code-absent cell**, where none compels a code item and one obligation
-set treats them alike. They differ there in *reporting*, not in
+in re-entry, and in **every code-present cell**. Those cells are a
+product, not a list of four alternatives: marker value and polarity are
+**independent attributes of one heading**, so a `declared` heading's
+marker decides between `realized` and row 7, while a non-`Declared`
+polarity is terminal and decides the cell on its own
+(`ForbiddenConceptReintroduced`, `MissingInSpecs`) with the marker never
+read. They **converge in every code-absent cell**, where none compels a
+code item and one obligation set treats them alike. They differ there in *reporting*, not in
 obligation. That is a well-formed design, and the axes stay
 distinguishable exactly where a distinction has consequences.
 
