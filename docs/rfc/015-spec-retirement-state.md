@@ -1,6 +1,6 @@
 ---
 title: RFC-015 — spec retirement state: a second marker value, its two marker records, and the obligation rule the edge pass was never given
-status: Draft (revision 6) — D13-D15 folded; awaiting §2.3 review of THIS text
+status: Draft (revision 7) — B1, D13-amended, H1, B2, B3 folded; awaiting §2.3 review of THIS text
 date: 2026-08-09
 authors: agentry-captain-2026-08-09
 companion: yg/agentry docs/rfc/RFC-spec-state-marker.md §11 (Amendment A2, council-produced, operator-ratified 2026-08-09)
@@ -9,7 +9,7 @@ prior-art: RFC-013 (spec state marker — this RFC amends its §3.1 "One legal v
 
 # RFC-015 — spec retirement state
 
-**Revision 6.** Revision 1 was reviewed by three lenses and returned
+**Revision 7.** Revision 1 was reviewed by three lenses and returned
 REQUEST CHANGES from each (`clean-arch` C0–C3, `ddd` D1–D8, `solid`
 F1–F12). This revision folds every blocking condition. §5 records what
 the review found, including the three findings that were withdrawn by
@@ -274,11 +274,34 @@ cited, never restated, by every carrier.
 > consume.
 >
 > **`unpointable`** — this heading offers no legitimate code item to
-> point at: the item is **absent**, or it is **expelled**. Members:
-> marked-with-either-value + absent, `illustrative` + absent,
+> point at, **and its own declared state accounts for that**: the
+> heading is marked, so an item is owed to exist or owed to be gone; or
+> its polarity is non-`Declared`, so no item of that name is legitimate.
+> Members: marked-with-either-value + absent, `illustrative` + absent,
 > `forbidden` + absent, and `forbidden` + present. It governs the
 > **target side**: no heading bears a code-existence demand made of it
 > by another heading's declarations. *This is what RFC-015 adds.*
+
+**The accounting clause is load-bearing and is not a restatement of the
+member list.** Without it the definition reads on **item absence
+alone** — and an *unmarked, `declared`* heading whose item is absent
+satisfies that, while being **matrix row 1**, which invariant 2 requires
+byte-for-byte:
+
+```
+## S - depends on: Ghost   |   ## Ghost   (unmarked, declared, no item)
+→ missing in code: Ghost + edge missing in code: S --DEPENDS_ON--> Ghost   2 violations
+```
+
+An implementer keying on the definition rather than the enumeration
+suppresses that edge and silently breaks invariant 2. **Revision 1
+carried the sentence that named this exact failure** — *"item-absence
+alone moves an existing matrix row: target unmarked, item absent, bullet
+present is today's 2-violation cell; suppressing on absence alone
+silently changes it"* — and the rewrite that introduced an
+absence-keyed definition deleted it. It is restored here, because it is
+the only place the document says **why** absence alone is the wrong key.
+Nothing accounts for row 1's absence; that absence *is* the finding.
 >
 > **`unbound`** — this heading describes no code item. Member:
 > `illustrative`, alone. It governs every check presupposing that the
@@ -372,8 +395,17 @@ has already shipped a defect:**
   what produced this document's own worst defect**, and it was caught by
   executing the cell rather than by reading the definition.
 
-The second is the load-bearing one: the guard must name the containment
-with a **shipped** instance, not only the ones caught in drafting.
+The second is the load-bearing one, on two counts. It has a **shipped**
+instance rather than only drafted ones — and it is **extensionally
+correct today**: *"`unpointable` is just `unobliged` minus
+illustrative-with-an-item"* describes the current lattice exactly. That
+makes it more dangerous, not less. A subordinate form that is wrong gets
+caught; one that is right today gets adopted, and then (i) it couples
+the target-side predicate to a source-side one whose membership **this
+very RFC changes**, since `retired` + absent joins `unobliged`, and
+(ii) it imports obligation vocabulary into a code-existence question,
+which is precisely what caused G1. **Extensional correctness does not
+license the subordinate form.**
 
 **Set inclusion does not license clause subordination:** a subordinate
 clause quantifies over its main clause's subject, so hanging either
@@ -430,8 +462,8 @@ the ruled predicate by construction rather than re-implementing it.
 the concept pass's own output, under a name that names the
 **consequence** and never a source.
 
-**`unpointable`'s "absent" leg takes the same carrier, for the same
-reason and in the same words.** This is not a restatement — it is the
+**`unpointable`'s "absent" leg takes TWO carriers, one per member
+class — a single carrier cannot serve it.** This is not a restatement — it is the
 leg the earlier revision left unanswered, and the omission is
 load-bearing. A **row-7 target that is anchored and resolved**
 (`retired`, item present via `- impl:`, equivalence enforced in full)
@@ -446,10 +478,30 @@ code    pub struct Bar;  pub fn some_fn() {}     (anchor resolves)
 → edge missing in code: Bar --DEPENDS_ON--> Foo    1 violation
 ```
 
-`Foo` is backed and resolved, and absent from `matched_concepts`. Both
-legs of `unpointable` — absent, and expelled — key on the concept pass's
-row verdicts, so neither re-derives a fact the dispatch already
-computed.
+`Foo` is backed and resolved, and absent from `matched_concepts`.
+
+**But row verdicts cannot serve every member, and the member they fail
+is the one D9 exists for.** `concept.rs:41-45` states it: *"RFC-014 §3.3
+— evaluated first, and terminal. A non-`declared` heading never reaches
+the marked dispatch below"*, and `continue`s. So an `illustrative`
+heading produces **no row verdict at all** — while being the one member
+whose presence must be answered, since `illustrative` + absent is a
+member and `illustrative` + present is not. A single carrier stated for
+the marked class and read as covering the field is the document's own
+defect, one more turn:
+
+| member class | needs a presence answer? | carrier |
+|---|---|---|
+| marked + absent | yes | the concept pass's **row verdicts**, both spellings |
+| `forbidden` | **no** — both its cells are members | none needed |
+| `illustrative` | yes | **code-side name presence** |
+
+`illustrative`'s carrier is name presence and nothing more: RFC-014
+OQ-4 already rules that anchors under a non-`Declared` heading fire
+nothing, so the anchor spelling is vacuous there. Stating which carrier
+answers which class is mandatory — an unanswerable leg gets answered by
+whatever set is nearest to hand, which is the name-match set this
+section already warns about.
 
 **Every pass is told; none infers.** The edge pass stops inheriting its
 rule "by construction" and is handed `unpointable`; the verb and anchor
@@ -559,7 +611,9 @@ No new subcommand, no new flags.
    identical violations, exit code, text (modulo the new summary
    segments) and NDJSON.
 3. **Exit code is a function of violations only.**
-4. **The suppression is keyed on obligation, one-directional.**
+4. **The suppression is keyed on `unpointable`, one-directional.**
+   Not on obligation: that key is what G1 refuted, and an implementer
+   reading §4 for the contract must not find the superseded rule here.
 5. **`EdgeMissingInSpec` fires under every marker value and every
    polarity, on both endpoints.**
 6. **Self and cross dogfood stay at zero findings** — and prove only
@@ -663,19 +717,21 @@ accumulated as separate bullets:
    self-defeating, and silence is worse than a right finding and better
    than a harmful one.
 
-**What this RFC changes about the two predicates, which refutes the
+**What this RFC changes about the three predicates, which refutes the
 collapse a reader will reach for.** `retired`+absent joins `unobliged`
 — it compels no code item, which is exactly the argument for row 8's
 verb-pass skip. It does **not** join `unbound`: with no code item there
 is nothing for a binding-presupposing check to fire on, and row 7
 describes its item in full.
 
-| | `unobliged` | `unbound` |
-|---|---|---|
-| today | `draft`+absent, `forbidden`, `illustrative` | `illustrative` |
-| after RFC-015 | `draft`+absent, **`retired`+absent**, `forbidden`, `illustrative` | `illustrative` |
+| | `unobliged` | `unpointable` | `unbound` |
+|---|---|---|---|
+| today | `draft`+absent, `forbidden`, `illustrative` | `draft`+absent, `forbidden`, `illustrative`+absent | `illustrative` |
+| after RFC-015 | + **`retired`+absent** | + **`retired`+absent** | unchanged |
 
-**One predicate grows in this RFC and the other does not.** A reader
+**Two predicates grow in this RFC and the third does not** — and
+`unobliged` and `unpointable` grow together while differing in exactly
+one cell, which is the coupling the guard forbids relying on. A reader
 tempted to collapse them as *"`unbound` is just a special case of
 `unobliged`"* is refuted by the document they are reading.
 
