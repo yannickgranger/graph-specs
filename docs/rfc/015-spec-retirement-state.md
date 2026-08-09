@@ -1,6 +1,6 @@
 ---
 title: RFC-015 — spec retirement state: a second marker value, its two marker records, and the obligation rule the edge pass was never given
-status: Draft (revision 7) — B1, D13-amended, H1, B2, B3 folded; awaiting §2.3 review of THIS text
+status: Draft (revision 8) — H1 complete, D12 test, endpoint-coverage framing; awaiting §2.3 review
 date: 2026-08-09
 authors: agentry-captain-2026-08-09
 companion: yg/agentry docs/rfc/RFC-spec-state-marker.md §11 (Amendment A2, council-produced, operator-ratified 2026-08-09)
@@ -9,7 +9,7 @@ prior-art: RFC-013 (spec state marker — this RFC amends its §3.1 "One legal v
 
 # RFC-015 — spec retirement state
 
-**Revision 7.** Revision 1 was reviewed by three lenses and returned
+**Revision 8.** Revision 1 was reviewed by three lenses and returned
 REQUEST CHANGES from each (`clean-arch` C0–C3, `ddd` D1–D8, `solid`
 F1–F12). This revision folds every blocking condition. §5 records what
 the review found, including the three findings that were withdrawn by
@@ -440,7 +440,19 @@ heading and its item. That bound is stated rather than assumed: a
 future two-place binding check would be unreachable from a one-place
 `unbound`, and by this document's own thesis unnoticeable, so the
 arity is recorded as bounded by inventory and not as a property of the
-concept. **All three must carry explicit boundedness** — complete, or
+concept.
+
+**And the durable question is not the arity at all.** *"Is this
+predicate one- or two-place?"* depends on the check inventory, which is
+exactly the mechanism-dependence this section forbids. The
+inventory-independent question is: **does the rule carry a predicate for
+every endpoint the governed checks range over?** That is what D9 did —
+it did not make a predicate two-place, it added a second one-place
+predicate at the endpoint that had none. Stated this way, `unbound`'s
+gap becomes exactly expressible without appeal to any inventory: it
+covers one endpoint, and if a two-place binding check ever appears the
+repair is **a second binding predicate for the other endpoint**, in the
+shape this document has already demonstrated. **All three must carry explicit boundedness** — complete, or
 visibly incomplete with a reference, in enforcement **and** in arity.
 That is the property whose absence produced this entire class.
 
@@ -895,7 +907,14 @@ Tests:
   - Cross dogfood (cfdb at pinned SHA): 0 findings.
   - Integration fixture: the §1 shape reaches 0 violations; the same
     fixture with the target's item still PRESENT reaches 1, proving the
-    key is obligation and not the marker alone.
+    key is `unpointable` and not the marker alone.
+  - Integration fixture (D12, the per-name resolution): two headings
+    sharing one name, one `illustrative` and one declared owning the code
+    item, with a live concept depending on that name. The edge finding
+    MUST fire, and the tree must NOT reach 0 violations / exit 0 — which
+    is what the permissive resolution produces. This is the cell where no
+    other violation co-fires, so the suppression alone decides the gate
+    colour.
   - Target dogfood: none — rationale: no live tree carries the value.
 ```
 
