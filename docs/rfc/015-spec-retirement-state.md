@@ -1,6 +1,6 @@
 ---
 title: RFC-015 — spec retirement state: a second marker value, its two marker records, and the obligation rule the edge pass was never given
-status: Draft (revision 5) — D12 + the RFC-014 reframing folded; awaiting §2.3 review of THIS text
+status: Draft (revision 6) — D13-D15 folded; awaiting §2.3 review of THIS text
 date: 2026-08-09
 authors: agentry-captain-2026-08-09
 companion: yg/agentry docs/rfc/RFC-spec-state-marker.md §11 (Amendment A2, council-produced, operator-ratified 2026-08-09)
@@ -9,7 +9,7 @@ prior-art: RFC-013 (spec state marker — this RFC amends its §3.1 "One legal v
 
 # RFC-015 — spec retirement state
 
-**Revision 5.** Revision 1 was reviewed by three lenses and returned
+**Revision 6.** Revision 1 was reviewed by three lenses and returned
 REQUEST CHANGES from each (`clean-arch` C0–C3, `ddd` D1–D8, `solid`
 F1–F12). This revision folds every blocking condition. §5 records what
 the review found, including the three findings that were withdrawn by
@@ -359,11 +359,25 @@ consumes the code node precisely because *"the heading documents it, as
 banned"* (`concept.rs:111-113`), and the violation carries `code_source`
 from the matched node, so it is definitionally a check over a bound pair.
 
-The trap is that the member **sets** nest — `unbound` ⊂ `unobliged` —
-while the **predicates** do not, and `forbidden` is the row that proves
-it. **Set inclusion does not license clause subordination:** a
-subordinate clause quantifies over its main clause's subject, so hanging
-the binding predicate off "compels no code item" asserts it of the whole
+The trap is that the member **sets** nest while the **predicates** do
+not. **Two containments, each with its own witness, and the second one
+has already shipped a defect:**
+
+- **`unbound` ⊂ `unobliged`**, witness **`forbidden`** — unobliged, and
+  bound. Hanging the binding predicate off "compels no code item" bans
+  `ForbiddenConceptReintroduced`. Caught in drafting, three times.
+- **`unpointable` ⊂ `unobliged`**, witness **`illustrative` + present**
+  — unobliged, and pointable. Treating the target-side predicate as
+  covered by `unobliged` on the strength of the nesting is **exactly
+  what produced this document's own worst defect**, and it was caught by
+  executing the cell rather than by reading the definition.
+
+The second is the load-bearing one: the guard must name the containment
+with a **shipped** instance, not only the ones caught in drafting.
+
+**Set inclusion does not license clause subordination:** a subordinate
+clause quantifies over its main clause's subject, so hanging either
+predicate off "compels no code item" asserts it of the whole
 `unobliged` extension rather than of the subset. The containment makes
 the premise true and the conclusion false, which is why three careful
 authors made the same move. **The subordinate form is forbidden here on
@@ -373,11 +387,16 @@ Defining `unbound` by **membership** rather than by a polarity-class
 quantifier is what makes `ForbiddenConceptReintroduced` safe by
 construction rather than by a carve-out someone has to reason about.
 
-Required properties differ by predicate, because their arities differ.
-`unobliged` must be **two-place** — `EdgeMissingInCode` ranges over two
-headings, so reaching the target endpoint requires it — and stated in
-**obligation vocabulary**, never mechanism, so it cannot go stale when
-the pass structure changes. `unbound` is **one-place**:
+**All three predicates are one-place, and that is a consequence of the
+split rather than a coincidence.** `EdgeMissingInCode` ranges over two
+headings, and a single one-place sentence cannot reach both endpoints —
+which is §1.1's whole diagnosis. The resolution is not a two-place
+predicate but **two one-place predicates, one per endpoint**:
+`unobliged` on the source, `unpointable` on the target. The two-place
+requirement stated in earlier revisions was right for a one-predicate
+world and dissolved when the sentence was split. All three are stated in
+**domain vocabulary**, never mechanism, so none goes stale when the pass
+structure changes. `unbound` is likewise **one-place**:
 `ConceptContextMismatch` ranges over one heading and its code item, and
 misfires not because a second endpoint went unconsulted but because it
 presupposes a binding the heading refuses. Stating it two-place would
@@ -411,11 +430,35 @@ the ruled predicate by construction rather than re-implementing it.
 the concept pass's own output, under a name that names the
 **consequence** and never a source.
 
-**Both passes are told; neither infers.** The edge pass stops inheriting
-the rule "by construction" and consumes the obligation verdict, as the
-verb pass already does. One derivation, two consumers — this removes a
-carrier of "does this heading compel a code item?" rather than adding a
-fifth.
+**`unpointable`'s "absent" leg takes the same carrier, for the same
+reason and in the same words.** This is not a restatement — it is the
+leg the earlier revision left unanswered, and the omission is
+load-bearing. A **row-7 target that is anchored and resolved**
+(`retired`, item present via `- impl:`, equivalence enforced in full)
+reads as *absent* under a name-match set, so `unpointable` would swallow
+it and suppress its edges for the whole retirement window — parking a
+divergence inside the one cell row 7 exists to keep enforced. Executed:
+
+```
+## Bar  - depends on: Foo   |   ## Foo  - impl: some_fn
+code    pub struct Bar;  pub fn some_fn() {}     (anchor resolves)
+
+→ edge missing in code: Bar --DEPENDS_ON--> Foo    1 violation
+```
+
+`Foo` is backed and resolved, and absent from `matched_concepts`. Both
+legs of `unpointable` — absent, and expelled — key on the concept pass's
+row verdicts, so neither re-derives a fact the dispatch already
+computed.
+
+**Every pass is told; none infers.** The edge pass stops inheriting its
+rule "by construction" and is handed `unpointable`; the verb and anchor
+passes keep consuming the obligation verdict, as they already do. **Two
+derivations, not one** — the split added a predicate, and the earlier
+revision's claim that the fix "removes a carrier rather than adding a
+fifth" was true only while one predicate served both endpoints. What is
+removed is not a carrier but an **inference**: no pass now derives its
+own answer to a question the concept pass already decided.
 
 **Ordering and precedence, two mechanical consequences.** The obligation
 verdict is built after the concept pass, so the edge pass consumes it
@@ -502,7 +545,17 @@ No new subcommand, no new flags.
    does create
    assertions true by suppression rather than by verification, and §6
    names that class rather than leaving it inside this invariant.
-2. **The unmarked tree is untouched.** Rows 1, 2, 5 byte-for-byte;
+2. **The unmarked tree is untouched**, and this is an independent ground
+   for the `illustrative` + present exclusion rather than a restatement
+   of invariant 1. That tree carries **no marker of either value** —
+   `illustrative` is a polarity — so a rule that changed its violation
+   count would alter a marker-free tree in a cell this RFC has no
+   motivation to reach: neither the retirement arc nor §1.1's defect
+   touches it. Recorded because the harm there is bounded (`polarity.rs`
+   makes `MissingInSpecs` structurally certain in that cell, so it cannot
+   ship green *there*) while the defect is not — §3.4's two-heading
+   configuration does ship green. Bounded impact is not no defect.
+   Rows 1, 2, 5 byte-for-byte;
    identical violations, exit code, text (modulo the new summary
    segments) and NDJSON.
 3. **Exit code is a function of violations only.**
