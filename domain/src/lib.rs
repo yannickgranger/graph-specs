@@ -28,7 +28,10 @@ pub use context::{
     ContextExport, ContextImport, ContextPattern, ContextViolation, OwnedUnit,
 };
 pub use diff::diff;
-pub use marker::{CheckOutcome, PendingRecord, RealizedRecord};
+pub use marker::{
+    CheckOutcome, Marker, PendingRecord, RealizedRecord, RetirementCompleteRecord,
+    RetirementIncompleteRecord,
+};
 pub use polarity::Polarity;
 pub use provenance::Provenance;
 pub use report::{
@@ -150,17 +153,18 @@ pub struct ConceptNode {
     /// `context` — the resolved bounded context (`specs/contexts/` Owns or
     /// the cfdb-query ACL), used by the R10-3 cohesion pass.
     pub context: Option<String>,
-    /// Spec-state marker (RFC-013 §3.3): `true` when this heading carries a
-    /// `- status: draft` bullet as its first content line, or lives in a
-    /// `status: draft` file. The concept is declared ahead of its code.
+    /// Spec-state marker (RFC-013 §3.3, widened by RFC-015 §3.3): which
+    /// `- status:` value this heading carries as its first content line, or
+    /// inherits from a `status:` front-matter file.
     ///
-    /// A `bool`, not an enum, deliberately: the only transition is
-    /// **deletion** of the marker — there is no `ratified` value and no
-    /// state machine (RFC-013 §3.1).
+    /// An enum over two values, and still **not** a state machine: neither
+    /// value transitions to the other, and the progress axis is the code
+    /// (RFC-015 §3.1). `draft` is deleted at ratification; `retired` is
+    /// never deleted.
     ///
     /// The graph is the single carrier of marker state; there is no side
-    /// index. Always `false` on the code side.
-    pub marked: bool,
+    /// index. Always [`Marker::Unmarked`] on the code side.
+    pub marker: Marker,
     /// Grounding polarity (RFC-014 §3.4) — which direction this heading's
     /// obligation points. Attached by [`ConceptNode::with_polarity`].
     ///
@@ -187,7 +191,7 @@ impl ConceptNode {
             module_path: None,
             unit: None,
             context: None,
-            marked: false,
+            marker: Marker::Unmarked,
             polarity: Polarity::Declared,
         }
     }

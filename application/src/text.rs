@@ -5,8 +5,8 @@
 //! through stdout. The CLI's `--format=text` dispatch calls this.
 
 use domain::{
-    CheckOutcome, CohesionViolation, ContextViolation, PendingRecord, RealizedRecord, Source,
-    Violation,
+    CheckOutcome, CohesionViolation, ContextViolation, PendingRecord, RealizedRecord,
+    RetirementCompleteRecord, RetirementIncompleteRecord, Source, Violation,
 };
 use std::io::Write;
 use std::path::Path;
@@ -44,12 +44,62 @@ pub fn format_realized(r: &RealizedRecord, out: &mut impl Write) -> std::io::Res
     )
 }
 
-/// Write the summary line (RFC-013 §3.5).
+/// Write one `retirement incomplete` marker record (RFC-015 §3.2 row 7).
 ///
-/// All three counts are always represented, even at zero: a clean tree
-/// reads `0 violations, 0 pending, 0 realized-unratified`. An absent
-/// segment would be indistinguishable from a formatter that forgot to
-/// render it.
+/// A retired heading whose backing item is still present — the retirement
+/// was announced and the code has not gone yet.
+///
+/// # Errors
+///
+/// Propagates any [`std::io::Error`] from the underlying writer.
+pub fn format_retirement_incomplete(
+    r: &RetirementIncompleteRecord,
+    out: &mut impl Write,
+) -> std::io::Result<()> {
+    let (path, line) = source_pair(&r.spec_source);
+    writeln!(
+        out,
+        "retirement incomplete: {} ({}:{line})",
+        r.concept,
+        path.display()
+    )
+}
+
+/// Write one `retirement complete` marker record (RFC-015 §3.2 row 8).
+///
+/// A retired heading with no backing item. Enumerated one per line like the
+/// other kinds, but it is not a worklist — nothing drains it, because the
+/// marker line is never deleted.
+///
+/// # Errors
+///
+/// Propagates any [`std::io::Error`] from the underlying writer.
+pub fn format_retirement_complete(
+    r: &RetirementCompleteRecord,
+    out: &mut impl Write,
+) -> std::io::Result<()> {
+    let (path, line) = source_pair(&r.spec_source);
+    writeln!(
+        out,
+        "retirement complete: {} ({}:{line})",
+        r.concept,
+        path.display()
+    )
+}
+
+/// Write the summary line (RFC-013 §3.5, widened by RFC-015 §3.5).
+///
+/// **Rendering and cleanliness are two different rules, and only one of them
+/// is about zero.** This is the rendering rule: all five counts are always
+/// represented, even at zero, because an absent segment would be
+/// indistinguishable from a formatter that forgot to render it. A clean tree
+/// reads `0 violations, 0 pending, 0 realized-unratified, 0
+/// retirement-incomplete, 0 retirement-complete`.
+///
+/// Cleanliness — which counts must be *zero* — is the other rule, and it
+/// does not live here: `pending` is a worklist, and `retirement-complete`
+/// never drains, so neither is a cleanliness term. The exit code remains a
+/// function of violations alone ([`CheckOutcome::is_clean`]).
 ///
 /// # Errors
 ///
@@ -57,10 +107,12 @@ pub fn format_realized(r: &RealizedRecord, out: &mut impl Write) -> std::io::Res
 pub fn format_summary(outcome: &CheckOutcome, out: &mut impl Write) -> std::io::Result<()> {
     writeln!(
         out,
-        "{} violations, {} pending, {} realized-unratified",
+        "{} violations, {} pending, {} realized-unratified, {} retirement-incomplete, {} retirement-complete",
         outcome.violations.len(),
         outcome.pending.len(),
-        outcome.realized.len()
+        outcome.realized.len(),
+        outcome.retirement_incomplete.len(),
+        outcome.retirement_complete.len()
     )
 }
 

@@ -1,7 +1,7 @@
 use super::violation_key;
 use crate::{
     AnchorKind, AnchorTarget, CheckInput, CohesionViolation, ConceptAnchor, ConceptNode,
-    ContextDecl, ContextViolation, Edge, EdgeKind, Graph, OwnedUnit, Polarity, Provenance,
+    ContextDecl, ContextViolation, Edge, EdgeKind, Graph, Marker, OwnedUnit, Polarity, Provenance,
     ResolvedAnchor, SignatureState, Source, VerbOwnership, Violation,
 };
 use std::path::PathBuf;
@@ -576,7 +576,7 @@ fn retired_slot_13_leaves_a_gap_between_cohesion_and_dangling_anchor() {
 /// A spec node carrying the `- status: draft` marker (RFC-013 §3.3).
 fn spec_marked(name: &str) -> ConceptNode {
     let mut n = spec(name);
-    n.marked = true;
+    n.marker = Marker::Draft;
     n
 }
 
@@ -629,7 +629,7 @@ fn a_marker_never_parks_a_divergence() {
     // produces the ordinary violation — alongside the realized record.
     let specs = {
         let mut n = spec_with_sig("Widget", "pub struct Widget;");
-        n.marked = true;
+        n.marker = Marker::Draft;
         nodes(vec![n])
     };
     let input = CheckInput::new(specs, Vec::new(), VerbOwnership::default());
@@ -900,7 +900,7 @@ fn non_declared_polarity_is_terminal_over_the_spec_state_marker() {
     for polarity in [Polarity::Forbidden, Polarity::Illustrative] {
         for code_present in [false, true] {
             let mut node = spec_with_polarity("Member", polarity);
-            node.marked = true;
+            node.marker = Marker::Draft;
             let code_graph = if code_present {
                 nodes(vec![code("Member")])
             } else {
@@ -934,7 +934,7 @@ fn non_declared_polarity_is_terminal_over_the_spec_state_marker() {
 fn declared_polarity_leaves_the_marker_dispatch_intact() {
     // The other side of terminality — `declared` must reach RFC-013's rows.
     let mut node = spec_with_polarity("Widget", Polarity::Declared);
-    node.marked = true;
+    node.marker = Marker::Draft;
     let outcome = super::diff(
         CheckInput::new(nodes(vec![node]), Vec::new(), VerbOwnership::default()),
         Graph::default(),

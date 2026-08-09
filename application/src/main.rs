@@ -139,6 +139,12 @@ fn write_text(outcome: &CheckOutcome, out: &mut impl std::io::Write) -> std::io:
     for r in &outcome.realized {
         application::text::format_realized(r, out)?;
     }
+    for r in &outcome.retirement_incomplete {
+        application::text::format_retirement_incomplete(r, out)?;
+    }
+    for r in &outcome.retirement_complete {
+        application::text::format_retirement_complete(r, out)?;
+    }
     application::text::format_summary(outcome, out)
 }
 

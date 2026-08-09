@@ -25,9 +25,10 @@ mod tests;
 use crate::context::context_for_code_node;
 use crate::{
     anchor_violation, CheckInput, CheckOutcome, ConceptNode, ContextDecl, Graph, PendingRecord,
-    Polarity, Provenance, RealizedRecord, Source, Violation,
+    Polarity, Provenance, RealizedRecord, RetirementCompleteRecord, RetirementIncompleteRecord,
+    Source, Violation,
 };
-use concept::{concept_pass, AnchorResolutions};
+use concept::{concept_pass, AnchorResolutions, MarkerSinks};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// Snapshot each spec concept's declared owning context (its `concepts/` H1,
@@ -140,6 +141,8 @@ pub fn diff(spec: CheckInput, code: Graph) -> CheckOutcome {
     let mut violations = Vec::new();
     let mut pending: Vec<PendingRecord> = Vec::new();
     let mut realized: Vec<RealizedRecord> = Vec::new();
+    let mut retirement_incomplete: Vec<RetirementIncompleteRecord> = Vec::new();
+    let mut retirement_complete: Vec<RetirementCompleteRecord> = Vec::new();
 
     // RFC-012: anchored concepts redirect their equivalence target to a named
     // code item (§3.4) — emit a `DanglingAnchor` for every unresolved anchor
@@ -163,7 +166,7 @@ pub fn diff(spec: CheckInput, code: Graph) -> CheckOutcome {
         // nothing at all, so a dangling anchor under one fires nothing.
         let mut suppressed: HashSet<&str> = spec_nodes
             .iter()
-            .filter(|n| n.marked && !code_by_name.contains_key(&n.name))
+            .filter(|n| n.marker.is_marked() && !code_by_name.contains_key(&n.name))
             .map(|n| n.name.as_str())
             .collect();
         suppressed.extend(unobliged_concepts.iter().map(String::as_str));
@@ -175,8 +178,12 @@ pub fn diff(spec: CheckInput, code: Graph) -> CheckOutcome {
         &mut code_by_name,
         &anchored_concepts,
         &mut violations,
-        &mut pending,
-        &mut realized,
+        &mut MarkerSinks {
+            pending: &mut pending,
+            realized: &mut realized,
+            retirement_incomplete: &mut retirement_incomplete,
+            retirement_complete: &mut retirement_complete,
+        },
     );
 
     orphan_pass(code_by_name, &mut violations);
@@ -194,10 +201,18 @@ pub fn diff(spec: CheckInput, code: Graph) -> CheckOutcome {
     //
     // - RFC-013 §3.4 — pending concepts (marked, no backing item).
     // - RFC-014 §3.3 — non-`declared` concepts (forbidden / illustrative).
+    // - RFC-015 §3.2 — row 8, retired with the backing item already gone.
+    //
+    // Row 8 is listed rather than inherited, because **silence resolves to
+    // armed**: this set is the verb pass's only skip vector, a row-8 concept
+    // is not in `pending`, and `verb.rs` carries a control asserting the
+    // violation *does* fire on an empty unobliged set. "The mirror of row 3"
+    // would not have been enough.
     //
     // The edge pass inherits the same rule by construction, via the
     // `matched_concepts` filter above; the verb pass is told explicitly.
     let mut unobliged: HashSet<&str> = pending.iter().map(|p| p.concept.as_str()).collect();
+    unobliged.extend(retirement_complete.iter().map(|r| r.concept.as_str()));
     unobliged.extend(unobliged_concepts.iter().map(String::as_str));
     verb::verb_pass(
         spec_verb_ownership,
@@ -222,7 +237,13 @@ pub fn diff(spec: CheckInput, code: Graph) -> CheckOutcome {
         let (kb, db) = violation_key(b);
         ka.cmp(kb).then(da.cmp(&db))
     });
-    let mut outcome = CheckOutcome::new(violations, pending, realized);
+    let mut outcome = CheckOutcome::new(
+        violations,
+        pending,
+        realized,
+        retirement_incomplete,
+        retirement_complete,
+    );
     outcome.provenance = provenance;
     outcome
 }

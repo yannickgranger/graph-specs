@@ -20,8 +20,8 @@ Identical to `--format=text`:
 - `1` — one or more violations, none fatal
 - `2` — reader error **or** any `SignatureUnparseable` violation
 
-Computed from violations alone (RFC-013 §4 invariant 3): `pending` and
-`realized` marker records never move the exit code.
+Computed from violations alone (RFC-013 §4 invariant 3): no marker
+record moves the exit code, under either marker value.
 
 ## Output shape
 
@@ -37,7 +37,7 @@ Every record carries `schema_version` plus exactly one discriminator key:
 |---|---|---|
 | `schema_version` | string | `"4"` — bumped on breaking schema changes (v0.4 bump: three bounded-context variants; v3 (RFC-010): three abstraction-ladder `Cohesion` variants; **v4 (RFC-013): retirement of the `implements_draft_concept` discriminator value**). Report records (`graph-specs report`, §Report records) version independently and remain `"2"`. |
 | `violation` | string | snake_case discriminator on a **finding**, one of the values below |
-| `marker` | string | discriminator on an RFC-013 **marker record** — `"pending"` or `"realized"`. See §Marker records |
+| `marker` | string | discriminator on a **marker record** — `"pending"` or `"realized"` (RFC-013), `"retirement_incomplete"` or `"retirement_complete"` (RFC-015). See §Marker records |
 
 Exactly one of `violation` / `marker` is present on any given record; the two are never combined. Additional fields are per-variant (see below).
 
@@ -220,7 +220,9 @@ The key is `marker` and not `report`, because `report` already names the `graph-
 
 Records are emitted **after** all violations, `pending` before `realized`, each list sorted by concept name then by spec site.
 
-**Marker records never affect the exit code.** A tree whose only findings are markers exits `0`.
+**Marker records never affect the exit code.** A tree whose only findings are markers exits `0` — under either marker value.
+
+**Schema evolution.** RFC-015's two values are **additive**: no `schema_version` bump, on the same ground as RFC-013's marker suppression and RFC-014's polarity narrowings — they change which headings qualify, not what the `marker` discriminator means. One thing that precedent does not cover is that RFC-015 also exempts *edges*, not only headings; the same class one rung down, ruled additive on that basis rather than by silent extension.
 
 ### `pending`
 
@@ -253,6 +255,38 @@ A marked concept heading whose backing code item exists — by name match or by 
 | `source` | source object (kind=spec) | location of the marked heading |
 
 **Remediation:** ratify the heading — delete its `- status: draft` line. Ratification is a human act; the checker never mutates spec text.
+
+### `retirement_incomplete`
+
+A `- status: retired` heading whose backing code item is still present (RFC-015 §3.2 row 7). The retirement was announced and the code has not gone yet. Emitted **in addition to** the fully enforced equivalence checks for that pair, exactly as `realized` is: a marker never parks a divergence.
+
+```json
+{"schema_version":"4","marker":"retirement_incomplete","concept":"AssertionScope","source":{"kind":"spec","path":"specs/concepts/brief_contract.md","line":56}}
+```
+
+| Field | Type | Meaning |
+|---|---|---|
+| `marker` | string | always `"retirement_incomplete"` |
+| `concept` | string | the retired concept name |
+| `source` | source object (kind=spec) | location of the retired heading |
+
+**Remediation:** delete the code item. This is the one marker record a clean tree carries none of — unlike `pending`, whose remediation writes code, this one's removes it.
+
+### `retirement_complete`
+
+A `- status: retired` heading with no backing code item (RFC-015 §3.2 row 8). The retirement is done. Emitted **instead of** `missing_in_code`, and the heading imposes nothing through its edge bullets, verb anchors or `- impl:` anchors.
+
+```json
+{"schema_version":"4","marker":"retirement_complete","concept":"PrePushRebaseDecision","source":{"kind":"spec","path":"specs/concepts/agent_contract.md","line":665}}
+```
+
+| Field | Type | Meaning |
+|---|---|---|
+| `marker` | string | always `"retirement_complete"` |
+| `concept` | string | the retired concept name |
+| `source` | source object (kind=spec) | location of the retired heading |
+
+**Remediation:** none, ever. The `- status: retired` line is never deleted, so this record is permanent and its list never drains — which is why it is emitted and is still not a cleanliness term.
 
 ## v3 cohesion variants (RFC-010 — the abstraction ladder)
 
@@ -430,8 +464,8 @@ Version history:
 
 ## Determinism
 
-Record order reflects the order `domain::diff()` returns its outcome, which is deterministic for a fixed input tree: all violations first, then `pending`, then `realized`. Consumers SHOULD NOT rely on a particular order across tool versions.
+Record order reflects the order `domain::diff()` returns its outcome, which is deterministic for a fixed input tree: all violations first, then `pending`, then `realized`, then `retirement_incomplete`, then `retirement_complete`. Within each marker list, records are sorted by concept name and then by spec site. Consumers SHOULD NOT rely on a particular order across tool versions.
 
 ## Relationship to `--format=text`
 
-The two formats emit the same **set** of records — violations and markers alike; they differ only in wire form. Exit codes are identical, and in both cases a function of violations alone. Text additionally prints a summary line (`N violations, M pending, K realized-unratified`) that has no NDJSON counterpart: a counting consumer counts records. When both are needed, run the tool twice; the cost is linear in the input tree.
+The two formats emit the same **set** of records — violations and markers alike; they differ only in wire form. Exit codes are identical, and in both cases a function of violations alone. Text additionally prints a summary line (`N violations, M pending, K realized-unratified, R retirement-incomplete, C retirement-complete`) that has no NDJSON counterpart: a counting consumer counts records. When both are needed, run the tool twice; the cost is linear in the input tree.

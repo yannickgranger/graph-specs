@@ -36,25 +36,27 @@ left `None` on the spec side. `new` is the no-provenance constructor;
 `with_provenance` is the builder that attaches the triple. Lives in
 `domain`.
 
-Since RFC-013 §3.3 it also carries `marked: bool` — the spec-state
-marker, set by the markdown reader when the heading opens with a
-`- status: draft` bullet or lives in a `status: draft` file. A `bool`
-rather than an enum is deliberate: the only transition is deletion of
-the marker, so there is no second value to model. Always `false` on
-the code side.
+Since RFC-013 §3.3 it also carries the spec-state [Marker](#marker),
+set by the markdown reader from the heading's own `- status:` bullet or
+from the file's front matter. RFC-015 §3.3 widened it from a `bool` to
+a value: two legal values now exist, and the sites that read it ask
+different questions — the concept pass dispatches on **which** value,
+while the anchor-suppression set asks only **whether** a marker is
+present. Always unmarked on the code side.
 
 Since RFC-014 §3.4 it also carries [Polarity](#polarity), attached by the
 `with_polarity` builder (mirroring `with_provenance` — not a positional
 argument on `new`, which deliberately does not derive `Default`).
 Spec-side only; the code side is a fact, not a declaration.
 
-`marked` and `polarity` are two independent fields rather than one fused
-carrier: different upstream sources, different grammars, different
+The marker and the polarity are two independent fields rather than one
+fused carrier: different upstream sources, different grammars, different
 extension seams.
 
 - depends on: Source
 - depends on: SignatureState
 - depends on: Polarity
+- depends on: Marker
 - returns: ConceptNode
 - verb: ConceptNode::new
 - verb: ConceptNode::with_provenance
@@ -354,12 +356,13 @@ place). Lives in `domain`.
 
 ## CheckOutcome
 
-The full result of one equivalence check (RFC-013 §3.5): the violation
-list plus the two marker-record lists, `pending` and `realized`. The
-diff produces all three, because the pending-vs-realized decision is
-the same concept/code matching it already performs for the unmarked
-rows — deriving it in the application layer would split-brain one
-decision across two places.
+The full result of one equivalence check (RFC-013 §3.5, widened by
+RFC-015 §3.5): the violation list plus the four marker-record lists —
+`pending` and `realized` for the `draft` value, `retirement_incomplete`
+and `retirement_complete` for `retired`. The diff produces all of them,
+because the record decision is the same concept/code matching it
+already performs for the unmarked rows — deriving it in the application
+layer would split-brain one decision across two places.
 
 Since RFC-010 §3.6 / #136 it also carries `provenance` — the
 [Provenance](#provenance) index (concept name → triple) the NDJSON
@@ -368,21 +371,58 @@ outcome rather than fields on [Violation](#violation), so the stable
 violation enum is untouched across its construction sites.
 
 The exit code is a function of `violations` alone: a tree whose only
-findings are marker records passes. `is_clean` names that rule so no
-consumer has to re-derive it. `new` is the assembling constructor — it
-sorts both marker lists into their stable order (concept name, then
-spec site) so record order is deterministic for a fixed input tree.
-Lives in `domain`.
+findings are marker records passes, under either marker value.
+`is_clean` names that rule so no consumer has to re-derive it. `new` is
+the assembling constructor — it sorts every marker list into the same
+stable order (concept name, then spec site) so record order is
+deterministic for a fixed input tree. Lives in `domain`.
+
+Rendering and cleanliness are two different rules, and only one of them
+is about zero. Every count is always rendered, even at zero, because an
+absent segment is indistinguishable from a formatter that forgot it.
+Cleanliness is the narrower question of which counts must be zero, and
+two of these lists are not cleanliness terms: `pending` is a worklist,
+and `retirement_complete` never drains, because the `retired` marker
+line is never deleted. A never-draining term inside the clean state
+would make the clean state unreachable.
 
 - depends on: Violation
 - depends on: PendingRecord
 - depends on: RealizedRecord
+- depends on: RetirementIncompleteRecord
+- depends on: RetirementCompleteRecord
 - depends on: Provenance
 - returns: CheckOutcome
 - verb: diff
 - verb: CheckOutcome::new
 - verb: CheckOutcome::empty
 - verb: CheckOutcome::is_clean
+
+## Marker
+
+Which spec-state marker a concept heading carries (RFC-013 §3.1,
+widened by RFC-015 §3.1). Read by the markdown reader from the
+heading's first content line, or inherited from the file's front
+matter, and carried on [ConceptNode](#conceptnode).
+
+Two legal values, and **neither transitions to the other**. `draft`
+declares code owed to *exist*, and ratification is deletion of the
+line. `retired` declares code owed to be *gone*: it is written while
+the backing item is still present, and it is never deleted. A third
+state — unmarked — is the ordinary heading.
+
+Still a presence flag per value, never a state machine, because the
+progress axis is the code rather than the marker: nothing in the tree
+rewrites one value into the other. `is_marked` answers the narrower
+question of whether any marker is present at all, which is what the
+anchor-suppression set asks — an unresolved `- impl:` target under
+either value is the state the marker announces, not a dangling anchor.
+Lives in `domain`.
+
+Predicate only, no data beyond the three values — `is_marked` sits on
+the type because two call sites ask that same narrower question, and a
+`matches!` copied to each is the split-brain that invites a third
+spelling.
 
 ## PendingRecord
 
@@ -410,6 +450,42 @@ checks for that pair: a marker never parks a divergence, so drift under
 a marked heading still fires its ordinary violation. The record is the
 ratification signal — ratification is deletion of the marker line,
 performed by a human. Lives in `domain`.
+
+- depends on: Source
+
+## RetirementIncompleteRecord
+
+A `retired` heading whose backing code item is still present — row 7 of
+the RFC-015 §3.2 enforcement matrix.
+
+The retirement was announced and the code has not gone yet. Emitted
+**in addition to** the normal, fully enforced equivalence checks for
+that pair, exactly as [RealizedRecord](#realizedrecord) is: a marker
+never parks a divergence, so drift under a retired heading still fires
+its ordinary violation. Marker/code co-presence is not itself the
+contradiction — it is the window every correct retirement opens.
+
+Not a failure, and a cleanliness term: a clean tree carries none. Lives
+in `domain`.
+
+- depends on: Source
+
+## RetirementCompleteRecord
+
+A `retired` heading with no backing code item — row 8 of the RFC-015
+§3.2 enforcement matrix. The retirement is done.
+
+Emitted **instead of** `Violation::MissingInCode`, and carrying
+[PendingRecord](#pendingrecord)'s obligation skip in full: a row-8
+heading imposes nothing through its edge bullets, its verb anchors, or
+its `- impl:` anchors. That is stated rather than inherited, because
+silence resolves to armed — the skip is a set the passes are handed,
+and a row-8 concept that nobody put in it is enforced.
+
+Rendered like every other record, but **not** a cleanliness term: the
+marker line is never deleted, so this list never drains, and a
+never-draining term inside the clean state would make the clean state
+unreachable. Lives in `domain`.
 
 - depends on: Source
 

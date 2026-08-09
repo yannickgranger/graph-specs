@@ -3,7 +3,7 @@
 //! v0.5/v0.6 anchor prefixes (`- verb:` / `- impl:`), which share one
 //! qname grammar (RFC-012 §4 I7).
 
-use domain::{tokenise_target, ConceptAnchor, EdgeKind, Source, VerbAnchor};
+use domain::{tokenise_target, ConceptAnchor, EdgeKind, Marker, Source, VerbAnchor};
 use regex::Regex;
 use std::sync::LazyLock;
 
@@ -87,12 +87,14 @@ pub fn parse_impl_bullet(text: &str) -> Option<ConceptAnchor> {
     })
 }
 
-/// Recognise the `- status: draft` spec-state marker (RFC-013 §3.1).
+/// Read the `- status:` spec-state marker (RFC-013 §3.1, RFC-015 §3.1).
 ///
-/// One legal value: there is no `- status: ratified` and no second value —
-/// ratification is **deletion of the line**, a presence flag, never a state
-/// machine. Any other `- status:` bullet is an unrecognised prefix under the
-/// existing dialect rule and stays inert text.
+/// **Two** legal values — `draft` and `retired` — and neither transitions to
+/// the other: `draft` is deleted at ratification, `retired` is never
+/// deleted. A presence flag per value, still not a state machine, because
+/// the progress axis is the code. Any other `- status:` bullet is an
+/// unrecognised prefix under the existing dialect rule and stays inert text,
+/// which is what `None` means here.
 ///
 /// The value is matched ASCII-case-insensitively, mirroring the
 /// front-matter test. Anything after it on the same line — e.g. the upstream
@@ -104,13 +106,24 @@ pub fn parse_impl_bullet(text: &str) -> Option<ConceptAnchor> {
 /// first non-blank content line below its heading, which is the caller's
 /// concern ([`crate::section`]).
 #[must_use]
-pub fn is_status_marker(text: &str) -> bool {
-    let Some(rest) = text.trim().strip_prefix("status:") else {
-        return false;
-    };
-    rest.split_whitespace()
-        .next()
-        .is_some_and(|value| value.eq_ignore_ascii_case("draft"))
+pub fn parse_status_marker(text: &str) -> Option<Marker> {
+    let rest = text.trim().strip_prefix("status:")?;
+    marker_from_value(rest.split_whitespace().next()?)
+}
+
+/// Map one already-isolated `status:` value to its marker, or `None` when
+/// the word is not a legal value. The single value-recognition site — the
+/// bullet and front-matter grammars differ in how they *reach* the word,
+/// never in which words count.
+#[must_use]
+pub fn marker_from_value(value: &str) -> Option<Marker> {
+    if value.eq_ignore_ascii_case("draft") {
+        Some(Marker::Draft)
+    } else if value.eq_ignore_ascii_case("retired") {
+        Some(Marker::Retired)
+    } else {
+        None
+    }
 }
 
 /// Parse a bullet's accumulated text into an (`EdgeKind`, tokenised, raw)
