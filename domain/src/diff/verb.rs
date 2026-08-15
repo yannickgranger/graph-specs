@@ -28,8 +28,7 @@ pub(super) fn verb_pass(
     // Owned so `emit_missing_in_spec` can move each decl's `qname`/`source`
     // into the emitted violation instead of cloning per loop iteration.
     let VerbOwnership { decls, mut anchors } = verb_ownership;
-    // The uniform obligation skip (RFC-013 §3.4 pending, RFC-014 §3.3
-    // non-`declared`). A `- verb:` bullet under a concept that compels
+    // The uniform obligation skip. A `- verb:` bullet under a concept that compels
     // nothing imposes nothing: there is no backing item to compare against,
     // and firing `VerbMissingInCode` would contradict the heading's own
     // meaning. Dropping the anchors (rather than post-filtering the

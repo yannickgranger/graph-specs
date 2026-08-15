@@ -1,4 +1,4 @@
-//! The context-level violation variants (RFC-001 §4).
+//! The context-level violation variants.
 
 use crate::{EdgeKind, OwnedUnit, Source};
 

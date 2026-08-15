@@ -2,8 +2,8 @@
 //!
 //! Two obligation questions meet here and only one of them is this pass's
 //! own. The **source** side — whose edges participate at all — is the
-//! `matched_concepts` grouping below. The **target** side is RFC-015 §3.4's
-//! `unpointable`, stated in [`super::obligation`] and consumed here: no
+//! `matched_concepts` grouping below. The **target** side is the
+//! `unpointable` predicate, stated in [`super::obligation`] and consumed here: no
 //! heading bears a code-existence demand made of it by *another* heading's
 //! declarations.
 

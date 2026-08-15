@@ -1,4 +1,4 @@
-//! [`CohesionViolation`] → NDJSON record conversion (RFC-010 §3.5).
+//! [`CohesionViolation`] → NDJSON record conversion.
 
 use super::source::source_to_json;
 use domain::{CohesionViolation, SchemaVersion};

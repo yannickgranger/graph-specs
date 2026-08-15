@@ -26,8 +26,8 @@
 //!
 //! ## Future shared crates
 //!
-//! The roadmap (graph-specs-rust #83 reframe, 2026-04-27) is for each
-//! `impl LanguageBackend for FooBackend` to be a thin wrapper over a
+//! Future versions will have each
+//! `impl LanguageBackend for FooBackend` be a thin wrapper over a
 //! language-specific extractor crate (`<lang>-items`) shared with cfdb.
 //! Today this trait is satisfied by in-tree adapters; the wrapper shape
 //! is preserved so the eventual move to shared crates is mechanical.

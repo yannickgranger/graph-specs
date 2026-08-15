@@ -25,7 +25,7 @@ pub mod text;
 /// current domain (concept, signature, edge, and — when context files
 /// are present — bounded context).
 ///
-/// Returns the full [`CheckOutcome`] (RFC-013 §3.5): violations plus the
+/// Returns the full [`CheckOutcome`]: violations plus the
 /// `pending` / `realized` marker records. The exit code is a function of
 /// `violations` alone — a tree whose only findings are marker records
 /// passes.

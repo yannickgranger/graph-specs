@@ -3,10 +3,10 @@
 //! Thin shell over [`application::run_check`]. Parses flags, delegates,
 //! prints violations one per line, emits a terse summary and exit code.
 //!
-//! RFC-013 §3.5: the summary also carries the `pending` and `realized`
-//! marker-record counts, and each record is enumerated one per line. The
-//! exit code is a function of **violations alone** — a tree whose only
-//! findings are marker records exits 0.
+//! The summary carries the `pending` and `realized` marker-record counts,
+//! and each record is enumerated one per line. The exit code is a function
+//! of **violations alone** — a tree whose only findings are marker records
+//! exits 0.
 //!
 //! Exit codes:
 //! - `0` — zero violations (specs and code agree)
@@ -159,8 +159,7 @@ fn emit_ndjson(outcome: &CheckOutcome) -> ExitCode {
     exit_code_for(outcome)
 }
 
-/// RFC-013 §4 invariant 3 — computed from `violations` only. Marker records
-/// never move it.
+/// Computed from `violations` only. Marker records never move it.
 fn exit_code_for(outcome: &CheckOutcome) -> ExitCode {
     if outcome.violations.is_empty() {
         return ExitCode::SUCCESS;

@@ -1,10 +1,9 @@
-//! Cohesion pass — RFC-010 §3.5 / R10-3.
+//! Cohesion pass.
 //!
-//! The upward concept→context rung. Splits by **fact-dependency**
-//! (§3.4 capability matrix):
+//! The upward concept→context rung. Splits by **fact-dependency**:
 //!
 //! - [`CohesionViolation::ContextWithoutCohesionUnit`] and
-//!   [`CohesionViolation::SubConceptOrphan`] are *spec-side* — the R10-2
+//!   [`CohesionViolation::SubConceptOrphan`] are *spec-side* — the
 //!   `TreeAssembler` detects them from the heading tree with zero code
 //!   facts. The markdown adapter pre-computes them (it owns the tree); this
 //!   pass only wraps them as [`Violation::Cohesion`].
@@ -34,14 +33,14 @@ pub(super) fn cohesion_pass(
     // Spec-side structural cohesion — fires regardless of code facts.
     violations.extend(spec_cohesion.into_iter().map(Violation::Cohesion));
 
-    // ConceptContextMismatch needs a code-side context (§3.4 matrix): only
+    // ConceptContextMismatch needs a code-side context: only
     // resolvable when `specs/contexts/` Owns is declared.
     if contexts.is_empty() {
         return;
     }
     for (concept, h1_context, spec_source) in declared {
         // Canonical-upstream precedence: a matching `specs/contexts/` export
-        // wins over the concept file's own H1 (RFC-010 §3.4 / R10-1).
+        // wins over the concept file's own H1.
         let upstream = contexts
             .iter()
             .find(|c| c.exports.iter().any(|e| e.concept == concept))
@@ -161,7 +160,7 @@ mod tests {
     #[test]
     fn mismatch_suppressed_without_specs_contexts() {
         // Data-dependency: with no contexts there is no code-side context,
-        // so ConceptContextMismatch cannot fire (§3.4 matrix, source-walk
+        // so ConceptContextMismatch cannot fire (source-walk
         // without specs/contexts/).
         let code = Graph::new(vec![code_node("Widget", "domain")], Vec::new());
         let declared = vec![("Widget".to_owned(), "reading".to_owned(), spec_src(7))];

@@ -32,16 +32,14 @@ pub fn context_for_concept<'a>(
 
 /// The code-side arm of [`context_for_concept`], on an already-located
 /// node: return the [`ContextDecl`] whose `owned_units` contains the
-/// node's owning unit. Shared with the diff's provenance snapshot
-/// (RFC-010 §3.6 / #136) so "which context owns this code item" has
-/// exactly one resolution site.
+/// node's owning unit. "Which context owns this code item" has exactly one
+/// resolution site.
 ///
-/// Prefers the adapter-populated `unit` (relative to the code root,
-/// RFC-010 §3.3); falls back to deriving it from the path for nodes
-/// without provenance. The fallback's `split_once("/src/")` keeps the
-/// full absolute prefix on an absolute `--code` path, so it mismatches
-/// `owned_units` — the latent v0.4 bug §12-I fixes by routing through
-/// the relative `unit`.
+/// Prefers the adapter-populated `unit` (relative to the code root);
+/// falls back to deriving it from the path for nodes without provenance.
+/// The fallback's `split_once("/src/")` keeps the full absolute prefix on
+/// an absolute `--code` path, so it may mismatch `owned_units` — routing
+/// through the relative `unit` avoids this.
 pub fn context_for_code_node<'a>(
     node: &ConceptNode,
     contexts: &'a [ContextDecl],
@@ -60,17 +58,15 @@ pub fn context_for_code_node<'a>(
         .find(|ctx| ctx.owned_units.iter().any(|u| u.0 == unit))
 }
 
-/// Resolve a concept's **spec-side declared** owning context (RFC-010 §3.4).
+/// Resolve a concept's **spec-side declared** owning context.
 ///
 /// Applies the canonical-upstream precedence rule: a `specs/contexts/`
-/// declaration (RFC-001) wins over the concept file's own `H1` when both
-/// name a context. Returns `None` only when neither source names a context.
+/// declaration wins over the concept file's own `H1` when both name a
+/// context. Returns `None` only when neither source names a context.
 ///
-/// This is deliberately a *separate question* from the code-side
-/// resolution computed by [`context_for_concept`]: the R10-3 cohesion pass
-/// emits `ConceptContextMismatch` when the spec-side declaration and the
-/// code-side resolution disagree. Conflating the two into one chain would
-/// make the mismatch tautological (RFC-010 §3.4 / dry-run §12-B).
+/// This is deliberately a *separate question* from the code-side resolution
+/// computed by [`context_for_concept`]: when the spec-side declaration and
+/// the code-side resolution disagree, a cohesion mismatch is detected.
 #[must_use]
 pub fn resolve_declared_context<'a>(
     h1_context: Option<&'a str>,

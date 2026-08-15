@@ -1,8 +1,8 @@
 //! Line-offset helpers shared by the concept and context parsers.
 //!
-//! Factored out during #24 so `parse_context_file` can reuse them without
-//! pulling in the concept-parser's `SectionState` (which is shaped for
-//! H2/H3 + fenced-rust + bullet-edge dispatch, not context-file H1 +
+//! Factored out so `parse_context_file` can reuse them without pulling in
+//! the concept-parser's `SectionState` (which is shaped for H2/H3 +
+//! fenced-rust + bullet-edge dispatch, not context-file H1 +
 //! four-section structure).
 
 #[must_use]
@@ -33,9 +33,9 @@ pub fn path_under_dir(p: &std::path::Path, name: &str) -> bool {
     p.components().any(|c| c.as_os_str().to_str() == Some(name))
 }
 
-/// Normalise a heading's raw text into a bounded-context identifier
-/// (RFC-010 §3.2): lowercase, with internal whitespace runs collapsed to
-/// a single `-`. `# AC verifier` → `ac-verifier`.
+/// Normalise a heading's raw text into a bounded-context identifier:
+/// lowercase, with internal whitespace runs collapsed to a single `-`.
+/// `# AC verifier` → `ac-verifier`.
 ///
 /// The single normalisation rule is applied to **both** sides of the
 /// ladder — the `specs/contexts/` H1 ([`crate::contexts`]) and the
@@ -58,7 +58,7 @@ pub fn normalize_context_id(raw: &str) -> String {
 /// A normalised H1 that fails this carried punctuation or other
 /// non-identifier characters (e.g. `core-concepts:-equivalence` from a
 /// descriptive title) — it is prose, not a context name, and the tree
-/// assembler rejects it (RFC-010 §3.2).
+/// assembler rejects it.
 #[must_use]
 pub fn is_context_identifier(id: &str) -> bool {
     !id.is_empty()

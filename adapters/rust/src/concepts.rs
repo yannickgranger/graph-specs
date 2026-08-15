@@ -15,10 +15,10 @@ pub fn extract_from_file(
     out: &mut Vec<ConceptNode>,
     edges_out: &mut Vec<Edge>,
 ) {
-    // Containment provenance (RFC-010 §3.3) is per-file, so derive it once
-    // and share across the file's top-level items: `unit` is the owning
-    // crate relative to the code root (§12-I — NOT the raw walked path);
-    // `module_path` is the crate-root-collapsed module path (§12-H).
+    // Containment provenance is per-file, so derive it once and share
+    // across the file's top-level items: `unit` is the owning crate
+    // relative to the code root; `module_path` is the crate-root-collapsed
+    // module path.
     let unit = find_owned_unit(path, root);
     let module_path = module_path_of(path, root, unit.as_deref());
     for item in &file.items {

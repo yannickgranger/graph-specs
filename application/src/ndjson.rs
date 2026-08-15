@@ -1,14 +1,12 @@
 //! NDJSON output format for `graph-specs check`.
 //!
 //! Emits one line-delimited JSON object per [`Violation`]. The format is
-//! designed as a stable wire contract for downstream comparators
-//! (e.g. qbot-core's Study 002 Phase A1 pipeline). See
-//! `specs/ndjson-output.md` for the authoritative schema.
+//! designed as a stable wire contract for downstream comparators.
 //!
 //! Schema invariants:
 //! - every record carries `"schema_version":"4"` at the top level
 //! - `violation` is the `snake_case` variant discriminator on a finding
-//! - `marker` is the discriminator on an RFC-013 marker record — a
+//! - `marker` is the discriminator on a marker record — a
 //!   deliberately **separate** key, so the existing violation-filtered
 //!   stream is unchanged and the marker-filtered stream is the upstream
 //!   ratification worklist
@@ -22,11 +20,11 @@
 //! All v1 records are structurally unchanged except for the version
 //! bump. Consumers pin on `schema_version` and select a variant set.
 //!
-//! v4 (RFC-013 §3.5) adds the `marker` record kinds and **retires** the
+//! v4 adds the `marker` record kinds and **retires** the
 //! `implements_draft_concept` violation kind. The retirement is what makes
 //! the bump breaking rather than additive.
 //!
-//! RFC-010 §3.6 / #136 (additive, no bump): code-kind source objects
+//! (additive, no bump): code-kind source objects
 //! carry the agnostic provenance triple (`module_path` / `unit` /
 //! `context`) when [`CheckOutcome::provenance`] knows the record's
 //! concept. Fields are omitted — never `null` — when unknown; spec-kind
@@ -48,14 +46,14 @@ use source::{code_source_to_json, source_to_json};
 use std::collections::BTreeMap;
 use std::io::Write;
 
-/// The RFC-010 §3.6 / #136 provenance index the record builders read —
+/// The provenance index the record builders read —
 /// [`CheckOutcome::provenance`], passed down so each code-bearing arm can
 /// look up its concept's containment triple.
 type ProvenanceIndex = BTreeMap<String, Provenance>;
 
 /// Write a check outcome as NDJSON to `out` — every violation, then every
 /// pending record, then every realized record, then the two retirement
-/// kinds (RFC-015 §3.5).
+/// kinds.
 ///
 /// Grouping by kind rather than interleaving keeps a consumer that reads
 /// only the `violation`-keyed prefix working byte-for-byte as before.
@@ -94,7 +92,7 @@ fn write_record(record: &Value, out: &mut impl Write) -> std::io::Result<()> {
     out.write_all(b"\n")
 }
 
-/// RFC-013 §3.5 — a `pending` marker record. Keyed `marker`, never
+/// A `pending` marker record. Keyed `marker`, never
 /// `report`: the `report` subcommand's emitter already owns a `"record"`
 /// discriminator for `verb_coverage` / `tier_histogram` / `homonym`.
 fn pending_to_record(r: &PendingRecord) -> Value {
@@ -106,7 +104,7 @@ fn pending_to_record(r: &PendingRecord) -> Value {
     })
 }
 
-/// RFC-015 §3.5 — the two retirement marker records. Two new values under
+/// The two retirement marker records. Two new values under
 /// the existing `marker` discriminator, so `schema_version` stays `"4"`:
 /// they change which headings qualify, not what the discriminator means.
 ///
@@ -122,7 +120,7 @@ fn retirement_record(marker: &str, concept: &str, source: &Source) -> Value {
     })
 }
 
-/// RFC-013 §3.5 — a `realized` marker record. See [`pending_to_record`].
+/// A `realized` marker record. See [`pending_to_record`].
 fn realized_to_record(r: &RealizedRecord) -> Value {
     json!({
         "schema_version": SchemaVersion::CURRENT.as_str(),

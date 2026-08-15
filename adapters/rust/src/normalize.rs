@@ -5,7 +5,7 @@
 //! before emitting a [`domain::SignatureState::Normalized`]. Byte equality
 //! of the output string is the signature-match criterion.
 //!
-//! Normalisation rules (per issue #7):
+//! Normalisation rules:
 //!
 //! - Strip `#[doc = "..."]` / `///` / `//!`.
 //! - Strip `#[cfg(...)]`, `#[must_use]`, `#[inline]`, `#[derive(...)]`.

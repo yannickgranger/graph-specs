@@ -1,16 +1,14 @@
-//! Grounding polarity — which direction a spec heading's obligation points
-//! (RFC-014 §3.1).
+//! Grounding polarity — which direction a spec heading's obligation points.
 //!
 //! **Imported, not defined here.** `polarity` is owned upstream: defined in
-//! agentry's ratified `RFC-vocabulary.md`, authored via Bosun's grounding
-//! key, realized as `cascade::Polarity`. graph-specs is a **Conformist** —
+//! agentry, realized as `cascade::Polarity`. graph-specs is a **Conformist** —
 //! it tracks that definition and does not fork it. The three values and
 //! their meanings are cited from cascade's `resolve_polarity`, never
 //! re-derived.
 //!
 //! "Conformist" here is prose, not a wired relationship: this is *not*
 //! [`crate::ContextPattern::Conformist`], which is a formal enum scoped to
-//! this repo's own bounded contexts (RFC-001 §6).
+//! this repo's own bounded contexts.
 
 /// Which direction a concept heading's obligation points.
 ///
@@ -19,9 +17,8 @@
 /// system's word-polarity; cascade itself keeps the two apart
 /// (`WordPolarity`, "Distinct from `Polarity`").
 ///
-/// `#[non_exhaustive]` because §3.1 names upstream as the seam that changes:
-/// if cascade adds a value, this enum gains it, and downstream consumers
-/// should not have been matching exhaustively.
+/// `#[non_exhaustive]` because: if cascade adds a value, this enum gains it,
+/// and downstream consumers should not have been matching exhaustively.
 ///
 /// Data only — **no predicate methods**. The branch table lives at its one
 /// call site in the diff. This matches upstream exactly: cascade's own
@@ -50,7 +47,7 @@ mod tests {
 
     #[test]
     fn default_is_declared() {
-        // RFC-014 §3.2 — the fallback direction is the point.
+        // The fallback direction is the point.
         assert_eq!(Polarity::default(), Polarity::Declared);
     }
 }

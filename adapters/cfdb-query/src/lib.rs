@@ -1,4 +1,4 @@
-//! cfdb-query `CodeFacts` Anti-Corruption Layer (RFC-010 §3.3 / R10-6).
+//! cfdb-query `CodeFacts` Anti-Corruption Layer.
 //!
 //! Reads a cfdb keyspace JSON and translates `:Item` nodes into the
 //! language-agnostic [`ConceptNode`] provenance triple (`module_path` /
@@ -9,14 +9,14 @@
 //! prop** to match the source-walk adapter's derivation (the dir-path `unit`
 //! `find_owned_unit` produces differs from cfdb's package-name `crate`).
 //!
-//! Routing (RFC-010 §3.3): the composition root selects this adapter for
+//! Routing: the composition root selects this adapter for
 //! one-per-crate repos (e.g. agentry) and the source-walk `RustReader` for
 //! multi-crate repos (e.g. graph-specs itself). The parity contract is
 //! 0-mismatch on `module_path` / `unit` vs source-walk on a real keyspace.
 //!
 //! Dependency surface is `cfdb-core` only (plus serde) — the keyspace
 //! deserializes with cfdb-core's `fact`/`schema` types; no cfdb-petgraph
-//! query engine is linked (RFC-010 §3.3 / §3.8).
+//! query engine is linked.
 
 use std::path::{Path, PathBuf};
 
@@ -31,12 +31,12 @@ mod anchor_resolver;
 pub use anchor_resolver::CfdbAnchorResolver;
 
 /// Local mirror of `cfdb_petgraph::persist::KeyspaceFile`, deserialized with
-/// cfdb-core types ONLY (RFC-010 §3.3 — no cfdb-petgraph dependency).
+/// cfdb-core types ONLY.
 ///
 /// `schema_version` is a **struct** (`{major, minor, patch}`), not the string
 /// the stale `persist.rs` doc-comment example shows — declaring it as
 /// [`SchemaVersion`] is what makes the deserializer accept the real on-disk
-/// shape (RFC-010 §12-F). `edges` are retained for round-trip fidelity but
+/// shape. `edges` are retained for round-trip fidelity but
 /// the ACL reads only `:Item` nodes.
 #[derive(Debug, Deserialize)]
 struct KeyspaceFile {

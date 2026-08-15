@@ -122,7 +122,7 @@ fn handle_event(st: &mut State, event: Event, range: std::ops::Range<usize>) {
             st.heading_buf.clear();
         }
         Event::End(TagEnd::Heading(HeadingLevel::H1)) => {
-            // RFC-010 §3.2: the context identifier is the normalised H1,
+            // The context identifier is the normalised H1,
             // the same rule the concepts-side tree assembler applies, so
             // `# AC verifier` resolves to `ac-verifier` on both sides.
             let name = normalize_context_id(&st.heading_buf);
@@ -193,7 +193,7 @@ fn finish_item(st: &mut State, line: usize) {
 
 fn classify_section(heading: &str) -> Section {
     // Headings may have annotation like "Exports (Published Language — …)".
-    // Match on the first word, case-sensitive per RFC.
+    // Match on the first word, case-sensitive.
     let first = heading.split_whitespace().next().unwrap_or("");
     match first {
         "Owns" => Section::Owns,
@@ -328,7 +328,7 @@ pub fn walk_contexts(root: &Path) -> Result<Vec<ContextDecl>, ReaderError> {
         })?;
         out.push(parse_context_file(p, &source)?);
     }
-    // Invariant 7: cyclic import declarations are a reader error
+    // Cyclic import declarations are a reader error
     // (SharedKernel is the one legal form of mutual reference).
     if let Some(cycle) = detect_import_cycle(&out) {
         return Err(ReaderError::ParseFailed {

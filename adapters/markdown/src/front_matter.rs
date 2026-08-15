@@ -1,7 +1,7 @@
 //! Leading YAML front-matter detection — `status: draft` and
-//! `cohesion: behavioral` (RFC-012 §3.3), plus the front-matter-blanking
-//! pass shared by the concept walk ([`crate::section`]) and the heading
-//! tree assembler ([`crate::tree`]).
+//! `cohesion: behavioral`, plus the front-matter-blanking pass shared by
+//! the concept walk ([`crate::section`]) and the heading tree assembler
+//! ([`crate::tree`]).
 
 use crate::bullets::{marker_from_value, parse_impl_bullet, parse_verb_bullet};
 use domain::Marker;
@@ -29,18 +29,16 @@ pub fn is_draft(source: &str) -> bool {
 }
 
 /// The file-scope spec-state marker, if the leading front matter declares a
-/// legal `status:` value (RFC-013 §3.1 file scope, RFC-015 §3.1).
+/// legal `status:` value.
 ///
-/// Same whole-file semantics as before, now carrying **which** value was
-/// read: every concept heading in the file inherits it. Value recognition is
+/// Every concept heading in the file inherits it. Value recognition is
 /// [`crate::bullets::marker_from_value`]'s — the bullet and front-matter
 /// grammars differ in how they reach the word, never in which words count.
 ///
 /// Distinct from [`is_draft`], which answers the narrower question the
 /// invariant-annotation walk asks. That walk skips `draft` files wholesale
-/// and is deliberately left alone here: RFC-015 gives `retired` an
-/// obligation skip over verb bullets, `- impl:` anchors and edge bullets,
-/// and says nothing about invariant annotations.
+/// and the `retired` value carries an obligation skip over verb bullets,
+/// `- impl:` anchors and edge bullets.
 pub fn file_marker(source: &str) -> Option<Marker> {
     front_matter_value(source, "status")
         .as_deref()
@@ -48,8 +46,8 @@ pub fn file_marker(source: &str) -> Option<Marker> {
 }
 
 /// Returns `true` when `source` carries machine-checkable **behavioral
-/// substance** (RFC-012 §3.3.1) — at least one `- impl:` / `- verb:` anchor
-/// bullet or one `[enforced-by:]` / `[prose-only:]` invariant annotation.
+/// substance** — at least one `- impl:` / `- verb:` anchor bullet or one
+/// `[enforced-by:]` / `[prose-only:]` invariant annotation.
 ///
 /// This is the anti-gaming gate for `cohesion: behavioral`: the marker
 /// exempts a context from `ContextWithoutCohesionUnit` only when the context
@@ -82,13 +80,13 @@ fn strip_bullet_marker(line: &str) -> Option<&str> {
 }
 
 /// Returns `true` when `source`'s leading front-matter declares
-/// `cohesion: behavioral` (RFC-012 §3.3).
+/// `cohesion: behavioral`.
 ///
 /// A behavioral/doctrine context owns no `pub` type by design; this marker
 /// lets it satisfy `ContextWithoutCohesionUnit` — **gated** by behavioral
-/// substance at the cohesion pass (R12-4), never a bare free pass. Like
-/// [`is_draft`], only the leading front-matter is consulted; unlike draft,
-/// a behavioral file is **not** skipped — it is a real spec walked normally.
+/// substance, never a bare free pass. Like [`is_draft`], only the leading
+/// front-matter is consulted; unlike draft, a behavioral file is **not**
+/// skipped — it is a real spec walked normally.
 pub fn is_behavioral_context(source: &str) -> bool {
     front_matter_value(source, "cohesion").is_some_and(|v| v.eq_ignore_ascii_case("behavioral"))
 }
@@ -129,11 +127,11 @@ fn front_matter_value(source: &str, key: &str) -> Option<String> {
 /// returning the result (borrowed when there is no leading block).
 ///
 /// `status: draft` files are skipped wholesale, but a `cohesion: behavioral`
-/// file (RFC-012 §3.3) is parsed normally — and its `key: value` line
-/// immediately above the closing `---` would otherwise be mis-read as a
-/// **setext H2 heading**, manufacturing a phantom concept. Blanking the
-/// block (rather than stripping it) preserves the line count, so every
-/// concept/anchor below keeps its true `path:line`.
+/// file is parsed normally — and its `key: value` line immediately above the
+/// closing `---` would otherwise be mis-read as a **setext H2 heading**,
+/// manufacturing a phantom concept. Blanking the block (rather than stripping
+/// it) preserves the line count, so every concept/anchor below keeps its true
+/// `path:line`.
 pub fn blank_front_matter(source: &str) -> std::borrow::Cow<'_, str> {
     let lead_ws_len = source.len() - source.trim_start().len();
     let body = &source[lead_ws_len..];

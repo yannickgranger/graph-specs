@@ -1,28 +1,26 @@
-//! Spec anchors — RFC-012 (non-`pub` spec anchors).
+//! Spec anchors — non-`pub` spec anchors.
 //!
 //! An **anchor** lets a spec heading bind to a named code item the concept
 //! walk would not otherwise surface — a `pub(crate)` type, a `fn`, or a
 //! `const` — so a context can document a concept whose canonical
-//! implementation is legitimately not a top-level `pub` type, without
-//! manufacturing a caller-less ZST (#144). It is a *redirection of the
-//! equivalence target*, never a suppression: the named item must still
-//! resolve (RFC-012 §3.1), and an anchor naming a nonexistent item fires
+//! implementation is legitimately not a top-level `pub` type. It is a
+//! *redirection of the equivalence target*, never a suppression: the named
+//! item must still resolve, and an anchor naming a nonexistent item fires
 //! [`crate::Violation::DanglingAnchor`].
 //!
-//! This module owns the **pure** RFC-012 surface — the domain types and
-//! the two pure decision functions. Parsing the `- impl:` bullet is the
-//! markdown adapter's concern (R12-2); resolving the qname against code is
-//! the `AnchorResolver` port's (R12-3 source-walk / R12-6 cfdb-query).
+//! This module owns the domain types and the two pure decision functions.
+//! Parsing the `- impl:` bullet is the markdown adapter's concern; resolving
+//! the qname against code is the `AnchorResolver` port's responsibility.
 
 use crate::{Source, Violation};
 
-/// A concept heading explicitly bound to a named code item (RFC-012 §3.2).
+/// A concept heading explicitly bound to a named code item.
 ///
-/// Shares the verb-bullet qname grammar with [`crate::VerbAnchor`] (one
-/// grammar, §4 I7) but is a **distinct** type: a `VerbAnchor` *attributes*
-/// a `pub fn` to a context, while a `ConceptAnchor` *redirects* a concept's
-/// equivalence target. `concept` names the owning heading; `target` is the
-/// qname of the code item; `source` is the spec site for `path:line`.
+/// Shares the verb-bullet qname grammar with [`crate::VerbAnchor`] but is a
+/// **distinct** type: a `VerbAnchor` *attributes* a `pub fn` to a context,
+/// while a `ConceptAnchor` *redirects* a concept's equivalence target.
+/// `concept` names the owning heading; `target` is the qname of the code
+/// item; `source` is the spec site for `path:line`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConceptAnchor {
     pub concept: String,
@@ -30,12 +28,12 @@ pub struct ConceptAnchor {
     pub source: Source,
 }
 
-/// The kind of code item an anchor resolved to (RFC-012 §3.4).
+/// The kind of code item an anchor resolved to.
 ///
-/// The source-walk MVP resolves `Type` / `Fn` / `Const` — each a
-/// `syn::Item` the reader already visits. Enum-variant resolution is
-/// deferred to R12-6 (cfdb-query, where `kind:"variant"` is native), so
-/// the enum is `#[non_exhaustive]` to admit it without a breaking change.
+/// The MVP resolves `Type` / `Fn` / `Const` — each a `syn::Item` the reader
+/// already visits. Enum-variant resolution is deferred to a later phase
+/// (where `kind:"variant"` is native), so the enum is `#[non_exhaustive]` to
+/// admit it without a breaking change.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum AnchorKind {
@@ -47,23 +45,19 @@ pub enum AnchorKind {
     Const,
 }
 
-/// A resolved anchor target — the code item an [`AnchorResolver`] found for
-/// a qname, at any visibility (RFC-012 §3.4).
+/// A resolved anchor target — the code item an anchor resolver found for
+/// a qname, at any visibility.
 ///
 /// A pure domain type by construction: it carries **no** infrastructure
-/// representation (`syn::Item`, cfdb `Node`/`PropValue`) — the resolving
-/// adapter translates into this shape, keeping the dependency arrow
-/// pointing inward.
-///
-/// [`AnchorResolver`]: the `ports::AnchorResolver` trait (R12-3).
+/// representation — the resolving adapter translates into this shape,
+/// keeping the dependency arrow pointing inward.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AnchorTarget {
     pub kind: AnchorKind,
     pub source: Source,
 }
 
-/// A concept anchor paired with its code-side resolution verdict (RFC-012
-/// §3.4).
+/// A concept anchor paired with its code-side resolution verdict.
 ///
 /// Built by the application — which resolves each anchor's `target` through
 /// the `AnchorResolver` port — and handed to the diff, so the diff engine
@@ -76,13 +70,13 @@ pub struct ResolvedAnchor {
     pub target: Option<AnchorTarget>,
 }
 
-/// The pure anchor-match decision (RFC-012 §3.4).
+/// The pure anchor-match decision.
 ///
 /// Given a concept anchor and the resolver's verdict for its target, return
 /// a [`Violation::DanglingAnchor`] when the target did not resolve, or `None`
 /// when it did (the concept is satisfied — no `MissingInCode`). Pure: the
 /// resolver I/O happens in the adapter; the diff engine calls this with a
-/// pre-computed verdict (R12-3 wiring).
+/// pre-computed verdict.
 #[must_use]
 pub fn anchor_violation(
     anchor: &ConceptAnchor,
@@ -99,15 +93,14 @@ pub fn anchor_violation(
 }
 
 /// Whether a `cohesion: behavioral` declaration exempts a context from
-/// [`crate::CohesionViolation::ContextWithoutCohesionUnit`] (RFC-012
-/// §3.3.1, DD-3 option ii).
+/// [`crate::CohesionViolation::ContextWithoutCohesionUnit`].
 ///
 /// The marker is honored **only** when the context carries machine-checkable
 /// behavioral substance — at least one `- impl:` / `- verb:` anchor or one
 /// `[enforced-by:]` / `[prose-only:]` invariant annotation. A behavioral
 /// declaration over an empty file is *not* exempt: it stays a violation, so
 /// the marker buys an exemption against demonstrated content, never against
-/// emptiness. Pure; the adapter supplies both booleans (R12-4 wiring).
+/// emptiness. Pure; the adapter supplies both booleans.
 #[must_use]
 pub const fn behavioral_exemption_applies(declared_behavioral: bool, has_substance: bool) -> bool {
     declared_behavioral && has_substance
@@ -146,7 +139,7 @@ mod tests {
         assert_eq!(a.concept, "ValidateIntakeFull");
         assert_eq!(a.target, "validate_intake");
         assert_eq!(a.source, spec_src(3));
-        // Clone + Eq hold (mirrors VerbAnchor).
+        // Clone + Eq hold.
         assert_eq!(a.clone(), a);
     }
 

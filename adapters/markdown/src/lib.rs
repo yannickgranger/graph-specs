@@ -56,8 +56,8 @@ impl Reader for MarkdownReader {
         let mut edges = Vec::new();
 
         for (path, source) in walk_concept_sources(root)? {
-            // RFC-013 §3.3: draft files are **parsed, not skipped**. Every
-            // concept heading in one is marked (`ConceptNode::marked`), which
+            // Draft files are **parsed, not skipped**. Every
+            // concept heading in one is marked, which
             // relaxes its code-existence obligation without hiding it — the
             // marker surfaces as a pending/realized record instead.
             let mut verb_anchors_scratch: Vec<VerbAnchor> = Vec::new();

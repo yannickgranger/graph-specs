@@ -28,7 +28,7 @@ struct SectionState<'a> {
     /// The front-matter-blanked file body. Held so the marker rule can ask
     /// the one question `pulldown-cmark` events cannot answer directly: is
     /// this bullet the **first non-blank content line** below its heading?
-    /// (RFC-013 §3.1 — see [`is_first_content_line`].)
+    /// (see [`is_first_content_line`].)
     source: &'a str,
     path: &'a Path,
     // Heading collection.
@@ -37,18 +37,18 @@ struct SectionState<'a> {
     // Pending concept: held until the NEXT heading (or EOF) so the
     // accumulated rust blocks for the section can be attached.
     pending: Option<(String, usize)>,
-    /// RFC-013 §3.3 (RFC-015 §3.3): which spec-state marker the pending
+    /// Which spec-state marker the pending
     /// concept carries, if any. Cleared with every new heading — a marker
     /// binds only to the heading whose block it opens; a marked H2 does not
-    /// mark its H3s (§3.1, no subtree inheritance).
+    /// mark its H3s (no subtree inheritance).
     pending_marker: Option<Marker>,
-    /// RFC-013 §3.1 file scope: a `status:` front-matter value marks
+    /// A `status:` front-matter value marks
     /// **every** concept heading in the file, so a per-heading bullet inside
     /// one is redundant, inert text — which is why the file value wins the
     /// combination in [`SectionState::effective_marker`] rather than the
     /// heading's.
     file_marker: Option<Marker>,
-    /// RFC-014 §3.2: the grounding polarity of the pending concept. Reset
+    /// The grounding polarity of the pending concept. Reset
     /// with every new heading — like the spec-state marker, a grounding
     /// comment binds only to the heading whose block it opens.
     pending_polarity: Polarity,
@@ -63,7 +63,7 @@ struct SectionState<'a> {
     // Bullet collection (v0.3).
     in_bullet: Option<usize>,
     bullet_buf: String,
-    // `- impl:` concept anchors collected during the walk (RFC-012 §3.2).
+    // `- impl:` concept anchors collected during the walk.
     // Held on the state (not a threaded out-param like `verb_anchors`) so
     // `finish_bullet` / `handle_event` signatures stay unchanged; drained
     // by `extract_from_source` after the walk.

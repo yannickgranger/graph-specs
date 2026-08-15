@@ -1,4 +1,4 @@
-//! Verb-coverage report types and pure transformation — per RFC-005 §3.3.
+//! Verb-coverage report types and pure transformation.
 //!
 //! All types here are pure value objects whose owning context is
 //! `equivalence`, parallel to [`crate::ConceptNode`] / [`crate::Edge`].
@@ -25,7 +25,7 @@ pub use types::{
     TierHistogramRecord, TierKind, VerbCoverageRecord,
 };
 
-/// Pure transformation — per RFC-005 §4 Invariant 8, MUST NOT invoke any reader.
+/// Pure transformation — MUST NOT invoke any reader.
 ///
 /// Receives pre-materialised inputs assembled by the application orchestrator
 /// (`application::report`, Slice B), parallel to [`crate::diff`].

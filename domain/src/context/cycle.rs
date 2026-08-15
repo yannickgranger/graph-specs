@@ -4,13 +4,13 @@ use crate::{ContextDecl, ContextPattern};
 use std::collections::HashMap;
 
 /// Detect a cycle in the import graph over `contexts`, excluding edges
-/// classified as [`ContextPattern::SharedKernel`] (RFC-001 §4 invariant 4
-/// — Shared Kernel is the one legal form of mutual reference).
+/// classified as [`ContextPattern::SharedKernel`] — Shared Kernel is the
+/// one legal form of mutual reference.
 ///
 /// Returns `Some(cycle)` with the names on the cycle (in traversal
 /// order), or `None` if the graph is acyclic under the exclusion rule.
 /// Callers (the adapter-side `walk_contexts`) surface the cycle as a
-/// reader error per invariant 7.
+/// reader error.
 #[must_use]
 pub fn detect_import_cycle(contexts: &[ContextDecl]) -> Option<Vec<String>> {
     use std::collections::HashSet;

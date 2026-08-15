@@ -235,7 +235,7 @@ fn each_record_has_schema_version_four() {
     assert_eq!(r["schema_version"], "4");
 }
 
-// --- v0.4 context violation records (#26) -------------------------
+// --- v0.4 context violation records -----
 
 #[test]
 fn context_membership_unknown_record() {
@@ -370,7 +370,7 @@ fn cross_context_edge_undeclared_record() {
     assert_eq!(r["target_context"], "equivalence");
 }
 
-// --- RFC-010 §3.5 / R10-3 cohesion records (§12-G) ---
+// --- cohesion records ---
 
 #[test]
 fn concept_context_mismatch_record() {
@@ -426,18 +426,16 @@ fn dangling_anchor_record_is_additive_v3() {
         },
     };
     let r = record(&render_one(v));
-    // Additive: stays schema_version "3", no bump (DD-6).
     assert_eq!(r["schema_version"], "4");
     assert_eq!(r["violation"], "dangling_anchor");
     assert_eq!(r["concept"], "ValidateIntakeFull");
     assert_eq!(r["target"], "validate_intake");
     assert_eq!(r["source"]["kind"], "spec");
     assert_eq!(r["source"]["line"], 3);
-    // §12-G: must not fall through to the generic record.
     assert_ne!(r["violation"], "unknown_violation");
 }
 
-// --- RFC-013 §3.5 — `marker`-keyed records ---
+// --- `marker`-keyed records ---
 
 fn spec_at(path: &str, line: usize) -> Source {
     Source::Spec {
@@ -485,8 +483,6 @@ fn realized_marker_record() {
 
 #[test]
 fn violations_precede_markers_in_the_stream() {
-    // A consumer reading only the `violation`-keyed prefix sees a stream
-    // byte-identical to pre-v4 (modulo `schema_version`).
     let out = render(&CheckOutcome {
         violations: vec![Violation::MissingInCode {
             name: "Foo".into(),
@@ -516,7 +512,7 @@ fn violations_precede_markers_in_the_stream() {
     assert_eq!(kinds, vec!["missing_in_code", "pending", "realized"]);
 }
 
-// --- RFC-010 §3.6 / #136 — provenance triple on code source objects ---
+// --- provenance triple on code source objects ---
 
 fn code_at(path: &str, line: usize) -> Source {
     Source::Code {
@@ -649,7 +645,7 @@ fn partial_triple_renders_only_present_fields() {
 
 #[test]
 fn unknown_concept_renders_plain_source_object() {
-    // Lookup miss (empty index) — the pre-#136 record shape, byte-stable.
+    // Lookup miss (empty index) — the plain record shape.
     let v = Violation::MissingInSpecs {
         name: "Bar".into(),
         code_source: code_at("domain/src/lib.rs", 3),
@@ -662,7 +658,7 @@ fn unknown_concept_renders_plain_source_object() {
 #[test]
 fn spec_kind_source_never_carries_the_triple() {
     // Even with the concept indexed, a spec-kind source stays plain —
-    // provenance is a code fact (RFC-010 §3.3).
+    // provenance is a code fact.
     let v = Violation::MissingInCode {
         name: "Foo".into(),
         spec_source: spec_at("specs/a.md", 12),

@@ -32,15 +32,14 @@ pub trait Reader {
     fn extract(&self, root: &Path) -> Result<Graph, ReaderError>;
 }
 
-/// Verb-extraction port — per RFC-005 §3.2, sibling to [`ContextReader`].
+/// Verb-extraction port — sibling to [`ContextReader`].
 ///
 /// Not every adapter extracts pub-fn declarations (markdown has no code
 /// items to walk); returning an empty `Vec` is the correct implementation
 /// for adapters that do not extract verbs. Independent of [`Reader::extract`]
-/// — never invoked by `check`, only by the `report` subcommand (Slice B).
+/// — never invoked by `check`, only by the `report` subcommand.
 ///
-/// Mirrors RFC-001 §3.6's introduction of [`ContextReader`] as a separate
-/// port trait for an opt-in read capability. Per RFC-005 §3.2.
+/// A separate port trait for an opt-in read capability.
 pub trait VerbReader {
     /// Collect every top-level `pub fn` (name + source + owning crate)
     /// under `root`. Returns an empty `Vec` on adapters that do not extract
@@ -54,7 +53,7 @@ pub trait VerbReader {
     fn extract_pub_fns(&self, root: &Path) -> Result<Vec<PubFnDecl>, ReaderError>;
 }
 
-/// Separate from [`Reader`] per RFC-001 clean-arch lens — not every
+/// Separate from [`Reader`] — not every
 /// adapter parses context files. Markdown implements both; rust
 /// implements only [`Reader`].
 pub trait ContextReader {

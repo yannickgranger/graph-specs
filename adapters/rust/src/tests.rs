@@ -156,7 +156,7 @@ fn rust_backend_detects_cargo_toml() {
     assert!(RustBackend.detect(d.path()), "Cargo.toml present → true");
 }
 
-// --- RFC-010 §3.3 / R10-3 source-walk provenance ---
+// --- source-walk provenance ---
 
 fn node_named<'a>(g: &'a Graph, name: &str) -> &'a ConceptNode {
     g.nodes
@@ -168,7 +168,7 @@ fn node_named<'a>(g: &'a Graph, name: &str) -> &'a ConceptNode {
 #[test]
 fn provenance_lib_rs_collapses_to_crate_root() {
     // A top-level type in `<crate>/src/lib.rs`: module_path == unit ==
-    // the crate path relative to the code root (§12-H crate-root edge).
+    // the crate path relative to the code root.
     let d = TempDir::new().expect("create temp dir");
     write(
         d.path(),
@@ -207,8 +207,8 @@ fn provenance_submodule_file_and_mod_rs() {
 
 #[test]
 fn provenance_unit_is_relative_to_code_root_not_walked_path() {
-    // §12-I: a nested crate's `unit` is the crate path relative to the
-    // code root, never the absolute walked path.
+    // A nested crate's `unit` is the crate path relative to the code root,
+    // never the absolute walked path.
     let d = TempDir::new().expect("create temp dir");
     write(
         d.path(),
@@ -224,7 +224,7 @@ fn provenance_unit_is_relative_to_code_root_not_walked_path() {
 }
 
 /// Self-dogfood: `extract_pub_fns` on this repo's `application/` crate
-/// yields a non-zero list that includes `run_check` per RFC-005 §7 Slice A.
+/// yields a non-zero list that includes `run_check`.
 #[test]
 fn extract_pub_fns_self_dogfood_application_includes_run_check() {
     let manifest = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));

@@ -2,15 +2,15 @@
 //!
 //! Five passes over the spec and code graphs:
 //!
-//! 1. **Concept** — set-difference over concept names, plus the RFC-013
+//! 1. **Concept** — set-difference over concept names, plus the
 //!    spec-state-marker rows (see [`concept`]).
-//! 2. **Signature** (v0.2) — per matched concept, compare signatures.
-//! 3. **Edge** (v0.3) — per matched concept with ≥1 spec edge, compare edges.
-//! 4. **Verb** (v0.5) — if `CheckInput.verb_ownership` has anchors, emit
+//! 2. **Signature** — per matched concept, compare signatures.
+//! 3. **Edge** — per matched concept with ≥1 spec edge, compare edges.
+//! 4. **Verb** — if `CheckInput.verb_ownership` has anchors, emit
 //!    verb-level violations. Order-independent from passes 1–3.
-//! 5. **Context** (v0.4) — if `CheckInput.contexts` is non-empty, emit
+//! 5. **Context** — if `CheckInput.contexts` is non-empty, emit
 //!    [`crate::Violation::Context`] variants for membership + cross-context
-//!    edges. Order-independent from passes 1–3 (RFC-001 §4 invariant 9).
+//!    edges. Order-independent from passes 1–3.
 
 mod cohesion;
 mod concept;
@@ -32,10 +32,10 @@ use concept::{concept_pass, AnchorResolutions, MarkerRecords};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// Snapshot each spec concept's declared owning context (its `concepts/` H1,
-/// populated on [`ConceptNode::context`] by `run_check` from the R10-2 tree)
+/// populated on [`ConceptNode::context`])
 /// before `spec_nodes` is consumed by the concept loop. Empty when no
-/// contexts are declared — `ConceptContextMismatch` is code-fact-gated
-/// (RFC-010 §3.4), so the snapshot is wasted work without them.
+/// contexts are declared — `ConceptContextMismatch` is code-fact-gated,
+/// so the snapshot is wasted work without them.
 fn snapshot_declared_contexts(
     spec_nodes: &[ConceptNode],
     spec_contexts: &[ContextDecl],
@@ -86,7 +86,7 @@ pub fn diff(spec: CheckInput, code: Graph) -> CheckOutcome {
 
     let declared_contexts = snapshot_declared_contexts(&spec_nodes, &spec_contexts);
 
-    // RFC-010 §3.6 / #136 — snapshot each code concept's containment
+    // Snapshot each code concept's containment
     // triple (resolving `context` through the same `specs/contexts/` Owns
     // lookup the cohesion pass uses) before code_nodes is consumed. The
     // NDJSON emitter reads this off the outcome; it cannot re-derive

@@ -1,5 +1,4 @@
-//! Marker records and the widened check outcome — RFC-013 §3.4 / §3.5,
-//! widened by RFC-015 §3.2 / §3.5.
+//! Marker records and the widened check outcome.
 //!
 //! A **marker record** is not a failure. It reports the state of a concept
 //! heading carrying a [`Marker`] (on the heading, or file-wide via front
@@ -41,18 +40,17 @@ use crate::{Provenance, Source, Violation};
 use std::collections::BTreeMap;
 use std::path::Path;
 
-/// Which spec-state marker a concept heading carries (RFC-015 §3.1).
+/// Which spec-state marker a concept heading carries.
 ///
 /// Two legal values, and **neither transitions to the other**: `draft`
 /// declares code owed to *exist* and is deleted at ratification; `retired`
 /// declares code owed to be *gone*, is written while the backing item is
-/// still present, and is never deleted. RFC-013 §3.1's rationale — *"a
-/// presence flag, never a state machine"* — survives the second value
-/// intact, because the progress axis is the **code**, not the marker.
+/// still present, and is never deleted. A presence flag, never a state
+/// machine — the progress axis is the **code**, not the marker.
 ///
 /// An enum rather than the original `bool` because the concept pass
 /// dispatches on the *value* (rows 3/4 versus rows 7/8), while other sites
-/// ask only whether a marker is present at all (RFC-015 §3.3).
+/// ask only whether a marker is present at all.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Marker {
     /// No marker bullet, and no `status:` front matter — the ordinary
@@ -68,8 +66,7 @@ pub enum Marker {
 impl Marker {
     /// Whether the heading carries a marker at all.
     ///
-    /// The question the anchor-suppression set asks (RFC-015 §3.3): an
-    /// unresolved `- impl:` target under **either** value is the state the
+    /// An unresolved `- impl:` target under **either** value is the state the
     /// marker announces, not a dangling anchor.
     #[must_use]
     pub const fn is_marked(self) -> bool {
@@ -77,7 +74,7 @@ impl Marker {
     }
 }
 
-/// A marked concept heading with no backing code item (RFC-013 §3.2 row 3).
+/// A marked concept heading with no backing code item.
 ///
 /// Emitted instead of [`crate::Violation::MissingInCode`]. The pending list
 /// is the transcription worklist the upstream ratification workflow reads
@@ -88,12 +85,11 @@ pub struct PendingRecord {
     pub spec_source: Source,
 }
 
-/// A marked concept heading whose backing code item exists (RFC-013 §3.2
-/// row 4) — by name match or by `- impl:` anchor resolution, exactly as an
-/// unmarked heading binds.
+/// A marked concept heading whose backing code item exists — by name match or
+/// by `- impl:` anchor resolution, exactly as an unmarked heading binds.
 ///
 /// Emitted *alongside* full equivalence enforcement for the pair: a marker
-/// never parks a divergence (RFC-013 §4 invariant 1). The record is the
+/// never parks a divergence. The record is the
 /// "ready to ratify" signal — ratification is deletion of the marker line.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RealizedRecord {
@@ -101,8 +97,7 @@ pub struct RealizedRecord {
     pub spec_source: Source,
 }
 
-/// A `retired` heading whose backing code item is still present
-/// (RFC-015 §3.2 row 7).
+/// A `retired` heading whose backing code item is still present.
 ///
 /// The retirement was announced and the code has not gone yet. Emitted *in
 /// addition to* fully enforced equivalence for the pair — a marker never
@@ -110,23 +105,22 @@ pub struct RealizedRecord {
 /// still produces that ordinary violation. Marker/code co-presence is not
 /// itself a contradiction: it is the window every correct retirement opens.
 ///
-/// A cleanliness term (RFC-015 §3.5): a clean tree carries none.
+/// A cleanliness term: a clean tree carries none.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RetirementIncompleteRecord {
     pub concept: String,
     pub spec_source: Source,
 }
 
-/// A `retired` heading with no backing code item (RFC-015 §3.2 row 8).
+/// A `retired` heading with no backing code item.
 ///
 /// The retirement is complete. Emitted *instead of*
 /// [`crate::Violation::MissingInCode`], and the heading's own
-/// code-obligating declarations impose nothing — row 8 carries row 3's
-/// obligation skip in full (RFC-015 §3.2).
+/// code-obligating declarations impose nothing.
 ///
 /// Rendered but **not** a cleanliness term: the marker line is never
 /// deleted, so this list never drains, and a never-draining term inside the
-/// clean state would make the clean state unreachable (RFC-015 §3.5).
+/// clean state would make the clean state unreachable.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RetirementCompleteRecord {
     pub concept: String,
@@ -134,7 +128,7 @@ pub struct RetirementCompleteRecord {
 }
 
 /// The full result of one equivalence check — violations plus the four
-/// marker-record kinds (RFC-013 §3.5, widened by RFC-015 §3.5).
+/// marker-record kinds.
 ///
 /// The exit code is a function of `violations` alone: a tree whose only
 /// findings are pending/realized records exits 0.
@@ -145,8 +139,8 @@ pub struct CheckOutcome {
     pub realized: Vec<RealizedRecord>,
     pub retirement_incomplete: Vec<RetirementIncompleteRecord>,
     pub retirement_complete: Vec<RetirementCompleteRecord>,
-    /// Containment provenance per code concept, keyed by concept name
-    /// (RFC-010 §3.6 / #136). Snapshotted by the diff before the code
+    /// Containment provenance per code concept, keyed by concept name.
+    /// Snapshotted by the diff before the code
     /// nodes are consumed; read by the NDJSON emitter to render the
     /// agnostic triple inside code-kind source objects. A side index on
     /// the outcome rather than fields on [`Violation`] — the enum stays
