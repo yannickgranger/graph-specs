@@ -1,6 +1,6 @@
 //! Concept-level pass — the first pass of [`crate::diff`].
 //!
-//! Set-difference over concept names, widened by RFC-013 §3.2 into the
+//! Set-difference over concept names, with the
 //! four spec-side rows of the enforcement matrix:
 //!
 //! | Heading | Backing item | Result |
@@ -13,14 +13,13 @@
 //! | `retired` | absent | a [`RetirementCompleteRecord`], **no** `MissingInCode` |
 //!
 //! The two marker values pick the *pair*; the backing item picks the
-//! member. Rows 7 and 8 are RFC-015 §3.2; rows 3 and 4 are unchanged.
+//! member.
 //!
 //! "Backing item present" is one fact with two spellings: a name-matched
-//! code node, or a resolved `- impl:` anchor (RFC-012 §3.4). Row 3 vs row 4
-//! and the anchor's resolution outcome are the same question, not two
-//! (RFC-013 §3.4).
+//! code node, or a resolved `- impl:` anchor. The anchor's resolution outcome
+//! picks the record.
 //!
-//! Ahead of all of that sits RFC-014's grounding-polarity guard, which is
+//! Ahead of all of that sits grounding-polarity guard, which is
 //! **terminal**: see [`polarity_guard`].
 
 use super::signature;
@@ -87,7 +86,7 @@ impl MarkerRecords {
 
     /// Route a marked, anchored concept to the record its anchor resolution
     /// selects — resolution is the backing-item fact for an anchored
-    /// heading (RFC-012 §3.4).
+    /// heading.
     fn push_anchored(&mut self, resolved: bool, marker: Marker, spec_node: ConceptNode) {
         if resolved {
             self.push_backed(marker, &spec_node.name, &spec_node.source);

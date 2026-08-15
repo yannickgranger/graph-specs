@@ -35,8 +35,7 @@ use walkdir::WalkDir;
 /// Low-level Rust extractor.
 ///
 /// Walks a source tree once and emits flat concepts + raw edges. Used by
-/// [`RustReader`] to build a [`Graph`] and, in future, by cfdb's Rust
-/// ingestor (RFC-005 / #83 reframe).
+/// [`RustReader`] to build a [`Graph`].
 #[derive(Debug, Default)]
 pub struct RustBackend;
 
@@ -96,12 +95,11 @@ impl Reader for RustReader {
 }
 
 impl CodeFacts for RustReader {
-    /// Source-walk `CodeFacts` (RFC-010 §3.3): the concept set the [`Reader`]
-    /// graph already carries, each node bearing the per-file containment
-    /// provenance attached by `extract_from_file` (`module_path` collapsed to
-    /// crate root, `unit` relative to the code root). This is the parity
-    /// reference the cfdb-query ACL must match (0-mismatch on
-    /// `module_path` / `unit`).
+    /// The concept set the [`Reader`] graph already carries, each node
+    /// bearing the per-file containment provenance attached by
+    /// `extract_from_file` (`module_path` collapsed to crate root, `unit`
+    /// relative to the code root). Both `module_path` and `unit` must match
+    /// exactly for a concept to be considered properly recorded.
     fn concepts(&self, root: &Path) -> Result<Vec<ConceptNode>, ReaderError> {
         Ok(Reader::extract(self, root)?.nodes)
     }

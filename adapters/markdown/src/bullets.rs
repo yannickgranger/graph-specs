@@ -1,7 +1,7 @@
 //! Bullet-line grammars recognised inside a concept section — v0.3 edge
 //! prefixes (`- implements:` / `- depends on:` / `- returns:`) and the
 //! v0.5/v0.6 anchor prefixes (`- verb:` / `- impl:`), which share one
-//! qname grammar (RFC-012 §4 I7).
+//! qname grammar.
 
 use domain::{tokenise_target, ConceptAnchor, EdgeKind, Marker, Source, VerbAnchor};
 use regex::Regex;
@@ -21,13 +21,12 @@ static VERB_QNAME_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^[A-Za-z_][A-Za-z0-9_]*(::[A-Za-z_][A-Za-z0-9_]*)?$").expect("valid regex")
 });
 
-/// The **single** qname grammar shared by `- verb:` and `- impl:` bullets
-/// (RFC-012 §4 I7 — one grammar, no second parser).
+/// The **single** qname grammar shared by `- verb:` and `- impl:` bullets.
 ///
 /// Validates `qname` against [`VERB_QNAME_RE`] (bare ident or `Type::method`
 /// / `Enum::Variant`). Returns the trimmed qname, or `None` — empty silently,
 /// non-empty-but-malformed with a tolerant-skip `tracing::warn!`. Both bullet
-/// parsers route here so a grammar change touches one site (anti-split-brain).
+/// parsers route here so a grammar change touches one site.
 pub fn parse_anchor_qname(rest: &str) -> Option<&str> {
     let qname = rest.trim();
     if qname.is_empty() {

@@ -1,4 +1,4 @@
-//! The grounding comment's `polarity:` key — RFC-014 §3.2.
+//! The grounding comment's `polarity:` key.
 //!
 //! A **grounding comment** is an HTML comment an upstream tool (cascade /
 //! Bosun) carries under a concept heading:
@@ -11,7 +11,7 @@
 //! This module reads exactly one key from it and ignores every other. It
 //! performs **no grounding** in the sense the name denotes: *grounding*
 //! means ancestorship, which is the `parent:` key's job and is explicitly
-//! out of scope (RFC-014 §6). `polarity:` is an independent axis that
+//! out of scope. `polarity:` is an independent axis that
 //! happens to share the grounding block's syntax, not part of its ancestry
 //! payload.
 //!

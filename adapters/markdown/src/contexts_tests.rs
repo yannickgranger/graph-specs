@@ -182,7 +182,7 @@ fn source_line_points_at_h1() {
 
 #[test]
 fn heading_annotations_do_not_affect_section_dispatch() {
-    // RFC §3.1 allows annotations on section headings.
+    // Annotations on section headings are allowed.
     let src = "\
 # foo
 

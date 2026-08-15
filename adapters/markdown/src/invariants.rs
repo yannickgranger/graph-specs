@@ -1,5 +1,5 @@
-//! `#### Operational invariants` bracket-annotation extraction (RFC-005
-//! §3.2) — `[enforced-by: <artifact>; retire-when: <predicate>]` and
+//! `#### Operational invariants` bracket-annotation extraction —
+//! `[enforced-by: <artifact>; retire-when: <predicate>]` and
 //! `[prose-only: <why>]` bullets.
 //!
 //! Uses a **fresh** `Parser::new(source).into_offset_iter()` per file — NOT
@@ -42,14 +42,13 @@ impl<'a> AnnotationState<'a> {
 
 /// Parse a single spec file for `#### Operational invariants` sections,
 /// extracting all well-formed bracketed annotations from bullet items.
-/// Per RFC-005 §3.2: fresh parser per file, own H4 arm, new bracket grammar.
 pub fn extract_annotations_from_source(
     source: &str,
     path: &Path,
     out: &mut Vec<InvariantAnnotation>,
 ) {
     // Blank leading front-matter so a `cohesion: behavioral` block does not
-    // perturb the H4-invariant parse (RFC-012 §3.3); line numbers preserved.
+    // perturb the H4-invariant parse; line numbers preserved.
     let cleaned = blank_front_matter(source);
     let source = cleaned.as_ref();
     let mut st = AnnotationState::new(source, path);
@@ -119,7 +118,7 @@ fn absorb_annotation_text(st: &mut AnnotationState, s: &str) {
 ///
 /// Silently returns `None` when the bullet has no annotation marker.
 /// Emits `tracing::warn!` and returns `None` when the bullet LOOKS like
-/// an annotation but fails the bracket grammar (Invariant 7).
+/// an annotation but fails the bracket grammar.
 fn try_parse_annotation(text: &str, path: &Path, line: usize) -> Option<InvariantAnnotation> {
     let has_enforced = text.contains("[enforced-by:");
     let has_prose = text.contains("[prose-only:");
@@ -164,8 +163,7 @@ type AnnotationFields = (
     Option<String>,
 );
 
-/// Bracket-grammar parser — per RFC-005 §3.2 dry-run rust-systems-E:
-/// new infrastructure distinct from prefix-matching `parse_bullet_edge`.
+/// Bracket-grammar parser — new infrastructure distinct from prefix-matching `parse_bullet_edge`.
 ///
 /// Recognises:
 /// - `[enforced-by: <artifact>; retire-when: <predicate>]`
@@ -216,7 +214,7 @@ fn parse_enforced_by(inv_id: String, rest: &str) -> AnnotationFields {
     (inv_id, tier, artifact, retire_when, None)
 }
 
-/// Derive `TierKind` from an artifact path string per RFC-005 §3.2.
+/// Derive `TierKind` from an artifact path string.
 fn derive_tier(artifact: &str) -> TierKind {
     let a = artifact.trim();
     if a.ends_with(".cypher") {

@@ -1,11 +1,11 @@
-//! cfdb-query anchor resolver — RFC-012 §3.4 / R12-6 (the OQ-1 parity path).
+//! cfdb-query anchor resolver.
 //!
 //! The cfdb-keyspace counterpart to the source-walk `RustAnchorResolver`: it
 //! resolves a `- impl: <qname>` anchor against the `:Item` facts a `cfdb
 //! extract` run already holds — for **per-crate** repos (e.g. agentry) whose
-//! keyspace is the code-fact source (RFC-010 §3.3 routing). Like the
+//! keyspace is the code-fact source. Like the
 //! source-walk resolver it builds an index once and `resolve` is a lookup, so
-//! the concept set is unchanged (§4 I1).
+//! the concept set is unchanged.
 //!
 //! **Any visibility.** The concept ACL ([`crate::CfdbQueryReader`]) filters
 //! `visibility == "pub"` for population parity; anchor resolution lifts that —
@@ -16,11 +16,9 @@
 //! `fn`/`method` → [`AnchorKind::Fn`]; `const`/`static` → [`AnchorKind::Const`].
 //! A `method` resolves under its `Type::method` form (the 2-segment qname the
 //! `- impl:` grammar accepts), derived from cfdb's full `crate::Type::method`
-//! qname. **Enum variants are NOT resolvable here:** cfdb (v0.5.0, the pinned
-//! companion) does **not** emit a `variant` `:Item` kind — only the container
-//! `enum`. Variant anchoring therefore remains deferred beyond R12-6, awaiting
-//! a paired cfdb change that extracts variants as items (RFC-012 OQ-1 residual;
-//! see the slice's PR/issue note). The source-walk path has the same MVP cut.
+//! qname. **Enum variants are NOT resolvable here:** cfdb does **not** emit a `variant` `:Item` kind — only the container
+//! `enum`. Variant anchoring remains deferred, awaiting
+//! a paired cfdb change that extracts variants as items. The source-walk path has the same MVP cut.
 
 use crate::{prop, relativize, KeyspaceFile, EXCLUDED_DIRS};
 use cfdb_core::fact::{Node, PropValue};
@@ -30,7 +28,7 @@ use ports::{AnchorResolver, ReaderError};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-/// A cfdb-keyspace [`AnchorResolver`] (RFC-012 §3.4 / R12-6).
+/// A cfdb-keyspace [`AnchorResolver`].
 #[derive(Debug, Clone)]
 pub struct CfdbAnchorResolver {
     index: HashMap<String, AnchorTarget>,

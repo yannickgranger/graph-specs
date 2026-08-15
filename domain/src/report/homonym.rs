@@ -1,5 +1,5 @@
 //! Homonym pass: names that appear in more than one bounded context, with
-//! exporter-wins pattern sanctioning (RFC-005 §3.3 dry-run DDD-B).
+//! exporter-wins pattern sanctioning.
 
 use super::types::{HomonymAppearance, HomonymRecord, PubFnDecl};
 use crate::{ContextDecl, ContextPattern};
@@ -49,10 +49,10 @@ pub(super) fn build_homonyms(
     records
 }
 
-/// Exporter-wins derivation (RFC-005 §3.3 dry-run DDD-B):
+/// Exporter-wins derivation:
 ///
 /// (i) prefer context C's `ContextExport.pattern` if C exports name N —
-///     exporting context is authoritative per Evans Ch. 14;
+///     exporting context is authoritative;
 /// (ii) fall back to C's `ContextImport.pattern` if C imports N;
 /// (iii) if both present for N in C but with disagreeing patterns, use the
 ///      export's pattern and set `asymmetric = true`.

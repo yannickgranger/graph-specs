@@ -5,8 +5,8 @@ use crate::{
 };
 use std::path::PathBuf;
 
-/// These tests assert on violations only; RFC-013 marker records are
-/// covered in [`super::tests`]. Unwrap the outcome at the seam.
+/// These tests assert on violations only; marker records are covered in
+/// [`super::tests`]. Unwrap the outcome at the seam.
 fn diff(spec: CheckInput, code: Graph) -> Vec<Violation> {
     crate::diff(spec, code).violations
 }

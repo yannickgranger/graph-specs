@@ -2,8 +2,8 @@
 //!
 //! One JSON object per line; discriminator field `record` with values
 //! `verb_coverage` | `tier_histogram` | `homonym`. All records carry
-//! `schema_version: "2"` — an additive extension per the schema evolution
-//! rules in `specs/ndjson-output.md` (no version bump for new record types).
+//! `schema_version: "2"` — an additive extension (no version bump for new
+//! record types).
 
 use domain::{
     ContextPattern, HomonymRecord, ReportOutput, Source, TierHistogramRecord, TierKind,

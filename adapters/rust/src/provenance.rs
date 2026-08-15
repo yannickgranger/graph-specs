@@ -1,4 +1,4 @@
-//! Containment provenance derivation (RFC-010 §3.3).
+//! Containment provenance derivation.
 //!
 //! Both the concept-level walk and the pub-fn walk attach the same two
 //! per-file facts to every item they emit: `unit` (the owning crate,
@@ -37,7 +37,7 @@ fn unit_name_for(dir: &Path, root: &Path) -> Option<String> {
     dir.file_name().and_then(|n| n.to_str()).map(str::to_owned)
 }
 
-/// Derive a concept's crate-root-collapsed module path (RFC-010 §3.3/§12-H).
+/// Derive a concept's crate-root-collapsed module path.
 ///
 /// `unit` is the owning crate relative to the code root (from
 /// [`find_owned_unit`]). The module segments are the path components between

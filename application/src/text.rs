@@ -11,7 +11,7 @@ use domain::{
 use std::io::Write;
 use std::path::Path;
 
-/// Write one `pending` marker record (RFC-013 §3.5).
+/// Write one `pending` marker record.
 ///
 /// A marked heading with no backing item. The pending list is the
 /// transcription worklist, so records are enumerated one per line, never
@@ -25,7 +25,7 @@ pub fn format_pending(r: &PendingRecord, out: &mut impl Write) -> std::io::Resul
     writeln!(out, "pending: {} ({}:{line})", r.concept, path.display())
 }
 
-/// Write one `realized` marker record (RFC-013 §3.5).
+/// Write one `realized` marker record.
 ///
 /// A marked heading whose backing item exists. The suffix names the action
 /// it invites: ratification is deletion of the marker line, performed by a

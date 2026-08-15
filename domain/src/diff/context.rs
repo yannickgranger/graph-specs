@@ -1,6 +1,6 @@
 //! v0.4 bounded-context pass — fourth pass in [`crate::diff::diff`].
 //!
-//! Order-independent from passes 1–3 per RFC-001 §4 invariant 9: this pass
+//! This pass
 //! re-derives cross-context candidate edges from the spec and code graphs
 //! rather than reading prior passes' violation output.
 //!

@@ -1,4 +1,4 @@
-//! Cohesion violations — RFC-010 §3.5.
+//! Cohesion violations.
 //!
 //! The upward concept→context rung of the ladder. Wrapped by
 //! [`crate::Violation::Cohesion`] so consumers that do not opt into
@@ -6,9 +6,9 @@
 //!
 //! Split by **fact-dependency**: the first two variants fire spec-side
 //! with zero code facts (source-walk OR cfdb-query); the third is
-//! code-fact-gated — it needs a code-side context resolution (RFC-010
-//! §3.4). The *detection* logic that emits these lands in R10-3; this
-//! module is the type only.
+//! code-fact-gated — it needs a code-side context resolution. The
+//! *detection* logic that emits these is separate; this module is
+//! the type only.
 
 use crate::Source;
 use std::path::PathBuf;
@@ -26,8 +26,8 @@ pub enum CohesionViolation {
     SubConceptOrphan { sub_concept: String, file: PathBuf },
     /// A concept's spec-side declared owning context disagrees with the
     /// context the code resolves it to. `spec_source` is carried so the
-    /// text renderer can show `path:line` like every other violation
-    /// (RFC-010 §3.5 / dry-run §12-B). Code-fact-gated.
+    /// text renderer can show `path:line` like every other violation.
+    /// Code-fact-gated.
     ConceptContextMismatch {
         concept: String,
         declared: String,
@@ -41,10 +41,8 @@ impl CohesionViolation {
     /// carry differently-named leading identifiers (`context` /
     /// `sub_concept` / `concept`), so this accessor normalises them to a
     /// single key rather than forcing a per-variant destructure at the
-    /// call site. (RFC-010 §3.5/§12-D speculated a non-`const` key for the
-    /// heterogeneous fields; in practice `str::as_str` is `const` on this
-    /// toolchain — matching `ContextViolation::concept` — so this stays
-    /// `const fn`, which `clippy::nursery` requires.)
+    /// call site. `str::as_str` is `const` on this toolchain, so this
+    /// stays `const fn`, which `clippy::nursery` requires.
     #[must_use]
     pub const fn key(&self) -> &str {
         match self {

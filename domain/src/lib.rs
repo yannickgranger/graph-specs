@@ -44,29 +44,26 @@ pub use tokens::tokenise_target;
 /// `graph-specs check --format=ndjson`.
 ///
 /// Promoted from a serialization literal to a domain-owned Published
-/// Language type so downstream consumers (e.g. qbot-core's
-/// `compare-spec-change` pipeline) gate their parse dispatch against a
+/// Language type so downstream consumers gate their parse dispatch against a
 /// single typed source rather than re-typing `"1"` / `"2"` magic
 /// strings per consumer.
 ///
 /// The current production value — what every new record this build
 /// emits carries — is [`SchemaVersion::CURRENT`]. [`SchemaVersion::V1`]
 /// is retained for consumers reading v0.3-era fixtures during the
-/// overlap window documented at `specs/ndjson-output.md` §Schema
-/// evolution.
+/// overlap window.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum SchemaVersion {
     V1,
     V2,
-    /// v3 (RFC-010 §3.6) — versions the abstraction-ladder `Cohesion`
+    /// v3 — versions the abstraction-ladder `Cohesion`
     /// record kinds (`context_without_cohesion_unit`, `sub_concept_orphan`,
-    /// `concept_context_mismatch`) added by R10-3. Consumers dispatch on
-    /// `"3"`; the qbot-core `compare-spec-change` v3 arm lockstep is tracked
-    /// separately (OQ-3). Provenance source fields are a planned additive
+    /// `concept_context_mismatch`). Consumers dispatch on
+    /// `"3"`. Provenance source fields are a planned additive
     /// (non-breaking) extension that will NOT bump the version again.
     V3,
-    /// v4 (RFC-013 §3.5) — versions the `marker`-keyed record kinds
+    /// v4 — versions the `marker`-keyed record kinds
     /// (`pending`, `realized`) **and** the retirement of the
     /// `implements_draft_concept` violation kind.
     ///
@@ -74,7 +71,7 @@ pub enum SchemaVersion {
     /// `violation` discriminator value entirely is breaking (a
     /// discriminator that silently stops appearing is a worse failure mode
     /// for a pattern-matching consumer than a hard version bump), so the
-    /// version moves. See `specs/ndjson-output.md` §Schema evolution.
+    /// version moves.
     V4,
 }
 
@@ -120,8 +117,7 @@ impl Graph {
         Self { nodes, edges }
     }
 
-    /// Alias for [`Graph::default`] — the v0.3 relationship-level dogfood
-    /// wants a code-side RETURNS edge targeting a concept.
+    /// Alias for [`Graph::default`].
     #[must_use]
     pub fn empty() -> Self {
         Self::default()
@@ -139,9 +135,8 @@ pub struct ConceptNode {
     pub name: String,
     pub source: Source,
     pub signature: SignatureState,
-    /// Language-agnostic containment provenance (RFC-010 §3.3). Populated
-    /// by a `CodeFacts`-style adapter (source-walk in R10-3, cfdb-query
-    /// ACL in R10-6); `None` on the spec side and wherever no code facts
+    /// Language-agnostic containment provenance. Populated
+    /// by a `CodeFacts`-style adapter; `None` on the spec side and wherever no code facts
     /// are available. Deliberately **not** cfdb's Rust-specific prop names
     /// (`module_qpath` / `crate` / `bounded_context`) — PHP `:Item` carries
     /// no such props, so the agnostic triple is translated by the ACL.
@@ -153,20 +148,20 @@ pub struct ConceptNode {
     /// `context` — the resolved bounded context (`specs/contexts/` Owns or
     /// the cfdb-query ACL), used by the R10-3 cohesion pass.
     pub context: Option<String>,
-    /// Spec-state marker (RFC-013 §3.3, widened by RFC-015 §3.3): which
+    /// Spec-state marker: which
     /// `- status:` value this heading carries as its first content line, or
     /// inherits from a `status:` front-matter file.
     ///
     /// An enum over two values, and still **not** a state machine: neither
-    /// value transitions to the other, and the progress axis is the code
-    /// (RFC-015 §3.1). `draft` is deleted at ratification; `retired` is
+    /// value transitions to the other, and the progress axis is the code.
+    /// `draft` is deleted at ratification; `retired` is
     /// never deleted.
     ///
     /// The graph is the single carrier of marker state; there is no side
     /// index. Always [`Marker::Unmarked`] on the code side.
     pub marker: Marker,
-    /// Grounding polarity (RFC-014 §3.4) — which direction this heading's
-    /// obligation points. Attached by [`ConceptNode::with_polarity`].
+    /// Grounding polarity — which direction this heading's
+    /// obligation points.
     ///
     /// A second field alongside `marked` rather than one fused carrier:
     /// different upstream sources, different grammars, different extension
@@ -180,8 +175,7 @@ impl ConceptNode {
     /// to `None`; populate them with [`ConceptNode::with_provenance`].
     ///
     /// This is an explicit "provenance unknown" constructor, **not** a
-    /// `Default` escape: every site decides provenance consciously (RFC-010
-    /// §3.7 — `ConceptNode` does not derive `Default`).
+    /// `Default` escape: `ConceptNode` does not derive `Default`.
     #[must_use]
     pub const fn new(name: String, source: Source, signature: SignatureState) -> Self {
         Self {
@@ -197,12 +191,11 @@ impl ConceptNode {
     }
 
     /// Builder: attach the grounding polarity parsed from the heading's
-    /// grounding comment (RFC-014 §3.4).
+    /// grounding comment.
     ///
     /// A builder rather than a positional argument on [`ConceptNode::new`],
-    /// which deliberately does not derive `Default` — every construction
-    /// site decides provenance consciously, and polarity is the same kind
-    /// of opt-in fact.
+    /// which deliberately does not derive `Default` — polarity is an
+    /// opt-in fact.
     #[must_use]
     pub const fn with_polarity(mut self, polarity: Polarity) -> Self {
         self.polarity = polarity;
@@ -211,8 +204,7 @@ impl ConceptNode {
 
     /// Builder: attach the language-agnostic containment triple
     /// (`module_path` / `unit` / `context`) derived by a code-facts
-    /// adapter. Used by the source-walk adapter (R10-3) and the cfdb-query
-    /// ACL (R10-6); the R10-1 round-trip test exercises it directly.
+    /// adapter.
     #[must_use]
     pub fn with_provenance(
         mut self,
@@ -358,23 +350,17 @@ pub enum Violation {
     /// Concept declared in code but absent from specs.
     MissingInSpecs { name: String, code_source: Source },
     /// A `pub` code item bearing a name its spec heading **expelled** — the
-    /// heading carries `polarity:forbidden` (RFC-014 §3.4). Both sites are
+    /// heading carries `polarity:forbidden`. Both sites are
     /// carried, so the finding names what expelled the name *and* what
     /// reintroduced it.
-    ///
-    /// Mirrors `cascade::Finding::ForbiddenConceptRealized` under a
-    /// locally-disambiguated name — `Realized` already means the opposite
-    /// thing in this bounded context ([`crate::RealizedRecord`], "the
-    /// pending concept landed"). Parity with upstream is behavioural, not
-    /// lexical. See RFC-014 OQ-1.
     ForbiddenConceptReintroduced {
         name: String,
         spec_source: Source,
         code_source: Source,
     },
-    // RFC-013 §3.4: `ImplementsDraftConcept` retired here. Code backing a
+    // `ImplementsDraftConcept` retired here. Code backing a
     // marked heading is the normal mid-arc state, not a failure — it is now
-    // [`crate::RealizedRecord`]. Its `violation_key` sort slot (13) is
+    // [`crate::RealizedRecord`]. Its `violation_key` sort slot is
     // retired, not reused; existing slots are not renumbered.
     /// Both sides declare the concept with a signature, but the signatures
     /// disagree after normalisation.
@@ -450,13 +436,13 @@ pub enum Violation {
         qname: String,
         spec_source: Source,
     },
-    /// A v0.6 abstraction-ladder cohesion violation (RFC-010 §3.5). Wraps
+    /// An abstraction-ladder cohesion violation. Wraps
     /// the three [`CohesionViolation`] variants so consumers that do not
     /// opt into cohesion checking match one arm rather than three —
-    /// distinct from [`Violation::Context`] (RFC-001 cross-context edges).
+    /// distinct from [`Violation::Context`].
     Cohesion(CohesionViolation),
-    /// A v0.7 spec anchor (`- impl: <qname>`) names a code item that does
-    /// not exist anywhere in the code tree (RFC-012 §3.5). The
+    /// A spec anchor (`- impl: <qname>`) names a code item that does
+    /// not exist anywhere in the code tree. The
     /// equivalence-defect analog of [`Violation::MissingInCode`] for an
     /// anchored concept — kept a **top-level** arm (not nested in
     /// [`Violation::Cohesion`]) so a consumer that opts out of cohesion
@@ -478,8 +464,7 @@ mod tests {
     #[test]
     fn schema_version_current_is_v4() {
         // Tripwire: the production wire version is `"4"`. A change here is a
-        // breaking NDJSON contract change and MUST be paired with a consumer
-        // lockstep (OQ-3) + a `specs/ndjson-output.md` update.
+        // breaking NDJSON contract change.
         assert_eq!(SchemaVersion::CURRENT, SchemaVersion::V4);
         assert_eq!(SchemaVersion::CURRENT.as_str(), "4");
     }

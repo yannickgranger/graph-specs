@@ -1,15 +1,13 @@
 //! `pub fn` / impl-method visiting — the verb-reader walk that backs
-//! [`crate::RustReader::extract_pub_fns`] (RFC-005 §3.2, v0.6 impl-method
-//! anchoring).
+//! [`crate::RustReader::extract_pub_fns`].
 
 use crate::cfg_gate::is_test_gated;
 use domain::{PubFnDecl, Source};
 use std::path::Path;
 use syn::Visibility;
 
-/// Separate parallel walk for `pub fn` items — per RFC-005 §3.2 dry-run
-/// rust-systems-A finding: the concept walk documents `Fn` as a
-/// deliberately-excluded item and MUST NOT be extended. This sibling
+/// Separate parallel walk for `pub fn` items — the concept walk documents
+/// `Fn` as an excluded item and MUST NOT be extended. This sibling
 /// exclusively handles `syn::Item::Fn`.
 pub fn visit_top_level_fn(
     item: &syn::Item,

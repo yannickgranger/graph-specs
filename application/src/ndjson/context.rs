@@ -1,5 +1,4 @@
-//! [`ContextViolation`] → NDJSON record conversion (v0.4 bounded-context
-//! variants, plus the v0.5 verb-ownership cross-context variant).
+//! [`ContextViolation`] → NDJSON record conversion.
 
 use super::source::{code_source_to_json, source_to_json};
 use super::ProvenanceIndex;

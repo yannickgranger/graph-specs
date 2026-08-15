@@ -1,4 +1,4 @@
-//! The abstraction ladder — RFC-010 §3.1.
+//! The abstraction ladder.
 //!
 //! Heading depth maps to a typed abstraction level. Depth is
 //! *authoritative*: in a conformant spec a heading's role **is** its
@@ -12,7 +12,7 @@
 ///
 /// Adapters call [`AbstractionLevel::from_heading_depth`] rather than
 /// `match`-ing the enum, so `#[non_exhaustive]` never forces a dead
-/// wildcard arm in adapter crates (RFC-010 §3.1 / dry-run §12-E).
+/// wildcard arm in adapter crates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum AbstractionLevel {

@@ -3,31 +3,29 @@
 
 use crate::{CohesionViolation, ContextDecl, Graph, ResolvedAnchor, VerbOwnership};
 
-/// Input to the v0.4+ diff on the spec side — concept graph plus
+/// Input to the diff on the spec side — concept graph plus
 /// declared bounded-context map plus verb-ownership aggregate.
 ///
 /// Keeps [`Graph`] focused on concepts + edges; contexts and
-/// `verb_ownership` are carried alongside per SOLID lens RC-1.
+/// `verb_ownership` are carried alongside.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CheckInput {
     pub graph: Graph,
     pub contexts: Vec<ContextDecl>,
     pub verb_ownership: VerbOwnership,
-    // RFC-013 §3.3: the `draft_concepts` side index retired here. Marker
-    // state is carried on `ConceptNode::marked` inside `graph` — one
+    // Marker state is carried on `ConceptNode::marked` inside `graph` — one
     // carrier, no second object graph joined by name.
-    /// Spec-side structural cohesion violations detected by the R10-2
-    /// `TreeAssembler` (`ContextWithoutCohesionUnit` / `SubConceptOrphan`),
-    /// pre-computed by the markdown adapter because they need the heading
-    /// tree (an adapter artifact). The diff's cohesion pass wraps them as
-    /// [`crate::Violation::Cohesion`] and folds them into the sorted output
-    /// (RFC-010 §3.5, fact-dependency split).
+    /// Spec-side structural cohesion violations detected by the `TreeAssembler`
+    /// (`ContextWithoutCohesionUnit` / `SubConceptOrphan`), pre-computed by
+    /// the markdown adapter because they need the heading tree (an adapter
+    /// artifact). The diff's cohesion pass wraps them as
+    /// [`crate::Violation::Cohesion`] and folds them into the sorted output.
     pub spec_cohesion: Vec<CohesionViolation>,
     /// Concept anchors (`- impl: <qname>`) paired with their code-side
-    /// resolution verdict (RFC-012 §3.4). Built by the application — which
-    /// resolves each target through the `AnchorResolver` port — so the diff
-    /// stays pure. An anchored concept is exempt from `MissingInCode`; an
-    /// unresolved anchor becomes [`crate::Violation::DanglingAnchor`].
+    /// resolution verdict. Built by the application — which resolves each
+    /// target through the `AnchorResolver` port — so the diff stays pure.
+    /// An anchored concept is exempt from `MissingInCode`; an unresolved
+    /// anchor becomes [`crate::Violation::DanglingAnchor`].
     pub concept_anchors: Vec<ResolvedAnchor>,
 }
 

@@ -1,4 +1,4 @@
-//! Heading-tree assembler — RFC-010 §3.2 / R10-2.
+//! Heading-tree assembler.
 //!
 //! A **separate pass** from the concept reader's `handle_event` /
 //! `SectionState` (which is at the cognitive-complexity ceiling): this
@@ -12,17 +12,15 @@
 //!
 //! - an H1 context with no H2/H3 concept under it
 //!   → [`CohesionViolation::ContextWithoutCohesionUnit`] — including in
-//!   `status: draft` files (RFC-013 §3.2 row 6);
+//!   `status: draft` files;
 //! - an H3 sub-concept with no enclosing H2
 //!   → [`CohesionViolation::SubConceptOrphan`].
 //!
 //! A descriptive H1 that does not normalise to a context identifier
-//! (RFC-010 §3.2) is rejected as a [`ReaderError::ParseFailed`].
+//! is rejected as a [`ReaderError::ParseFailed`].
 //!
-//! Wiring these into the `check` diff + NDJSON emitter (so they
-//! participate in the non-zero exit path) is R10-3/R10-4; this slice owns
-//! the assembler, the normalisation rule (shared with [`crate::contexts`]
-//! via [`normalize_context_id`]), and orphan detection.
+//! This module owns the assembler, the normalisation rule (shared with
+//! [`crate::contexts`] via [`normalize_context_id`]), and orphan detection.
 
 use crate::markdown_utils::{
     compute_line_starts, is_context_identifier, line_of_offset, normalize_context_id,
@@ -62,13 +60,13 @@ pub struct SpecTree {
     /// this vector.
     pub nodes: Vec<HeadingNode>,
     /// `true` when the file's leading front-matter declares
-    /// `cohesion: behavioral` (RFC-012 §3.3). Honoured as an exemption from
+    /// `cohesion: behavioral`. Honoured as an exemption from
     /// [`CohesionViolation::ContextWithoutCohesionUnit`] **only** when
-    /// [`SpecTree::has_substance`] also holds (anti-gaming, §3.3.1).
+    /// [`SpecTree::has_substance`] also holds (anti-gaming).
     pub behavioral: bool,
     /// `true` when the file carries machine-checkable behavioral substance
     /// (≥1 `- impl:` / `- verb:` anchor or `[enforced-by:]` / `[prose-only:]`
-    /// annotation, RFC-012 §3.3.1). The anti-gaming half of the behavioral
+    /// annotation). The anti-gaming half of the behavioral
     /// exemption: a `behavioral` file with no substance stays a violation.
     pub has_substance: bool,
 }
@@ -85,9 +83,8 @@ impl SpecTree {
     }
 
     /// Each `Concept` / `SubConcept` heading paired with this file's
-    /// context identifier — the spec-side **declared** owning context the
-    /// R10-3 cohesion pass compares against the code-resolved context
-    /// (RFC-010 §3.4). Empty when the file declares no `Context` H1.
+    /// context identifier — the spec-side **declared** owning context
+    /// compared against the code-resolved context. Empty when the file declares no `Context` H1.
     #[must_use]
     pub fn concept_declarations(&self) -> Vec<(&str, &str)> {
         let Some(ctx) = self.context_id() else {
@@ -105,12 +102,11 @@ impl SpecTree {
             .collect()
     }
 
-    /// The spec-side cohesion violations the tree's shape reveals
-    /// (RFC-010 §3.5): every `Context` with no concept under it, and every
-    /// orphaned `SubConcept`. Detection only — emission into the `check`
-    /// diff is R10-3.
+    /// The spec-side cohesion violations the tree's shape reveals:
+    /// every `Context` with no concept under it, and every
+    /// orphaned `SubConcept`. Detection only.
     ///
-    /// Marker-blind by construction (RFC-013 §3.2 row 6): the assembler
+    /// Marker-blind by construction: the assembler
     /// records heading *depth*, so a marked `## Concept` is an
     /// `AbstractionLevel::Concept` node like any other and counts as its
     /// context's cohesion unit. Marking never suppresses this check — the
@@ -118,7 +114,7 @@ impl SpecTree {
     /// draft docs on exactly the same terms as any other doc.
     #[must_use]
     pub fn cohesion_violations(&self) -> Vec<CohesionViolation> {
-        // RFC-012 §3.3.1: a `cohesion: behavioral` file with demonstrated
+        // A `cohesion: behavioral` file with demonstrated
         // behavioral substance is exempt from `ContextWithoutCohesionUnit`
         // (but never `SubConceptOrphan` — a depth skip is always a defect).
         let context_exempt = behavioral_exemption_applies(self.behavioral, self.has_substance);
@@ -177,7 +173,7 @@ impl Pointers {
     ///
     /// Driven by `==` comparisons rather than an exhaustive `match`, so the
     /// `#[non_exhaustive]` [`AbstractionLevel`] never forces a dead wildcard
-    /// arm in this adapter (RFC-010 §3.1 / dry-run §12-E). The trailing
+    /// arm in this adapter. The trailing
     /// branch is the `Member` (H4+) rung: it parents onto the nearest
     /// sub-concept, falling back to the concept.
     fn link(&mut self, level: AbstractionLevel, idx: usize) -> Option<usize> {

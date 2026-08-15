@@ -1,4 +1,4 @@
-//! Source-walk anchor resolver — RFC-012 §3.4 / R12-3.
+//! Source-walk anchor resolver.
 //!
 //! Builds an index of code items at **any** visibility (the concept walk is
 //! `pub`-only) so a `- impl: <qname>` spec anchor can resolve a concept
@@ -7,15 +7,15 @@
 //!
 //! Lazy by use: the index is built once from the code root, and the diff
 //! consults `resolve` **only** for the qnames an anchor references — so the
-//! global concept set the [`crate::RustReader`] produces is untouched
-//! (RFC-012 §4 I1). A dedicated struct (not `impl AnchorResolver for
-//! RustReader`) because the port's `resolve(&self, qname)` carries no root:
-//! the resolver must hold the pre-built index.
+//! global concept set the [`crate::RustReader`] produces is untouched.
+//! A dedicated struct (not `impl AnchorResolver for RustReader`) because
+//! the port's `resolve(&self, qname)` carries no root: the resolver must
+//! hold the pre-built index.
 //!
-//! Kinds (DD-7): top-level `struct`/`enum`/`trait`/`type` → [`AnchorKind::Type`];
+//! Kinds: top-level `struct`/`enum`/`trait`/`type` → [`AnchorKind::Type`];
 //! `fn` → [`AnchorKind::Fn`]; `const`/`static` → [`AnchorKind::Const`]; impl
 //! methods (`Type::method`) → [`AnchorKind::Fn`]. Enum **variants** are
-//! deferred to R12-6 (cfdb-query, where `kind:"variant"` is native).
+//! deferred to cfdb-query.
 
 use crate::cfg_gate::is_test_gated;
 use crate::pub_fns::root_ident_of_self_ty;

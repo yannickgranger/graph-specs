@@ -1,5 +1,4 @@
-//! The containment-provenance record rendered into NDJSON source objects
-//! — RFC-010 §3.6 / #136.
+//! The containment-provenance record rendered into NDJSON source objects.
 //!
 //! [`Provenance`] is the emitter-facing form of the agnostic triple that
 //! [`crate::ConceptNode`] carries as three loose `Option` fields: the
@@ -11,8 +10,7 @@
 //!
 //! `context` is resolved at snapshot time from the `specs/contexts/`
 //! Owns declarations — the same resolution the cohesion pass uses — not
-//! re-derived in the emitter, which has no access to the declarations
-//! (the split-brain #136 names).
+//! re-derived in the emitter, which has no access to the declarations.
 
 /// The language-agnostic containment triple for one code concept, as
 /// rendered into NDJSON code-kind source objects.

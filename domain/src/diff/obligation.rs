@@ -1,4 +1,4 @@
-//! The obligation rule of RFC-015 §3.4 — stated once, cited by both
+//! The obligation rule — stated once, cited by both
 //! consumers.
 //!
 //! Two questions that look like one and are not:
@@ -11,12 +11,12 @@
 //!   legitimate code item to point at, and its own declared state accounts
 //!   for that. Governs the **target side**: no heading bears a
 //!   code-existence demand made of it by *another* heading's declarations.
-//!   The edge pass consumes it. **This is what RFC-015 adds.**
+//!   The edge pass consumes it.
 //!
 //! A third predicate, **`unbound`** (*does this heading describe a code
-//! item?* — member: `illustrative`, alone), is named by §3.4 and is
-//! deliberately **not** implemented here: it has no consumer in this RFC and
-//! is known under-enforced (§6, issue #187). Adding it without its consumer
+//! item?* — member: `illustrative`, alone), is
+//! deliberately **not** implemented here: it has no consumer
+//! and is known under-enforced. Adding it without its consumer
 //! would ship an unread predicate.
 //!
 //! # Why two predicates and not one with a caveat
@@ -39,30 +39,29 @@ use super::concept::AnchorResolutions;
 use crate::{ConceptNode, Polarity};
 use std::collections::{HashMap, HashSet};
 
-/// `unobliged` — this heading compels no code item to exist (RFC-015 §3.4).
+/// `unobliged` — this heading compels no code item to exist.
 ///
 /// Members: a heading marked with **either** value whose item is absent,
 /// `forbidden`, and `illustrative`.
 ///
-/// Unchanged in extension by RFC-015 apart from `retired` + absent joining
-/// it; what changes is that the rule is now *stated* rather than assembled
+/// What changes is that the rule is now *stated* rather than assembled
 /// downstream from the record lists it happens to produce.
 pub(super) fn is_unobliged(node: &ConceptNode, item_present: bool) -> bool {
     node.polarity != Polarity::Declared || (node.marker.is_marked() && !item_present)
 }
 
 /// `unpointable` — this heading offers no legitimate code item to point at,
-/// and its own declared state accounts for that (RFC-015 §3.4).
+/// and its own declared state accounts for that.
 ///
-/// The members are normative and are checked here in the order §3.4 states
-/// them: marked-with-either-value + absent; `illustrative` + absent;
+/// The members are normative and are checked in order:
+/// marked-with-either-value + absent; `illustrative` + absent;
 /// `forbidden` + absent; `forbidden` + present.
 ///
 /// **The accounting clause is load-bearing and is not a restatement of the
 /// member list.** Keying on item *absence alone* would admit an unmarked
-/// `declared` heading whose item is absent — which is matrix row 1, where
+/// `declared` heading whose item is absent — which is a row where
 /// nothing accounts for the absence because that absence *is* the finding.
-/// Suppressing there silently moves an existing row and breaks invariant 2.
+/// Suppressing there silently moves an existing row.
 ///
 /// `illustrative` + **present** is deliberately excluded: the checker
 /// already accepts such an item as a legitimate edge target and reports it

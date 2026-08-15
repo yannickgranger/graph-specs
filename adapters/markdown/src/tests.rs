@@ -407,7 +407,7 @@ fn module_path_target_is_tokenised() {
     assert_eq!(edges[0].raw_target, "domain::Graph");
 }
 
-// --- RFC-005 invariant-annotation tests ---
+// --- invariant-annotation tests ---
 
 #[test]
 fn extract_annotations_empty_on_no_h4_section() {
@@ -680,7 +680,7 @@ fn parse_verb_bullet_accepts_bare_ident_unchanged() {
     assert_eq!(anchor.qname, "foo");
 }
 
-// --- RFC-013 §3.1/§3.3 — spec-state marker ---
+// --- spec-state marker ---
 
 /// `marked` flag per concept name, for the marker tests.
 fn marks(dir: &Path) -> Vec<(String, bool)> {
@@ -696,9 +696,7 @@ fn marks(dir: &Path) -> Vec<(String, bool)> {
 
 #[test]
 fn per_heading_marker_bullet_marks_exactly_that_heading() {
-    // Rewritten from `extract_draft_concepts_returns_headings_of_draft_files_only`
-    // (RFC-013 §7 Slice A) — the side index it exercised is retired; marker
-    // state now rides on the node itself.
+    // Marker state now rides on the node itself.
     let d = TempDir::new().expect("test");
     write(
         d.path(),
@@ -713,8 +711,8 @@ fn per_heading_marker_bullet_marks_exactly_that_heading() {
 
 #[test]
 fn marker_tolerates_the_upstream_citation_parenthetical() {
-    // RFC-013 §3.1/§6: anything after the value is tolerated and ignored —
-    // the parenthetical is an upstream authoring convention, never gate-parsed.
+    // Anything after the value is tolerated and ignored — the parenthetical
+    // is an upstream authoring convention, never gate-parsed.
     let d = TempDir::new().expect("test");
     write(
         d.path(),
@@ -733,9 +731,9 @@ fn marker_value_matches_case_insensitively() {
 
 #[test]
 fn there_is_no_second_marker_value() {
-    // RFC-013 §3.1: one legal value. Ratification is deletion of the line,
-    // a presence flag — never a state machine. `- status: ratified` is an
-    // unrecognised prefix and stays inert text.
+    // One legal value. Ratification is deletion of the line, a presence
+    // flag — never a state machine. `- status: ratified` is an unrecognised
+    // prefix and stays inert text.
     let d = TempDir::new().expect("test");
     write(d.path(), "a.md", "## Widget\n\n- status: ratified\n");
     assert_eq!(marks(d.path()), vec![("Widget".to_owned(), false)]);
@@ -743,10 +741,9 @@ fn there_is_no_second_marker_value() {
 
 #[test]
 fn misplaced_marker_is_inert_and_the_heading_reads_unmarked() {
-    // RFC-013 §3.1 fail-loud: a marker that is not the first non-blank
-    // content line binds nothing. The heading stays unmarked, so the
-    // anti-invention check fires on it downstream — a visible violation,
-    // never a silent suppression.
+    // Fail-loud: a marker that is not the first non-blank content line binds
+    // nothing. The heading stays unmarked, so a downstream check fires — a
+    // visible violation, never a silent suppression.
     let d = TempDir::new().expect("test");
     write(
         d.path(),
@@ -773,8 +770,8 @@ fn marker_after_a_sibling_bullet_is_inert() {
 
 #[test]
 fn a_marker_does_not_inherit_to_sub_concepts() {
-    // RFC-013 §3.1: no subtree inheritance — the checker models H2 and H3 as
-    // flat peers, and inheritance would make ratification non-local.
+    // No subtree inheritance — the checker models H2 and H3 as flat peers,
+    // and inheritance would make ratification non-local.
     let d = TempDir::new().expect("test");
     write(
         d.path(),
@@ -802,9 +799,9 @@ fn marker_bullet_is_not_an_edge_or_an_anchor() {
 #[test]
 fn parse_status_marker_grammar() {
     use crate::bullets::parse_status_marker;
-    // RFC-015 §3.1 — two legal values, both ASCII-case-insensitive, both
-    // tolerating the upstream trailing parenthetical. Everything else is an
-    // unrecognised prefix and stays inert text.
+    // Two legal values, both ASCII-case-insensitive, both tolerating the
+    // upstream trailing parenthetical. Everything else is an unrecognised
+    // prefix and stays inert text.
     assert_eq!(parse_status_marker("status: draft"), Some(Marker::Draft));
     assert_eq!(parse_status_marker("status:draft"), Some(Marker::Draft));
     assert_eq!(
@@ -858,9 +855,8 @@ fn is_draft_false_when_front_matter_closes_before_status() {
 
 #[test]
 fn draft_front_matter_marks_every_heading_in_the_file() {
-    // RFC-013 §3.1/§3.3 file scope — the file is **parsed, not skipped**, and
-    // every concept heading in it is marked. (Rewritten from
-    // `extract_skips_draft_spec_keeps_siblings`.)
+    // File scope — the file is **parsed, not skipped**, and every concept
+    // heading in it is marked.
     let d = TempDir::new().expect("test");
     write(
         d.path(),
@@ -881,7 +877,7 @@ fn draft_front_matter_marks_every_heading_in_the_file() {
 #[test]
 fn draft_file_signatures_are_still_parsed() {
     // Marking relaxes the code-existence obligation, not the equivalence
-    // check that follows once the concept is realized (§3.2 row 4).
+    // check that follows once the concept is realized.
     let d = TempDir::new().expect("test");
     write(
         d.path(),
@@ -896,8 +892,8 @@ fn draft_file_signatures_are_still_parsed() {
 
 #[test]
 fn extract_verb_anchors_reads_draft_specs() {
-    // RFC-013 §3.3: anchors under a marked heading are extracted as normal;
-    // the obligation skip is the diff's concern, not the reader's.
+    // Anchors under a marked heading are extracted as normal; the
+    // obligation skip is the diff's concern, not the reader's.
     let d = TempDir::new().expect("test");
     write(
         d.path(),
@@ -926,7 +922,7 @@ fn extract_invariant_annotations_skips_draft_spec() {
     );
 }
 
-// --- RFC-012 §3.2 / R12-2 — `- impl:` concept anchors + shared grammar ---
+// --- `- impl:` concept anchors + shared grammar ---
 
 #[test]
 fn parse_anchor_qname_accepts_bare_and_two_segment() {
@@ -996,8 +992,8 @@ fn extract_concept_anchors_collects_impl_bullet() {
 
 #[test]
 fn extract_concept_anchors_is_empty_without_impl_and_reads_draft_files() {
-    // RFC-013 §3.3: draft files are parsed. A bullet-free non-draft file
-    // still contributes nothing.
+    // Draft files are parsed. A bullet-free non-draft file still contributes
+    // nothing.
     let d = TempDir::new().expect("test");
     write(d.path(), "plain.md", "## Foo\n\n- depends on: Bar\n");
     write(
@@ -1021,7 +1017,7 @@ fn impl_bullet_is_not_an_edge() {
     assert!(g.edges.is_empty(), "impl bullet must not become an edge");
 }
 
-// --- RFC-012 §3.3 / R12-2 — `cohesion: behavioral` front-matter ---
+// --- `cohesion: behavioral` front-matter ---
 
 #[test]
 fn is_behavioral_context_detects_marker() {
@@ -1044,7 +1040,7 @@ fn is_behavioral_context_rejects_absent_or_other_shapes() {
     assert!(!is_behavioral_context("# x\n\ncohesion: behavioral\n"));
 }
 
-// --- RFC-012 §3.3.1 / R12-4 — behavioral substance detection ---
+// --- behavioral substance detection ---
 
 #[test]
 fn has_behavioral_substance_detects_each_marker() {
@@ -1068,7 +1064,7 @@ fn has_behavioral_substance_rejects_non_substance() {
     ));
 }
 
-// --- RFC-014 §3.2 — grounding polarity binds to its heading ---
+// --- grounding polarity binds to its heading ---
 
 /// `polarity` per concept name.
 fn polarities(dir: &Path) -> Vec<(String, Polarity)> {
@@ -1113,8 +1109,8 @@ fn a_blank_line_between_heading_and_comment_still_binds() {
 
 #[test]
 fn a_comment_that_is_not_the_first_content_line_is_inert() {
-    // Same adjacency rule as the `- status: draft` marker, deliberately —
-    // one primitive, so the two cannot drift apart.
+    // Same adjacency rule as the `- status: draft` marker — one primitive,
+    // so the two cannot drift apart.
     let d = TempDir::new().expect("test");
     write(
         d.path(),
@@ -1177,12 +1173,10 @@ fn a_grounding_comment_is_not_an_edge_or_an_anchor() {
 
 #[test]
 fn a_misplaced_retired_marker_is_inert_and_the_heading_reads_unmarked() {
-    // RFC-015 §3.1 — mis-placement fails loud, unchanged by the second
-    // value. A `- status: retired` bullet that is not the first non-blank
-    // content line binds nothing; the heading reads unmarked and rows 1/5
-    // fire as today. The failure mode of a malformed marker is a visible
-    // violation, never a silent suppression — which matters more under
-    // `retired`, where a silent suppression would hide a live code item.
+    // Mis-placement fails loud. A `- status: retired` bullet that is not
+    // the first non-blank content line binds nothing; the heading reads
+    // unmarked. Visible violations are necessary to prevent hiding live
+    // code items.
     let d = TempDir::new().expect("test");
     write(
         d.path(),
@@ -1202,17 +1196,9 @@ fn marker_values(dir: &Path) -> Vec<(String, Marker)> {
 
 #[test]
 fn file_scope_wins_when_it_disagrees_with_a_headings_own_bullet() {
-    // CHARACTERIZATION — this cell is **unspecified** by RFC-015 §3.1.
-    //
-    // Under one legal value the two carriers were indistinguishable and the
-    // reader combined them with an `||`. With two values they can disagree,
-    // and something has to win. File scope does, because `specs/dialect.md`
+    // File scope wins when heading and file markers disagree: `specs/dialect.md`
     // already rules that a per-heading bullet inside a marked file is
     // "redundant, inert text".
-    //
-    // This test pins the behaviour so it cannot drift silently; it does not
-    // claim the RFC ruled it. Flipping the precedence is a one-line change
-    // here plus a spec sentence, and needs a ruling first.
     let d = TempDir::new().expect("test");
     write(
         d.path(),
@@ -1228,16 +1214,10 @@ fn file_scope_wins_when_it_disagrees_with_a_headings_own_bullet() {
 
 #[test]
 fn a_retired_file_still_contributes_its_invariant_annotations() {
-    // CHARACTERIZATION — also **unspecified**. The annotation walk skips
-    // `status: draft` files wholesale, and RFC-015 says nothing about
-    // `retired` there: §3.2's obligation skip names edge bullets, `- verb:`
-    // anchors and `- impl:` anchors, and stops.
-    //
-    // Left un-widened deliberately. A draft file's annotations describe code
-    // that does not exist yet; a retired file's describe code that is on its
-    // way out but may still be there, and silently dropping them would
-    // suppress live invariants on the strength of a marker whose own
-    // enforcement row (7) keeps equivalence fully armed.
+    // Retired files contribute invariant annotations: draft files describe
+    // code that does not exist yet; retired files describe code on its way
+    // out but may still be there. Silently dropping annotations would
+    // suppress live invariants.
     let d = TempDir::new().expect("test");
     write(
         d.path(),

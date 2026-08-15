@@ -1,9 +1,9 @@
-//! Verb-coverage report record types — per RFC-005 §3.3.
+//! Verb-coverage report record types.
 
 use crate::{ContextPattern, Source};
 
 /// A top-level `pub fn` declaration found in code — the verb counterpart
-/// to [`crate::ConceptNode`] (which captures pub types). Per RFC-005 §3.3.
+/// to [`crate::ConceptNode`] (which captures pub types).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PubFnDecl {
     pub name: String,
@@ -14,11 +14,11 @@ pub struct PubFnDecl {
 }
 
 /// Enforcement tier derived from an `[enforced-by:]` artifact path, or
-/// `ProseOnly` for `[prose-only:]` waivers. Per RFC-005 §3.3.
+/// `ProseOnly` for `[prose-only:]` waivers.
 ///
-/// `#[non_exhaustive]` per RFC-005 §3.3 + solid §5.3 finding 3 — mirrors
-/// `ContextPattern`'s forward-compatibility stance (RFC-001 §3.7).
-/// RFC-006 may add `BehaviorTest`; downstream `match` arms require `_`.
+/// `#[non_exhaustive]` — mirrors
+/// `ContextPattern`'s forward-compatibility stance.
+/// Future versions may add `BehaviorTest`; downstream `match` arms require `_`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[non_exhaustive]
 pub enum TierKind {
@@ -29,7 +29,7 @@ pub enum TierKind {
 }
 
 /// A parsed `[enforced-by:...]` or `[prose-only:...]` bracketed annotation
-/// extracted from a spec `#### Operational invariants` bullet. Per RFC-005 §3.3.
+/// extracted from a spec `#### Operational invariants` bullet.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InvariantAnnotation {
     /// Invariant identifier — text preceding the bracket in the bullet
