@@ -19,7 +19,7 @@ Repo-local methodology. Sets the contribution and review discipline for this rep
 
 ### §2.1 — Where RFCs live
 
-`docs/rfc/NNN-<kebab-title>.md` — numbered sequentially.
+`yg/doxa`, as `rfc/graph-specs-NNN-<kebab-title>.md` — one RFC corpus for every repo (operator ruling, 2026-08-17). Numbering stays sequential. `docs/rfc/NNN-<kebab-title>.md` in this tree is the pre-cutover location: 001–015 were imported into doxa at 47220fe (doxa `provenance.json`); a new RFC is authored in doxa, never here.
 
 ### §2.2 — RFC contents
 
