@@ -21,6 +21,10 @@ Repo-local methodology. Sets the contribution and review discipline for this rep
 
 `yg/doxa`, as `rfc/graph-specs-NNN-<kebab-title>.md` — one RFC corpus for every repo (operator ruling, 2026-08-17). Numbering stays sequential. `docs/rfc/NNN-<kebab-title>.md` in this tree is the pre-cutover location: 001–015 were imported into doxa at 47220fe (doxa `provenance.json`); a new RFC is authored in doxa, never here.
 
+### §2.1b — The harness on this tree (keel-harness §7 step 3)
+
+`keel.json` declares deployment level L2 — corpus-wide advisory (keel-harness §8): the ancestry instrument `cascade` at `cascade.rev`, the doxa corpus at `doxa.rev`, roots `specs/concepts` + the workspace. `scripts/own-gate.sh` runs `keel level` corpus-wide in CI (job `own-gate`) on every PR: the full declared root every run, every `##`/`###` heading of `specs/concepts/` carrying a verdict (§3.2 — silence refuses regardless of how clean the visited subset is), findings visible, nothing else refuses at L2 (§8); a level declared but not running (§8) and an instrument that could not run (§3.3, unavailable) refuse at every level. The printed ungrounded count is the live worklist for §7 step 2 (own concept docs 100 % grounded; the roots are transcribed from the RFC clause each concept's own text names, `keel-dialect` §3); at zero the declaration moves to L3 and CI refuses on any corpus-wide finding (§8). Admission into keel's manifest waits on §7 complete (§6.4). A bump of `cascade.rev` / `keel.rev` / `doxa.rev` is a Captain-direct PR whose own-gate run at the new pins is green (the job runs on the PR).
+
 ### §2.2 — RFC contents
 
 Every RFC answers, in this order:
