@@ -266,8 +266,8 @@ jobs:
   #    cascade.rev, the doxa corpus at doxa.rev, every ##/### heading of
   #    specs/concepts carrying a verdict (zero silence); scripts/own-gate.sh
   #    refuses only what holds at every level (silence §3.2, a level not
-  #    running §8, could-not-run §3.3); findings stay visible at L2; the
-  #    ungrounded count is the live worklist (§7 step 2).
+  #    running §8, the corpus unavailable at its pin §3.1); findings stay
+  #    visible at L2; the ungrounded count is the live worklist (§7 step 2).
   # ----------------------------------------------------------------
   own-gate:
     name: Own gate (keel level, corpus-wide)
