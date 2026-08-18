@@ -21,6 +21,10 @@ Repo-local methodology. Sets the contribution and review discipline for this rep
 
 `yg/doxa`, as `rfc/graph-specs-NNN-<kebab-title>.md` — one RFC corpus for every repo (operator ruling, 2026-08-17). Numbering stays sequential. `docs/rfc/NNN-<kebab-title>.md` in this tree is the pre-cutover location: 001–015 were imported into doxa at 47220fe (doxa `provenance.json`); a new RFC is authored in doxa, never here.
 
+### §2.1b — The harness on this tree (keel-harness §7 step 3)
+
+`keel.json` declares deployment level L2 (keel-harness §8): the ancestry instrument `cascade` at `cascade.rev`, the doxa corpus at `doxa.rev`, roots `specs/concepts` + the workspace. `scripts/own-gate.sh` runs `keel level` corpus-wide in CI (job `own-gate`): every `##`/`###` heading of `specs/concepts/` carries a verdict (zero silence), no malformed or diverged verdict, no `pub` type without a concept heading; the printed ungrounded count is the live worklist for step 2 (own concept docs 100 % grounded — the roots are transcribed from the RFC clause each concept's own text names, `keel-dialect` §3). Bumping `cascade.rev` / `keel.rev` / `doxa.rev` is a Captain-direct act with a green own-gate run at the new pins.
+
 ### §2.2 — RFC contents
 
 Every RFC answers, in this order:
