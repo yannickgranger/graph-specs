@@ -159,8 +159,6 @@ future dialect growth adds variants here.
 
 ## Reader
 
-<!-- parent:rfc:graph-specs-004-multi-language-adapter-contract#3.2 anchor:"spec_readers: Vec<Box<dyn Reader>>" -->
-
 The language-neutral port trait. Concrete readers (markdown specs,
 Rust code, later PHP / TypeScript) implement it and produce graphs with
 identical shape. Lives in `ports`.
@@ -323,7 +321,7 @@ non-breaking for downstream consumers. Lives in `domain`.
 
 <!-- parent:rfc:graph-specs-001-bounded-context-equivalence#3.2 anchor:"wrapped under a new `ContextViolation` enum" -->
 
-The three bounded-context-level violation variants, wrapped by
+The bounded-context-level violation variants, wrapped by
 [Violation](#violation)'s `Context` arm so consumers that do not opt
 into context checking match one arm rather than three. Each variant
 carries a `concept` field so deterministic violation ordering continues
@@ -337,7 +335,7 @@ Lives in `domain`.
 
 ## CheckInput
 
-<!-- parent:rfc:graph-specs-013-spec-state-marker#3.3 anchor:"single carrier of marker state" -->
+<!-- parent:rfc:graph-specs-009-draft-implementation-diagnostic#3.2 anchor:"pub draft_concepts: Vec<ConceptNode>" -->
 
 Input envelope to the v0.5 diff on the spec side — concept graph plus
 declared bounded-context map plus verb-anchoring data. Keeps
@@ -401,7 +399,7 @@ place). Lives in `domain`.
 
 ## Marker
 
-<!-- parent:rfc:graph-specs-013-spec-state-marker#3.1 anchor:"Two marker sources, one meaning" -->
+<!-- parent:rfc:graph-specs-015-spec-retirement-state#3.1 anchor:"no third value exists" -->
 
 Which spec-state marker a concept heading carries (graph-specs-013-spec-state-marker#3.1,
 widened by graph-specs-015-spec-retirement-state#3.1). Read by the markdown reader from the
@@ -429,7 +427,7 @@ spelling.
 
 ## CheckOutcome
 
-<!-- parent:rfc:graph-specs-013-spec-state-marker#3.5.1 anchor:"realized: Vec<RealizedRecord>" -->
+<!-- parent:rfc:graph-specs-015-spec-retirement-state#3.5 anchor:"two rules, and only one of them is" -->
 
 The full result of one equivalence check (graph-specs-013-spec-state-marker#3.5, widened by
 graph-specs-015-spec-retirement-state#3.5): the violation list plus the four marker-record lists —
