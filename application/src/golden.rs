@@ -24,6 +24,12 @@ fn code(line: usize) -> Source {
 }
 
 fn all_violations() -> Vec<Violation> {
+    let mut all = direct_violations();
+    all.extend(wrapped_violations());
+    all
+}
+
+fn direct_violations() -> Vec<Violation> {
     vec![
         Violation::MissingInCode {
             name: "Alpha".into(),
@@ -74,6 +80,11 @@ fn all_violations() -> Vec<Violation> {
             target: "Mu".into(),
             spec_source: spec(11),
         },
+    ]
+}
+
+fn wrapped_violations() -> Vec<Violation> {
+    vec![
         Violation::Context(ContextViolation::MembershipUnknown {
             concept: "Nu".into(),
             owned_unit: OwnedUnit("crates/nu".into()),
@@ -138,14 +149,14 @@ fn all_violations() -> Vec<Violation> {
     ]
 }
 
-pub(crate) fn code_src() -> Source {
+pub fn code_src() -> Source {
     Source::Code {
         path: PathBuf::from("application/src/lib.rs"),
         line: 33,
     }
 }
 
-pub(crate) fn make_report() -> ReportOutput {
+pub fn make_report() -> ReportOutput {
     ReportOutput {
         verb_coverage: vec![VerbCoverageRecord {
             context: Some("equivalence".to_owned()),
