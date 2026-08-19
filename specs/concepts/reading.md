@@ -9,6 +9,8 @@ encouraged — it is ignored by the reader.
 
 ## MarkdownReader
 
+<!-- parent:rfc:graph-specs-005-verb-coverage-report#3.2.3 anchor:"the markdown reader is the only adapter that parses markdown" -->
+
 Concrete [Reader](#reader) and [ContextReader](#contextreader)
 implementation for markdown spec files. Uses `pulldown-cmark`. Emits a
 [ConceptNode](#conceptnode) for every `##` or `###` heading it encounters,
@@ -37,6 +39,8 @@ the previous design needed is retired.
 
 ## RustBackend
 
+<!-- parent:rfc:graph-specs-016-parse-once-reading-port#3.4 anchor:"stop being unit structs and become cache-holding values" -->
+
 Concrete [LanguageBackend](#languagebackend) implementation for Rust
 source files. Uses `syn`. Walks the source tree once (skipping `target/`,
 `.git/`, `.claude/`, `.proofs/`, per-crate `tests/` / `benches/` /
@@ -51,6 +55,8 @@ Lives in `adapters/rust`.
 - depends on: ReaderError
 
 ## RustReader
+
+<!-- parent:rfc:graph-specs-005-verb-coverage-report#3.2.2 anchor:"the doubled parse pays no cost" -->
 
 Concrete [Reader](#reader) and [VerbReader](#verbreader) implementation
 for Rust source files. Thin adapter over [RustBackend](#rustbackend):
@@ -78,6 +84,8 @@ the cfdb-query [CfdbQueryReader](#cfdbqueryreader) ACL must match. Lives in
 
 ## RustAnchorResolver
 
+<!-- parent:rfc:graph-specs-012-non-pub-spec-anchor#3.4.2 anchor:"not every non-`pub` item in the tree" -->
+
 Source-walk [AnchorResolver](equivalence.md#anchorresolver) implementation
 (graph-specs-012-non-pub-spec-anchor#3.4 / R12-3). Builds an index of code items at **any** visibility
 (the concept walk is `pub`-only) so a `- impl: <qname>` spec anchor can
@@ -98,6 +106,8 @@ variants are deferred to the cfdb-query path. Returns an
 - depends on: RustAnchorResolver
 
 ## CfdbQueryReader
+
+<!-- parent:rfc:graph-specs-010-abstraction-level-equivalence#3.3.3 anchor:"crate-prefix heuristic" -->
 
 The cfdb-query [CodeFacts](equivalence.md#codefacts) Anti-Corruption Layer
 (graph-specs-010-abstraction-level-equivalence#3.3 / R10-6). Reads a cfdb keyspace JSON and translates `:Item`
@@ -135,17 +145,9 @@ variants are **not** resolvable because cfdb (v0.5.0) emits no `variant`
 - depends on: ReaderError
 - depends on: CfdbAnchorResolver
 
-## HeadingNode
-
-One node of the abstraction-ladder tree (graph-specs-010-abstraction-level-equivalence#3.2 / R10-2) — a single
-markdown heading, tagged with the [AbstractionLevel](#abstractionlevel) its
-depth maps to (`H1 → Context`, `H2 → Concept`, `H3 → SubConcept`,
-`H4+ → Member`), its trimmed text, the normalised context identifier for an
-H1 node (`# AC verifier` → `ac-verifier`, `None` deeper), its 1-based line,
-and the index of its parent one rung up (`None` for a context, or for an
-orphaned sub-concept). Lives in `adapters/markdown`.
-
 ## SpecTree
+
+<!-- parent:rfc:graph-specs-016-parse-once-reading-port#3.3 anchor:"makes the pair inseparable" -->
 
 The assembled heading tree for a single spec file (graph-specs-010-abstraction-level-equivalence#3.2 / R10-2) —
 a parent-linked vector of [HeadingNode](#headingnode) in document order,
@@ -162,3 +164,15 @@ heading *depth*, so a marked `## Concept` is a `Concept` node like any
 other and counts as its context's cohesion unit. Since graph-specs-013-spec-state-marker the walk
 also no longer skips `status: draft` files — the doc-level structural
 check applies to them on the same terms as any other doc.
+
+### HeadingNode
+
+<!-- parent:spec:SpecTree -->
+
+One node of the abstraction-ladder tree (graph-specs-010-abstraction-level-equivalence#3.2 / R10-2) — a single
+markdown heading, tagged with the [AbstractionLevel](#abstractionlevel) its
+depth maps to (`H1 → Context`, `H2 → Concept`, `H3 → SubConcept`,
+`H4+ → Member`), its trimmed text, the normalised context identifier for an
+H1 node (`# AC verifier` → `ac-verifier`, `None` deeper), its 1-based line,
+and the index of its parent one rung up (`None` for a context, or for an
+orphaned sub-concept). Lives in `adapters/markdown`.
