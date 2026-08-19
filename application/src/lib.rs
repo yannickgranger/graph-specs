@@ -8,6 +8,8 @@ use ports::{AnchorResolver, CodeFacts, ContextReader, Reader, ReaderError, VerbR
 use std::collections::HashMap;
 use std::path::Path;
 
+#[cfg(test)]
+mod golden;
 pub mod ndjson;
 pub mod report;
 mod report_ndjson;
