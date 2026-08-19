@@ -1,35 +1,3 @@
-//! NDJSON output format for `graph-specs check`.
-//!
-//! Emits one line-delimited JSON object per [`Violation`]. The format is
-//! designed as a stable wire contract for downstream comparators.
-//!
-//! Schema invariants:
-//! - every record carries `"schema_version":"4"` at the top level
-//! - `violation` is the `snake_case` variant discriminator on a finding
-//! - `marker` is the discriminator on a marker record — a
-//!   deliberately **separate** key, so the existing violation-filtered
-//!   stream is unchanged and the marker-filtered stream is the upstream
-//!   ratification worklist
-//! - record order matches the `violations` argument order
-//! - no trailing comma, no final newline suppression — each record
-//!   ends in `\n`
-//! - path strings are emitted via [`std::path::Path::to_string_lossy`]
-//!
-//! v2 adds three variants over v1: `context_membership_unknown`,
-//! `cross_context_edge_unauthorized`, `cross_context_edge_undeclared`.
-//! All v1 records are structurally unchanged except for the version
-//! bump. Consumers pin on `schema_version` and select a variant set.
-//!
-//! v4 adds the `marker` record kinds and **retires** the
-//! `implements_draft_concept` violation kind. The retirement is what makes
-//! the bump breaking rather than additive.
-//!
-//! (additive, no bump): code-kind source objects
-//! carry the agnostic provenance triple (`module_path` / `unit` /
-//! `context`) when [`CheckOutcome::provenance`] knows the record's
-//! concept. Fields are omitted — never `null` — when unknown; spec-kind
-//! source objects never carry them.
-
 mod cohesion;
 mod context;
 mod source;
@@ -46,22 +14,8 @@ use source::{code_source_to_json, source_to_json};
 use std::collections::BTreeMap;
 use std::io::Write;
 
-/// The provenance index the record builders read —
-/// [`CheckOutcome::provenance`], passed down so each code-bearing arm can
-/// look up its concept's containment triple.
 type ProvenanceIndex = BTreeMap<String, Provenance>;
 
-/// Write a check outcome as NDJSON to `out` — every violation, then every
-/// pending record, then every realized record, then the two retirement
-/// kinds.
-///
-/// Grouping by kind rather than interleaving keeps a consumer that reads
-/// only the `violation`-keyed prefix working byte-for-byte as before.
-///
-/// # Errors
-///
-/// Propagates any [`std::io::Error`] from the underlying writer —
-/// typically a broken pipe when stdout is closed downstream.
 pub fn write_ndjson(outcome: &CheckOutcome, out: &mut impl Write) -> std::io::Result<()> {
     for v in &outcome.violations {
         write_record(&violation_to_record(v, &outcome.provenance), out)?;
@@ -92,9 +46,6 @@ fn write_record(record: &Value, out: &mut impl Write) -> std::io::Result<()> {
     out.write_all(b"\n")
 }
 
-/// A `pending` marker record. Keyed `marker`, never
-/// `report`: the `report` subcommand's emitter already owns a `"record"`
-/// discriminator for `verb_coverage` / `tier_histogram` / `homonym`.
 fn pending_to_record(r: &PendingRecord) -> Value {
     json!({
         "schema_version": SchemaVersion::CURRENT.as_str(),
@@ -104,13 +55,6 @@ fn pending_to_record(r: &PendingRecord) -> Value {
     })
 }
 
-/// The two retirement marker records. Two new values under
-/// the existing `marker` discriminator, so `schema_version` stays `"4"`:
-/// they change which headings qualify, not what the discriminator means.
-///
-/// One constructor for both kinds — the records are shape-identical and the
-/// discriminator is the only difference, so a second copy would be a
-/// split-brain on the wire shape.
 fn retirement_record(marker: &str, concept: &str, source: &Source) -> Value {
     json!({
         "schema_version": SchemaVersion::CURRENT.as_str(),
@@ -120,7 +64,6 @@ fn retirement_record(marker: &str, concept: &str, source: &Source) -> Value {
     })
 }
 
-/// A `realized` marker record. See [`pending_to_record`].
 fn realized_to_record(r: &RealizedRecord) -> Value {
     json!({
         "schema_version": SchemaVersion::CURRENT.as_str(),

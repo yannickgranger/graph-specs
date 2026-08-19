@@ -1,22 +1,3 @@
-//! Source-walk anchor resolver.
-//!
-//! Builds an index of code items at **any** visibility (the concept walk is
-//! `pub`-only) so a `- impl: <qname>` spec anchor can resolve a concept
-//! whose canonical implementation is legitimately `pub(crate)` (or a `fn` /
-//! `const`) without manufacturing a caller-less `pub` ZST.
-//!
-//! Lazy by use: the index is built once from the code root, and the diff
-//! consults `resolve` **only** for the qnames an anchor references — so the
-//! global concept set the [`crate::RustReader`] produces is untouched.
-//! A dedicated struct (not `impl AnchorResolver for RustReader`) because
-//! the port's `resolve(&self, qname)` carries no root: the resolver must
-//! hold the pre-built index.
-//!
-//! Kinds: top-level `struct`/`enum`/`trait`/`type` → [`AnchorKind::Type`];
-//! `fn` → [`AnchorKind::Fn`]; `const`/`static` → [`AnchorKind::Const`]; impl
-//! methods (`Type::method`) → [`AnchorKind::Fn`]. Enum **variants** are
-//! deferred to cfdb-query.
-
 use crate::cfg_gate::is_test_gated;
 use crate::pub_fns::root_ident_of_self_ty;
 use crate::walk::{is_excluded_dir, read_and_parse};
@@ -26,21 +7,11 @@ use std::collections::HashMap;
 use std::path::Path;
 use walkdir::WalkDir;
 
-/// A source-walk [`AnchorResolver`] (RFC-012 §3.4) over a code root.
 pub struct RustAnchorResolver {
     index: HashMap<String, AnchorTarget>,
 }
 
 impl RustAnchorResolver {
-    /// Build the any-visibility item index by walking every `*.rs` file under
-    /// `root`, excluding the same directories the concept walk skips
-    /// (`target/`, `tests/`, …) and `#[cfg(test)]`-gated items.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ReaderError::WalkFailed`] on directory-traversal failure, or
-    /// [`ReaderError::IoFailed`] / [`ReaderError::ParseFailed`] when a source
-    /// file cannot be read or parsed.
     pub fn index(root: &Path) -> Result<Self, ReaderError> {
         let mut index = HashMap::new();
         let walker = WalkDir::new(root)
@@ -72,9 +43,6 @@ impl AnchorResolver for RustAnchorResolver {
     }
 }
 
-/// Index one top-level item (any visibility) plus its impl methods. The first
-/// occurrence of a qname wins (resolution only cares Some/None; the `Source`
-/// of a duplicate name is otherwise immaterial).
 fn index_item(item: &syn::Item, path: &Path, index: &mut HashMap<String, AnchorTarget>) {
     match item {
         syn::Item::Struct(s) if !is_test_gated(&s.attrs) => {
@@ -105,7 +73,6 @@ fn index_item(item: &syn::Item, path: &Path, index: &mut HashMap<String, AnchorT
     }
 }
 
-/// Index every `Type::method` of an inherent or trait impl (any visibility).
 fn index_impl_methods(
     item_impl: &syn::ItemImpl,
     path: &Path,
@@ -165,7 +132,6 @@ mod tests {
             .expect("create")
             .write_all(src.as_bytes())
             .expect("write");
-        // `d` stays alive through the walk — it drops only when this fn returns.
         RustAnchorResolver::index(d.path()).expect("index")
     }
 
@@ -185,7 +151,6 @@ mod tests {
 
     #[test]
     fn resolves_private_fn_too() {
-        // Any visibility — even a bare private `fn` resolves (it exists).
         let r = resolver_over("fn helper() {}");
         assert!(r.resolve("helper").is_some());
     }

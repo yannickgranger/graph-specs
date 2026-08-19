@@ -1,26 +1,9 @@
-//! v0.4 bounded-context pass — fourth pass in [`crate::diff::diff`].
-//!
-//! This pass
-//! re-derives cross-context candidate edges from the spec and code graphs
-//! rather than reading prior passes' violation output.
-//!
-//! Three violation variants emit here:
-//! - `MembershipUnknown` — a pub type's owning unit isn't listed in any context's `Owns`
-//! - `CrossEdgeUnauthorized` — an edge crosses contexts with no matching `Imports` entry
-//! - `CrossEdgeUndeclared` — the importer names a concept the supplier does not `Exports`
-//!
-//! Consumes `spec_contexts: Vec<ContextDecl>` and `code: Graph` by move so
-//! the per-violation field transfer is a move, not a clone — keeping the
-//! metrics-gate clone-in-loop count at zero.
-
 use crate::{
     ConceptNode, ContextDecl, ContextViolation, Edge, Graph, OwnedUnit, Source, Violation,
 };
 use std::collections::{HashMap, HashSet};
 
-/// Index key `(importer_ctx, supplier_ctx, concept)`.
 type ImportKey = (String, String, String);
-/// Index key `(owning_ctx, concept)`.
 type ExportKey = (String, String);
 
 pub(super) fn context_pass(spec_contexts: Vec<ContextDecl>, code: Graph, out: &mut Vec<Violation>) {
@@ -73,8 +56,6 @@ fn build_concept_index(
         .collect()
 }
 
-/// Consume `contexts` into three indexes so the edge pass can make O(1)
-/// lookups without re-visiting the `ContextDecl` vector.
 fn index_contexts(
     contexts: Vec<ContextDecl>,
 ) -> (

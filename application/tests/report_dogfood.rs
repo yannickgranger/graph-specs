@@ -1,8 +1,3 @@
-//! Self-dogfood integration test for `graph-specs report`.
-//!
-//! Runs the report subcommand against this repo's own `specs/` + `.` tree
-//! and asserts the output is well-formed and contains expected entries.
-
 use assert_cmd::Command;
 use std::path::PathBuf;
 
@@ -20,7 +15,6 @@ fn dogfood_report_exits_zero() {
     let root = workspace_root();
     let specs = root.join("specs");
     if !specs.exists() {
-        // Tolerate isolated build environments without a full workspace tree.
         return;
     }
 

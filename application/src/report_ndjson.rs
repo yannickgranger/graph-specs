@@ -1,10 +1,3 @@
-//! NDJSON output format for `graph-specs report`.
-//!
-//! One JSON object per line; discriminator field `record` with values
-//! `verb_coverage` | `tier_histogram` | `homonym`. All records carry
-//! `schema_version: "2"` — an additive extension (no version bump for new
-//! record types).
-
 use domain::{
     ContextPattern, HomonymRecord, ReportOutput, Source, TierHistogramRecord, TierKind,
     VerbCoverageRecord,
@@ -13,14 +6,6 @@ use serde_json::{json, Value};
 use std::io::{self, Write};
 use std::path::Path;
 
-/// Emit the report as NDJSON to `out`.
-///
-/// One record per line; same sort order as the text emitter.
-/// Empty sections produce no output (consistent with clean-tree NDJSON).
-///
-/// # Errors
-///
-/// Propagates any [`std::io::Error`] from the underlying writer.
 pub fn emit_ndjson(out: &mut impl Write, report: &ReportOutput) -> io::Result<()> {
     emit_verb_coverage_records(out, &report.verb_coverage)?;
     emit_tier_histogram_records(out, &report.tier_histogram)?;
@@ -108,7 +93,6 @@ fn write_record(out: &mut impl Write, record: &Value) -> io::Result<()> {
     out.write_all(b"\n")
 }
 
-/// Sort key placing `None` (orphaned) last.
 fn context_key(ctx: Option<&str>) -> (bool, &str) {
     ctx.map_or((true, ""), |s| (false, s))
 }
@@ -259,8 +243,6 @@ mod tests {
 
     #[test]
     fn emit_ndjson_determinism() {
-        // Two homonym entries in reverse-alpha order: "Zebra" before "Apple".
-        // Emitter must sort them alpha so "Apple" appears first in output.
         let report = ReportOutput {
             verb_coverage: vec![],
             tier_histogram: vec![],

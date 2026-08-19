@@ -1,36 +1,15 @@
-//! Input to the v0.4+ diff on the spec side — concept graph plus declared
-//! bounded-context map plus verb-ownership aggregate.
-
 use crate::{CohesionViolation, ContextDecl, Graph, ResolvedAnchor, VerbOwnership};
 
-/// Input to the diff on the spec side — concept graph plus
-/// declared bounded-context map plus verb-ownership aggregate.
-///
-/// Keeps [`Graph`] focused on concepts + edges; contexts and
-/// `verb_ownership` are carried alongside.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CheckInput {
     pub graph: Graph,
     pub contexts: Vec<ContextDecl>,
     pub verb_ownership: VerbOwnership,
-    // Marker state is carried on `ConceptNode::marked` inside `graph` — one
-    // carrier, no second object graph joined by name.
-    /// Spec-side structural cohesion violations detected by the `TreeAssembler`
-    /// (`ContextWithoutCohesionUnit` / `SubConceptOrphan`), pre-computed by
-    /// the markdown adapter because they need the heading tree (an adapter
-    /// artifact). The diff's cohesion pass wraps them as
-    /// [`crate::Violation::Cohesion`] and folds them into the sorted output.
     pub spec_cohesion: Vec<CohesionViolation>,
-    /// Concept anchors (`- impl: <qname>`) paired with their code-side
-    /// resolution verdict. Built by the application — which resolves each
-    /// target through the `AnchorResolver` port — so the diff stays pure.
-    /// An anchored concept is exempt from `MissingInCode`; an unresolved
-    /// anchor becomes [`crate::Violation::DanglingAnchor`].
     pub concept_anchors: Vec<ResolvedAnchor>,
 }
 
 impl CheckInput {
-    /// Full constructor — carries all three spec-side inputs.
     #[must_use]
     pub const fn new(
         graph: Graph,
@@ -46,8 +25,6 @@ impl CheckInput {
         }
     }
 
-    /// Convenience constructor for callers that do not populate
-    /// `verb_ownership`. Defaults `verb_ownership` to empty vecs.
     #[must_use]
     pub const fn with_graph_and_contexts(graph: Graph, contexts: Vec<ContextDecl>) -> Self {
         Self {
@@ -62,8 +39,6 @@ impl CheckInput {
         }
     }
 
-    /// Builder: attach the spec-side structural cohesion violations the
-    /// markdown adapter pre-computed from the heading tree (RFC-010 R10-3).
     #[must_use]
     pub fn with_spec_cohesion(self, spec_cohesion: Vec<CohesionViolation>) -> Self {
         Self {
@@ -72,10 +47,6 @@ impl CheckInput {
         }
     }
 
-    /// Builder: attach the resolved concept anchors (`- impl: <qname>` with
-    /// their code-side resolution verdict, RFC-012 §3.4). Wired by the
-    /// application after resolving each target through the `AnchorResolver`
-    /// port.
     #[must_use]
     pub fn with_concept_anchors(self, concept_anchors: Vec<ResolvedAnchor>) -> Self {
         Self {

@@ -102,8 +102,6 @@ fn non_md_files_are_ignored() {
     assert_eq!(extract(d.path()), vec!["FromMd"]);
 }
 
-// --- v0.2 signature-level tests ---
-
 fn extract_sig(dir: &Path, concept: &str) -> SignatureState {
     let g = MarkdownReader.extract(dir).expect("test");
     g.nodes
@@ -209,8 +207,6 @@ fn rust_block_before_first_heading_is_ignored() {
     assert_eq!(names, vec!["Foo"]);
     assert_eq!(g.nodes[0].signature, SignatureState::Absent);
 }
-
-// --- v0.3 bullet-edge tests ---
 
 fn find_edges_for<'a>(edges: &'a [Edge], concept: &str) -> Vec<&'a Edge> {
     edges
@@ -407,8 +403,6 @@ fn module_path_target_is_tokenised() {
     assert_eq!(edges[0].raw_target, "domain::Graph");
 }
 
-// --- invariant-annotation tests ---
-
 #[test]
 fn extract_annotations_empty_on_no_h4_section() {
     let d = TempDir::new().expect("test");
@@ -482,7 +476,6 @@ fn extract_annotations_recognises_prose_only() {
 #[test]
 fn extract_annotations_malformed_skips_with_ok_return() {
     let d = TempDir::new().expect("test");
-    // Bullet looks like annotation (has marker prefix) but bracket is malformed
     write(
         d.path(),
         "a.md",
@@ -490,7 +483,6 @@ fn extract_annotations_malformed_skips_with_ok_return() {
     );
     let result = MarkdownReader.extract_invariant_annotations(d.path());
     assert!(result.is_ok(), "tolerant-skip: malformed should not Err");
-    // malformed annotation is dropped
     assert!(
         result.expect("asserted Ok above").is_empty(),
         "malformed annotation must be dropped"
@@ -508,8 +500,6 @@ fn extract_annotations_section_ends_at_next_h2() {
     let anns = MarkdownReader
         .extract_invariant_annotations(d.path())
         .expect("test");
-    // Only annotation in the Operational invariants section should be found;
-    // the bullet under ## Other is not in an h4 section.
     assert_eq!(anns.len(), 1);
 }
 
@@ -527,9 +517,6 @@ fn extract_annotations_multiple_in_section() {
     assert_eq!(anns.len(), 2);
 }
 
-/// Cross-dogfood baseline: cfdb's specs/concepts/ currently has no
-/// `#### Operational invariants` sections, so the result should be empty.
-/// This test uses an empty directory to exercise the same empty-Vec path.
 #[test]
 fn extract_annotations_returns_ok_empty_on_no_annotations_present() {
     let d = TempDir::new().expect("test");
@@ -543,8 +530,6 @@ fn extract_annotations_returns_ok_empty_on_no_annotations_present() {
         .expect("test");
     assert!(anns.is_empty());
 }
-
-// --- v0.5 verb-bullet tests ---
 
 #[test]
 fn parse_verb_bullet_returns_anchor_for_valid_ident() {
@@ -634,10 +619,6 @@ fn extract_verb_anchors_records_correct_concept_and_source_line() {
     }
 }
 
-/// v0.4 scoping: when the reader is pointed at `specs/`, files under
-/// `contexts/` are owned by the `ContextReader` impl and MUST NOT
-/// contaminate the concept graph. Without this filter, every `## Owns`
-/// heading in a context file would register a phantom concept.
 #[test]
 fn v04_ignores_files_under_contexts_subdir() {
     let d = TempDir::new().expect("test");
@@ -649,8 +630,6 @@ fn v04_ignores_files_under_contexts_subdir() {
     );
     assert_eq!(extract(d.path()), vec!["Bar", "Foo"]);
 }
-
-// --- v0.6 parse_verb_bullet qname validation ---
 
 #[test]
 fn parse_verb_bullet_accepts_type_method() {
@@ -680,9 +659,6 @@ fn parse_verb_bullet_accepts_bare_ident_unchanged() {
     assert_eq!(anchor.qname, "foo");
 }
 
-// --- spec-state marker ---
-
-/// `marked` flag per concept name, for the marker tests.
 fn marks(dir: &Path) -> Vec<(String, bool)> {
     let g = MarkdownReader.extract(dir).expect("test");
     let mut out: Vec<(String, bool)> = g
@@ -696,7 +672,6 @@ fn marks(dir: &Path) -> Vec<(String, bool)> {
 
 #[test]
 fn per_heading_marker_bullet_marks_exactly_that_heading() {
-    // Marker state now rides on the node itself.
     let d = TempDir::new().expect("test");
     write(
         d.path(),
@@ -711,8 +686,6 @@ fn per_heading_marker_bullet_marks_exactly_that_heading() {
 
 #[test]
 fn marker_tolerates_the_upstream_citation_parenthetical() {
-    // Anything after the value is tolerated and ignored — the parenthetical
-    // is an upstream authoring convention, never gate-parsed.
     let d = TempDir::new().expect("test");
     write(
         d.path(),
@@ -731,9 +704,6 @@ fn marker_value_matches_case_insensitively() {
 
 #[test]
 fn there_is_no_second_marker_value() {
-    // One legal value. Ratification is deletion of the line, a presence
-    // flag — never a state machine. `- status: ratified` is an unrecognised
-    // prefix and stays inert text.
     let d = TempDir::new().expect("test");
     write(d.path(), "a.md", "## Widget\n\n- status: ratified\n");
     assert_eq!(marks(d.path()), vec![("Widget".to_owned(), false)]);
@@ -741,9 +711,6 @@ fn there_is_no_second_marker_value() {
 
 #[test]
 fn misplaced_marker_is_inert_and_the_heading_reads_unmarked() {
-    // Fail-loud: a marker that is not the first non-blank content line binds
-    // nothing. The heading stays unmarked, so a downstream check fires — a
-    // visible violation, never a silent suppression.
     let d = TempDir::new().expect("test");
     write(
         d.path(),
@@ -770,8 +737,6 @@ fn marker_after_a_sibling_bullet_is_inert() {
 
 #[test]
 fn a_marker_does_not_inherit_to_sub_concepts() {
-    // No subtree inheritance — the checker models H2 and H3 as flat peers,
-    // and inheritance would make ratification non-local.
     let d = TempDir::new().expect("test");
     write(
         d.path(),
@@ -799,9 +764,6 @@ fn marker_bullet_is_not_an_edge_or_an_anchor() {
 #[test]
 fn parse_status_marker_grammar() {
     use crate::bullets::parse_status_marker;
-    // Two legal values, both ASCII-case-insensitive, both tolerating the
-    // upstream trailing parenthetical. Everything else is an unrecognised
-    // prefix and stays inert text.
     assert_eq!(parse_status_marker("status: draft"), Some(Marker::Draft));
     assert_eq!(parse_status_marker("status:draft"), Some(Marker::Draft));
     assert_eq!(
@@ -823,8 +785,6 @@ fn parse_status_marker_grammar() {
     assert_eq!(parse_status_marker("status:"), None);
     assert_eq!(parse_status_marker("depends on: draft"), None);
 }
-
-// --- draft front-matter suppression ---
 
 #[test]
 fn is_draft_recognises_status_draft_front_matter() {
@@ -855,8 +815,6 @@ fn is_draft_false_when_front_matter_closes_before_status() {
 
 #[test]
 fn draft_front_matter_marks_every_heading_in_the_file() {
-    // File scope — the file is **parsed, not skipped**, and every concept
-    // heading in it is marked.
     let d = TempDir::new().expect("test");
     write(
         d.path(),
@@ -876,8 +834,6 @@ fn draft_front_matter_marks_every_heading_in_the_file() {
 
 #[test]
 fn draft_file_signatures_are_still_parsed() {
-    // Marking relaxes the code-existence obligation, not the equivalence
-    // check that follows once the concept is realized.
     let d = TempDir::new().expect("test");
     write(
         d.path(),
@@ -892,8 +848,6 @@ fn draft_file_signatures_are_still_parsed() {
 
 #[test]
 fn extract_verb_anchors_reads_draft_specs() {
-    // Anchors under a marked heading are extracted as normal; the
-    // obligation skip is the diff's concern, not the reader's.
     let d = TempDir::new().expect("test");
     write(
         d.path(),
@@ -922,8 +876,6 @@ fn extract_invariant_annotations_skips_draft_spec() {
     );
 }
 
-// --- `- impl:` concept anchors + shared grammar ---
-
 #[test]
 fn parse_anchor_qname_accepts_bare_and_two_segment() {
     assert_eq!(
@@ -946,14 +898,11 @@ fn parse_anchor_qname_rejects_multi_segment_and_empty() {
 fn parse_impl_bullet_yields_concept_anchor() {
     let a = parse_impl_bullet("impl: validate_intake").expect("anchor");
     assert_eq!(a.target, "validate_intake");
-    // concept/source are placeholders filled by finish_bullet.
     assert!(a.concept.is_empty());
 }
 
 #[test]
 fn parse_impl_bullet_does_not_collide_with_implements_edge() {
-    // `implements:` is an edge bullet, not an `impl:` anchor — strip_prefix
-    // is literal, so no false match.
     assert!(parse_impl_bullet("implements: Foo").is_none());
 }
 
@@ -965,11 +914,9 @@ fn parse_impl_bullet_rejects_malformed_qname() {
 
 #[test]
 fn impl_and_verb_share_one_qname_grammar() {
-    // §4 I7: the same qname routes identically through both prefixes.
     let v = parse_verb_bullet("verb: Foo::bar").expect("verb");
     let i = parse_impl_bullet("impl: Foo::bar").expect("impl");
     assert_eq!(v.qname, i.target);
-    // ...and both reject the same malformed qname.
     assert!(parse_verb_bullet("verb: a::b::c").is_none());
     assert!(parse_impl_bullet("impl: a::b::c").is_none());
 }
@@ -992,8 +939,6 @@ fn extract_concept_anchors_collects_impl_bullet() {
 
 #[test]
 fn extract_concept_anchors_is_empty_without_impl_and_reads_draft_files() {
-    // Draft files are parsed. A bullet-free non-draft file still contributes
-    // nothing.
     let d = TempDir::new().expect("test");
     write(d.path(), "plain.md", "## Foo\n\n- depends on: Bar\n");
     write(
@@ -1010,14 +955,11 @@ fn extract_concept_anchors_is_empty_without_impl_and_reads_draft_files() {
 
 #[test]
 fn impl_bullet_is_not_an_edge() {
-    // An `- impl:` bullet must not be parsed as a relationship edge.
     let d = TempDir::new().expect("test");
     write(d.path(), "a.md", "## Foo\n\n- impl: foo_fn\n");
     let g = extract_graph(d.path());
     assert!(g.edges.is_empty(), "impl bullet must not become an edge");
 }
-
-// --- `cohesion: behavioral` front-matter ---
 
 #[test]
 fn is_behavioral_context_detects_marker() {
@@ -1031,16 +973,13 @@ fn is_behavioral_context_detects_marker() {
 
 #[test]
 fn is_behavioral_context_rejects_absent_or_other_shapes() {
-    assert!(!is_behavioral_context("# secrets\n")); // no front-matter
-    assert!(!is_behavioral_context("---\nstatus: draft\n---\n# x\n")); // different key
+    assert!(!is_behavioral_context("# secrets\n"));
+    assert!(!is_behavioral_context("---\nstatus: draft\n---\n# x\n"));
     assert!(!is_behavioral_context(
         "---\ncohesion: load-bearing\n---\n# x\n"
-    )); // other value
-        // key only in the prose body, not the leading block:
+    ));
     assert!(!is_behavioral_context("# x\n\ncohesion: behavioral\n"));
 }
-
-// --- behavioral substance detection ---
 
 #[test]
 fn has_behavioral_substance_detects_each_marker() {
@@ -1052,21 +991,17 @@ fn has_behavioral_substance_detects_each_marker() {
     assert!(has_behavioral_substance(
         "- INV-x: y [prose-only: doctrine]\n"
     ));
-    assert!(has_behavioral_substance("  * verb: indented\n")); // other markers + indent
+    assert!(has_behavioral_substance("  * verb: indented\n"));
 }
 
 #[test]
 fn has_behavioral_substance_rejects_non_substance() {
     assert!(!has_behavioral_substance("# ctx\n\nJust prose.\n"));
-    // `- implements:` is an edge bullet, NOT an `impl:` anchor — not substance.
     assert!(!has_behavioral_substance(
         "- implements: Foo\n- depends on: Bar\n"
     ));
 }
 
-// --- grounding polarity binds to its heading ---
-
-/// `polarity` per concept name.
 fn polarities(dir: &Path) -> Vec<(String, Polarity)> {
     let g = MarkdownReader.extract(dir).expect("test");
     let mut out: Vec<(String, Polarity)> =
@@ -1109,8 +1044,6 @@ fn a_blank_line_between_heading_and_comment_still_binds() {
 
 #[test]
 fn a_comment_that_is_not_the_first_content_line_is_inert() {
-    // Same adjacency rule as the `- status: draft` marker — one primitive,
-    // so the two cannot drift apart.
     let d = TempDir::new().expect("test");
     write(
         d.path(),
@@ -1140,8 +1073,6 @@ fn a_comment_above_the_first_heading_binds_nothing() {
 
 #[test]
 fn a_quoted_decoy_in_a_real_grounding_block_is_not_read() {
-    // End-to-end through the reader, not just the token scanner: upstream
-    // makes `anchor:"…"` mandatory, so this shape is the common case.
     let d = TempDir::new().expect("test");
     write(
         d.path(),
@@ -1173,10 +1104,6 @@ fn a_grounding_comment_is_not_an_edge_or_an_anchor() {
 
 #[test]
 fn a_misplaced_retired_marker_is_inert_and_the_heading_reads_unmarked() {
-    // Mis-placement fails loud. A `- status: retired` bullet that is not
-    // the first non-blank content line binds nothing; the heading reads
-    // unmarked. Visible violations are necessary to prevent hiding live
-    // code items.
     let d = TempDir::new().expect("test");
     write(
         d.path(),
@@ -1186,7 +1113,6 @@ fn a_misplaced_retired_marker_is_inert_and_the_heading_reads_unmarked() {
     assert_eq!(marks(d.path()), vec![("Widget".to_owned(), false)]);
 }
 
-/// Marker **values** per heading, where [`marks`] only reports presence.
 fn marker_values(dir: &Path) -> Vec<(String, Marker)> {
     let g = MarkdownReader.extract(dir).expect("test");
     let mut out: Vec<(String, Marker)> = g.nodes.into_iter().map(|n| (n.name, n.marker)).collect();
@@ -1196,9 +1122,6 @@ fn marker_values(dir: &Path) -> Vec<(String, Marker)> {
 
 #[test]
 fn file_scope_wins_when_it_disagrees_with_a_headings_own_bullet() {
-    // File scope wins when heading and file markers disagree: `specs/dialect.md`
-    // already rules that a per-heading bullet inside a marked file is
-    // "redundant, inert text".
     let d = TempDir::new().expect("test");
     write(
         d.path(),
@@ -1214,10 +1137,6 @@ fn file_scope_wins_when_it_disagrees_with_a_headings_own_bullet() {
 
 #[test]
 fn a_retired_file_still_contributes_its_invariant_annotations() {
-    // Retired files contribute invariant annotations: draft files describe
-    // code that does not exist yet; retired files describe code on its way
-    // out but may still be there. Silently dropping annotations would
-    // suppress live invariants.
     let d = TempDir::new().expect("test");
     write(
         d.path(),

@@ -1,6 +1,3 @@
-//! Homonym pass: names that appear in more than one bounded context, with
-//! exporter-wins pattern sanctioning.
-
 use super::types::{HomonymAppearance, HomonymRecord, PubFnDecl};
 use crate::{ContextDecl, ContextPattern};
 use std::collections::{HashMap, HashSet};
@@ -10,7 +7,6 @@ pub(super) fn build_homonyms(
     contexts: &[ContextDecl],
     unit_to_context: &HashMap<&str, &str>,
 ) -> Vec<HomonymRecord> {
-    // Collect all (name, context_name) pairs from pub_fns.
     let mut name_to_ctxs: HashMap<&str, Vec<&str>> = HashMap::new();
     for f in pub_fns {
         if let Some(ctx) = f
@@ -49,13 +45,6 @@ pub(super) fn build_homonyms(
     records
 }
 
-/// Exporter-wins derivation:
-///
-/// (i) prefer context C's `ContextExport.pattern` if C exports name N —
-///     exporting context is authoritative;
-/// (ii) fall back to C's `ContextImport.pattern` if C imports N;
-/// (iii) if both present for N in C but with disagreeing patterns, use the
-///      export's pattern and set `asymmetric = true`.
 fn sanctioned_by(
     name: &str,
     ctx_name: &str,

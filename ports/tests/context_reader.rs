@@ -1,12 +1,7 @@
-//! Compile-time proof that [`ContextReader`] is implementable and
-//! object-safe. No production stub ships — #24 lands the markdown impl.
-
 use domain::ContextDecl;
 use ports::{ContextReader, ReaderError};
 use std::path::{Path, PathBuf};
 
-/// Returns `Err` deliberately — a double that can't fail proves nothing
-/// about error propagation (CLAUDE.md §6 rule 3).
 struct ErrStub;
 
 impl ContextReader for ErrStub {

@@ -1,6 +1,3 @@
-//! Concept-level item visiting — the `pub struct` / `pub enum` / `pub trait`
-//! / `pub type` walk that backs [`crate::RustBackend`].
-
 use crate::cfg_gate::is_test_gated;
 use crate::provenance::{find_owned_unit, module_path_of};
 use crate::{edges, normalize};
@@ -15,10 +12,6 @@ pub fn extract_from_file(
     out: &mut Vec<ConceptNode>,
     edges_out: &mut Vec<Edge>,
 ) {
-    // Containment provenance is per-file, so derive it once and share
-    // across the file's top-level items: `unit` is the owning crate
-    // relative to the code root; `module_path` is the crate-root-collapsed
-    // module path.
     let unit = find_owned_unit(path, root);
     let module_path = module_path_of(path, root, unit.as_deref());
     for item in &file.items {
@@ -76,9 +69,6 @@ fn visit_top_level_item(
             unit,
             out,
         ),
-        // All other items (Mod, Fn, Impl, Const, Static, Use, Macro, etc.) are
-        // not top-level concepts. Inline `mod` contents are intentionally not
-        // recursed — per-file top-level only.
         _ => {}
     }
 }
@@ -101,9 +91,6 @@ fn emit(
         return;
     }
     let line = ident.span().start().line;
-    // `context` stays `None` on the reader side — it needs `specs/contexts/`
-    // Owns, resolved by the cohesion pass (RFC-010 §3.4). The cfdb-query ACL
-    // (R10-6) populates `context` directly.
     out.push(
         ConceptNode::new(
             ident.to_string(),

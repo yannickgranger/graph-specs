@@ -1,15 +1,8 @@
-//! Bounded-context declaration vocabulary — the `Owns` / `Exports` /
-//! `Imports` surfaces parsed from `specs/contexts/<name>.md`.
-
 use crate::Source;
 
-/// A crate, npm package, Go module, or equivalent — named deliberately to
-/// keep the domain model language-agnostic across future adapters.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct OwnedUnit(pub String);
 
-/// Parsed from `specs/contexts/<name>.md`. `exports` and `imports` model
-/// the DDD context-mapping patterns in [`ContextPattern`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ContextDecl {
@@ -21,9 +14,6 @@ pub struct ContextDecl {
 }
 
 impl ContextDecl {
-    /// Required constructor outside the defining crate — `#[non_exhaustive]`
-    /// prevents the struct-literal form in external callers (markdown
-    /// adapter, downstream consumers).
     #[must_use]
     pub const fn new(
         name: String,
@@ -42,9 +32,6 @@ impl ContextDecl {
     }
 }
 
-/// Export-centric framing (Evans Ch. 14): the supplying context is
-/// authoritative about what it publishes. Asymmetric declarations fire
-/// [`crate::ContextViolation::CrossEdgeUndeclared`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContextExport {
     pub concept: String,
@@ -58,8 +45,6 @@ pub struct ContextImport {
     pub concept: String,
 }
 
-/// A DDD context-mapping pattern. v0.4 ships four; Anti-Corruption Layer,
-/// Separate Ways, and Open Host Service are deferred to v0.5.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ContextPattern {
@@ -70,8 +55,6 @@ pub enum ContextPattern {
 }
 
 impl ContextPattern {
-    /// Wire-form label used in violation messages and spec parsing.
-    /// Stable across versions.
     #[must_use]
     pub const fn as_label(self) -> &'static str {
         match self {
@@ -82,9 +65,6 @@ impl ContextPattern {
         }
     }
 
-    /// Canonical iterator over v0.4 variants — the single source of truth
-    /// for parsers and error-message enumeration. Adding a v0.5 variant
-    /// only requires updating this list and `as_label`.
     #[must_use]
     pub const fn variants() -> &'static [Self] {
         &[
@@ -95,11 +75,6 @@ impl ContextPattern {
         ]
     }
 
-    /// Returns `true` for patterns that sanction cross-context appearances.
-    /// `PublishedLanguage` and `SharedKernel` are the sanctioned patterns;
-    /// `Conformist` and `CustomerSupplier` signal potential split-brain.
-    /// Forward-compatible with `#[non_exhaustive]` — new variants must
-    /// classify themselves by adding a match arm here.
     #[must_use]
     pub const fn is_doctrine_sanctioned(self) -> bool {
         matches!(self, Self::PublishedLanguage | Self::SharedKernel)

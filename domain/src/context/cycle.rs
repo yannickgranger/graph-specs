@@ -1,16 +1,6 @@
-//! Import-cycle detection over declared bounded contexts.
-
 use crate::{ContextDecl, ContextPattern};
 use std::collections::HashMap;
 
-/// Detect a cycle in the import graph over `contexts`, excluding edges
-/// classified as [`ContextPattern::SharedKernel`] — Shared Kernel is the
-/// one legal form of mutual reference.
-///
-/// Returns `Some(cycle)` with the names on the cycle (in traversal
-/// order), or `None` if the graph is acyclic under the exclusion rule.
-/// Callers (the adapter-side `walk_contexts`) surface the cycle as a
-/// reader error.
 #[must_use]
 pub fn detect_import_cycle(contexts: &[ContextDecl]) -> Option<Vec<String>> {
     use std::collections::HashSet;
@@ -72,8 +62,6 @@ fn visit_neighbour<'a>(
     stack: &mut std::collections::HashSet<&'a str>,
     path: &mut Vec<&'a str>,
 ) -> Option<Vec<&'a str>> {
-    // Import names a context not in the declared set — not a cycle issue;
-    // left for the context pass to flag separately.
     if !adj.contains_key(next) {
         return None;
     }

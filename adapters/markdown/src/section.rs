@@ -1,12 +1,3 @@
-//! The concept walk — one `pulldown-cmark` pass per spec file collecting
-//! `##`/`###` heading concepts, their single fenced `rust` block signature,
-//! and the bullet grammars declared inside each section
-//! ([`crate::bullets`]).
-//!
-//! A **separate pass** from the heading-tree assembler ([`crate::tree`]):
-//! this module's `SectionState` is shaped for H2/H3 + fenced-rust +
-//! bullet-edge dispatch, not the tree's full-depth abstraction ladder.
-
 use crate::bullets::{
     parse_bullet_edge, parse_impl_bullet, parse_status_marker, parse_verb_bullet,
 };
@@ -19,54 +10,23 @@ use domain::{
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Parser, Tag, TagEnd};
 use std::path::Path;
 
-/// Per-file extraction state. Grouping the state into a struct keeps
-/// [`extract_from_source`] under the cognitive-complexity ceiling once
-/// the v0.3 bullet-edge pass is woven in alongside the existing heading
-/// and fenced-block handling.
 struct SectionState<'a> {
     line_starts: Vec<usize>,
-    /// The front-matter-blanked file body. Held so the marker rule can ask
-    /// the one question `pulldown-cmark` events cannot answer directly: is
-    /// this bullet the **first non-blank content line** below its heading?
-    /// (see [`is_first_content_line`].)
     source: &'a str,
     path: &'a Path,
-    // Heading collection.
     heading_buf: String,
     in_heading_at: Option<usize>,
-    // Pending concept: held until the NEXT heading (or EOF) so the
-    // accumulated rust blocks for the section can be attached.
     pending: Option<(String, usize)>,
-    /// Which spec-state marker the pending
-    /// concept carries, if any. Cleared with every new heading — a marker
-    /// binds only to the heading whose block it opens; a marked H2 does not
-    /// mark its H3s (no subtree inheritance).
     pending_marker: Option<Marker>,
-    /// A `status:` front-matter value marks
-    /// **every** concept heading in the file, so a per-heading bullet inside
-    /// one is redundant, inert text — which is why the file value wins the
-    /// combination in [`SectionState::effective_marker`] rather than the
-    /// heading's.
     file_marker: Option<Marker>,
-    /// The grounding polarity of the pending concept. Reset
-    /// with every new heading — like the spec-state marker, a grounding
-    /// comment binds only to the heading whose block it opens.
     pending_polarity: Polarity,
-    /// Grounding-comment collection. `Some(line)` while inside an HTML
-    /// block that opened under a concept heading.
     in_html_at: Option<usize>,
     html_buf: String,
-    // Signature collection.
     rust_blocks: Vec<String>,
     in_rust_block: bool,
     block_buf: String,
-    // Bullet collection (v0.3).
     in_bullet: Option<usize>,
     bullet_buf: String,
-    // `- impl:` concept anchors collected during the walk.
-    // Held on the state (not a threaded out-param like `verb_anchors`) so
-    // `finish_bullet` / `handle_event` signatures stay unchanged; drained
-    // by `extract_from_source` after the walk.
     concept_anchors: Vec<ConceptAnchor>,
 }
 
@@ -93,13 +53,6 @@ impl<'a> SectionState<'a> {
         }
     }
 
-    /// The marker that binds to the pending concept: the file-scope value
-    /// when the file declares one, else the heading's own bullet.
-    ///
-    /// File scope wins because a per-heading bullet inside a marked file is
-    /// redundant, inert text (RFC-013 §3.1 file scope). Under one value the
-    /// two were indistinguishable and this was an `||`; under two
-    /// (RFC-015 §3.1) the precedence has to be stated.
     fn effective_marker(&self) -> Option<Marker> {
         self.file_marker.or(self.pending_marker)
     }
@@ -117,12 +70,7 @@ pub fn extract_from_source(
     verb_anchors: &mut Vec<VerbAnchor>,
     concept_anchors: &mut Vec<ConceptAnchor>,
 ) {
-    // RFC-013 §3.1 file scope. Read from the RAW source — the blanking pass
-    // below erases the front matter this consults. Draft files are no longer
-    // skipped; they are parsed, and every heading in them is marked.
     let file_marker = file_marker(source);
-    // Blank any leading front-matter so a `cohesion: behavioral` block is not
-    // mis-parsed as a setext heading (RFC-012 §3.3). Line numbers preserved.
     let cleaned = blank_front_matter(source);
     let source = cleaned.as_ref();
     let mut st = SectionState::new(source, path, file_marker);
@@ -190,9 +138,6 @@ fn handle_event(
             st.rust_blocks.push(std::mem::take(&mut st.block_buf));
             st.in_rust_block = false;
         }
-        // RFC-014 §3.2 — the grounding comment. Collected only under a
-        // concept heading; the adjacency test in `finish_html` decides
-        // whether it actually binds.
         Event::Start(Tag::HtmlBlock) if st.pending.is_some() => {
             st.in_html_at = Some(line_of_offset(&st.line_starts, range.start));
             st.html_buf.clear();
@@ -217,13 +162,6 @@ fn handle_event(
     }
 }
 
-/// Bind a collected HTML block's `polarity:` to the pending concept, if the
-/// block is where a grounding comment has to be.
-///
-/// Adjacency reuses [`is_first_content_line`] — RFC-014 §3.2 names this the
-/// same primitive RFC-013's `- status: draft` rule needs, deliberately, so
-/// the two cannot drift into subtly different "immediately below" semantics.
-/// A comment further down the section is inert.
 fn finish_html(st: &mut SectionState, line: usize) {
     let html = std::mem::take(&mut st.html_buf);
     let Some((_, heading_line)) = st.pending.as_ref() else {
@@ -255,9 +193,6 @@ fn finish_bullet(
         return;
     };
     let text = std::mem::take(&mut st.bullet_buf);
-    // RFC-013 §3.1: the spec-state marker. Checked first — it shares no
-    // prefix with any other bullet grammar, so this is ordering for
-    // legibility, not for disambiguation.
     if let Some(marker) = parse_status_marker(text.as_str()) {
         if let Some((_, heading_line)) = st.pending.as_ref() {
             if is_first_content_line(st.source, *heading_line, line) {
@@ -303,7 +238,6 @@ fn flush_pending(
     out: &mut Vec<ConceptNode>,
 ) {
     if let Some((name, line)) = pending.take() {
-        // Spec-side nodes carry no containment provenance (RFC-010 §3.3).
         let mut node = ConceptNode::new(
             name,
             Source::Spec {
@@ -318,19 +252,6 @@ fn flush_pending(
     }
 }
 
-/// Is the line at `bullet_line` the first non-blank line below the heading
-/// at `heading_line`? — the placement half of the RFC-013 §3.1 marker rule.
-///
-/// Asked of the source text rather than the event stream because "first
-/// non-blank **content line**" is a line-level fact: `pulldown-cmark` would
-/// answer "first block", which differs for a bullet nested under a
-/// paragraph or a loose list.
-///
-/// Mis-placement fails **loud, not silent**: a marker bullet that is not the
-/// first content line is inert, the heading reads unmarked, and the
-/// anti-invention check (`MissingInCode`) fires if its code is absent.
-///
-/// Both line numbers are 1-indexed, as [`line_of_offset`] produces.
 fn is_first_content_line(source: &str, heading_line: usize, bullet_line: usize) -> bool {
     if bullet_line <= heading_line {
         return false;
@@ -368,8 +289,6 @@ fn parse_single_block(raw: &str) -> SignatureState {
     }
 }
 
-/// Normalise a heading's collected text into a concept name.
-/// Strips generics (`Foo<T>` → `Foo`) and trims whitespace.
 fn normalize_heading(raw: &str) -> String {
     let trimmed = raw.trim();
     trimmed

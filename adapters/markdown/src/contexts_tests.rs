@@ -130,7 +130,6 @@ fn malformed_export_bullet_yields_parse_error() {
 #[test]
 fn malformed_import_bullet_yields_parse_error() {
     let src = "# foo\n\n## Imports\n\n- Graph (PublishedLanguage)\n";
-    // Missing "from <Context>"
     let err = parse(src).expect_err("should fail");
     assert!(matches!(err, ReaderError::ParseFailed { .. }));
 }
@@ -182,7 +181,6 @@ fn source_line_points_at_h1() {
 
 #[test]
 fn heading_annotations_do_not_affect_section_dispatch() {
-    // Annotations on section headings are allowed.
     let src = "\
 # foo
 
@@ -210,9 +208,6 @@ mod walker {
 
     #[test]
     fn v04_scope_descends_only_into_contexts_subdir() {
-        // When pointed at a v0.4 spec root containing both `concepts/`
-        // and `contexts/`, the walker parses ONLY the context files —
-        // it must not trip on concept files that lack an H1 heading.
         let d = TempDir::new().expect("test");
         write(d.path(), "concepts/core.md", "## Foo\n## Bar\n");
         write(
@@ -227,9 +222,6 @@ mod walker {
 
     #[test]
     fn v03_spec_tree_without_contexts_subdir_yields_empty() {
-        // Back-compat: a v0.3 tree (no `contexts/` subdir) pointed at
-        // `specs/concepts/` directly must yield an empty contexts list,
-        // not error on missing-H1 concept files.
         let d = TempDir::new().expect("test");
         write(d.path(), "core.md", "## Foo\n## Bar\n");
         let out = walk_contexts(d.path()).expect("walk");
@@ -238,8 +230,6 @@ mod walker {
 
     #[test]
     fn direct_contexts_dir_still_works() {
-        // Unit tests + callers pointing at `specs/contexts/` directly
-        // must continue to parse every `.md` file they find.
         let d = TempDir::new().expect("test");
         let ctx_dir = d.path().join("contexts");
         std::fs::create_dir_all(&ctx_dir).expect("test");

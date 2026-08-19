@@ -1,5 +1,3 @@
-//! [`ContextViolation`] → NDJSON record conversion.
-
 use super::source::{code_source_to_json, source_to_json};
 use super::ProvenanceIndex;
 use domain::{ContextViolation, SchemaVersion};
@@ -70,9 +68,6 @@ pub(super) fn context_violation_to_record(
             "target_context": target_context,
             "spec_source": source_to_json(spec_source),
         }),
-        // Forward-compat: a v0.5 variant added upstream emits a generic
-        // record rather than panicking. `#[non_exhaustive]` on
-        // `ContextViolation` mandates this arm.
         _ => json!({
             "schema_version": SchemaVersion::CURRENT.as_str(),
             "violation": "unknown_context_violation",

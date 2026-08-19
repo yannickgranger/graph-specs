@@ -1,9 +1,3 @@
-//! `#[cfg(test)]` / test-feature gating.
-//!
-//! Shared by the concept walk, the pub-fn walk, and the any-visibility
-//! anchor index: an item gated behind `#[cfg(test)]` or a `feature = "..."`
-//! whose name contains `test` is test-only and must not be extracted.
-
 use syn::Attribute;
 
 pub fn is_test_gated(attrs: &[Attribute]) -> bool {

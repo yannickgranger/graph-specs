@@ -1,5 +1,3 @@
-//! Tier-histogram pass: annotation count per enforcement tier.
-
 use super::types::{InvariantAnnotation, TierHistogramRecord, TierKind};
 use std::collections::HashMap;
 

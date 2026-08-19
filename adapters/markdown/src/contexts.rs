@@ -1,11 +1,3 @@
-//! Parser for `specs/contexts/<name>.md` files — v0.4 bounded-context
-//! declarations.
-//!
-//! Deliberately NOT sharing `SectionState` with the concept parser — the
-//! two formats don't overlap structurally (H1 name + four H2 sections
-//! with flat list syntax vs H2/H3 + fenced rust + bullet-edge syntax).
-//! Only the line-offset helpers are shared via [`crate::markdown_utils`].
-
 use crate::markdown_utils::{
     compute_line_starts, line_of_offset, normalize_context_id, path_under_dir,
 };
@@ -17,9 +9,6 @@ use ports::ReaderError;
 use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
 use std::path::Path;
 
-/// Four top-level sections we recognise in a context file. Any other
-/// `## Heading` is treated as prose and ignored (e.g. the `Concepts`
-/// section — it exists for the human reader, not the parser).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Section {
     None,
@@ -65,14 +54,6 @@ impl<'a> State<'a> {
     }
 }
 
-/// Parse a single context-declaration markdown file.
-///
-/// # Errors
-///
-/// Returns [`ReaderError::ParseFailed`] if the file is missing an H1
-/// name, contains multiple H1 headings, uses an unknown
-/// [`ContextPattern`] token, or a bullet in a recognised section does
-/// not match the expected shape (see module-level docs for the shapes).
 pub fn parse_context_file(path: &Path, source: &str) -> Result<ContextDecl, ReaderError> {
     let mut st = State::new(path, source);
     let parser = Parser::new(source).into_offset_iter();
@@ -122,9 +103,6 @@ fn handle_event(st: &mut State, event: Event, range: std::ops::Range<usize>) {
             st.heading_buf.clear();
         }
         Event::End(TagEnd::Heading(HeadingLevel::H1)) => {
-            // The context identifier is the normalised H1,
-            // the same rule the concepts-side tree assembler applies, so
-            // `# AC verifier` resolves to `ac-verifier` on both sides.
             let name = normalize_context_id(&st.heading_buf);
             let line = line_of_offset(&st.line_starts, range.start);
             st.heading = None;
@@ -192,8 +170,6 @@ fn finish_item(st: &mut State, line: usize) {
 }
 
 fn classify_section(heading: &str) -> Section {
-    // Headings may have annotation like "Exports (Published Language — …)".
-    // Match on the first word, case-sensitive.
     let first = heading.split_whitespace().next().unwrap_or("");
     match first {
         "Owns" => Section::Owns,
@@ -203,7 +179,6 @@ fn classify_section(heading: &str) -> Section {
     }
 }
 
-/// Export bullet: `<Concept> (<Pattern>)` — e.g. `Graph (PublishedLanguage)`.
 fn parse_export(text: &str, path: &Path, line: usize) -> Result<ContextExport, ReaderError> {
     let (concept, pattern_raw) = split_paren(text)
         .ok_or_else(|| parse_err(path, line, "Exports bullet must be `<Concept> (<Pattern>)`"))?;
@@ -214,7 +189,6 @@ fn parse_export(text: &str, path: &Path, line: usize) -> Result<ContextExport, R
     })
 }
 
-/// Import bullet: `<Concept> from <Context> (<Pattern>)`.
 fn parse_import(text: &str, path: &Path, line: usize) -> Result<ContextImport, ReaderError> {
     let (prefix, pattern_raw) = split_paren(text).ok_or_else(|| {
         parse_err(
@@ -263,7 +237,6 @@ fn parse_pattern(raw: &str, path: &Path, line: usize) -> Result<ContextPattern, 
     ))
 }
 
-/// Split `"Foo (Bar)"` into `("Foo", "Bar")`.
 fn split_paren(text: &str) -> Option<(&str, &str)> {
     let open = text.rfind('(')?;
     let close = text.rfind(')')?;
@@ -286,9 +259,6 @@ fn parse_err(path: &Path, line: usize, message: &str) -> ReaderError {
     }
 }
 
-/// Walk `root` for `*.md` files and parse each as a context declaration.
-/// Output is sorted by path for deterministic downstream ordering. Missing
-/// root yields `Ok(Vec::new())` — v0.3 spec trees have no `specs/contexts/`.
 pub fn walk_contexts(root: &Path) -> Result<Vec<ContextDecl>, ReaderError> {
     let mut out = Vec::new();
     let walker = walkdir::WalkDir::new(root).sort_by_file_name();
@@ -315,10 +285,6 @@ pub fn walk_contexts(root: &Path) -> Result<Vec<ContextDecl>, ReaderError> {
         if p.extension().is_none_or(|ext| ext != "md") {
             continue;
         }
-        // Context files live under `contexts/`. This reader is scoped
-        // so that `--specs specs/` (v0.4) and `--specs specs/concepts/`
-        // (v0.3 legacy) both Do The Right Thing: only files under a
-        // `contexts/` ancestor are parsed as context declarations.
         if !path_under_dir(p, "contexts") {
             continue;
         }
@@ -328,8 +294,6 @@ pub fn walk_contexts(root: &Path) -> Result<Vec<ContextDecl>, ReaderError> {
         })?;
         out.push(parse_context_file(p, &source)?);
     }
-    // Cyclic import declarations are a reader error
-    // (SharedKernel is the one legal form of mutual reference).
     if let Some(cycle) = detect_import_cycle(&out) {
         return Err(ReaderError::ParseFailed {
             path: root.to_path_buf(),

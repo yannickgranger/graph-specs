@@ -1,25 +1,3 @@
-//! Rust-side edge extraction (v0.3).
-//!
-//! Walks a parsed [`syn::File`] alongside the concept-level walk and emits
-//! [`Edge`] values for the three v0.3 relationship kinds:
-//!
-//! - [`EdgeKind::Implements`] — from `impl Trait for Type`.
-//! - [`EdgeKind::DependsOn`] — from struct/enum field types and `pub fn`
-//!   parameter types inside inherent impls and trait definitions.
-//! - [`EdgeKind::Returns`] — from the primary head of `pub fn` return
-//!   types inside inherent impls and trait definitions.
-//!
-//! Trait impls (`impl Trait for Type`) emit [`EdgeKind::Implements`] and
-//! the `DEPENDS_ON` / RETURNS edges derived from their method signatures.
-//! This lets downstream consumers reason about a concrete type's actual
-//! declared surface without having to chase back through the trait.
-//!
-//! All emitted edges are filtered by [`filter_by_known_concepts`] against
-//! the concept names discovered on the code side — only edges whose
-//! `target` matches a discovered concept are kept. This removes
-//! dependencies on primitives (`u32`, `String`) and external types (`Vec`,
-//! `HashMap`, `Path`).
-
 use domain::{tokenise_target, ConceptNode, Edge, EdgeKind, Source};
 use proc_macro2::Span;
 use std::collections::HashSet;
@@ -32,7 +10,6 @@ use syn::{
     PathArguments, ReturnType, Signature, TraitItem, Type, Visibility,
 };
 
-/// Retain only edges whose `target` appears as a concept in `nodes`.
 #[must_use]
 pub fn filter_by_known_concepts(edges: Vec<Edge>, nodes: &[ConceptNode]) -> Vec<Edge> {
     let known: HashSet<&str> = nodes.iter().map(|n| n.name.as_str()).collect();
@@ -42,7 +19,6 @@ pub fn filter_by_known_concepts(edges: Vec<Edge>, nodes: &[ConceptNode]) -> Vec<
         .collect()
 }
 
-/// Top-level dispatch: emit edges for a single parsed item.
 pub fn emit_for_item(item: &Item, path: &Path, out: &mut Vec<Edge>) {
     match item {
         Item::Struct(s) => emit_struct_depends_on(s, path, out),
@@ -109,10 +85,6 @@ fn emit_impl_edges(i: &ItemImpl, path: &Path, out: &mut Vec<Edge>) {
         }
     }
 
-    // Walk methods for `DEPENDS_ON` + RETURNS. Applies to both inherent
-    // impls (no trait_) and trait impls — the AC treats "function
-    // parameter types" uniformly and makes no inherent-vs-trait-impl
-    // distinction for `DEPENDS_ON` / RETURNS emission.
     for item in &i.items {
         if let ImplItem::Fn(f) = item {
             if matches!(f.vis, Visibility::Public(_)) || i.trait_.is_some() {
@@ -134,10 +106,6 @@ fn emit_fn_edges(sig: &Signature, owner: &str, path: &Path, out: &mut Vec<Edge>)
     }
 }
 
-/// Resolve `Self` against the enclosing impl/trait owner. All other tokens
-/// pass through untouched. Used by every edge emitter so `impl Graph { fn
-/// empty() -> Self }` produces an edge to `Graph`, not to the unresolved
-/// literal `Self`.
 fn resolve_self<'a>(head: &'a str, owner: &'a str) -> &'a str {
     if head == "Self" {
         owner
@@ -146,18 +114,12 @@ fn resolve_self<'a>(head: &'a str, owner: &'a str) -> &'a str {
     }
 }
 
-/// A `pub fn` returning `Result<Graph, E>` declares a RETURNS edge on the
-/// outer head (`Result`) and `DEPENDS_ON` edges on every inner generic
-/// argument (`Graph`, `E`). Without the inner pass, the concept graph
-/// would lose the fact that the function's result is shaped around those
-/// inner types — which is usually the information worth locking down.
 fn push_return_inner_as_depends_on(ty: &Type, owner: &str, path: &Path, out: &mut Vec<Edge>) {
     let mut heads: Vec<(String, String)> = Vec::new();
     collect_type_path_heads(ty, &mut heads);
     if heads.is_empty() {
         return;
     }
-    // Drop the outermost head — that one is already RETURNS.
     let inner = heads.into_iter().skip(1);
     let line_source = code_source(path, ty.span());
     for (head, raw) in inner {
@@ -174,9 +136,6 @@ fn push_return_inner_as_depends_on(ty: &Type, owner: &str, path: &Path, out: &mu
     }
 }
 
-/// `DEPENDS_ON` emits one edge per type-path head discovered recursively
-/// inside the type (outermost + all generic inner types). Each head is
-/// filtered later by [`filter_by_known_concepts`].
 fn push_depends_on_from_type(ty: &Type, owner: &str, path: &Path, out: &mut Vec<Edge>) {
     let mut heads: Vec<(String, String)> = Vec::new();
     collect_type_path_heads(ty, &mut heads);
@@ -195,9 +154,6 @@ fn push_depends_on_from_type(ty: &Type, owner: &str, path: &Path, out: &mut Vec<
     }
 }
 
-/// RETURNS emits exactly one edge per `pub fn`: the outermost type head,
-/// normalised via [`tokenise_target`]. The raw form preserves the full
-/// token stream for display in drift messages.
 fn push_returns_from_type(ty: &Type, owner: &str, path: &Path, out: &mut Vec<Edge>) {
     let raw = quote::quote!(#ty).to_string();
     let head = tokenise_target(&raw);
@@ -221,10 +177,6 @@ fn impl_target_name(ty: &Type) -> Option<String> {
     }
 }
 
-/// Walk a type expression and push every type-path head encountered.
-/// `Result<Graph, E>` → pushes `Result`, `Graph`, `E`. Non-path types
-/// (tuples, arrays, references, etc.) are recursed into but do not
-/// themselves emit a head.
 fn collect_type_path_heads(ty: &Type, out: &mut Vec<(String, String)>) {
     match ty {
         Type::Path(tp) => {
@@ -388,10 +340,6 @@ mod tests {
 
     #[test]
     fn trait_impl_method_bodies_emit_edges_like_inherent_impls() {
-        // `impl Reader for Foo { fn extract(&self) -> Graph { Graph } }`
-        // emits IMPLEMENTS(Foo, Reader) and RETURNS(Foo, Graph). Spec
-        // authors can pin the concrete type's surface independently of
-        // the trait's contract.
         let edges = edges_of(
             "pub struct Graph; pub struct Foo; pub trait Reader { fn extract(&self) -> Graph; } impl Reader for Foo { fn extract(&self) -> Graph { Graph } }",
         );
@@ -408,9 +356,6 @@ mod tests {
 
     #[test]
     fn return_type_inner_generics_emit_depends_on() {
-        // `fn extract() -> Result<Graph, ReaderError>` emits
-        // RETURNS(owner, Result) (filtered out — Result not a concept)
-        // and `DEPENDS_ON`(owner, Graph), `DEPENDS_ON`(owner, ReaderError).
         let edges = edges_of(
             "pub struct Graph; pub struct ReaderError; pub trait Reader { fn extract(&self) -> Result<Graph, ReaderError>; }",
         );
@@ -438,7 +383,6 @@ mod tests {
     fn unknown_targets_are_filtered_out() {
         let edges = edges_of("pub struct Foo { pub x: std::collections::HashMap<String, u32> }");
         let filtered = filter_by_known_concepts(edges, &nodes(&["Foo"]));
-        // HashMap, String, u32 are not concepts → all filtered out.
         assert!(
             filtered.is_empty()
                 || filtered
@@ -456,10 +400,6 @@ mod tests {
 
     #[test]
     fn self_return_resolves_to_enclosing_impl_owner() {
-        // `impl Graph { pub fn empty() -> Self }` must emit
-        // RETURNS(Graph, Graph), not RETURNS(Graph, Self). Clippy's
-        // `use_self` lint pushes authors toward `Self`; the extractor
-        // must resolve it to keep the dogfood honest.
         let edges = edges_of("pub struct Graph; impl Graph { pub fn empty() -> Self { Graph } }");
         let filtered = filter_by_known_concepts(edges, &nodes(&["Graph"]));
         assert!(filtered.iter().any(|e| e.source_concept == "Graph"

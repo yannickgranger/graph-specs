@@ -59,7 +59,6 @@ fn ignores_items_inside_inline_mod() {
         "src/lib.rs",
         "pub struct Top; pub mod inner { pub struct Inner; }",
     );
-    // Inner is not top-level, so not extracted.
     assert_eq!(extract(d.path()), vec!["Top"]);
 }
 
@@ -82,8 +81,6 @@ fn ignores_target_and_claude_dirs() {
     assert_eq!(extract(d.path()), vec!["Real"]);
 }
 
-/// Cargo writes this header into every build directory it creates,
-/// whatever `--target-dir` names it.
 const CACHEDIR_TAG: &str = "Signature: 8a477f597d28d172789f06886806bc55\n\
                             # This file is a cache directory tag.\n";
 
@@ -91,8 +88,6 @@ const CACHEDIR_TAG: &str = "Signature: 8a477f597d28d172789f06886806bc55\n\
 fn cache_tagged_build_dir_is_excluded_whatever_its_name() {
     let d = TempDir::new().expect("create temp dir");
     write(d.path(), "src/lib.rs", "pub struct Real;");
-    // `cargo build --target-dir target-musl` — the name list cannot see
-    // this, but the tag Cargo leaves behind can.
     write(d.path(), "target-musl/CACHEDIR.TAG", CACHEDIR_TAG);
     write(
         d.path(),
@@ -106,9 +101,6 @@ fn cache_tagged_build_dir_is_excluded_whatever_its_name() {
 fn untagged_dir_sharing_an_excluded_prefix_is_still_walked() {
     let d = TempDir::new().expect("create temp dir");
     write(d.path(), "src/lib.rs", "pub struct Real;");
-    // Named like a build dir but carrying no tag: it is ordinary source and
-    // must stay on the surface. This is what makes the rule a test of the
-    // property rather than of the spelling.
     write(d.path(), "targets/registry.rs", "pub struct Registry;");
     assert_eq!(extract(d.path()), vec!["Real", "Registry"]);
 }
@@ -129,9 +121,6 @@ fn foreign_cachedir_signature_does_not_exclude() {
 #[test]
 fn source_file_named_like_an_excluded_dir_is_still_read() {
     let d = TempDir::new().expect("create temp dir");
-    // The name list is matched against directories only. A source file
-    // whose stem collides with an entry on that list — or with any prefix
-    // of one — carries real concepts and must be parsed.
     write(d.path(), "src/target.rs", "pub struct TargetRepo;");
     write(d.path(), "src/tests.rs", "pub struct TestHarness;");
     assert_eq!(extract(d.path()), vec!["TargetRepo", "TestHarness"]);
@@ -156,8 +145,6 @@ fn rust_backend_detects_cargo_toml() {
     assert!(RustBackend.detect(d.path()), "Cargo.toml present → true");
 }
 
-// --- source-walk provenance ---
-
 fn node_named<'a>(g: &'a Graph, name: &str) -> &'a ConceptNode {
     g.nodes
         .iter()
@@ -167,8 +154,6 @@ fn node_named<'a>(g: &'a Graph, name: &str) -> &'a ConceptNode {
 
 #[test]
 fn provenance_lib_rs_collapses_to_crate_root() {
-    // A top-level type in `<crate>/src/lib.rs`: module_path == unit ==
-    // the crate path relative to the code root.
     let d = TempDir::new().expect("create temp dir");
     write(
         d.path(),
@@ -199,7 +184,6 @@ fn provenance_submodule_file_and_mod_rs() {
     write(d.path(), "c/src/diff.rs", "pub struct A;");
     write(d.path(), "c/src/edge/mod.rs", "pub struct B;");
     let g = RustReader.extract(d.path()).expect("extract must succeed");
-    // `diff.rs` → module segment; `edge/mod.rs` collapses the `mod`.
     assert_eq!(node_named(&g, "A").module_path.as_deref(), Some("c::diff"));
     assert_eq!(node_named(&g, "B").module_path.as_deref(), Some("c::edge"));
     assert_eq!(node_named(&g, "B").unit.as_deref(), Some("c"));
@@ -207,8 +191,6 @@ fn provenance_submodule_file_and_mod_rs() {
 
 #[test]
 fn provenance_unit_is_relative_to_code_root_not_walked_path() {
-    // A nested crate's `unit` is the crate path relative to the code root,
-    // never the absolute walked path.
     let d = TempDir::new().expect("create temp dir");
     write(
         d.path(),
@@ -223,19 +205,15 @@ fn provenance_unit_is_relative_to_code_root_not_walked_path() {
     );
 }
 
-/// Self-dogfood: `extract_pub_fns` on this repo's `application/` crate
-/// yields a non-zero list that includes `run_check`.
 #[test]
 fn extract_pub_fns_self_dogfood_application_includes_run_check() {
     let manifest = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    // adapters/rust → workspace root is two levels up
     let workspace = manifest
         .parent()
         .and_then(|p| p.parent())
         .expect("workspace root");
     let app_dir = workspace.join("application");
     if !app_dir.exists() {
-        // Tolerate running outside the real workspace (e.g. isolated tmpfs)
         return;
     }
     let fns = RustReader.extract_pub_fns(&app_dir).expect("dogfood");
@@ -250,7 +228,6 @@ fn extract_pub_fns_self_dogfood_application_includes_run_check() {
     );
 }
 
-// Self-dogfood: extract_pub_fns on the application crate yields run_check.
 #[test]
 fn extract_pub_fns_finds_pub_fns() {
     let d = TempDir::new().expect("create temp dir");
@@ -307,7 +284,6 @@ fn rust_backend_extract_returns_concepts_and_edges() {
     let mut names: Vec<String> = extraction.concepts.iter().map(|n| n.name.clone()).collect();
     names.sort();
     assert_eq!(names, vec!["Bar", "Foo"]);
-    // Raw edges include the Foo→Bar field dependency, unfiltered.
     assert!(
         extraction
             .raw_edges
@@ -317,8 +293,6 @@ fn rust_backend_extract_returns_concepts_and_edges() {
         extraction.raw_edges
     );
 }
-
-// --- v0.6 impl-method anchoring tests ---
 
 #[test]
 fn impl_inherent_pub_method_extracted_as_type_method_qname() {
@@ -403,7 +377,6 @@ fn impl_cfg_test_gated_skipped() {
 #[test]
 fn impl_qualified_self_skipped() {
     let d = TempDir::new().expect("create temp dir");
-    // <Foo as Other>::Item as self type — qself guard must fire, no decl.
     write(
         d.path(),
         "src/lib.rs",
@@ -423,7 +396,6 @@ fn impl_qualified_self_skipped() {
 #[test]
 fn impl_non_path_self_skipped() {
     let d = TempDir::new().expect("create temp dir");
-    // [T] as self type — non-Path type guard must fire.
     write(
         d.path(),
         "src/lib.rs",

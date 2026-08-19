@@ -1,6 +1,3 @@
-//! Owned-unit → bounded-context name lookup, shared by the coverage and
-//! homonym passes.
-
 use crate::ContextDecl;
 use std::collections::HashMap;
 

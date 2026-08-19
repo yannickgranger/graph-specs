@@ -1,27 +1,3 @@
-//! Heading-tree assembler.
-//!
-//! A **separate pass** from the concept reader's `handle_event` /
-//! `SectionState` (which is at the cognitive-complexity ceiling): this
-//! module runs its own fresh `pulldown-cmark` parser over a spec file and
-//! assembles the *abstraction ladder* as a parent-linked tree —
-//! `H1 → Context`, `H2 → Concept`, `H3 → SubConcept`, `H4+ → Member`
-//! ([`domain::AbstractionLevel`]).
-//!
-//! The tree makes heading **depth** load-bearing. Two structural cohesion
-//! defects fall straight out of it, both spec-side (zero code facts):
-//!
-//! - an H1 context with no H2/H3 concept under it
-//!   → [`CohesionViolation::ContextWithoutCohesionUnit`] — including in
-//!   `status: draft` files;
-//! - an H3 sub-concept with no enclosing H2
-//!   → [`CohesionViolation::SubConceptOrphan`].
-//!
-//! A descriptive H1 that does not normalise to a context identifier
-//! is rejected as a [`ReaderError::ParseFailed`].
-//!
-//! This module owns the assembler, the normalisation rule (shared with
-//! [`crate::contexts`] via [`normalize_context_id`]), and orphan detection.
-
 use crate::markdown_utils::{
     compute_line_starts, is_context_identifier, line_of_offset, normalize_context_id,
     path_under_dir,
@@ -31,49 +7,24 @@ use ports::ReaderError;
 use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
 use std::path::{Path, PathBuf};
 
-/// One node of the assembled abstraction ladder — a single heading.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HeadingNode {
-    /// The rung this heading sits on, derived from its depth.
     pub level: AbstractionLevel,
-    /// The heading text, trimmed (generics are **not** stripped here —
-    /// that is the concept reader's `normalize_heading` concern).
     pub text: String,
-    /// For a `Context` (H1) node, the normalised context identifier
-    /// (`# AC verifier` → `ac-verifier`); `None` for every deeper rung.
     pub id: Option<String>,
-    /// 1-based line of the heading in the source file.
     pub line: usize,
-    /// Index into [`SpecTree::nodes`] of the enclosing heading one rung up
-    /// (Concept→Context, SubConcept→Concept, Member→SubConcept), or `None`
-    /// when no such parent exists. A `SubConcept` with `parent == None` is
-    /// an orphan.
     pub parent: Option<usize>,
 }
 
-/// The assembled heading tree for a single spec file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpecTree {
-    /// The file the tree was assembled from.
     pub file: PathBuf,
-    /// Heading nodes in document order; `parent` indices refer back into
-    /// this vector.
     pub nodes: Vec<HeadingNode>,
-    /// `true` when the file's leading front-matter declares
-    /// `cohesion: behavioral`. Honoured as an exemption from
-    /// [`CohesionViolation::ContextWithoutCohesionUnit`] **only** when
-    /// [`SpecTree::has_substance`] also holds (anti-gaming).
     pub behavioral: bool,
-    /// `true` when the file carries machine-checkable behavioral substance
-    /// (≥1 `- impl:` / `- verb:` anchor or `[enforced-by:]` / `[prose-only:]`
-    /// annotation). The anti-gaming half of the behavioral
-    /// exemption: a `behavioral` file with no substance stays a violation.
     pub has_substance: bool,
 }
 
 impl SpecTree {
-    /// The file's single bounded-context identifier — the `id` of the
-    /// first `Context` (H1) node, if any.
     #[must_use]
     pub fn context_id(&self) -> Option<&str> {
         self.nodes
@@ -82,9 +33,6 @@ impl SpecTree {
             .and_then(|n| n.id.as_deref())
     }
 
-    /// Each `Concept` / `SubConcept` heading paired with this file's
-    /// context identifier — the spec-side **declared** owning context
-    /// compared against the code-resolved context. Empty when the file declares no `Context` H1.
     #[must_use]
     pub fn concept_declarations(&self) -> Vec<(&str, &str)> {
         let Some(ctx) = self.context_id() else {
@@ -102,21 +50,8 @@ impl SpecTree {
             .collect()
     }
 
-    /// The spec-side cohesion violations the tree's shape reveals:
-    /// every `Context` with no concept under it, and every
-    /// orphaned `SubConcept`. Detection only.
-    ///
-    /// Marker-blind by construction: the assembler
-    /// records heading *depth*, so a marked `## Concept` is an
-    /// `AbstractionLevel::Concept` node like any other and counts as its
-    /// context's cohesion unit. Marking never suppresses this check — the
-    /// `cohesion: behavioral` exemption is the only one, and it applies to
-    /// draft docs on exactly the same terms as any other doc.
     #[must_use]
     pub fn cohesion_violations(&self) -> Vec<CohesionViolation> {
-        // A `cohesion: behavioral` file with demonstrated
-        // behavioral substance is exempt from `ContextWithoutCohesionUnit`
-        // (but never `SubConceptOrphan` — a depth skip is always a defect).
         let context_exempt = behavioral_exemption_applies(self.behavioral, self.has_substance);
         let mut out = Vec::new();
         for (idx, node) in self.nodes.iter().enumerate() {
@@ -141,9 +76,6 @@ impl SpecTree {
         out
     }
 
-    /// Does the `Context` node at `ctx_idx` have at least one `Concept` or
-    /// `SubConcept` under it (directly, or — for an orphan — anywhere in
-    /// its span before the next `Context`)?
     fn has_cohesion_unit(&self, ctx_idx: usize) -> bool {
         self.nodes[ctx_idx + 1..]
             .iter()
@@ -157,9 +89,6 @@ impl SpecTree {
     }
 }
 
-/// Running parent pointers while assembling a single file's tree. Held in
-/// a struct so the event loop stays a flat dispatch under the
-/// cognitive-complexity ceiling.
 #[derive(Default)]
 struct Pointers {
     context: Option<usize>,
@@ -168,14 +97,6 @@ struct Pointers {
 }
 
 impl Pointers {
-    /// The parent index for a freshly-seen heading at `level`, updating the
-    /// running pointers so the next heading resolves against this one.
-    ///
-    /// Driven by `==` comparisons rather than an exhaustive `match`, so the
-    /// `#[non_exhaustive]` [`AbstractionLevel`] never forces a dead wildcard
-    /// arm in this adapter. The trailing
-    /// branch is the `Member` (H4+) rung: it parents onto the nearest
-    /// sub-concept, falling back to the concept.
     fn link(&mut self, level: AbstractionLevel, idx: usize) -> Option<usize> {
         if level == AbstractionLevel::Context {
             self.context = Some(idx);
@@ -195,7 +116,6 @@ impl Pointers {
     }
 }
 
-/// Map a `pulldown-cmark` heading level to its 1-based markdown depth.
 const fn heading_depth(level: HeadingLevel) -> u8 {
     match level {
         HeadingLevel::H1 => 1,
@@ -207,7 +127,6 @@ const fn heading_depth(level: HeadingLevel) -> u8 {
     }
 }
 
-/// Per-file assembly state.
 struct AssemblerState<'a> {
     file: &'a Path,
     line_starts: Vec<usize>,
@@ -231,8 +150,6 @@ impl<'a> AssemblerState<'a> {
         }
     }
 
-    /// Finalise a heading whose text has been collected: validate an H1's
-    /// identifier shape, compute its parent link, and push the node.
     fn push_heading(&mut self, depth: u8, line: usize) {
         let level = AbstractionLevel::from_heading_depth(depth);
         let text = self.heading_buf.trim().to_owned();
@@ -268,20 +185,9 @@ impl<'a> AssemblerState<'a> {
     }
 }
 
-/// Assemble the abstraction-ladder tree for a single markdown spec source.
-///
-/// # Errors
-///
-/// Returns [`ReaderError::ParseFailed`] when an H1 heading does not
-/// normalise to a context identifier (RFC-010 §3.2 descriptive-title
-/// rejection).
 pub fn assemble_tree(source: &str, file: &Path) -> Result<SpecTree, ReaderError> {
-    // Detect the behavioral marker + substance on the RAW source (front-matter
-    // intact; bullets/annotations live in the body, unaffected by blanking)…
     let behavioral = crate::is_behavioral_context(source);
     let has_substance = crate::has_behavioral_substance(source);
-    // …then blank the front-matter so a `cohesion: behavioral` block is not
-    // mis-parsed as a setext heading (RFC-012 §3.3). Line numbers preserved.
     let cleaned = crate::blank_front_matter(source);
     let source = cleaned.as_ref();
     let mut st = AssemblerState::new(source, file);
@@ -323,25 +229,6 @@ fn handle_event(st: &mut AssemblerState, event: &Event, range: std::ops::Range<u
     }
 }
 
-/// Walk `root` and assemble a [`SpecTree`] for every non-draft concept
-/// spec file.
-///
-/// Selects the `concepts/` subdir when present, else `root`, mirroring the
-/// file-selection rules of [`crate::MarkdownReader::extract`]: `*.md` only,
-/// `contexts/` excluded (different dialect), drafts skipped.
-///
-/// A file whose H1 does not normalise to a context identifier declares no
-/// bounded context — it is **skipped with a warning**, not fatal. This keeps
-/// the `check` pipeline robust against a companion's spec dialect (e.g.
-/// cfdb's `# Spec: <name>` convention pending RFC-010 §11.2 CF-2): graph-specs
-/// must not abort the whole run because one file uses a title-style H1. The
-/// strict per-file [`assemble_tree`] error is preserved for direct callers.
-///
-/// # Errors
-///
-/// Returns [`ReaderError::WalkFailed`] / [`ReaderError::IoFailed`] on I/O
-/// failures. A non-context H1 ([`ReaderError::ParseFailed`] from
-/// [`assemble_tree`]) is tolerated, not propagated.
 pub fn assemble_spec_trees(root: &Path) -> Result<Vec<SpecTree>, ReaderError> {
     let concepts_subdir = root.join("concepts");
     let walk_root: &Path = if concepts_subdir.is_dir() {
@@ -367,15 +254,8 @@ pub fn assemble_spec_trees(root: &Path) -> Result<Vec<SpecTree>, ReaderError> {
             path: path.to_path_buf(),
             cause: e.to_string(),
         })?;
-        // RFC-013 §3.2 row 6 — draft files enter the walk. The exemption they
-        // used to enjoy was an H1-only-prose evasion channel: a doc could join
-        // the enforced surface carrying no cohesion unit at all by declaring
-        // itself draft. Marking relaxes a *concept*'s code-existence
-        // obligation; it never relaxes the doc-level structural check.
         match assemble_tree(&source, path) {
             Ok(tree) => trees.push(tree),
-            // A non-context H1 declares no bounded context — skip the file
-            // rather than aborting the run (companion-dialect robustness).
             Err(ReaderError::ParseFailed { .. }) => {
                 tracing::warn!("skipping spec file with non-context H1: {}", path.display());
             }
@@ -407,7 +287,6 @@ mod tests {
                 AbstractionLevel::Member,
             ]
         );
-        // Context → no parent; each deeper rung points one rung up.
         assert_eq!(t.nodes[0].parent, None);
         assert_eq!(t.nodes[1].parent, Some(0));
         assert_eq!(t.nodes[2].parent, Some(1));
@@ -430,7 +309,6 @@ mod tests {
 
     #[test]
     fn h1_to_h3_depth_skip_is_a_subconcept_orphan() {
-        // H3 with no enclosing H2 under its context.
         let t = tree("# equivalence\n\n### Orphaned\n");
         let v = t.cohesion_violations();
         assert!(
@@ -440,7 +318,6 @@ mod tests {
             }),
             "expected SubConceptOrphan, got {v:?}"
         );
-        // The H3 is its context's cohesion unit, so no ContextWithoutCohesionUnit.
         assert!(!v
             .iter()
             .any(|x| matches!(x, CohesionViolation::ContextWithoutCohesionUnit { .. })));
@@ -469,10 +346,8 @@ mod tests {
 
     #[test]
     fn normalization_matches_on_both_sides() {
-        // The one rule (RFC-010 §3.2) applied to the concepts-side H1 …
         let concepts = tree("# AC verifier\n\n## Foo\n");
         assert_eq!(concepts.context_id(), Some("ac-verifier"));
-        // … and to the contexts-side H1 yields the same identifier.
         let decl = parse_context_file(
             Path::new("specs/contexts/ac-verifier.md"),
             "# AC verifier\n\n## Owns\n\n- foo\n",
@@ -484,7 +359,6 @@ mod tests {
 
     #[test]
     fn member_falls_back_to_concept_when_no_subconcept() {
-        // H4 directly under H2 (no H3) parents onto the concept.
         let t = tree("# equivalence\n\n## Graph\n\n#### member\n");
         assert_eq!(t.nodes[2].level, AbstractionLevel::Member);
         assert_eq!(t.nodes[2].parent, Some(1));
@@ -493,9 +367,6 @@ mod tests {
     #[test]
     fn assemble_spec_trees_skips_non_context_h1_files() {
         use std::io::Write;
-        // A companion-dialect file (`# Spec: cfdb-cli` → `spec:-cfdb-cli`,
-        // not an identifier) must be skipped, not abort the walk — the
-        // valid file still yields a tree (cross-dogfood robustness).
         let dir = tempfile::TempDir::new().expect("tempdir");
         let write = |rel: &str, body: &str| {
             let p = dir.path().join(rel);
@@ -517,13 +388,8 @@ mod tests {
         );
     }
 
-    // --- RFC-013 §3.2 row 6 — draft files enter the cohesion walk ---
-
     #[test]
     fn draft_doc_with_only_an_h1_declares_no_cohesion_unit() {
-        // The evasion channel this slice closes: before RFC-013 a doc could
-        // join the enforced surface carrying no cohesion unit at all simply
-        // by declaring itself draft.
         let t = tree("---\nstatus: draft\n---\n\n# equivalence\n\nJust prose.\n");
         assert_eq!(
             t.cohesion_violations(),
@@ -536,8 +402,6 @@ mod tests {
 
     #[test]
     fn a_marked_heading_counts_as_a_cohesion_unit() {
-        // Marker-blind by construction: the assembler records heading depth,
-        // so a marked `## Concept` is a Concept node like any other.
         let t = tree("---\nstatus: draft\n---\n\n# equivalence\n\n## Graph\n");
         assert!(
             t.cohesion_violations().is_empty(),
@@ -545,15 +409,12 @@ mod tests {
             t.cohesion_violations()
         );
 
-        // Same, via the per-heading bullet rather than the file front-matter.
         let t = tree("# equivalence\n\n## Graph\n\n- status: draft\n");
         assert!(t.cohesion_violations().is_empty());
     }
 
     #[test]
     fn the_behavioral_exemption_applies_to_draft_docs_on_the_same_terms() {
-        // RFC-013 §3.2 row 6 tightens the check; it does not narrow the one
-        // exemption that exists. Substance is still required (RFC-012 §3.3.1).
         let exempt = tree(
             "---\nstatus: draft\ncohesion: behavioral\n---\n\n# secrets\n\n- impl: rotate_key\n",
         );
@@ -609,8 +470,6 @@ mod tests {
 
     #[test]
     fn self_dogfood_concept_specs_have_one_context_and_no_cohesion_violations() {
-        // Real-infra dogfood: assemble this repo's own `specs/concepts/`
-        // and assert the post-R10-1 split is ladder-clean.
         let manifest = env!("CARGO_MANIFEST_DIR");
         let specs = Path::new(manifest)
             .join("../../specs/concepts")
@@ -639,20 +498,16 @@ mod tests {
         }
     }
 
-    // --- RFC-012 §3.3 / R12-2 — behavioral marker + front-matter blanking ---
-
     #[test]
     fn assemble_tree_sets_behavioral_and_blanks_front_matter() {
         let t =
             tree("---\ncohesion: behavioral\n---\n\n# secrets\n\n#### Operational invariants\n");
         assert!(t.behavioral, "cohesion: behavioral must set the flag");
-        // No phantom setext H2 manufactured from the `key: value` line.
         assert!(
             t.nodes.iter().all(|n| n.text != "cohesion: behavioral"),
             "front-matter must not become a heading: {:?}",
             t.nodes
         );
-        // The H1 context keeps its true line number (5) after blanking.
         let ctx = t
             .nodes
             .iter()
@@ -668,12 +523,8 @@ mod tests {
         assert!(!t.behavioral);
     }
 
-    // --- RFC-012 §3.3.1 / R12-4 — behavioral cohesion exemption (anti-gaming) ---
-
     #[test]
     fn behavioral_doctrine_context_with_prose_only_annotation_is_exempt() {
-        // The secrets.md shape: no `## H2`, realized as a `[prose-only:]`
-        // invariant annotation. Behavioral + substance → no violation.
         let t = tree(
             "---\ncohesion: behavioral\n---\n\n# secrets\n\n#### Operational invariants\n\n- INV-x: no type until a future RFC [prose-only: doctrine]\n",
         );
@@ -701,7 +552,6 @@ mod tests {
 
     #[test]
     fn behavioral_without_substance_still_fires() {
-        // Anti-gaming: the marker over an empty file is NOT a free pass.
         let t =
             tree("---\ncohesion: behavioral\n---\n\n# empty-doctrine\n\nJust prose, no anchors.\n");
         assert!(t.behavioral && !t.has_substance);
@@ -715,8 +565,6 @@ mod tests {
 
     #[test]
     fn non_behavioral_type_free_context_still_fires() {
-        // Regression (§4 I5 default-deny): without the marker, a type-free
-        // context is still ContextWithoutCohesionUnit — even with substance.
         let t = tree("# lonely\n\n- impl: something\n");
         assert!(!t.behavioral);
         assert!(t

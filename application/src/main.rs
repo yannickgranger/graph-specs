@@ -1,38 +1,21 @@
-//! graph-specs CLI entry point.
-//!
-//! Thin shell over [`application::run_check`]. Parses flags, delegates,
-//! prints violations one per line, emits a terse summary and exit code.
-//!
-//! The summary carries the `pending` and `realized` marker-record counts,
-//! and each record is enumerated one per line. The exit code is a function
-//! of **violations alone** — a tree whose only findings are marker records
-//! exits 0.
-//!
-//! Exit codes:
-//! - `0` — zero violations (specs and code agree)
-//! - `1` — one or more violations found (drift, missing-in-code, missing-in-specs)
-//! - `2` — reader error OR any spec-side `SignatureUnparseable`. Both
-//!   mean "input can't be parsed" — the author must fix the input before
-//!   any equivalence check is meaningful.
-
 use application::report::ReportFormat;
 use clap::{Parser, Subcommand, ValueEnum};
 use domain::{CheckOutcome, Violation};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-/// Graph-based equivalence checker between markdown specifications
-/// and source code.
 #[derive(Debug, Parser)]
-#[command(name = "graph-specs", version, about, long_about = None)]
+#[command(
+    name = "graph-specs",
+    version,
+    about = "Graph-based equivalence checker between markdown specifications and source code",
+    long_about = None
+)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
 }
 
-/// Output format for `check`. `text` is the human-readable default; `ndjson`
-/// emits one JSON object per violation — see `specs/ndjson-output.md` for
-/// the schema.
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum Format {
     Text,
@@ -41,31 +24,40 @@ enum Format {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Run the concept-level equivalence check between specs and code.
+    #[command(about = "Run the concept-level equivalence check between specs and code")]
     Check {
-        /// Directory walked for markdown specs (e.g., `specs/concepts/`).
-        #[arg(long)]
+        #[arg(
+            long,
+            help = "Directory walked for markdown specs (e.g., `specs/concepts/`)"
+        )]
         specs: PathBuf,
-        /// Directory walked for Rust source (e.g., `.`).
-        #[arg(long)]
+        #[arg(long, help = "Directory walked for Rust source (e.g., `.`)")]
         code: PathBuf,
-        /// Output format. Defaults to `text`.
-        #[arg(long, value_enum, default_value_t = Format::Text)]
+        #[arg(
+            long,
+            value_enum,
+            default_value_t = Format::Text,
+            help = "Output format. Defaults to `text`"
+        )]
         format: Format,
     },
-    /// Generate a verb-coverage (and related) report across specs and code.
+    #[command(about = "Generate a verb-coverage (and related) report across specs and code")]
     Report {
-        /// Emit the verb-coverage report (pub fn × spec citation matrix).
-        #[arg(long)]
+        #[arg(
+            long,
+            help = "Emit the verb-coverage report (pub fn × spec citation matrix)"
+        )]
         verb_coverage: bool,
-        /// Directory walked for markdown specs (e.g., `specs/`).
-        #[arg(long)]
+        #[arg(long, help = "Directory walked for markdown specs (e.g., `specs/`)")]
         specs: PathBuf,
-        /// Directory walked for Rust source (e.g., `.`).
-        #[arg(long)]
+        #[arg(long, help = "Directory walked for Rust source (e.g., `.`)")]
         code: PathBuf,
-        /// Output format. Defaults to `text`.
-        #[arg(long, value_enum, default_value_t = ReportFormat::Text)]
+        #[arg(
+            long,
+            value_enum,
+            default_value_t = ReportFormat::Text,
+            help = "Output format. Defaults to `text`"
+        )]
         format: ReportFormat,
     },
 }
@@ -159,7 +151,6 @@ fn emit_ndjson(outcome: &CheckOutcome) -> ExitCode {
     exit_code_for(outcome)
 }
 
-/// Computed from `violations` only. Marker records never move it.
 fn exit_code_for(outcome: &CheckOutcome) -> ExitCode {
     if outcome.violations.is_empty() {
         return ExitCode::SUCCESS;

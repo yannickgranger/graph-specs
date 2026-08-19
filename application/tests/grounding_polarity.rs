@@ -1,10 +1,3 @@
-//! Integration tests for RFC-014 grounding polarity, end to end through the
-//! real markdown + Rust readers.
-//!
-//! The proof lives here rather than against an external grounded tree so it
-//! is reproducible in CI: `yg/Bosun` is the corpus that motivated #168, but
-//! it is not a dependency of this repo's gate.
-
 use domain::Violation;
 use std::io::Write;
 use std::path::Path;
@@ -27,7 +20,6 @@ fn cargo_toml(dir: &Path) {
     );
 }
 
-/// One heading carrying `polarity`, crossed with the code item existing.
 fn run_case(polarity: &str, code_present: bool) -> domain::CheckOutcome {
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
@@ -49,10 +41,8 @@ fn run_case(polarity: &str, code_present: bool) -> domain::CheckOutcome {
     application::run_check(specs.path(), code.path()).unwrap()
 }
 
-/// The §3.3 table, end to end.
 #[test]
 fn polarity_presence_matrix_end_to_end() {
-    // declared — the ordinary obligation, unchanged in both directions.
     let o = run_case("declared", false);
     assert!(
         o.violations
@@ -63,7 +53,6 @@ fn polarity_presence_matrix_end_to_end() {
     );
     assert!(run_case("declared", true).is_clean());
 
-    // forbidden — absence is clean; presence is the finding.
     let o = run_case("forbidden", false);
     assert!(
         o.is_clean(),
@@ -86,8 +75,6 @@ fn polarity_presence_matrix_end_to_end() {
         "and zero missing_in_code"
     );
 
-    // illustrative — absence is clean; presence falls through to the orphan
-    // sweep, so the marker cannot launder unspecced public surface.
     assert!(run_case("illustrative", false).is_clean());
     let o = run_case("illustrative", true);
     assert!(
@@ -108,9 +95,6 @@ fn polarity_presence_matrix_end_to_end() {
 
 #[test]
 fn the_168_reproduction_both_directions() {
-    // The acceptance proof. On `develop` this fixture produced a false
-    // `missing in code: Member` with the item absent, and — the defect that
-    // matters — went SILENT at exit 0 with the expelled name reintroduced.
     let absent = run_case("forbidden", false);
     assert!(
         absent.is_clean(),
@@ -127,8 +111,6 @@ fn the_168_reproduction_both_directions() {
 
 #[test]
 fn an_unreadable_polarity_leaves_the_obligation_armed() {
-    // The fallback direction is the point (§3.2): a typo must not silently
-    // narrow an obligation somebody deliberately wrote down.
     let o = run_case("frobidden", false);
     assert!(
         o.violations
@@ -158,8 +140,6 @@ fn ndjson_carries_the_additive_variant_at_the_unchanged_schema_version() {
 
 #[test]
 fn a_verb_anchor_under_a_non_declared_heading_imposes_no_obligation() {
-    // RFC-014 §3.3 uniform obligation-skip, through the verb pass — which
-    // needs a declared bounded context to be armed at all.
     for polarity in ["forbidden", "illustrative"] {
         let specs = TempDir::new().unwrap();
         let code = TempDir::new().unwrap();
@@ -216,8 +196,6 @@ fn a_dangling_impl_anchor_under_a_non_declared_heading_fires_nothing() {
 
 #[test]
 fn the_spec_state_marker_is_inert_under_a_non_declared_heading() {
-    // RFC-014 §3.3 precedence, end to end. `realized — ratify` on an
-    // expelled name would tell a consumer two opposite things.
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
     write(

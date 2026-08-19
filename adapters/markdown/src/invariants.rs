@@ -1,19 +1,9 @@
-//! `#### Operational invariants` bracket-annotation extraction —
-//! `[enforced-by: <artifact>; retire-when: <predicate>]` and
-//! `[prose-only: <why>]` bullets.
-//!
-//! Uses a **fresh** `Parser::new(source).into_offset_iter()` per file — NOT
-//! shared with [`crate::section`]'s concept walk. The H4-only heading arm
-//! and the bracket grammar are this module's own infrastructure, distinct
-//! from the prefix-matching bullet grammars in [`crate::bullets`].
-
 use crate::front_matter::blank_front_matter;
 use crate::markdown_utils::{compute_line_starts, line_of_offset};
 use domain::{InvariantAnnotation, Source, TierKind};
 use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
 use std::path::Path;
 
-/// Per-file annotation-walk state.
 struct AnnotationState<'a> {
     line_starts: Vec<usize>,
     path: &'a Path,
@@ -40,15 +30,11 @@ impl<'a> AnnotationState<'a> {
     }
 }
 
-/// Parse a single spec file for `#### Operational invariants` sections,
-/// extracting all well-formed bracketed annotations from bullet items.
 pub fn extract_annotations_from_source(
     source: &str,
     path: &Path,
     out: &mut Vec<InvariantAnnotation>,
 ) {
-    // Blank leading front-matter so a `cohesion: behavioral` block does not
-    // perturb the H4-invariant parse; line numbers preserved.
     let cleaned = blank_front_matter(source);
     let source = cleaned.as_ref();
     let mut st = AnnotationState::new(source, path);
@@ -65,7 +51,6 @@ fn handle_annotation_event(
     out: &mut Vec<InvariantAnnotation>,
 ) {
     match event {
-        // Higher-level headings reset the invariants section.
         Event::Start(Tag::Heading {
             level: HeadingLevel::H1 | HeadingLevel::H2 | HeadingLevel::H3,
             ..
@@ -114,11 +99,6 @@ fn absorb_annotation_text(st: &mut AnnotationState, s: &str) {
     }
 }
 
-/// Attempt to parse a bracket annotation from bullet text.
-///
-/// Silently returns `None` when the bullet has no annotation marker.
-/// Emits `tracing::warn!` and returns `None` when the bullet LOOKS like
-/// an annotation but fails the bracket grammar.
 fn try_parse_annotation(text: &str, path: &Path, line: usize) -> Option<InvariantAnnotation> {
     let has_enforced = text.contains("[enforced-by:");
     let has_prose = text.contains("[prose-only:");
@@ -152,9 +132,6 @@ fn try_parse_annotation(text: &str, path: &Path, line: usize) -> Option<Invarian
     }
 }
 
-/// `(inv_id, tier, artifact, retire_when, prose_only_why)` — return type of
-/// [`parse_annotation_grammar`]. Aliased to keep the type below clippy's
-/// `type_complexity` threshold.
 type AnnotationFields = (
     String,
     TierKind,
@@ -163,13 +140,6 @@ type AnnotationFields = (
     Option<String>,
 );
 
-/// Bracket-grammar parser — new infrastructure distinct from prefix-matching `parse_bullet_edge`.
-///
-/// Recognises:
-/// - `[enforced-by: <artifact>; retire-when: <predicate>]`
-/// - `[prose-only: <why>]`
-///
-/// Returns `None` when the bracket block cannot be parsed.
 fn parse_annotation_grammar(text: &str) -> Option<AnnotationFields> {
     let bracket_start = text.find('[')?;
     let bracket_end = text.rfind(']')?;
@@ -196,10 +166,6 @@ fn parse_annotation_grammar(text: &str) -> Option<AnnotationFields> {
     None
 }
 
-/// Parse the `enforced-by: <artifact>; retire-when: <predicate>` clause body
-/// (the text after the `enforced-by:` prefix has already been stripped) into
-/// its fields. Split out of [`parse_annotation_grammar`] to keep that
-/// function's branching under the cognitive-complexity ceiling.
 fn parse_enforced_by(inv_id: String, rest: &str) -> AnnotationFields {
     let mut artifact: Option<String> = None;
     let mut retire_when: Option<String> = None;
@@ -214,7 +180,6 @@ fn parse_enforced_by(inv_id: String, rest: &str) -> AnnotationFields {
     (inv_id, tier, artifact, retire_when, None)
 }
 
-/// Derive `TierKind` from an artifact path string.
 fn derive_tier(artifact: &str) -> TierKind {
     let a = artifact.trim();
     if a.ends_with(".cypher") {

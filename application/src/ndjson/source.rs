@@ -1,6 +1,3 @@
-//! Shared [`Source`] → NDJSON serialization primitives, used by every
-//! violation-record builder in [`super`].
-
 use domain::{Provenance, Source};
 use serde_json::{json, Value};
 use std::path::Path;
@@ -17,11 +14,6 @@ pub(super) fn source_to_json(s: &Source) -> Value {
     })
 }
 
-/// [`source_to_json`] plus the provenance triple: when `s` is code-kind
-/// and the outcome's index knows the record's concept, the present fields
-/// of the triple are added to the source object. Additive and optional —
-/// absent fields are omitted, never `null`, and a spec-kind source never
-/// carries them (provenance is a code fact).
 pub(super) fn code_source_to_json(s: &Source, provenance: Option<&Provenance>) -> Value {
     let mut record = source_to_json(s);
     if !matches!(s, Source::Code { .. }) {

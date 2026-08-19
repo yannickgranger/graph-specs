@@ -1,19 +1,3 @@
-//! RFC-010 R10-6 parity test.
-//!
-//! The cfdb-query ACL must derive the SAME agnostic `module_path` / `unit` as
-//! the source-walk `CodeFacts` adapter (`RustReader`) on a REAL keyspace
-//! extracted from graph-specs' own tree — 0-mismatch (RFC-010 §7).
-//!
-//! Both sides are the *real* adapters reached through the `CodeFacts` port —
-//! the source-walk side is NOT reproduced inline. Env-guarded so the test
-//! no-ops without a keyspace:
-//!   `RFC010_KEYSPACE` = path to a `cfdb extract … .json`
-//!   `RFC010_ROOT`     = the absolute code root the keyspace was extracted from
-//!
-//! `context` is deliberately excluded from the parity key — it is the
-//! multi-crate-divergent field (RFC-010 §13-A): source-walk leaves it `None`
-//! pending `specs/contexts/` resolution, cfdb sets a per-crate value.
-
 use std::collections::BTreeSet;
 use std::path::Path;
 
