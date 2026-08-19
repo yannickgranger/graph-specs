@@ -305,7 +305,7 @@ fn format_context_violation(v: &ContextViolation, out: &mut impl Write) -> std::
     }
 }
 
-fn source_pair(s: &Source) -> (&Path, usize) {
+pub(crate) fn source_pair(s: &Source) -> (&Path, usize) {
     match s {
         Source::Spec { path, line } | Source::Code { path, line } => (path.as_path(), *line),
     }

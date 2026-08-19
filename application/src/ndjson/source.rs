@@ -2,7 +2,7 @@ use domain::{Provenance, Source};
 use serde_json::{json, Value};
 use std::path::Path;
 
-pub(super) fn source_to_json(s: &Source) -> Value {
+pub(crate) fn source_to_json(s: &Source) -> Value {
     let (kind, path, line) = match s {
         Source::Spec { path, line } => ("spec", path.as_path(), *line),
         Source::Code { path, line } => ("code", path.as_path(), *line),

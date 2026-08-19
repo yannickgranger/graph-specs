@@ -1,6 +1,6 @@
 mod cohesion;
 mod context;
-mod source;
+pub(crate) mod source;
 #[cfg(test)]
 mod tests;
 

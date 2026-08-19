@@ -31,3 +31,7 @@ pub fn run_report(specs: &Path, code: &Path, format: ReportFormat) -> Result<u8,
     })?;
     Ok(0_u8)
 }
+
+pub(crate) fn context_key(ctx: Option<&str>) -> (bool, &str) {
+    ctx.map_or((true, ""), |s| (false, s))
+}

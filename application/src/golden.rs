@@ -138,6 +138,47 @@ fn all_violations() -> Vec<Violation> {
     ]
 }
 
+pub(crate) fn code_src() -> Source {
+    Source::Code {
+        path: PathBuf::from("application/src/lib.rs"),
+        line: 33,
+    }
+}
+
+pub(crate) fn make_report() -> ReportOutput {
+    ReportOutput {
+        verb_coverage: vec![VerbCoverageRecord {
+            context: Some("equivalence".to_owned()),
+            pub_fn: PubFnDecl {
+                name: "run_check".to_owned(),
+                source: code_src(),
+                owned_unit: Some("application".to_owned()),
+            },
+            cited: true,
+        }],
+        tier_histogram: vec![TierHistogramRecord {
+            context: None,
+            tier: TierKind::Cypher,
+            count: 3,
+        }],
+        homonyms: vec![HomonymRecord {
+            name: "Foo".to_owned(),
+            contexts: vec![
+                HomonymAppearance {
+                    context_name: "ctx_a".to_owned(),
+                    sanctioned_by_pattern: Some(ContextPattern::PublishedLanguage),
+                    asymmetric: false,
+                },
+                HomonymAppearance {
+                    context_name: "ctx_b".to_owned(),
+                    sanctioned_by_pattern: None,
+                    asymmetric: true,
+                },
+            ],
+        }],
+    }
+}
+
 const NDJSON_PLACEHOLDERS: [&str; 3] = [
     "unknown_violation",
     "unknown_context_violation",
