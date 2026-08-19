@@ -1,10 +1,10 @@
+use crate::ndjson::source::source_to_json;
+use crate::report::context_key;
 use domain::{
-    ContextPattern, HomonymRecord, ReportOutput, Source, TierHistogramRecord, TierKind,
-    VerbCoverageRecord,
+    ContextPattern, HomonymRecord, ReportOutput, TierHistogramRecord, TierKind, VerbCoverageRecord,
 };
 use serde_json::{json, Value};
 use std::io::{self, Write};
-use std::path::Path;
 
 pub fn emit_ndjson(out: &mut impl Write, report: &ReportOutput) -> io::Result<()> {
     emit_verb_coverage_records(out, &report.verb_coverage)?;
@@ -93,10 +93,6 @@ fn write_record(out: &mut impl Write, record: &Value) -> io::Result<()> {
     out.write_all(b"\n")
 }
 
-fn context_key(ctx: Option<&str>) -> (bool, &str) {
-    ctx.map_or((true, ""), |s| (false, s))
-}
-
 const fn tier_wire(tier: TierKind) -> &'static str {
     match tier {
         TierKind::Cypher => "cypher",
@@ -107,72 +103,12 @@ const fn tier_wire(tier: TierKind) -> &'static str {
     }
 }
 
-fn source_to_json(s: &Source) -> Value {
-    let (kind, path, line) = match s {
-        Source::Spec { path, line } => ("spec", path.as_path(), *line),
-        Source::Code { path, line } => ("code", path.as_path(), *line),
-    };
-    json!({
-        "kind": kind,
-        "path": path_to_string(path),
-        "line": line,
-    })
-}
-
-fn path_to_string(p: &Path) -> String {
-    p.to_string_lossy().into_owned()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use domain::{
-        ContextPattern, HomonymAppearance, HomonymRecord, PubFnDecl, ReportOutput, Source,
-        TierHistogramRecord, TierKind, VerbCoverageRecord,
-    };
+    use crate::golden::make_report;
+    use domain::{HomonymAppearance, HomonymRecord, ReportOutput};
     use serde_json::Value;
-    use std::path::PathBuf;
-
-    fn code_src() -> Source {
-        Source::Code {
-            path: PathBuf::from("application/src/lib.rs"),
-            line: 33,
-        }
-    }
-
-    fn make_report() -> ReportOutput {
-        ReportOutput {
-            verb_coverage: vec![VerbCoverageRecord {
-                context: Some("equivalence".to_owned()),
-                pub_fn: PubFnDecl {
-                    name: "run_check".to_owned(),
-                    source: code_src(),
-                    owned_unit: Some("application".to_owned()),
-                },
-                cited: true,
-            }],
-            tier_histogram: vec![TierHistogramRecord {
-                context: None,
-                tier: TierKind::Cypher,
-                count: 3,
-            }],
-            homonyms: vec![HomonymRecord {
-                name: "Foo".to_owned(),
-                contexts: vec![
-                    HomonymAppearance {
-                        context_name: "ctx_a".to_owned(),
-                        sanctioned_by_pattern: Some(ContextPattern::PublishedLanguage),
-                        asymmetric: false,
-                    },
-                    HomonymAppearance {
-                        context_name: "ctx_b".to_owned(),
-                        sanctioned_by_pattern: None,
-                        asymmetric: true,
-                    },
-                ],
-            }],
-        }
-    }
 
     fn parse_lines(buf: &[u8]) -> Vec<Value> {
         let s = std::str::from_utf8(buf).expect("utf8");
