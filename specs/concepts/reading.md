@@ -39,8 +39,6 @@ the previous design needed is retired.
 
 ## RustBackend
 
-<!-- parent:rfc:graph-specs-016-parse-once-reading-port#3.4 anchor:"stop being unit structs and become cache-holding values" -->
-
 Concrete [LanguageBackend](#languagebackend) implementation for Rust
 source files. Uses `syn`. Walks the source tree once (skipping `target/`,
 `.git/`, `.claude/`, `.proofs/`, per-crate `tests/` / `benches/` /
@@ -84,8 +82,6 @@ the cfdb-query [CfdbQueryReader](#cfdbqueryreader) ACL must match. Lives in
 
 ## RustAnchorResolver
 
-<!-- parent:rfc:graph-specs-012-non-pub-spec-anchor#3.4.2 anchor:"not every non-`pub` item in the tree" -->
-
 Source-walk [AnchorResolver](equivalence.md#anchorresolver) implementation
 (graph-specs-012-non-pub-spec-anchor#3.4 / R12-3). Builds an index of code items at **any** visibility
 (the concept walk is `pub`-only) so a `- impl: <qname>` spec anchor can
@@ -106,8 +102,6 @@ variants are deferred to the cfdb-query path. Returns an
 - depends on: RustAnchorResolver
 
 ## CfdbQueryReader
-
-<!-- parent:rfc:graph-specs-010-abstraction-level-equivalence#3.3.3 anchor:"crate-prefix heuristic" -->
 
 The cfdb-query [CodeFacts](equivalence.md#codefacts) Anti-Corruption Layer
 (graph-specs-010-abstraction-level-equivalence#3.3 / R10-6). Reads a cfdb keyspace JSON and translates `:Item`
@@ -147,7 +141,7 @@ variants are **not** resolvable because cfdb (v0.5.0) emits no `variant`
 
 ## SpecTree
 
-<!-- parent:rfc:graph-specs-016-parse-once-reading-port#3.3 anchor:"makes the pair inseparable" -->
+<!-- parent:rfc:graph-specs-010-abstraction-level-equivalence#3.2 anchor:"H1/parent-tree assembly" -->
 
 The assembled heading tree for a single spec file (graph-specs-010-abstraction-level-equivalence#3.2 / R10-2) —
 a parent-linked vector of [HeadingNode](#headingnode) in document order,
