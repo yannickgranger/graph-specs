@@ -17,11 +17,11 @@ recognises the v0.3 bullet prefixes (`- implements:`, `- depends on:`,
 `- returns:`) as declared edges. Also implements
 [ContextReader](#contextreader) for v0.4 — parses
 `specs/contexts/<name>.md` files into [ContextDecl](#contextdecl) values.
-Exposes `extract_invariant_annotations` (inherent method) for RFC-005
-§3.2 — extracts `[enforced-by:]` / `[prose-only:]` annotations from
+Exposes `extract_invariant_annotations` (inherent method) for graph-specs-005-verb-coverage-report#3.2
+— extracts `[enforced-by:]` / `[prose-only:]` annotations from
 `#### Operational invariants` spec sections. Lives in `adapters/markdown`.
 
-Per RFC-013 §3.3 it no longer skips `status: draft` files: they are
+Per graph-specs-013-spec-state-marker#3.3 it no longer skips `status: draft` files: they are
 parsed like any other spec, and every concept heading in one is marked
 on the node it emits. The `extract_draft_concepts` side-index walk that
 the previous design needed is retired.
@@ -60,10 +60,10 @@ discovered [ConceptNode](#conceptnode) set, and assembles a
 per top-level `pub struct`, `pub enum`, `pub trait`, `pub type`, plus v0.2
 signature normalisation via `adapter-rust::normalize` and v0.3 relationship
 edges from struct fields, impl blocks, and trait method signatures.
-`VerbReader::extract_pub_fns` uses a separate parallel walk (per RFC-005
-§3.2 dry-run rust-systems-A); `check` invokes it to feed the verb-
+`VerbReader::extract_pub_fns` uses a separate parallel walk (per graph-specs-005-verb-coverage-report#3.2
+dry-run rust-systems-A); `check` invokes it to feed the verb-
 anchoring pass with code-side `pub fn` declarations. Also implements
-[CodeFacts](equivalence.md#codefacts) (RFC-010 R10-6), returning the
+[CodeFacts](equivalence.md#codefacts) (graph-specs-010-abstraction-level-equivalence R10-6), returning the
 graph's [ConceptNode](#conceptnode)s as the source-walk parity reference
 the cfdb-query [CfdbQueryReader](#cfdbqueryreader) ACL must match. Lives in
 `adapters/rust`.
@@ -79,7 +79,7 @@ the cfdb-query [CfdbQueryReader](#cfdbqueryreader) ACL must match. Lives in
 ## RustAnchorResolver
 
 Source-walk [AnchorResolver](equivalence.md#anchorresolver) implementation
-(RFC-012 §3.4 / R12-3). Builds an index of code items at **any** visibility
+(graph-specs-012-non-pub-spec-anchor#3.4 / R12-3). Builds an index of code items at **any** visibility
 (the concept walk is `pub`-only) so a `- impl: <qname>` spec anchor can
 resolve a concept whose canonical implementation is legitimately
 `pub(crate)` (or a `fn` / `const`) — no manufactured `pub` ZST. The index
@@ -100,7 +100,7 @@ variants are deferred to the cfdb-query path. Returns an
 ## CfdbQueryReader
 
 The cfdb-query [CodeFacts](equivalence.md#codefacts) Anti-Corruption Layer
-(RFC-010 §3.3 / R10-6). Reads a cfdb keyspace JSON and translates `:Item`
+(graph-specs-010-abstraction-level-equivalence#3.3 / R10-6). Reads a cfdb keyspace JSON and translates `:Item`
 nodes into agnostic [ConceptNode](#conceptnode)s — `unit` / `module_path`
 reconstructed from the `:Item.file` prop to match the source-walk
 [RustReader](#rustreader)'s derivation (the parity contract), `context`
@@ -118,7 +118,7 @@ Lives in `adapters/cfdb-query`.
 
 ## CfdbAnchorResolver
 
-cfdb-keyspace [AnchorResolver](equivalence.md#anchorresolver) (RFC-012 §3.4
+cfdb-keyspace [AnchorResolver](equivalence.md#anchorresolver) (graph-specs-012-non-pub-spec-anchor#3.4
 / R12-6 — the OQ-1 parity path). The keyspace counterpart to the source-walk
 [RustAnchorResolver](#rustanchorresolver): resolves a `- impl:` anchor
 against the `:Item` facts a `cfdb extract` run already holds, for per-crate
@@ -137,7 +137,7 @@ variants are **not** resolvable because cfdb (v0.5.0) emits no `variant`
 
 ## HeadingNode
 
-One node of the abstraction-ladder tree (RFC-010 §3.2 / R10-2) — a single
+One node of the abstraction-ladder tree (graph-specs-010-abstraction-level-equivalence#3.2 / R10-2) — a single
 markdown heading, tagged with the [AbstractionLevel](#abstractionlevel) its
 depth maps to (`H1 → Context`, `H2 → Concept`, `H3 → SubConcept`,
 `H4+ → Member`), its trimmed text, the normalised context identifier for an
@@ -147,7 +147,7 @@ orphaned sub-concept). Lives in `adapters/markdown`.
 
 ## SpecTree
 
-The assembled heading tree for a single spec file (RFC-010 §3.2 / R10-2) —
+The assembled heading tree for a single spec file (graph-specs-010-abstraction-level-equivalence#3.2 / R10-2) —
 a parent-linked vector of [HeadingNode](#headingnode) in document order,
 produced by the `assemble_tree` pass (a separate `pulldown-cmark` walk from
 the concept reader's `handle_event`, which is at the complexity ceiling).
@@ -157,8 +157,8 @@ Exposes `context_id` (the file's single bounded-context identifier) and
 context with no concept under it, and orphaned H3 sub-concepts. Wiring the
 detection into the `check` diff is R10-3. Lives in `adapters/markdown`.
 
-Marker-blind by construction (RFC-013 §3.2 row 6): the assembler records
+Marker-blind by construction (graph-specs-013-spec-state-marker#3.2 row 6): the assembler records
 heading *depth*, so a marked `## Concept` is a `Concept` node like any
-other and counts as its context's cohesion unit. Since RFC-013 the walk
+other and counts as its context's cohesion unit. Since graph-specs-013-spec-state-marker the walk
 also no longer skips `status: draft` files — the doc-level structural
 check applies to them on the same terms as any other doc.
