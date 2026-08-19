@@ -29,22 +29,22 @@ the v0.3 opt-in rules apply. Lives in `domain`.
 A single named concept located at a specific source site. Carries the
 concept's name, a [Source](#source) pointing back to where the reader
 found it, and an optional [SignatureState](#signaturestate) payload for
-v0.2 signature-level equivalence. Since v0.6 (RFC-010 §3.3) it also
+v0.2 signature-level equivalence. Since v0.6 (graph-specs-010-abstraction-level-equivalence#3.3) it also
 carries the language-agnostic containment triple `module_path` / `unit` /
 `context` (each `Option<String>`), populated by a code-facts adapter and
 left `None` on the spec side. `new` is the no-provenance constructor;
 `with_provenance` is the builder that attaches the triple. Lives in
 `domain`.
 
-Since RFC-013 §3.3 it also carries the spec-state [Marker](#marker),
+Since graph-specs-013-spec-state-marker#3.3 it also carries the spec-state [Marker](#marker),
 set by the markdown reader from the heading's own `- status:` bullet or
-from the file's front matter. RFC-015 §3.3 widened it from a `bool` to
+from the file's front matter. graph-specs-015-spec-retirement-state#3.3 widened it from a `bool` to
 a value: two legal values now exist, and the sites that read it ask
 different questions — the concept pass dispatches on **which** value,
 while the anchor-suppression set asks only **whether** a marker is
 present. Always unmarked on the code side.
 
-Since RFC-014 §3.4 it also carries [Polarity](#polarity), attached by the
+Since graph-specs-014-grounding-polarity#3.4 it also carries [Polarity](#polarity), attached by the
 `with_polarity` builder (mirroring `with_provenance` — not a positional
 argument on `new`, which deliberately does not derive `Default`).
 Spec-side only; the code side is a fact, not a declaration.
@@ -74,14 +74,14 @@ more than one fenced `rust` block.
 ## Polarity
 
 The grounding-polarity payload on a [ConceptNode](#conceptnode) — which
-direction a spec heading's obligation points (RFC-014 §3.1). `Declared`
+direction a spec heading's obligation points (graph-specs-014-grounding-polarity#3.1). `Declared`
 (the default) is the ordinary obligation: the concept must exist in code.
 `Forbidden` expels the name — code must **not** bear it. `Illustrative`
 names an example, so the heading neither compels nor satisfies a code
 item. Lives in `domain`.
 
 **This concept is imported, not defined here.** `polarity` is owned
-upstream: defined in agentry's ratified `RFC-vocabulary.md`, authored via
+upstream: defined in agentry's ratified `agentry-vocabulary`, authored via
 Bosun's grounding key, realized as `cascade::Polarity`. graph-specs is a
 **Conformist** — it tracks that definition and does not fork it. The three
 values and their meanings are cited from cascade's `resolve_polarity`, not
@@ -90,7 +90,7 @@ is why the enum is `#[non_exhaustive]`.
 
 "Conformist" here is prose, not a wired relationship: this is *not*
 [ContextPattern](#contextpattern)`::Conformist`, which is a formal enum
-scoped to this repo's own bounded contexts (RFC-001 §6). Nothing here
+scoped to this repo's own bounded contexts (graph-specs-001-bounded-context-equivalence#6). Nothing here
 formalises a cross-repo import.
 
 **Disambiguation.** This is the *concept-grounding* sense of the word —
@@ -113,19 +113,19 @@ A single equivalence violation between spec and code graphs. Concept-,
 signature-, and relationship-level variants share the convention that
 the first-carried field is the concept or owner name, so CLI output can
 be sorted deterministically regardless of violation kind. The variant set
-includes `DanglingAnchor` (RFC-012 §3.5) for the case where a `- impl:`
+includes `DanglingAnchor` (graph-specs-012-non-pub-spec-anchor#3.5) for the case where a `- impl:`
 anchor
 names a code item that does not exist — a **top-level** arm (not nested
 in `Cohesion`) so opting out of cohesion checking cannot suppress
 broken-anchor detection.
 
-RFC-013 §3.4 **retired** `ImplementsDraftConcept`. A code item backing
+graph-specs-013-spec-state-marker#3.4 **retired** `ImplementsDraftConcept`. A code item backing
 a marked heading is the normal mid-arc state, not a failure; it is
 reported as a [RealizedRecord](#realizedrecord) instead. The variant's
 sort slot (13) is retired, not reused — existing slots are not
 renumbered.
 
-RFC-014 §3.4 adds `ForbiddenConceptReintroduced { name, spec_source,
+graph-specs-014-grounding-polarity#3.4 adds `ForbiddenConceptReintroduced { name, spec_source,
 code_source }` — a code item bearing a name its heading expelled
 ([Polarity](#polarity)`::Forbidden`). Both sites are carried, so the
 finding names what expelled the name *and* what reintroduced it. Sort
@@ -161,7 +161,7 @@ pub trait Reader {
 
 ## CodeFacts
 
-The code-side containment port (RFC-010 §3.3). Where [Reader](#reader)
+The code-side containment port (graph-specs-010-abstraction-level-equivalence#3.3). Where [Reader](#reader)
 produces a full type-equivalence [Graph](#graph), `CodeFacts` answers the
 narrower question of which concepts the code contains and each one's
 language-agnostic containment provenance — the `module_path` / `unit` /
@@ -212,7 +212,7 @@ raw [Edge](#edge) values, BEFORE the language-neutral known-concept edge
 filter runs. Each `impl LanguageBackend for FooBackend` covers one source
 language; [`detect`](#languagebackend) lets the CLI dispatch on marker
 files (`Cargo.toml` for Rust, `composer.json` for PHP, `tsconfig.json`
-for TypeScript). Roadmap (#83 reframe, RFC-005 / 006): each backend
+for TypeScript). Roadmap (#83 reframe, graph-specs-005-verb-coverage-report / graph-specs-006-verb-anchoring): each backend
 becomes a thin wrapper over a per-language `<lang>-items` shared crate
 also consumed by cfdb. Lives in `ports`.
 
@@ -241,7 +241,7 @@ adapter, in language-neutral code. Lives in `ports`.
 
 A crate, npm package, Go module, or equivalent — the thing a bounded
 context "owns" in the v0.4 context-mapping vocabulary per
-[RFC-001](../../docs/rfc/001-bounded-context-equivalence.md).
+graph-specs-001-bounded-context-equivalence.
 Language-agnostic name so non-Rust adapters can interpret it under their
 own build system. Lives in `domain`.
 
@@ -285,7 +285,7 @@ relationship is classified, and the concept being referenced. Lives in
 A DDD context-mapping pattern. v0.4 ships four variants: Shared Kernel,
 Customer-Supplier, Conformist, Published Language. Anti-Corruption
 Layer, Separate Ways, and Open Host Service are deferred to v0.5 per
-RFC-001 §2. Marked `#[non_exhaustive]` so future-variant additions are
+graph-specs-001-bounded-context-equivalence#2. Marked `#[non_exhaustive]` so future-variant additions are
 non-breaking for downstream consumers. Lives in `domain`.
 
 - verb: ContextPattern::as_label
@@ -311,13 +311,13 @@ Lives in `domain`.
 
 Input envelope to the v0.5 diff on the spec side — concept graph plus
 declared bounded-context map plus verb-anchoring data. Keeps
-[Graph](#graph) focused on concepts and edges (SOLID SRP, per RFC-001
+[Graph](#graph) focused on concepts and edges (SOLID SRP, per graph-specs-001-bounded-context-equivalence
 round-1 architect review); contexts and verb ownership are carried
 alongside. An empty `contexts` list reduces diff behavior to v0.3
 (context pass is a no-op); an empty `verb_ownership.anchors` skips
 v0.5 entirely. Lives in `domain`.
 
-Carries no draft-concept side index: RFC-013 §3.3 consolidated
+Carries no draft-concept side index: graph-specs-013-spec-state-marker#3.3 consolidated
 spec-state onto [ConceptNode](#conceptnode)'s `marked` field, so the
 graph is the single carrier and there is no second object graph joined
 by name.
@@ -340,7 +340,7 @@ by name.
 ## Provenance
 
 The containment-provenance record rendered into NDJSON code-kind source
-objects (RFC-010 §3.6 / #136) — the emitter-facing form of the agnostic
+objects (graph-specs-010-abstraction-level-equivalence#3.6 / #136) — the emitter-facing form of the agnostic
 triple that [ConceptNode](#conceptnode) carries as three loose `Option`
 fields: `module_path` (crate-root-collapsed module path), `unit` (the
 owning crate, relative to the code root) and `context` (the bounded
@@ -356,15 +356,15 @@ place). Lives in `domain`.
 
 ## CheckOutcome
 
-The full result of one equivalence check (RFC-013 §3.5, widened by
-RFC-015 §3.5): the violation list plus the four marker-record lists —
+The full result of one equivalence check (graph-specs-013-spec-state-marker#3.5, widened by
+graph-specs-015-spec-retirement-state#3.5): the violation list plus the four marker-record lists —
 `pending` and `realized` for the `draft` value, `retirement_incomplete`
 and `retirement_complete` for `retired`. The diff produces all of them,
 because the record decision is the same concept/code matching it
 already performs for the unmarked rows — deriving it in the application
 layer would split-brain one decision across two places.
 
-Since RFC-010 §3.6 / #136 it also carries `provenance` — the
+Since graph-specs-010-abstraction-level-equivalence#3.6 / #136 it also carries `provenance` — the
 [Provenance](#provenance) index (concept name → triple) the NDJSON
 emitter reads to render code-kind source objects. A side index on the
 outcome rather than fields on [Violation](#violation), so the stable
@@ -400,8 +400,8 @@ would make the clean state unreachable.
 
 ## Marker
 
-Which spec-state marker a concept heading carries (RFC-013 §3.1,
-widened by RFC-015 §3.1). Read by the markdown reader from the
+Which spec-state marker a concept heading carries (graph-specs-013-spec-state-marker#3.1,
+widened by graph-specs-015-spec-retirement-state#3.1). Read by the markdown reader from the
 heading's first content line, or inherited from the file's front
 matter, and carried on [ConceptNode](#conceptnode).
 
@@ -427,7 +427,7 @@ spelling.
 ## PendingRecord
 
 A marked concept heading with no backing code item — row 3 of the
-RFC-013 §3.2 enforcement matrix. Emitted **instead of**
+graph-specs-013-spec-state-marker#3.2 enforcement matrix. Emitted **instead of**
 `Violation::MissingInCode`: the marker announces that the concept is
 declared ahead of its code, so no code-existence obligation applies.
 
@@ -435,7 +435,7 @@ The skip that follows is `unobliged`, and it is **cited, not restated**:
 it is stated once in `specs/dialect.md`, under what a heading obliges.
 Written out here it would read as a rule about this record kind, and it
 is not one — row 8 and both polarity values are members too, and after
-RFC-015 a rule scoped to `PendingRecord` is false where it sits.
+graph-specs-015-spec-retirement-state a rule scoped to `PendingRecord` is false where it sits.
 
 Not a failure. The pending list is the transcription worklist the
 ratification workflow reads every run — a state field with a producer
@@ -446,7 +446,7 @@ and no reader rots. Lives in `domain`.
 ## RealizedRecord
 
 A marked concept heading whose backing code item exists — row 4 of the
-RFC-013 §3.2 enforcement matrix, by name match or by `- impl:` anchor
+graph-specs-013-spec-state-marker#3.2 enforcement matrix, by name match or by `- impl:` anchor
 resolution, exactly as an unmarked heading binds.
 
 Emitted **in addition to** the normal, fully enforced equivalence
@@ -460,7 +460,7 @@ performed by a human. Lives in `domain`.
 ## RetirementIncompleteRecord
 
 A `retired` heading whose backing code item is still present — row 7 of
-the RFC-015 §3.2 enforcement matrix.
+the graph-specs-015-spec-retirement-state#3.2 enforcement matrix.
 
 The retirement was announced and the code has not gone yet. Emitted
 **in addition to** the normal, fully enforced equivalence checks for
@@ -476,8 +476,8 @@ in `domain`.
 
 ## RetirementCompleteRecord
 
-A `retired` heading with no backing code item — row 8 of the RFC-015
-§3.2 enforcement matrix. The retirement is done.
+A `retired` heading with no backing code item — row 8 of the graph-specs-015-spec-retirement-state#3.2
+enforcement matrix. The retirement is done.
 
 Emitted **instead of** `Violation::MissingInCode`, and carrying
 [PendingRecord](#pendingrecord)'s obligation skip in full: a row-8
@@ -502,7 +502,7 @@ consumers (notably qbot-core's `compare-spec-change` pipeline, tracked
 in `yg/qbot-core#4034`) import this type and dispatch parse behavior
 against it rather than re-typing `"1"` / `"2"` magic strings per
 consumer. The current production value is the associated constant
-`SchemaVersion::CURRENT` (today: `V4`, per RFC-013 §3.5). Retaining the
+`SchemaVersion::CURRENT` (today: `V4`, per graph-specs-013-spec-state-marker#3.5). Retaining the
 superseded variants keeps the
 overlap-window reader path typed — consumers gating on this enum at
 parse time get an exhaustiveness check the day a future RFC bumps
@@ -520,7 +520,7 @@ ratification decision.
 ## VerbReader
 
 The v0.5 verb-extraction port trait. Sibling to [Reader](#reader) and
-[ContextReader](#contextreader) — separate per RFC-005 §3.2 clean-arch
+[ContextReader](#contextreader) — separate per graph-specs-005-verb-coverage-report#3.2 clean-arch
 lens. Not every adapter extracts verbs (markdown has no code items);
 returning an empty `Vec` is the correct implementation for adapters that
 do not walk code. Invoked by `check` (it feeds the v0.5/v0.6 verb-
@@ -543,7 +543,7 @@ impl block) found in code — the verb counterpart to
 [ConceptNode](#conceptnode) (which captures pub types). Carries the
 function name, a [Source](#source) pointing back to the declaration site,
 and an optional `owned_unit` string for bounded-context membership lookup.
-Per RFC-005 §3.3. Lives in `domain`.
+Per graph-specs-005-verb-coverage-report#3.3. Lives in `domain`.
 
 - depends on: Source
 
@@ -591,7 +591,7 @@ A parsed `[enforced-by:]` or `[prose-only:]` bracketed annotation
 extracted from a spec `#### Operational invariants` bullet by
 [MarkdownReader](#markdownreader). Carries `inv_id`, [TierKind](#tierkind),
 `artifact`, `retire_when`, `prose_only_why`, and [Source](#source).
-Per RFC-005 §3.3. Lives in `domain`.
+Per graph-specs-005-verb-coverage-report#3.3. Lives in `domain`.
 
 - depends on: TierKind
 - depends on: Source
@@ -599,10 +599,10 @@ Per RFC-005 §3.3. Lives in `domain`.
 ## TierKind
 
 Enforcement tier derived from an `[enforced-by:]` artifact path, or
-`ProseOnly` for `[prose-only:]` waivers. Four variants in RFC-005 §3.3:
+`ProseOnly` for `[prose-only:]` waivers. Four variants in graph-specs-005-verb-coverage-report#3.3:
 `Cypher` (`.cfdb/queries/*.cypher`), `Tier0` (pub trait/fn ref),
 `ScriptFence` (`scripts/*.sh`), `ProseOnly` (explicit waiver). Marked
-`#[non_exhaustive]` per RFC-005 §3.3 solid §5.3 finding 3 — RFC-006 may
+`#[non_exhaustive]` per graph-specs-005-verb-coverage-report#3.3 solid §5.3 finding 3 — graph-specs-006-verb-anchoring may
 add `BehaviorTest`. Lives in `domain`.
 
 ## VerbCoverageRecord
@@ -611,14 +611,14 @@ Report record: one `pub fn` in code, its bounded context (if known), and
 whether any spec section cites it by name. `context: None` is the
 report-mode analog of `ContextViolation::MembershipUnknown` — the fn
 lives in a crate not declared under any context's `Owns` block.
-Per RFC-005 §3.3. Lives in `domain`.
+Per graph-specs-005-verb-coverage-report#3.3. Lives in `domain`.
 
 - depends on: PubFnDecl
 
 ## TierHistogramRecord
 
 Report record: annotation count per [TierKind](#tierkind), partitioned by
-bounded context. Per RFC-005 §3.3. Lives in `domain`.
+bounded context. Per graph-specs-005-verb-coverage-report#3.3. Lives in `domain`.
 
 - depends on: TierKind
 
@@ -626,9 +626,9 @@ bounded context. Per RFC-005 §3.3. Lives in `domain`.
 
 A single context's appearance in a [HomonymRecord](#homonymrecord). Carries
 `context_name`, `sanctioned_by_pattern` (derived via the exporter-wins
-algorithm, RFC-005 §3.3 dry-run DDD-B), and `asymmetric` (set when export
-and import patterns disagree for the same name, per RFC-001 §4 invariant
-5). Per RFC-005 §3.3. Lives in `domain`.
+algorithm, graph-specs-005-verb-coverage-report#3.3 dry-run DDD-B), and `asymmetric` (set when export
+and import patterns disagree for the same name, per graph-specs-001-bounded-context-equivalence#4 invariant
+5). Per graph-specs-005-verb-coverage-report#3.3. Lives in `domain`.
 
 - depends on: ContextPattern
 
@@ -636,7 +636,7 @@ and import patterns disagree for the same name, per RFC-001 §4 invariant
 
 A name (pub fn or pub type) that appears in more than one bounded context.
 Each appearance is a [HomonymAppearance](#homonymappearance) enriched with
-the sanctioning [ContextPattern](#contextpattern). Per RFC-005 §3.3.
+the sanctioning [ContextPattern](#contextpattern). Per graph-specs-005-verb-coverage-report#3.3.
 Lives in `domain`.
 
 - depends on: HomonymAppearance
@@ -647,7 +647,7 @@ Aggregated output of the verb-coverage report: three record lists —
 `verb_coverage` ([VerbCoverageRecord](#verbcoveragerecord) vec),
 `tier_histogram` ([TierHistogramRecord](#tierhistogramrecord) vec), and
 `homonyms` ([HomonymRecord](#homonymrecord) vec). Produced by
-`report_verb_coverage`. Per RFC-005 §3.3. Lives in `domain`.
+`report_verb_coverage`. Per graph-specs-005-verb-coverage-report#3.3. Lives in `domain`.
 
 - depends on: VerbCoverageRecord
 - depends on: TierHistogramRecord
@@ -656,7 +656,7 @@ Aggregated output of the verb-coverage report: three record lists —
 
 ## AbstractionLevel
 
-One rung of the four-level abstraction ladder (RFC-010 §3.1): `Context`
+One rung of the four-level abstraction ladder (graph-specs-010-abstraction-level-equivalence#3.1): `Context`
 (H1), `Concept` (H2 — the diff unit), `SubConcept` (H3, diffed at L2),
 `Member` (H4+, emitted not diffed). Depth is authoritative — a heading's
 role *is* its depth. `from_heading_depth` maps a markdown heading depth
@@ -668,10 +668,10 @@ Marked `#[non_exhaustive]`. Lives in `domain`.
 
 ## CohesionViolation
 
-The abstraction-ladder cohesion violations (RFC-010 §3.5), wrapped by
+The abstraction-ladder cohesion violations (graph-specs-010-abstraction-level-equivalence#3.5), wrapped by
 [Violation](#violation)'s `Cohesion` arm so consumers that do not opt
 into cohesion checking match one arm rather than three — distinct from
-[ContextViolation](#contextviolation) (RFC-001 cross-context edges).
+[ContextViolation](#contextviolation) (graph-specs-001-bounded-context-equivalence cross-context edges).
 Three variants: `ContextWithoutCohesionUnit` (an H1 context with no
 H2/H3 concept under it) and `SubConceptOrphan` (an H3 with no enclosing
 H2) fire spec-side with zero code facts; `ConceptContextMismatch` (the
@@ -686,7 +686,7 @@ the type. Lives in `domain`.
 ## ConceptAnchor
 
 A concept heading explicitly bound to a named code item the concept walk
-would not otherwise surface (RFC-012 §3.2) — a `pub(crate)` type, a `fn`,
+would not otherwise surface (graph-specs-012-non-pub-spec-anchor#3.2) — a `pub(crate)` type, a `fn`,
 or a `const`. Parsed from a `- impl: <qname>` bullet, it *redirects* the
 concept's equivalence target to the resolved item rather than requiring a
 top-level `pub` type named like the heading. Shares the verb-bullet qname
@@ -701,7 +701,7 @@ stays two-way and zero-baseline. Lives in `domain`.
 
 ## AnchorKind
 
-The kind of code item an anchor resolved to (RFC-012 §3.4): `Type`, `Fn`,
+The kind of code item an anchor resolved to (graph-specs-012-non-pub-spec-anchor#3.4): `Type`, `Fn`,
 or `Const` — the three the source-walk MVP resolves, each a `syn::Item`
 the reader already visits. Enum-variant resolution is deferred to R12-6
 (cfdb-query, where `kind:"variant"` is native), so the enum is
@@ -711,7 +711,7 @@ the reader already visits. Enum-variant resolution is deferred to R12-6
 ## AnchorTarget
 
 A resolved anchor target — the code item an `AnchorResolver` found for a
-qname, at any visibility (RFC-012 §3.4). A pure domain type by
+qname, at any visibility (graph-specs-012-non-pub-spec-anchor#3.4). A pure domain type by
 construction: it carries no infrastructure representation (`syn::Item`,
 cfdb `Node`/`PropValue`); the resolving adapter translates into this
 shape, keeping the dependency arrow pointing inward. Pairs an
@@ -720,7 +720,7 @@ shape, keeping the dependency arrow pointing inward. Pairs an
 ## ResolvedAnchor
 
 A [ConceptAnchor](#conceptanchor) paired with its code-side resolution
-verdict (RFC-012 §3.4) — `Some(`[AnchorTarget](#anchortarget)`)` when the
+verdict (graph-specs-012-non-pub-spec-anchor#3.4) — `Some(`[AnchorTarget](#anchortarget)`)` when the
 named item exists in code, `None` when it does not. Built by the
 application (which resolves each target through the
 [AnchorResolver](#anchorresolver) port) and handed to the diff, so the
@@ -730,7 +730,7 @@ is exempt from `MissingInCode`; an unresolved anchor becomes
 
 ## AnchorResolver
 
-The anchor-resolution port (RFC-012 §3.4) — a **separate** trait from
+The anchor-resolution port (graph-specs-012-non-pub-spec-anchor#3.4) — a **separate** trait from
 [CodeFacts](#codefacts) (ISP): not every code adapter resolves anchors, so
 widening `CodeFacts` would force a deferred adapter to ship a stub. It
 answers one question the concept walk does not: *does an item named
