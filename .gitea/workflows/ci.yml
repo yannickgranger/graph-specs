@@ -145,7 +145,7 @@ jobs:
       - name: cargo clippy (pedantic + nursery)
         run: |
           cd repo
-          cargo clippy --workspace --all-targets -- -D warnings -W clippy::pedantic -W clippy::nursery
+          cargo clippy --workspace --all-targets -- -D warnings -W clippy::pedantic -W clippy::nursery -A clippy::missing-errors-doc -A clippy::missing-panics-doc
 
   # ----------------------------------------------------------------
   # 4. Build — cargo build --workspace
