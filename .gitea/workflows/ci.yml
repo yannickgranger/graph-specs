@@ -57,7 +57,7 @@ jobs:
       - name: Setup
         run: |
           set -e
-          apt-get update && apt-get install -y --no-install-recommends git ca-certificates
+          apt-get update && apt-get install -y --no-install-recommends git ca-certificates python3
           mkdir -p /cache/cargo/registry /cache/cargo/git ~/.cargo
           ln -sf /cache/cargo/registry ~/.cargo/registry
           ln -sf /cache/cargo/git ~/.cargo/git
@@ -76,6 +76,12 @@ jobs:
         run: |
           cd repo
           cargo fmt --check --all
+
+      - name: comment fence
+        run: |
+          cd repo
+          python3 scripts/comment_fence.py --self-test
+          python3 scripts/comment_fence.py domain ports adapters application
 
   # ----------------------------------------------------------------
   # 2. Clippy (strict) — standard lints, -D warnings

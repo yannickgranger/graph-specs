@@ -1,12 +1,3 @@
-//! Integration tests for the RFC-013 spec-state marker, end to end through
-//! `run_check` and the NDJSON emitter.
-//!
-//! Rewritten from `draft_diagnostic.rs`, which asserted the retired
-//! `ImplementsDraftConcept` variant (RFC-013 §7 Slice A: rewritten, not
-//! deleted). Its case — a `status: draft` spec implemented by a `pub` item —
-//! survives below with the polarity flipped: that condition is now a
-//! `realized` marker record, not a violation.
-
 use domain::Violation;
 use std::io::Write;
 use std::path::Path;
@@ -65,8 +56,6 @@ fn draft_implementation_reports_a_realized_marker_record() {
     );
 }
 
-/// The fixture the RFC prescribes: a draft-front-matter file plus a ratified
-/// file carrying one per-heading-marked concept with no code and one with.
 fn write_mixed_fixture(specs: &Path, code: &Path, widget_decl: &str) {
     write(
         specs,
@@ -126,8 +115,6 @@ fn mixed_fixture_yields_one_pending_one_realized_and_exits_zero() {
 
 #[test]
 fn a_real_divergence_under_a_marked_heading_still_reds_the_gate() {
-    // RFC-013 §4 invariant 1 — a marker never parks a divergence. The spec
-    // declares `pub struct Widget;`; the code declares an enum.
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
     write_mixed_fixture(specs.path(), code.path(), "pub enum Widget { A }\n");
@@ -151,8 +138,6 @@ fn a_real_divergence_under_a_marked_heading_still_reds_the_gate() {
 
 #[test]
 fn a_misplaced_marker_leaves_the_anti_invention_check_armed() {
-    // RFC-013 §3.1 fail-loud: the marker bullet is not the first non-blank
-    // content line, so it is inert and `MissingInCode` fires as usual.
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
     write(
@@ -177,7 +162,6 @@ fn a_misplaced_marker_leaves_the_anti_invention_check_armed() {
 
 #[test]
 fn a_pending_concepts_verb_anchor_imposes_no_obligation() {
-    // RFC-013 §3.4 uniform obligation skip, end to end.
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
     write(
@@ -197,14 +181,8 @@ fn a_pending_concepts_verb_anchor_imposes_no_obligation() {
     assert_eq!(outcome.pending.len(), 1);
 }
 
-// --- RFC-013 §3.2 row 6 — cohesion tightening (Slice B) ---
-
 #[test]
 fn an_h1_only_draft_doc_reds_the_check() {
-    // Before RFC-013 a doc could enter the enforced surface carrying no
-    // cohesion unit at all by declaring itself draft. That channel is closed:
-    // marking relaxes a concept's code-existence obligation, never the
-    // doc-level structural check.
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
     write(
@@ -232,8 +210,6 @@ fn an_h1_only_draft_doc_reds_the_check() {
 
 #[test]
 fn adding_a_marked_heading_greens_it_back_to_pending_only() {
-    // A marked heading COUNTS as a cohesion unit — the assembler records
-    // heading depth and is marker-blind by construction.
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
     write(
@@ -256,11 +232,6 @@ fn adding_a_marked_heading_greens_it_back_to_pending_only() {
 
 #[test]
 fn both_retirement_records_emit_end_to_end_and_the_tree_exits_clean() {
-    // RFC-015 §3.2 rows 7 and 8, through the real reader and the real diff:
-    // one retired heading whose item is still present, one whose item is
-    // gone. Exactly one record of each kind, and the gate stays green — the
-    // whole point of the RFC is that a retirement has a legal intermediate
-    // commit for whoever moves first.
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
 
@@ -299,9 +270,6 @@ fn both_retirement_records_emit_end_to_end_and_the_tree_exits_clean() {
 
 #[test]
 fn retirement_records_carry_the_v4_schema_version_on_the_wire() {
-    // RFC-015 §3.5 — two new values under the EXISTING `marker`
-    // discriminator, so `schema_version` stays "4": they change which
-    // headings qualify, not what the discriminator means.
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
 
@@ -336,9 +304,6 @@ fn retirement_records_carry_the_v4_schema_version_on_the_wire() {
 
 #[test]
 fn the_text_summary_renders_every_list_even_at_zero() {
-    // RFC-015 §3.5 — the RENDERING rule, which is not the cleanliness rule.
-    // An absent segment would be indistinguishable from a formatter that
-    // forgot to render it, so a clean tree still prints both new counts.
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
     write(specs.path(), "concepts/widget.md", "## Widget\n");

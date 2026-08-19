@@ -1,9 +1,3 @@
-//! Human-readable text format for `graph-specs report`.
-//!
-//! Mirrors the shape of [`super::text`] but operates on [`ReportOutput`]
-//! rather than violations. The CLI's `report --format=text` dispatch calls
-//! this.
-
 use domain::{
     ContextPattern, HomonymRecord, ReportOutput, Source, TierHistogramRecord, TierKind,
     VerbCoverageRecord,
@@ -11,14 +5,6 @@ use domain::{
 use std::io::{self, Write};
 use std::path::Path;
 
-/// Emit the report as human-readable text to `out`.
-///
-/// Three sections in order: verb-coverage, tier-histogram, homonym.
-/// Empty sections are omitted entirely (no section header).
-///
-/// # Errors
-///
-/// Propagates any [`std::io::Error`] from the underlying writer.
 pub fn emit_text(out: &mut impl Write, report: &ReportOutput) -> io::Result<()> {
     emit_verb_coverage(out, &report.verb_coverage)?;
     emit_tier_histogram(out, &report.tier_histogram)?;
@@ -106,7 +92,6 @@ fn emit_homonyms(out: &mut impl Write, records: &[HomonymRecord]) -> io::Result<
     Ok(())
 }
 
-/// Sort key placing `None` (orphaned) last.
 fn context_key(ctx: Option<&str>) -> (bool, &str) {
     ctx.map_or((true, ""), |s| (false, s))
 }
@@ -231,8 +216,6 @@ mod tests {
 
     #[test]
     fn emit_text_determinism() {
-        // Two homonym entries in reverse-alpha order: "Zebra" before "Apple".
-        // Emitter must sort them alpha so "Apple" appears first in output.
         let report = ReportOutput {
             verb_coverage: vec![],
             tier_histogram: vec![],

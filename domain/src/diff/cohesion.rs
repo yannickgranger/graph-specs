@@ -1,28 +1,6 @@
-//! Cohesion pass.
-//!
-//! The upward concept→context rung. Splits by **fact-dependency**:
-//!
-//! - [`CohesionViolation::ContextWithoutCohesionUnit`] and
-//!   [`CohesionViolation::SubConceptOrphan`] are *spec-side* — the
-//!   `TreeAssembler` detects them from the heading tree with zero code
-//!   facts. The markdown adapter pre-computes them (it owns the tree); this
-//!   pass only wraps them as [`Violation::Cohesion`].
-//! - [`CohesionViolation::ConceptContextMismatch`] is *code-fact-gated*: it
-//!   compares each concept's spec-side **declared** context (its `concepts/`
-//!   H1) against the **code-resolved** context (the `specs/contexts/` Owns
-//!   block that owns the crate the `pub` type lives in). It can only fire
-//!   when `specs/contexts/` is present — without it there is no code-side
-//!   context to disagree with.
-
 use crate::context::context_for_concept;
 use crate::{resolve_declared_context, CohesionViolation, ContextDecl, Graph, Source, Violation};
 
-/// Append cohesion violations to `violations`.
-///
-/// `spec_cohesion` are the adapter-detected spec-side structural violations;
-/// `declared` is each concept's `(name, declared_context, spec_source)`
-/// snapshot; `code` is the code graph; `contexts` the declared bounded
-/// contexts.
 pub(super) fn cohesion_pass(
     spec_cohesion: Vec<CohesionViolation>,
     declared: Vec<(String, String, Source)>,
@@ -30,17 +8,12 @@ pub(super) fn cohesion_pass(
     contexts: &[ContextDecl],
     violations: &mut Vec<Violation>,
 ) {
-    // Spec-side structural cohesion — fires regardless of code facts.
     violations.extend(spec_cohesion.into_iter().map(Violation::Cohesion));
 
-    // ConceptContextMismatch needs a code-side context: only
-    // resolvable when `specs/contexts/` Owns is declared.
     if contexts.is_empty() {
         return;
     }
     for (concept, h1_context, spec_source) in declared {
-        // Canonical-upstream precedence: a matching `specs/contexts/` export
-        // wins over the concept file's own H1.
         let upstream = contexts
             .iter()
             .find(|c| c.exports.iter().any(|e| e.concept == concept))
@@ -124,8 +97,6 @@ mod tests {
 
     #[test]
     fn mismatch_fires_when_declared_differs_from_code_resolved() {
-        // `Widget` is documented under H1 `reading` but its code lives in
-        // crate `domain`, owned by context `equivalence`.
         let code = Graph::new(vec![code_node("Widget", "domain")], Vec::new());
         let contexts = vec![ctx("equivalence", "domain", &[])];
         let declared = vec![("Widget".to_owned(), "reading".to_owned(), spec_src(7))];
@@ -159,9 +130,6 @@ mod tests {
 
     #[test]
     fn mismatch_suppressed_without_specs_contexts() {
-        // Data-dependency: with no contexts there is no code-side context,
-        // so ConceptContextMismatch cannot fire (source-walk
-        // without specs/contexts/).
         let code = Graph::new(vec![code_node("Widget", "domain")], Vec::new());
         let declared = vec![("Widget".to_owned(), "reading".to_owned(), spec_src(7))];
         let mut v = Vec::new();
@@ -171,9 +139,6 @@ mod tests {
 
     #[test]
     fn upstream_export_wins_over_h1_for_declared_context() {
-        // `Graph` is exported by `equivalence` (canonical-upstream) but the
-        // concept file H1 says `reading`. Code also resolves to equivalence,
-        // so with upstream precedence there is NO mismatch.
         let code = Graph::new(vec![code_node("Graph", "domain")], Vec::new());
         let contexts = vec![ctx("equivalence", "domain", &["Graph"])];
         let declared = vec![("Graph".to_owned(), "reading".to_owned(), spec_src(3))];

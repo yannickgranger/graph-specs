@@ -1,14 +1,8 @@
-//! `pub fn` / impl-method visiting — the verb-reader walk that backs
-//! [`crate::RustReader::extract_pub_fns`].
-
 use crate::cfg_gate::is_test_gated;
 use domain::{PubFnDecl, Source};
 use std::path::Path;
 use syn::Visibility;
 
-/// Separate parallel walk for `pub fn` items — the concept walk documents
-/// `Fn` as an excluded item and MUST NOT be extended. This sibling
-/// exclusively handles `syn::Item::Fn`.
 pub fn visit_top_level_fn(
     item: &syn::Item,
     path: &Path,
@@ -34,14 +28,6 @@ pub fn visit_top_level_fn(
     }
 }
 
-/// Parallel walk for impl-block pub methods (v0.6 impl-method anchoring).
-///
-/// Handles both inherent impls (`impl Foo { pub fn bar }`) and trait impls
-/// (`impl Trait for Foo { fn bar }`). For trait impls, explicit `pub` is not
-/// required because trait-impl methods are public by contract.
-///
-/// Does NOT modify `visit_top_level_fn` or the concept walk's own item
-/// visitor.
 pub fn visit_impl_block(
     item: &syn::Item,
     path: &Path,
@@ -82,17 +68,10 @@ pub fn visit_impl_block(
     }
 }
 
-/// Extract the leading type-name identifier from an impl self-type.
-///
-/// Returns `None` for qualified-path self types (`<Foo as Trait>::Item`) —
-/// their outer path's first segment is the associated-type name, not the
-/// implementing type, so the qname would be wrong. Returns `None` for
-/// non-`Path` types such as slices (`[T]`) or tuples.
 pub fn root_ident_of_self_ty(ty: &syn::Type) -> Option<&syn::Ident> {
     let syn::Type::Path(tp) = ty else {
         return None;
     };
-    // Skip qualified-path Self types like <Foo as Trait>::Item.
     if tp.qself.is_some() {
         return None;
     }

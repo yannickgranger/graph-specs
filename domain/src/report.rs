@@ -1,10 +1,3 @@
-//! Verb-coverage report types and pure transformation.
-//!
-//! All types here are pure value objects whose owning context is
-//! `equivalence`, parallel to [`crate::ConceptNode`] / [`crate::Edge`].
-//! The orchestration that calls readers lives in `application::report`
-//! (Slice B); this module receives pre-materialised inputs only.
-
 mod context_map;
 mod coverage;
 mod homonym;
@@ -25,20 +18,6 @@ pub use types::{
     TierHistogramRecord, TierKind, VerbCoverageRecord,
 };
 
-/// Pure transformation — MUST NOT invoke any reader.
-///
-/// Receives pre-materialised inputs assembled by the application orchestrator
-/// (`application::report`, Slice B), parallel to [`crate::diff`].
-///
-/// # Arguments
-///
-/// * `check_input` — spec graph + bounded-context declarations (assembled
-///   by the orchestrator before calling this function, same as for `diff`).
-/// * `pub_fns` — all top-level `pub fn` declarations from the code tree,
-///   as produced by `VerbReader::extract_pub_fns`.
-/// * `annotations` — all `[enforced-by:]` / `[prose-only:]` annotations
-///   from spec `#### Operational invariants` sections, as produced by
-///   `MarkdownReader::extract_invariant_annotations`.
 #[must_use]
 pub fn report_verb_coverage(
     check_input: &CheckInput,

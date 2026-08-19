@@ -42,7 +42,6 @@ fn empty_input() -> CheckInput {
     CheckInput::default()
 }
 
-// (a) verb-coverage with None context
 #[test]
 fn verb_coverage_none_context_when_unit_unmapped() {
     let input = empty_input();
@@ -54,7 +53,6 @@ fn verb_coverage_none_context_when_unit_unmapped() {
     assert_eq!(out.verb_coverage[0].pub_fn.name, "run_check");
 }
 
-// (a continued) verb-coverage with a mapped context
 #[test]
 fn verb_coverage_context_resolved_from_owned_unit() {
     let ctx = ContextDecl::new(
@@ -73,7 +71,6 @@ fn verb_coverage_context_resolved_from_owned_unit() {
     );
 }
 
-// (a) cited=true when fn name appears as a spec concept node
 #[test]
 fn verb_coverage_cited_when_spec_has_matching_concept() {
     use crate::{ConceptNode, SignatureState};
@@ -85,7 +82,6 @@ fn verb_coverage_cited_when_spec_has_matching_concept() {
     assert!(out.verb_coverage[0].cited);
 }
 
-// (b) tier histogram with all four TierKind values
 #[test]
 fn tier_histogram_all_four_tiers() {
     let input = empty_input();
@@ -124,11 +120,9 @@ fn tier_histogram_all_four_tiers() {
         .find(|r| r.tier == TierKind::ProseOnly)
         .expect("prose-only tier present");
     assert_eq!(prose.count, 3);
-    // Records sorted by tier discriminant
     assert!(out.tier_histogram[0].tier <= out.tier_histogram[1].tier);
 }
 
-// (c) homonym with sanctioned vs unsanctioned
 #[test]
 fn homonym_sanctioned_published_language() {
     let ctx_a = ContextDecl::new(
@@ -208,7 +202,6 @@ fn homonym_unsanctioned_no_declaration() {
     }
 }
 
-// (d) exporter-wins with asymmetric flag on Export/Import pattern disagreement
 #[test]
 fn homonym_asymmetric_export_import_disagreement() {
     let ctx_a = ContextDecl::new(
@@ -248,7 +241,6 @@ fn homonym_asymmetric_export_import_disagreement() {
         .iter()
         .find(|a| a.context_name == "ctx_a")
         .expect("ctx_a appearance present");
-    // Export wins; asymmetric because import disagrees
     assert_eq!(
         app_a.sanctioned_by_pattern,
         Some(ContextPattern::PublishedLanguage)

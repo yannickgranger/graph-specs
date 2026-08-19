@@ -1,26 +1,3 @@
-//! Tokenisation of edge targets.
-//!
-//! A declared edge target — from a spec bullet (`- implements: Foo`) or
-//! from a rust `syn` type (`impl Foo for Bar`) — is reduced to a single
-//! primary identifier before comparison. Both sides funnel through this
-//! function so the two readers cannot drift on tokenisation rules.
-//!
-//! Rules (applied in order):
-//!
-//! 1. Trim surrounding whitespace.
-//! 2. Strip leading references (`&T`, `&mut T`, and repeated `&`),
-//!    including any lifetime that follows (`&'a T`, `&'a mut T`).
-//! 3. Drop generic parameters — keep only the primary head
-//!    (`Result<Graph, E>` → `Result`).
-//! 4. Keep only the last `::` segment (`domain::Graph` → `Graph`).
-//! 5. Trim again.
-//!
-//! The result is the "matching token": two edges match iff their
-//! `EdgeKind` agrees and their tokenised targets are byte-equal.
-
-/// Reduce a raw edge target to its matching token.
-///
-/// Returns an empty string only if the input was empty or whitespace-only.
 #[must_use]
 pub fn tokenise_target(raw: &str) -> String {
     let mut s = raw.trim();
@@ -47,9 +24,6 @@ pub fn tokenise_target(raw: &str) -> String {
     s.trim().to_string()
 }
 
-/// If `s` starts with a Rust lifetime token (`'ident`), return the remainder
-/// after consuming it. Returns `None` otherwise. `'_` and `'static` are
-/// handled by the same identifier rule.
 fn strip_lifetime(s: &str) -> Option<&str> {
     let rest = s.strip_prefix('\'')?;
     let mut chars = rest.char_indices();

@@ -22,6 +22,10 @@ jobs:
           toolchain: "1.93"
           components: rustfmt
       - run: cargo fmt --check --all
+      - name: comment fence
+        run: |
+          python3 scripts/comment_fence.py --self-test
+          python3 scripts/comment_fence.py domain ports adapters application
 
   clippy:
     name: Clippy (strict)

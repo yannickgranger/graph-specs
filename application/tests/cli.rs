@@ -1,10 +1,3 @@
-//! End-to-end CLI tests via `assert_cmd`.
-//!
-//! Builds the real `graph-specs` binary and drives it against temporary
-//! fixture directories. Covers the four AC scenarios for issue #3:
-//! empty, matching, spec-only concept (`MissingInCode`), code-only concept
-//! (`MissingInSpecs`).
-
 use assert_cmd::Command;
 use predicates::prelude::*;
 use std::io::Write;
@@ -87,11 +80,8 @@ fn spec_only_concept_exits_1_with_missing_in_code() {
         .stdout(predicate::str::contains("1 violation"));
 }
 
-// --- RFC-012 R12-3 — `- impl:` anchors end-to-end via the CLI ---
-
 #[test]
 fn anchored_pub_crate_concept_passes() {
-    // A concept whose impl is `pub(crate)` resolves via its `- impl:` anchor.
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
     write_file(
@@ -144,12 +134,8 @@ fn dangling_anchor_exits_1() {
         .stdout(predicate::str::contains("nonexistent_fn"));
 }
 
-// --- v0.2 signature-level integration + inject-bite ---
-
 #[test]
 fn injectbite_rename_field_in_spec_only() {
-    // Spec says the field is `pub uuid: Uuid`; code says `pub id: Uuid`.
-    // The concept name matches, but the normalised signatures diverge.
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
     write_file(
@@ -180,7 +166,6 @@ fn injectbite_rename_field_in_spec_only() {
 
 #[test]
 fn injectbite_add_variant_in_code_only() {
-    // Spec has enum with one variant; code adds a second.
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
     write_file(
@@ -210,7 +195,6 @@ fn injectbite_add_variant_in_code_only() {
 
 #[test]
 fn injectbite_change_generic_bound_in_spec_only() {
-    // Spec says `T: Copy`; code says `T: Clone`.
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
     write_file(
@@ -287,8 +271,6 @@ fn unparseable_spec_rust_block_exits_2() {
 
 #[test]
 fn concept_only_spec_does_not_emit_signature_violation() {
-    // Backward compat: a v0.1-style spec with no rust block coexists with
-    // code that has a signature. Should pass (opt-in semantics).
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
     write_file(specs.path(), "core.md", "## OrderId\n");
@@ -307,13 +289,8 @@ fn concept_only_spec_does_not_emit_signature_violation() {
         .stdout(predicate::str::contains("0 violations"));
 }
 
-// --- v0.3 relationship-level inject-bite (AC #6) ---
-
 #[test]
 fn injectbite_spec_implements_without_code_impl_emits_edge_missing_in_code() {
-    // Spec: MarkdownReader section declares `- implements: Reader`.
-    // Code: MarkdownReader is a pub struct, but Reader is a trait with no
-    // `impl Reader for MarkdownReader` block. Result: EdgeMissingInCode.
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
     write_file(
@@ -344,8 +321,6 @@ fn injectbite_spec_implements_without_code_impl_emits_edge_missing_in_code() {
 
 #[test]
 fn injectbite_code_impl_without_spec_bullet_emits_edge_missing_in_spec() {
-    // Spec: MarkdownReader has at least one bullet (opts in) but omits
-    // the Writer one. Code: `impl Writer for MarkdownReader` exists.
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
     write_file(
@@ -376,7 +351,6 @@ fn injectbite_code_impl_without_spec_bullet_emits_edge_missing_in_spec() {
 
 #[test]
 fn injectbite_spec_edge_target_unknown_concept_emits_target_unknown() {
-    // Spec references a concept that exists on neither side.
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
     write_file(
@@ -403,9 +377,6 @@ fn injectbite_spec_edge_target_unknown_concept_emits_target_unknown() {
 
 #[test]
 fn injectbite_field_rename_pair_emits_missing_in_code_and_spec() {
-    // Spec: Container depends on Graph. Code: Container's field is Node,
-    // not Graph. Both EdgeMissingInCode (Graph) and EdgeMissingInSpec (Node)
-    // fire for the same concept.
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
     write_file(
@@ -439,8 +410,6 @@ fn injectbite_field_rename_pair_emits_missing_in_code_and_spec() {
 
 #[test]
 fn v03_matching_edges_produce_no_violations() {
-    // Regression: a spec that declares the same edges the code has must
-    // still produce 0 violations.
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
     write_file(
@@ -491,8 +460,6 @@ fn code_only_concept_exits_1_with_missing_in_specs() {
         .stdout(predicate::str::contains("missing in specs: Undeclared"))
         .stdout(predicate::str::contains("1 violation"));
 }
-
-// --- NDJSON output (issue #13) --------------------------------------------
 
 fn run_ndjson(specs: &Path, code: &Path) -> std::process::Output {
     bin()
@@ -595,8 +562,6 @@ fn ndjson_multiple_violations_newline_delimited_each_parseable() {
     assert_eq!(out.status.code(), Some(1));
     let records = parse_ndjson(&out.stdout);
     assert_eq!(records.len(), 2);
-    // Each record must parse independently — the invariant of NDJSON.
-    // parse_ndjson already asserts this (it would panic on invalid line).
     let violations: Vec<&str> = records
         .iter()
         .map(|r| r["violation"].as_str().unwrap())
@@ -607,7 +572,6 @@ fn ndjson_multiple_violations_newline_delimited_each_parseable() {
 
 #[test]
 fn ndjson_text_format_unchanged_by_flag_absence() {
-    // Regression: default output (no --format) must match legacy text.
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
     write_file(specs.path(), "core.md", "## Foo\n");
@@ -626,23 +590,6 @@ fn ndjson_text_format_unchanged_by_flag_absence() {
         .stdout(predicate::str::contains("0 violations"));
 }
 
-// --- v0.4 bounded-context inject-bite (issue #28 AC) ---------------------
-//
-// Runs the CLI with `--specs <tmp>/specs --code <tmp>/code` and asserts
-// each `ContextViolation` variant surfaces end-to-end. These tests were
-// deferred from #26 (NDJSON) and #27 (text) because `run_check` did not
-// yet load context declarations. With #28 wiring both readers, the three
-// variants can finally be exercised through the real CLI.
-
-/// Build a canonical v0.4 layout under a tmpdir:
-///   <root>/specs/concepts/core.md  (v0.1 concept headings)
-///   <root>/specs/contexts/*.md     (v0.4 context declarations)
-///   <root>/<unit>/src/lib.rs       (code — `--code .` picks it up)
-///
-/// Returns the `TempDir` guard; the caller runs the binary with
-/// `current_dir(root)` so the source paths resolve to `./<unit>/src/...`,
-/// which after `trim_start_matches("./")` + `split("/src/")` yields
-/// unit strings that can be matched against context `Owns` entries.
 fn v04_fixture(concepts: &str, contexts: &[(&str, &str)], code_files: &[(&str, &str)]) -> TempDir {
     let root = TempDir::new().unwrap();
     write_file(root.path(), "specs/concepts/core.md", concepts);
@@ -675,16 +622,12 @@ fn run_v04_text(root: &Path) -> std::process::Output {
 
 #[test]
 fn injectbite_v04_membership_unknown_surfaces_in_text_and_ndjson() {
-    // Code has a concept in `beta-unit/src/...`, but no context declares
-    // `beta-unit` under `Owns` — alpha only owns `alpha-unit`. Tool must
-    // flag MembershipUnknown for the stray concept.
     let root = v04_fixture(
         "## Stray\n",
         &[("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n")],
         &[("beta-unit/src/lib.rs", "pub struct Stray;")],
     );
 
-    // Text output
     let text = run_v04_text(root.path());
     assert_eq!(text.status.code(), Some(1));
     let stdout = String::from_utf8_lossy(&text.stdout);
@@ -693,7 +636,6 @@ fn injectbite_v04_membership_unknown_surfaces_in_text_and_ndjson() {
         "text: {stdout}"
     );
 
-    // NDJSON output
     let out = run_v04_ndjson(root.path());
     assert_eq!(out.status.code(), Some(1));
     let records = parse_ndjson(&out.stdout);
@@ -709,9 +651,6 @@ fn injectbite_v04_membership_unknown_surfaces_in_text_and_ndjson() {
 
 #[test]
 fn injectbite_v04_cross_edge_unauthorized_surfaces_in_text_and_ndjson() {
-    // Two contexts, no imports between them. Code has an `impl Foo for
-    // Impl` spanning alpha and beta. The cross-context edge lacks any
-    // Imports entry in beta, so CrossEdgeUnauthorized must fire.
     let root = v04_fixture(
         "## Foo\n## Impl\n",
         &[
@@ -750,18 +689,8 @@ fn injectbite_v04_cross_edge_unauthorized_surfaces_in_text_and_ndjson() {
     );
 }
 
-// --- v0.5 verb-anchoring inject-bite (issue #103 AC) ---------------------
-//
-// Six cases: match, VerbMissingInCode, VerbMissingInSpec, VerbTargetUnknown,
-// CrossVerbUnauthorized, and the zero-anchor no-op. Each drives the real
-// binary with `--specs specs/ --code .` against a v0.4-style tmpdir layout.
-// Cargo.toml stubs in unit directories are required so `find_owned_unit`
-// resolves the workspace-relative unit name.
-
 #[test]
 fn injectbite_v05_verb_match_produces_no_violations() {
-    // Spec: ConceptA anchors `- verb: my_fn`. Code: pub fn my_fn in alpha-unit
-    // owned by context alpha. Exact match → no violations.
     let root = v04_fixture(
         "## ConceptA\n\n- verb: my_fn\n",
         &[("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n")],
@@ -785,8 +714,6 @@ fn injectbite_v05_verb_match_produces_no_violations() {
 
 #[test]
 fn injectbite_v05_verb_missing_in_code_surfaces_in_text() {
-    // Spec: ConceptA anchors `- verb: absent_fn`. Code: no pub fn absent_fn.
-    // Expects VerbMissingInCode.
     let root = v04_fixture(
         "## ConceptA\n\n- verb: absent_fn\n",
         &[("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n")],
@@ -810,8 +737,6 @@ fn injectbite_v05_verb_missing_in_code_surfaces_in_text() {
 
 #[test]
 fn injectbite_v05_verb_missing_in_spec_surfaces_in_text() {
-    // Spec: ConceptA anchors `- verb: claimed_fn` but NOT unclaimed_fn.
-    // Code: alpha-unit exposes both. Expects VerbMissingInSpec for unclaimed_fn.
     let root = v04_fixture(
         "## ConceptA\n\n- verb: claimed_fn\n",
         &[("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n")],
@@ -838,9 +763,6 @@ fn injectbite_v05_verb_missing_in_spec_surfaces_in_text() {
 
 #[test]
 fn injectbite_v05_verb_target_unknown_surfaces_in_text() {
-    // Spec: ConceptA anchors `- verb: ghost_fn`. Code: pub fn ghost_fn exists
-    // in orphan-unit which has no Cargo.toml → owned_unit is None → no context
-    // owns it. Expects VerbTargetUnknown.
     let root = v04_fixture(
         "## ConceptA\n\n- verb: ghost_fn\n",
         &[("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n")],
@@ -865,9 +787,6 @@ fn injectbite_v05_verb_target_unknown_surfaces_in_text() {
 
 #[test]
 fn injectbite_v05_cross_verb_unauthorized_surfaces_in_text() {
-    // Spec: ConceptA (in alpha context) anchors `- verb: cross_fn`.
-    // Code: cross_fn is pub fn in beta-unit (beta context). No import declared.
-    // Expects CrossVerbUnauthorized.
     let root = v04_fixture(
         "## ConceptA\n\n- verb: cross_fn\n",
         &[
@@ -901,8 +820,6 @@ fn injectbite_v05_cross_verb_unauthorized_surfaces_in_text() {
 
 #[test]
 fn injectbite_v06_impl_method_verb_anchor_matches_impl_block() {
-    // Spec: Foo anchors `- verb: Foo::bar`. Code: impl Foo { pub fn bar() {} }.
-    // After v0.6 impl-method walk, Foo::bar is in the decl set → exit 0.
     let root = v04_fixture(
         "## Foo\n\n- verb: Foo::bar\n",
         &[("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n")],
@@ -926,8 +843,6 @@ fn injectbite_v06_impl_method_verb_anchor_matches_impl_block() {
 
 #[test]
 fn v05_zero_verb_bullets_verb_pass_is_noop() {
-    // Spec has no `- verb:` bullets → verb pass skipped entirely.
-    // Code: alpha-unit exposes pub fn any_fn. No VerbMissingInSpec should fire.
     let root = v04_fixture(
         "## ConceptA\n",
         &[("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n")],
@@ -951,13 +866,6 @@ fn v05_zero_verb_bullets_verb_pass_is_noop() {
 
 #[test]
 fn injectbite_v06_hybrid_opt_in_impl_method_vs_free_fn() {
-    // Spec: ## Foo with `- verb: bar` (bare-ident); ## Other with no anchors.
-    // Code: pub fn bar (claimed free fn), impl Foo { pub fn baz } (unclaimed
-    // impl-method), pub fn loose_fn (unclaimed free fn), impl Other { pub fn
-    // quux } (impl-method for non-opted-in concept).
-    //
-    // Expected VerbMissingInSpec: Foo::baz (impl-method branch) and loose_fn
-    // (free-fn branch). Other::quux must NOT fire (per-concept narrowing).
     let root = v04_fixture(
         "## Foo\n\n- verb: bar\n\n## Other\n",
         &[("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n")],
@@ -995,9 +903,6 @@ fn injectbite_v06_hybrid_opt_in_impl_method_vs_free_fn() {
 
 #[test]
 fn injectbite_v04_cross_edge_undeclared_surfaces_in_text_and_ndjson() {
-    // Beta imports `Foo from alpha (PublishedLanguage)`, but alpha does
-    // NOT export `Foo`. The edge is authorized on the consumer side but
-    // unsatisfied on the supplier side — CrossEdgeUndeclared fires.
     let root = v04_fixture(
         "## Foo\n## Impl\n",
         &[
@@ -1037,13 +942,8 @@ fn injectbite_v04_cross_edge_undeclared_surfaces_in_text_and_ndjson() {
     );
 }
 
-// --- RFC-010 §3.5 / R10-3 cohesion end-to-end (§12-F non-zero exit) ---
-
 #[test]
 fn spec_side_cohesion_violation_exits_non_zero() {
-    // A `concepts/` file with an H1 but no concept under it is malformed —
-    // ContextWithoutCohesionUnit. It must drive a non-zero exit and render
-    // (not "unknown violation").
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
     write_file(
@@ -1071,9 +971,6 @@ fn spec_side_cohesion_violation_exits_non_zero() {
 
 #[test]
 fn concept_context_mismatch_exits_non_zero_end_to_end() {
-    // `Widget` is documented under H1 `reading` (concepts/reading.md) but
-    // its code lives in crate `domain`, which `equivalence` Owns — a real
-    // ConceptContextMismatch resolved through specs/contexts/ Owns.
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
     write_file(
@@ -1116,12 +1013,8 @@ fn concept_context_mismatch_exits_non_zero_end_to_end() {
         );
 }
 
-// --- RFC-013 §3.5 — marker records at the CLI surface ---
-
 #[test]
 fn clean_tree_summary_names_all_three_counts() {
-    // Both marker lists are represented in the summary even at zero: an
-    // absent segment is indistinguishable from a formatter that forgot it.
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
     write_file(specs.path(), "core.md", "## Foo\n");
@@ -1203,13 +1096,8 @@ fn ndjson_marker_records_carry_the_marker_discriminator() {
     );
 }
 
-// --- RFC-010 §3.6 / #136 — provenance triple on code source objects ----
-
 #[test]
 fn ndjson_code_only_fixture_carries_provenance_triple() {
-    // Code-only fixture with a declared owning context: the
-    // `missing_in_specs` record's source object carries the agnostic
-    // triple end-to-end (adapter facts → diff snapshot → emitter).
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
     write_file(
@@ -1240,8 +1128,6 @@ fn ndjson_code_only_fixture_carries_provenance_triple() {
 
 #[test]
 fn ndjson_without_contexts_omits_context_field() {
-    // Same fixture minus `specs/contexts/` — module_path/unit still
-    // present, `context` absent (omitted, never null).
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
     write_file(

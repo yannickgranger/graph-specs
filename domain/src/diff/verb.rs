@@ -1,17 +1,3 @@
-//! v0.5 verb-anchoring pass — fifth pass in [`crate::diff::diff`].
-//!
-//! Opt-in per context: a context with zero `- verb:` anchors is not
-//! inspected. Once a context is verb-anchored (at least one concept in
-//! it carries a `- verb:` bullet), all `pub fn` declarations in that
-//! context must be claimed by at least one anchor.
-//!
-//! Emits three [`crate::Violation`] variants and one
-//! [`crate::ContextViolation`] variant:
-//! - `VerbMissingInCode` — anchor references a qname absent from code
-//! - `VerbTargetUnknown` — qname exists in code but no context claims it
-//! - `Context(CrossVerbUnauthorized)` — qname is in a different context
-//! - `VerbMissingInSpec` — pub fn in verb-anchored context has no anchor
-
 use crate::{
     context::context_for_concept, ContextDecl, ContextViolation, Graph, VerbAnchor, VerbDecl,
     VerbOwnership, Violation,
@@ -25,16 +11,7 @@ pub(super) fn verb_pass(
     unobliged_concepts: &HashSet<String>,
     out: &mut Vec<Violation>,
 ) {
-    // Owned so `emit_missing_in_spec` can move each decl's `qname`/`source`
-    // into the emitted violation instead of cloning per loop iteration.
     let VerbOwnership { decls, mut anchors } = verb_ownership;
-    // The uniform obligation skip. A `- verb:` bullet under a concept that compels
-    // nothing imposes nothing: there is no backing item to compare against,
-    // and firing `VerbMissingInCode` would contradict the heading's own
-    // meaning. Dropping the anchors (rather than post-filtering the
-    // violations) also keeps a context whose only anchors sit on unobliged
-    // concepts correctly *un*-opted-in, so no `VerbMissingInSpec` fires
-    // against its pub fns either.
     if !unobliged_concepts.is_empty() {
         anchors.retain(|a| !unobliged_concepts.contains(a.concept.as_str()));
     }
@@ -61,10 +38,6 @@ pub(super) fn verb_pass(
         }
     }
 
-    // The map keys are concept names (anchor.concept). The impl-method branch of
-    // emit_missing_in_spec checks `concepts_in_ctx.contains(type_root)` where
-    // `type_root` is the Type portion of `Type::method`. This works iff concept
-    // name == type name — the existing graph-specs dialect invariant.
     let mut opted_in_concepts_by_context: HashMap<&str, HashSet<&str>> = HashMap::new();
     for anchor in &anchors {
         if let Some(ctx) = context_for_concept(code, contexts, &anchor.concept) {
@@ -75,8 +48,6 @@ pub(super) fn verb_pass(
         }
     }
 
-    // `decl_by_qname` (borrowing `decls`) is no longer used past the anchor
-    // loop, so `decls` can be moved into the emitter.
     drop(decl_by_qname);
     emit_missing_in_spec(
         decls,
@@ -174,7 +145,6 @@ fn emit_missing_in_spec(
             continue;
         };
 
-        // Fast-path exit if already claimed in this context.
         if context_claimed_qnames
             .get(decl_ctx)
             .is_some_and(|claimed| claimed.contains(decl.qname.as_str()))
@@ -182,9 +152,6 @@ fn emit_missing_in_spec(
             continue;
         }
 
-        // Decide whether this decl is missing an anchor. Impl-method qnames
-        // (`Type::method`) opt in per-concept (context-scoped); bare-ident
-        // free fns opt in per-context; a leading `::` is malformed → skip.
         let fires = match decl.qname.split_once("::") {
             Some(("", _)) => false,
             Some((type_root, _method)) => opted_in_concepts_by_context
@@ -194,7 +161,6 @@ fn emit_missing_in_spec(
         };
 
         if fires {
-            // All borrows of `decl` have ended; move its fields out — no clone.
             out.push(Violation::VerbMissingInSpec {
                 qname: decl.qname,
                 code_source: decl.source,
@@ -272,7 +238,6 @@ mod tests {
         out
     }
 
-    /// As [`run`], but with `concept` pending (RFC-013 §3.4).
     #[allow(clippy::needless_pass_by_value)]
     fn run_with_pending(
         pending: &str,
@@ -297,9 +262,6 @@ mod tests {
 
     #[test]
     fn pending_concepts_verb_anchors_impose_no_obligation() {
-        // RFC-013 §3.4 uniform obligation skip: a `- verb:` bullet under a
-        // pending concept would otherwise fire `VerbMissingInCode` and make
-        // matrix row 3 unreachable.
         let ctx = make_ctx("eq", &["domain"]);
         let anchor = make_anchor("Reconciler", "reconcile");
         let node = make_code_node("Reconciler", "domain");
@@ -325,9 +287,6 @@ mod tests {
 
     #[test]
     fn pending_concept_does_not_opt_its_context_into_verb_anchoring() {
-        // Dropping the anchor (rather than post-filtering violations) keeps a
-        // context whose only anchors sit on pending concepts un-opted-in, so
-        // its pub fns raise no `VerbMissingInSpec` either.
         let ctx = make_ctx("eq", &["domain"]);
         let anchor = make_anchor("Reconciler", "reconcile");
         let decl = make_decl("unrelated_fn", "domain");
@@ -465,8 +424,6 @@ mod tests {
 
     #[test]
     fn impl_method_in_anchored_concept_fires_missing_in_spec() {
-        // Foo has anchor Foo::baz (claimed). Foo::bar is in the same context
-        // but not claimed. Because Foo is opted-in, Foo::bar fires VerbMissingInSpec.
         let ctx = make_ctx("eq", &["domain"]);
         let anchor = make_anchor("Foo", "Foo::baz");
         let node = make_code_node("Foo", "domain");
@@ -492,8 +449,6 @@ mod tests {
 
     #[test]
     fn impl_method_in_non_anchored_concept_does_not_fire() {
-        // Bar is opted-in (has anchor bar_fn). Foo has no anchors.
-        // Foo::bar must not fire because Foo is not in opted_in_concepts.
         let ctx = make_ctx("eq", &["domain"]);
         let anchor = make_anchor("Bar", "bar_fn");
         let node_foo = make_code_node("Foo", "domain");
@@ -514,8 +469,6 @@ mod tests {
 
     #[test]
     fn impl_method_anchored_concept_in_different_context_does_not_fire() {
-        // Foo (in ctx_a) is opted-in. Foo::bar decl is in ctx_b.
-        // The concept-scoped lookup must not cross context boundaries.
         let ctx_a = make_ctx("ctx_a", &["crate_a"]);
         let ctx_b = make_ctx("ctx_b", &["crate_b"]);
         let anchor = make_anchor("Foo", "Foo::baz");
@@ -536,8 +489,6 @@ mod tests {
 
     #[test]
     fn free_fn_fires_missing_in_spec_under_per_context_activation() {
-        // SomeConcept is opted-in in ctx. A bare-ident unclaimed_fn in the
-        // same context must fire VerbMissingInSpec via the free-fn branch.
         let ctx = make_ctx("eq", &["domain"]);
         let anchor = make_anchor("SomeConcept", "some_fn");
         let node = make_code_node("SomeConcept", "domain");
@@ -563,7 +514,6 @@ mod tests {
 
     #[test]
     fn malformed_leading_colons_does_not_panic_or_fire() {
-        // A decl with qname "::orphan" matches Some(("", _)) and is silently skipped.
         let ctx = make_ctx("eq", &["domain"]);
         let anchor = make_anchor("Foo", "Foo::baz");
         let node = make_code_node("Foo", "domain");

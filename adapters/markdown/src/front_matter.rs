@@ -1,59 +1,16 @@
-//! Leading YAML front-matter detection — `status: draft` and
-//! `cohesion: behavioral`, plus the front-matter-blanking pass shared by
-//! the concept walk ([`crate::section`]) and the heading tree assembler
-//! ([`crate::tree`]).
-
 use crate::bullets::{marker_from_value, parse_impl_bullet, parse_verb_bullet};
 use domain::Marker;
 
-/// Returns `true` when `source` opens with a YAML front-matter block
-/// (delimited by lines containing only `---`) that declares
-/// `status: draft`.
-///
-/// A draft spec is **pre-authored ahead of its code**: its concepts,
-/// verb anchors, and invariant annotations intentionally have no
-/// implementation yet, so every concept-walking reader skips the file
-/// and it contributes no nodes, edges, or anchors to the spec graph —
-/// no `missing in code` violation can arise from it. Removing or
-/// changing the `status:` line re-arms the file: its declarations then
-/// resolve against code like any other spec.
-///
-/// Only the leading front-matter block is consulted — a `status:` line
-/// in the prose body has no effect. The value is matched
-/// case-insensitively, with or without surrounding quotes, and any
-/// trailing `#` comment is ignored. A front-matter block that closes
-/// before any `status:` line, or a file with no front-matter at all,
-/// is not draft.
 pub fn is_draft(source: &str) -> bool {
     file_marker(source) == Some(Marker::Draft)
 }
 
-/// The file-scope spec-state marker, if the leading front matter declares a
-/// legal `status:` value.
-///
-/// Every concept heading in the file inherits it. Value recognition is
-/// [`crate::bullets::marker_from_value`]'s — the bullet and front-matter
-/// grammars differ in how they reach the word, never in which words count.
-///
-/// Distinct from [`is_draft`], which answers the narrower question the
-/// invariant-annotation walk asks. That walk skips `draft` files wholesale
-/// and the `retired` value carries an obligation skip over verb bullets,
-/// `- impl:` anchors and edge bullets.
 pub fn file_marker(source: &str) -> Option<Marker> {
     front_matter_value(source, "status")
         .as_deref()
         .and_then(marker_from_value)
 }
 
-/// Returns `true` when `source` carries machine-checkable **behavioral
-/// substance** — at least one `- impl:` / `- verb:` anchor bullet or one
-/// `[enforced-by:]` / `[prose-only:]` invariant annotation.
-///
-/// This is the anti-gaming gate for `cohesion: behavioral`: the marker
-/// exempts a context from `ContextWithoutCohesionUnit` only when the context
-/// demonstrates behavioral content — never against an empty file. Reuses the
-/// canonical bullet grammar ([`parse_impl_bullet`] / [`parse_verb_bullet`])
-/// so the substance set cannot drift from what the readers actually parse.
 pub fn has_behavioral_substance(source: &str) -> bool {
     source.lines().any(|line| {
         if line.contains("[enforced-by:") || line.contains("[prose-only:") {
@@ -64,9 +21,6 @@ pub fn has_behavioral_substance(source: &str) -> bool {
     })
 }
 
-/// Strip a leading markdown list marker (`-` / `*` / `+` followed by
-/// whitespace) from `line`, returning the bullet text. `None` when the line
-/// is not a list item.
 fn strip_bullet_marker(line: &str) -> Option<&str> {
     let trimmed = line.trim_start();
     for marker in ['-', '*', '+'] {
@@ -79,26 +33,11 @@ fn strip_bullet_marker(line: &str) -> Option<&str> {
     None
 }
 
-/// Returns `true` when `source`'s leading front-matter declares
-/// `cohesion: behavioral`.
-///
-/// A behavioral/doctrine context owns no `pub` type by design; this marker
-/// lets it satisfy `ContextWithoutCohesionUnit` — **gated** by behavioral
-/// substance, never a bare free pass. Like [`is_draft`], only the leading
-/// front-matter is consulted; unlike draft, a behavioral file is **not**
-/// skipped — it is a real spec walked normally.
 pub fn is_behavioral_context(source: &str) -> bool {
     front_matter_value(source, "cohesion").is_some_and(|v| v.eq_ignore_ascii_case("behavioral"))
 }
 
-/// Read one key's value from the leading YAML front-matter block, if present.
-///
-/// Returns `None` when there is no leading `---` block (the first non-empty
-/// line is not `---`) or the key does not appear before the block closes.
-/// The value is stripped of a trailing `#` comment and surrounding quotes —
-/// the shared parse for [`is_draft`] / [`is_behavioral_context`].
 fn front_matter_value(source: &str, key: &str) -> Option<String> {
-    // The opening fence must be the first non-empty line.
     let mut lines = source.lines().skip_while(|l| l.trim().is_empty());
     if lines.next().map(str::trim) != Some("---") {
         return None;
@@ -123,15 +62,6 @@ fn front_matter_value(source: &str, key: &str) -> Option<String> {
     None
 }
 
-/// Replace a leading `---` … `---` front-matter block with blank lines,
-/// returning the result (borrowed when there is no leading block).
-///
-/// `status: draft` files are skipped wholesale, but a `cohesion: behavioral`
-/// file is parsed normally — and its `key: value` line immediately above the
-/// closing `---` would otherwise be mis-read as a **setext H2 heading**,
-/// manufacturing a phantom concept. Blanking the block (rather than stripping
-/// it) preserves the line count, so every concept/anchor below keeps its true
-/// `path:line`.
 pub fn blank_front_matter(source: &str) -> std::borrow::Cow<'_, str> {
     let lead_ws_len = source.len() - source.trim_start().len();
     let body = &source[lead_ws_len..];
@@ -144,12 +74,11 @@ pub fn blank_front_matter(source: &str) -> std::borrow::Cow<'_, str> {
     let mut cursor = first_nl + 1;
     let block_end = loop {
         let Some(nl) = body[cursor..].find('\n') else {
-            // No closing fence — not a well-formed block; leave unchanged.
             return std::borrow::Cow::Borrowed(source);
         };
         let line_end = cursor + nl;
         if body[cursor..line_end].trim() == "---" {
-            break lead_ws_len + line_end + 1; // through the closing newline
+            break lead_ws_len + line_end + 1;
         }
         cursor = line_end + 1;
     };

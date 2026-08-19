@@ -1,5 +1,3 @@
-//! Verb-coverage pass: per-`pub fn` context resolution + spec citation.
-
 use super::types::{PubFnDecl, VerbCoverageRecord};
 use std::collections::{HashMap, HashSet};
 

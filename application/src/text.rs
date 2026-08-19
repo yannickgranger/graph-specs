@@ -1,9 +1,3 @@
-//! Human-readable text format for `graph-specs check`.
-//!
-//! Mirrors the NDJSON module's shape (pure function, writes to `impl
-//! Write`) so unit tests can exercise each variant without going
-//! through stdout. The CLI's `--format=text` dispatch calls this.
-
 use domain::{
     CheckOutcome, CohesionViolation, ContextViolation, PendingRecord, RealizedRecord,
     RetirementCompleteRecord, RetirementIncompleteRecord, Source, Violation,
@@ -11,29 +5,11 @@ use domain::{
 use std::io::Write;
 use std::path::Path;
 
-/// Write one `pending` marker record.
-///
-/// A marked heading with no backing item. The pending list is the
-/// transcription worklist, so records are enumerated one per line, never
-/// collapsed to a bare count.
-///
-/// # Errors
-///
-/// Propagates any [`std::io::Error`] from the underlying writer.
 pub fn format_pending(r: &PendingRecord, out: &mut impl Write) -> std::io::Result<()> {
     let (path, line) = source_pair(&r.spec_source);
     writeln!(out, "pending: {} ({}:{line})", r.concept, path.display())
 }
 
-/// Write one `realized` marker record.
-///
-/// A marked heading whose backing item exists. The suffix names the action
-/// it invites: ratification is deletion of the marker line, performed by a
-/// human.
-///
-/// # Errors
-///
-/// Propagates any [`std::io::Error`] from the underlying writer.
 pub fn format_realized(r: &RealizedRecord, out: &mut impl Write) -> std::io::Result<()> {
     let (path, line) = source_pair(&r.spec_source);
     writeln!(
@@ -44,14 +20,6 @@ pub fn format_realized(r: &RealizedRecord, out: &mut impl Write) -> std::io::Res
     )
 }
 
-/// Write one `retirement incomplete` marker record (RFC-015 §3.2 row 7).
-///
-/// A retired heading whose backing item is still present — the retirement
-/// was announced and the code has not gone yet.
-///
-/// # Errors
-///
-/// Propagates any [`std::io::Error`] from the underlying writer.
 pub fn format_retirement_incomplete(
     r: &RetirementIncompleteRecord,
     out: &mut impl Write,
@@ -65,15 +33,6 @@ pub fn format_retirement_incomplete(
     )
 }
 
-/// Write one `retirement complete` marker record (RFC-015 §3.2 row 8).
-///
-/// A retired heading with no backing item. Enumerated one per line like the
-/// other kinds, but it is not a worklist — nothing drains it, because the
-/// marker line is never deleted.
-///
-/// # Errors
-///
-/// Propagates any [`std::io::Error`] from the underlying writer.
 pub fn format_retirement_complete(
     r: &RetirementCompleteRecord,
     out: &mut impl Write,
@@ -87,23 +46,6 @@ pub fn format_retirement_complete(
     )
 }
 
-/// Write the summary line (RFC-013 §3.5, widened by RFC-015 §3.5).
-///
-/// **Rendering and cleanliness are two different rules, and only one of them
-/// is about zero.** This is the rendering rule: all five counts are always
-/// represented, even at zero, because an absent segment would be
-/// indistinguishable from a formatter that forgot to render it. A clean tree
-/// reads `0 violations, 0 pending, 0 realized-unratified, 0
-/// retirement-incomplete, 0 retirement-complete`.
-///
-/// Cleanliness — which counts must be *zero* — is the other rule, and it
-/// does not live here: `pending` is a worklist, and `retirement-complete`
-/// never drains, so neither is a cleanliness term. The exit code remains a
-/// function of violations alone ([`CheckOutcome::is_clean`]).
-///
-/// # Errors
-///
-/// Propagates any [`std::io::Error`] from the underlying writer.
 pub fn format_summary(outcome: &CheckOutcome, out: &mut impl Write) -> std::io::Result<()> {
     writeln!(
         out,
@@ -116,12 +58,6 @@ pub fn format_summary(outcome: &CheckOutcome, out: &mut impl Write) -> std::io::
     )
 }
 
-/// Write one violation as a human-readable line (or block for
-/// multi-field variants). Lines end with `\n`.
-///
-/// # Errors
-///
-/// Propagates any [`std::io::Error`] from the underlying writer.
 #[allow(clippy::too_many_lines)]
 pub fn format_violation(v: &Violation, out: &mut impl Write) -> std::io::Result<()> {
     match v {
@@ -302,8 +238,6 @@ fn format_cohesion_violation(v: &CohesionViolation, out: &mut impl Write) -> std
                 path.display()
             )
         }
-        // Forward-compat: a future `#[non_exhaustive]` variant renders
-        // generically rather than panicking.
         _ => writeln!(out, "unknown cohesion violation"),
     }
 }
@@ -520,7 +454,6 @@ mod tests {
 
     #[test]
     fn v03_missing_in_code_unchanged() {
-        // Regression: existing text shape preserved.
         let v = Violation::MissingInCode {
             name: "Foo".into(),
             spec_source: Source::Spec {
@@ -531,8 +464,6 @@ mod tests {
         let out = render(&v);
         assert_eq!(out, "missing in code: Foo (specs/a.md:1)\n");
     }
-
-    // --- RFC-010 §3.5 / R10-3 cohesion rendering (§12-G) ---
 
     #[test]
     fn concept_context_mismatch_text_renders_path_line() {
@@ -574,8 +505,6 @@ mod tests {
         assert!(out.contains("sub-concept orphan: `Inner`"));
     }
 
-    // --- RFC-012 §3.5 / R12-1 dangling-anchor rendering (no "unknown") ---
-
     #[test]
     fn dangling_anchor_text_renders_path_line_not_unknown() {
         let v = Violation::DanglingAnchor {
@@ -590,7 +519,6 @@ mod tests {
         assert!(out.contains("dangling anchor: ValidateIntakeFull"));
         assert!(out.contains("anchors `validate_intake`"));
         assert!(out.contains("specs/concepts/intake_validation.md:3"));
-        // §12-G: an expected variant must NOT render as the generic fallback.
         assert!(!out.contains("unknown violation"));
     }
 }

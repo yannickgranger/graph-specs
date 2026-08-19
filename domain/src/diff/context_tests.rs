@@ -5,13 +5,9 @@ use crate::{
 };
 use std::path::PathBuf;
 
-/// These tests assert on violations only; marker records are covered in
-/// [`super::tests`]. Unwrap the outcome at the seam.
 fn diff(spec: CheckInput, code: Graph) -> Vec<Violation> {
     crate::diff(spec, code).violations
 }
-
-// --- helpers -------------------------------------------------------
 
 fn code_node(name: &str, unit: &str) -> ConceptNode {
     ConceptNode::new(
@@ -78,12 +74,9 @@ fn ci(graph: Graph, contexts: Vec<ContextDecl>) -> CheckInput {
     CheckInput::new(graph, contexts, VerbOwnership::default())
 }
 
-// --- context pass: empty / v0.3 regression -------------------------
-
 #[test]
 fn empty_contexts_skip_context_pass() {
     let spec = Graph::new(vec![code_node("Foo", "domain")], vec![]);
-    // Same Foo on code side — no concept violation.
     let code = Graph::new(vec![code_node("Foo", "domain")], vec![]);
     let v = diff(ci(spec, vec![]), code);
     assert!(
@@ -94,7 +87,6 @@ fn empty_contexts_skip_context_pass() {
 
 #[test]
 fn v03_regression_preserved_when_contexts_empty() {
-    // spec-only concept → MissingInCode; code-only → MissingInSpecs.
     let spec_node = ConceptNode::new(
         "SpecOnly".into(),
         Source::Spec {
@@ -113,8 +105,6 @@ fn v03_regression_preserved_when_contexts_empty() {
         .iter()
         .any(|v| matches!(v, Violation::MissingInSpecs { .. })));
 }
-
-// --- MembershipUnknown ---------------------------------------------
 
 #[test]
 fn membership_unknown_fires_for_code_in_undeclared_unit() {
@@ -147,7 +137,6 @@ fn membership_unknown_does_not_fire_for_declared_unit() {
 
 #[test]
 fn multi_level_unit_is_matched_by_path() {
-    // `adapters/markdown` as OwnedUnit matches `./adapters/markdown/src/...`.
     let code = Graph::new(
         vec![code_node("MarkdownReader", "adapters/markdown")],
         vec![],
@@ -162,8 +151,6 @@ fn multi_level_unit_is_matched_by_path() {
         "multi-segment unit should be matched"
     );
 }
-
-// --- CrossEdgeUnauthorized / CrossEdgeUndeclared / intra-context ---
 
 #[test]
 fn intra_context_edge_is_not_cross_context() {
@@ -190,7 +177,7 @@ fn cross_context_edge_unauthorized_without_matching_import() {
     );
     let contexts = vec![
         ctx("eq", &["ports"], vec![], vec![]),
-        ctx("reading", &["adapters/markdown"], vec![], vec![]), // no Imports
+        ctx("reading", &["adapters/markdown"], vec![], vec![]),
     ];
     let v = diff(ci(Graph::default(), contexts), code);
     let found = v.iter().any(|v| {
@@ -243,7 +230,7 @@ fn cross_context_edge_undeclared_when_supplier_does_not_export() {
         vec![code_edge("MR", EdgeKind::DependsOn, "Secret")],
     );
     let contexts = vec![
-        ctx("eq", &["ports"], vec![], vec![]), // no Exports
+        ctx("eq", &["ports"], vec![], vec![]),
         ctx(
             "reading",
             &["adapters/markdown"],
@@ -275,7 +262,6 @@ fn cross_context_edge_to_concept_in_same_context_no_violation() {
 
 #[test]
 fn transitive_import_forbidden() {
-    // A imports from B, B imports from C, A references Y (in C) directly.
     let code = Graph::new(
         vec![
             code_node("AA", "a"),
@@ -289,7 +275,7 @@ fn transitive_import_forbidden() {
             "a",
             &["a"],
             vec![],
-            vec![im("b", ContextPattern::Conformist, "BB")], // only B, not C
+            vec![im("b", ContextPattern::Conformist, "BB")],
         ),
         ctx(
             "b",
@@ -314,8 +300,6 @@ fn transitive_import_forbidden() {
     });
     assert!(found, "expected CrossEdgeUnauthorized on transitive edge");
 }
-
-// --- detect_import_cycle ---
 
 #[test]
 fn detect_cycle_on_direct_two_context_loop() {
@@ -353,7 +337,6 @@ fn detect_cycle_returns_none_on_acyclic() {
 
 #[test]
 fn detect_cycle_allows_shared_kernel_mutual() {
-    // Invariant 4: Shared Kernel is the one legal mutual reference.
     let contexts = vec![
         ctx(
             "a",
@@ -401,7 +384,6 @@ fn detect_cycle_catches_three_way_loop() {
 
 #[test]
 fn detect_cycle_ignores_imports_to_unknown_context() {
-    // Import from an undeclared context should not panic or misfire.
     let contexts = vec![ctx(
         "a",
         &["a"],
@@ -411,14 +393,10 @@ fn detect_cycle_ignores_imports_to_unknown_context() {
     assert!(detect_import_cycle(&contexts).is_none());
 }
 
-// --- sort order: Context variants rank 8 ---
-
 #[test]
 fn context_violations_sort_after_edge_variants() {
     let code = Graph::new(vec![code_node("X", "stray")], vec![]);
     let contexts = vec![ctx("eq", &["domain"], vec![], vec![])];
     let v = diff(ci(Graph::default(), contexts), code);
-    // All emissions should be Context::MembershipUnknown or MissingInSpecs —
-    // verify they co-exist and sort deterministically.
     assert!(!v.is_empty());
 }

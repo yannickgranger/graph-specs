@@ -6,9 +6,6 @@ use crate::{
 };
 use std::path::PathBuf;
 
-/// v0.3-style wrapper — local tests predate [`CheckInput`] and pass a
-/// bare [`Graph`] for specs. The wrapper adds empty contexts and verb
-/// ownership so context and verb passes are no-ops.
 fn diff(specs: Graph, code: Graph) -> Vec<Violation> {
     super::diff(
         CheckInput::new(specs, Vec::new(), VerbOwnership::default()),
@@ -156,8 +153,6 @@ fn violations_are_sorted_by_name_deterministically() {
     assert_eq!(names, vec!["Alpha", "Zebra"]);
 }
 
-// --- v0.2 signature-level tests ---
-
 #[test]
 fn matching_signatures_yield_no_violations() {
     let sig = "pub struct OrderId(pub Uuid);";
@@ -189,9 +184,6 @@ fn drifting_signatures_yield_signature_drift() {
 
 #[test]
 fn code_sig_without_spec_sig_is_not_a_v02_violation() {
-    // v0.2 semantics: specs opt-in per-concept via a fenced `rust`
-    // block. Absence on the spec side means "do not compare" — not
-    // a violation.
     let specs = nodes(vec![spec("OrderId")]);
     let code = nodes(vec![code_with_sig(
         "OrderId",
@@ -237,12 +229,8 @@ fn duplicate_spec_names_collapse() {
         .all(|vi| matches!(vi, Violation::MissingInCode { name, .. } if name == "Graph")));
 }
 
-// --- v0.3 edge-level tests ---
-
 #[test]
 fn concept_without_spec_edges_skips_edge_comparison() {
-    // Reader is on both sides, but spec declares no bullet edges.
-    // Code emits an IMPLEMENTS edge. Opt-in semantics: no comparison.
     let specs = Graph {
         nodes: vec![spec("Reader"), spec("MarkdownReader")],
         edges: vec![],
@@ -290,8 +278,6 @@ fn spec_edge_without_code_match_yields_edge_missing_in_code() {
 
 #[test]
 fn code_edge_without_spec_match_yields_edge_missing_in_spec() {
-    // MarkdownReader opts in via spec edge → code side's extra edge is
-    // reported as missing in spec.
     let specs = Graph {
         nodes: vec![spec("Reader"), spec("MarkdownReader"), spec("Parser")],
         edges: vec![spec_edge("MarkdownReader", EdgeKind::Implements, "Reader")],
@@ -339,9 +325,6 @@ fn spec_edge_with_unknown_target_yields_edge_target_unknown() {
 
 #[test]
 fn edge_target_unknown_suppresses_missing_in_code() {
-    // When the target is unknown we emit EdgeTargetUnknown only —
-    // reporting both EdgeTargetUnknown and EdgeMissingInCode for the
-    // same bullet would double-count.
     let specs = Graph {
         nodes: vec![spec("Reader")],
         edges: vec![spec_edge("Reader", EdgeKind::Implements, "Iterator")],
@@ -357,8 +340,6 @@ fn edge_target_unknown_suppresses_missing_in_code() {
 
 #[test]
 fn edges_on_spec_only_concept_do_not_double_count() {
-    // MarkdownReader is spec-only (MissingInCode already fires).
-    // Its bullet edges must not also produce EdgeMissingInCode noise.
     let specs = Graph {
         nodes: vec![spec("Reader"), spec("MarkdownReader")],
         edges: vec![spec_edge("MarkdownReader", EdgeKind::Implements, "Reader")],
@@ -377,8 +358,6 @@ fn edges_on_spec_only_concept_do_not_double_count() {
 
 #[test]
 fn edges_on_code_only_concept_are_ignored() {
-    // MarkdownReader is code-only. Its emitted edges have no spec side
-    // to compare against → no EdgeMissingInSpec. Only MissingInSpecs.
     let specs = Graph {
         nodes: vec![spec("Reader")],
         edges: vec![],
@@ -397,8 +376,6 @@ fn edges_on_code_only_concept_are_ignored() {
 
 #[test]
 fn multi_edge_per_concept_is_diffed_independently() {
-    // MarkdownReader specs: implements: Reader + depends on: Parser.
-    // Code: implements: Reader + depends on: Tokenizer (different).
     let specs = Graph {
         nodes: vec![
             spec("Reader"),
@@ -425,8 +402,6 @@ fn multi_edge_per_concept_is_diffed_independently() {
     };
     let v = diff(specs, code);
     assert_eq!(v.len(), 2);
-    // Deterministic ordering: concept name "MarkdownReader" tied,
-    // variant rank 5 (EdgeMissingInCode) before 6 (EdgeMissingInSpec).
     assert!(matches!(
         &v[0],
         Violation::EdgeMissingInCode { target, .. } if target == "Parser"
@@ -455,8 +430,6 @@ fn same_kind_different_targets_treated_as_separate_edges() {
     };
     assert!(diff(specs, code).is_empty());
 }
-
-// --- v0.4 violation_key ordering tests ---
 
 fn context_violation(name: &str) -> Violation {
     Violation::Context(ContextViolation::MembershipUnknown {
@@ -489,15 +462,11 @@ fn violation_key_context_sorts_after_edge_target_unknown() {
         },
     };
     let b = context_violation("Foo");
-    // Same concept name ("Foo") tied — rank determines order. Edge
-    // variants are rank 5-7, context is rank 8 — context sorts after.
     let (ka, da) = violation_key(&a);
     let (kb, db) = violation_key(&b);
     assert_eq!(ka, kb);
     assert!(da < db);
 }
-
-// --- v0.6 cohesion violation_key ranks ---
 
 #[test]
 fn violation_key_cohesion_returns_rank_12() {
@@ -526,13 +495,8 @@ fn violation_key_cohesion_uses_each_variant_key() {
     assert_eq!(rank, 12);
 }
 
-// --- v0.7 dangling-anchor violation_key rank ---
-
 #[test]
 fn violation_key_dangling_anchor_returns_rank_14() {
-    // DanglingAnchor is a top-level arm (NOT nested in Cohesion) at rank 14.
-    // Slot 13 held `ImplementsDraftConcept` until RFC-013 §3.4 retired it;
-    // the slot is retired, not reused, so this rank does NOT move down.
     let v = Violation::DanglingAnchor {
         concept: "ValidateIntakeFull".to_string(),
         target: "validate_intake".to_string(),
@@ -548,8 +512,6 @@ fn violation_key_dangling_anchor_returns_rank_14() {
 
 #[test]
 fn retired_slot_13_leaves_a_gap_between_cohesion_and_dangling_anchor() {
-    // The ordering must be preserved — the neighbouring ranks staying apart on
-    // a tied key — with slot 13 left empty.
     let cohesion = Violation::Cohesion(CohesionViolation::ContextWithoutCohesionUnit {
         context: "Foo".to_string(),
         file: PathBuf::from("specs/concepts/foo.md"),
@@ -569,9 +531,6 @@ fn retired_slot_13_leaves_a_gap_between_cohesion_and_dangling_anchor() {
     assert!(da < db);
 }
 
-// --- spec-state marker matrix rows 3 and 4 ---
-
-/// A spec node carrying the `- status: draft` marker.
 fn spec_marked(name: &str) -> ConceptNode {
     let mut n = spec(name);
     n.marker = Marker::Draft;
@@ -580,7 +539,6 @@ fn spec_marked(name: &str) -> ConceptNode {
 
 #[test]
 fn marked_heading_without_code_is_pending_not_missing_in_code() {
-    // Matrix row 3.
     let input = CheckInput::new(
         nodes(vec![spec_marked("Widget")]),
         Vec::new(),
@@ -600,8 +558,6 @@ fn marked_heading_without_code_is_pending_not_missing_in_code() {
 
 #[test]
 fn marked_heading_with_code_is_realized_not_a_violation() {
-    // Matrix row 4 — the polarity flip. A violation in the old scheme is now
-    // the ratification signal.
     let input = CheckInput::new(
         nodes(vec![spec_marked("Widget")]),
         Vec::new(),
@@ -620,8 +576,6 @@ fn marked_heading_with_code_is_realized_not_a_violation() {
 
 #[test]
 fn a_marker_never_parks_a_divergence() {
-    // A marked heading whose backing item exists but whose signature drifted
-    // still produces the ordinary violation — alongside the realized record.
     let specs = {
         let mut n = spec_with_sig("Widget", "pub struct Widget;");
         n.marker = Marker::Draft;
@@ -646,7 +600,6 @@ fn a_marker_never_parks_a_divergence() {
 
 #[test]
 fn unmarked_trees_produce_no_marker_records() {
-    // A tree with no markers is semantically identical to today's behavior.
     let specs = nodes(vec![spec("Present"), spec("Absent")]);
     let input = CheckInput::new(specs, Vec::new(), VerbOwnership::default());
     let outcome = super::diff(input, nodes(vec![code("Present"), code("Orphan")]));
@@ -663,9 +616,6 @@ fn unmarked_trees_produce_no_marker_records() {
 
 #[test]
 fn pending_concepts_edge_bullets_impose_no_obligation() {
-    // The edge pass satisfies this by construction (its matched-concept
-    // filter is built from code presence), and this pins that it stays
-    // satisfied.
     let specs = Graph::new(
         vec![spec_marked("Widget"), spec("Gear")],
         vec![Edge {
@@ -694,7 +644,6 @@ fn pending_concepts_edge_bullets_impose_no_obligation() {
 
 #[test]
 fn orphan_without_a_heading_is_missing_in_specs() {
-    // Matrix row 5, unchanged.
     let input = CheckInput::new(Graph::default(), Vec::new(), VerbOwnership::default());
     let v = super::diff(input, nodes(vec![code("Gadget")])).violations;
     assert_eq!(v.len(), 1);
@@ -704,8 +653,6 @@ fn orphan_without_a_heading_is_missing_in_specs() {
         v[0]
     );
 }
-
-// --- anchored-concept exemption + DanglingAnchor ---
 
 fn resolved_anchor(concept: &str, target: &str, resolves: bool) -> ResolvedAnchor {
     ResolvedAnchor {
@@ -729,8 +676,6 @@ fn resolved_anchor(concept: &str, target: &str, resolves: bool) -> ResolvedAncho
 
 #[test]
 fn anchored_concept_with_resolved_target_is_not_missing_in_code() {
-    // `## ValidateIntakeFull` has no name-matched pub type, but its `- impl:`
-    // target resolves at any visibility → the concept is satisfied.
     let specs = Graph::new(vec![spec("ValidateIntakeFull")], Vec::new());
     let v = super::diff(
         CheckInput::new(specs, Vec::new(), VerbOwnership::default()).with_concept_anchors(vec![
@@ -773,7 +718,6 @@ fn anchored_concept_with_unresolved_target_is_dangling_not_missing() {
 
 #[test]
 fn unanchored_missing_concept_still_missing_in_code() {
-    // Regression (§4 I1): a concept with no anchor and no code match still fires.
     let specs = Graph::new(vec![spec("Orphan")], Vec::new());
     let v = super::diff(
         CheckInput::new(specs, Vec::new(), VerbOwnership::default()),
@@ -787,23 +731,19 @@ fn unanchored_missing_concept_still_missing_in_code() {
     );
 }
 
-// --- grounding polarity ---
-
 fn spec_with_polarity(name: &str, polarity: Polarity) -> ConceptNode {
     spec(name).with_polarity(polarity)
 }
 
-/// The polarity matrix table, asserted directly as a table.
 #[test]
 fn polarity_presence_matrix() {
-    // (polarity, code present) -> the violation ranks the diff must emit.
     let cases: &[(Polarity, bool, &[u8])] = &[
-        (Polarity::Declared, false, &[0]),    // missing_in_code
-        (Polarity::Declared, true, &[]),      // satisfied
-        (Polarity::Forbidden, false, &[]),    // clean
-        (Polarity::Forbidden, true, &[15]),   // forbidden_concept_reintroduced
-        (Polarity::Illustrative, false, &[]), // clean
-        (Polarity::Illustrative, true, &[1]), // missing_in_specs, via the orphan sweep
+        (Polarity::Declared, false, &[0]),
+        (Polarity::Declared, true, &[]),
+        (Polarity::Forbidden, false, &[]),
+        (Polarity::Forbidden, true, &[15]),
+        (Polarity::Illustrative, false, &[]),
+        (Polarity::Illustrative, true, &[1]),
     ];
     for (polarity, code_present, expected) in cases {
         let specs = nodes(vec![spec_with_polarity("Member", *polarity)]);
@@ -832,11 +772,6 @@ fn polarity_presence_matrix() {
 
 #[test]
 fn illustrative_does_not_consume_the_code_node() {
-    // The match-attempt gate, asserted directly rather than through its
-    // symptom: an illustrative heading must leave the code node unconsumed
-    // so it falls through to the orphan sweep. Removing it and re-emitting
-    // `MissingInSpecs` would be a different thing wearing the same output —
-    // and would take the concept out of the orphan set for everything else.
     let specs = nodes(vec![spec_with_polarity("Member", Polarity::Illustrative)]);
     let outcome = super::diff(
         CheckInput::new(specs, Vec::new(), VerbOwnership::default()),
@@ -886,8 +821,6 @@ fn forbidden_reintroduction_names_both_sites() {
     );
 }
 
-/// RFC-014 §3.3 precedence: `polarity != declared` is terminal, so a marked
-/// heading emits no marker record either way.
 #[test]
 fn non_declared_polarity_is_terminal_over_the_spec_state_marker() {
     for polarity in [Polarity::Forbidden, Polarity::Illustrative] {
@@ -925,7 +858,6 @@ fn non_declared_polarity_is_terminal_over_the_spec_state_marker() {
 
 #[test]
 fn declared_polarity_leaves_the_marker_dispatch_intact() {
-    // The other side of terminality — `declared` must reach the marker rows.
     let mut node = spec_with_polarity("Widget", Polarity::Declared);
     node.marker = Marker::Draft;
     let outcome = super::diff(
@@ -937,8 +869,6 @@ fn declared_polarity_leaves_the_marker_dispatch_intact() {
 
 #[test]
 fn a_non_declared_concepts_edge_bullets_impose_no_obligation() {
-    // A heading that compels nothing
-    // cannot be missing anything.
     for polarity in [Polarity::Forbidden, Polarity::Illustrative] {
         let specs = Graph::new(
             vec![spec_with_polarity("Member", polarity), spec("Gear")],
@@ -970,8 +900,6 @@ fn a_non_declared_concepts_edge_bullets_impose_no_obligation() {
 
 #[test]
 fn a_dangling_anchor_under_a_non_declared_heading_fires_nothing() {
-    // Polarity is read off the shared snapshot, never off `ConceptAnchor` —
-    // that would duplicate a fact `ConceptNode` already owns.
     for polarity in [Polarity::Forbidden, Polarity::Illustrative] {
         let specs = nodes(vec![spec_with_polarity("Member", polarity)]);
         let outcome = super::diff(
@@ -986,7 +914,6 @@ fn a_dangling_anchor_under_a_non_declared_heading_fires_nothing() {
         );
     }
 
-    // Control: the same anchor under a `declared` heading still fires.
     let specs = nodes(vec![spec("Member")]);
     let outcome = super::diff(
         CheckInput::new(specs, Vec::new(), VerbOwnership::default())
@@ -1004,8 +931,6 @@ fn a_dangling_anchor_under_a_non_declared_heading_fires_nothing() {
 
 #[test]
 fn violation_key_forbidden_reintroduced_returns_rank_15() {
-    // Append-only tripwire: slot 15 sits after DanglingAnchor (14), and
-    // slot 13's gap stays a gap.
     let v = Violation::ForbiddenConceptReintroduced {
         name: "Member".to_string(),
         spec_source: Source::Spec {
@@ -1024,8 +949,6 @@ fn violation_key_forbidden_reintroduced_returns_rank_15() {
 
 #[test]
 fn an_ungrounded_corpus_is_byte_identical() {
-    // RFC-014 §4 invariant 1 — every heading `Declared` means every gate is
-    // inert and the outcome matches pre-RFC behaviour exactly.
     let specs = nodes(vec![spec("Present"), spec("Absent")]);
     let outcome = super::diff(
         CheckInput::new(specs, Vec::new(), VerbOwnership::default()),
@@ -1035,13 +958,8 @@ fn an_ungrounded_corpus_is_byte_identical() {
     assert_eq!(ranks, vec![("Absent", 0u8), ("Orphan", 1u8)]);
 }
 
-// --- provenance index on the outcome ---
-
 #[test]
 fn outcome_provenance_snapshots_the_code_triple_with_resolved_context() {
-    // `context` is resolved through the same `specs/contexts/` Owns lookup
-    // the cohesion pass uses — carried on the outcome, not re-derived by
-    // the emitter.
     let widget =
         code("Widget").with_provenance(Some("domain".to_owned()), Some("domain".to_owned()), None);
     let contexts = vec![ContextDecl::new(
@@ -1074,8 +992,6 @@ fn outcome_provenance_snapshots_the_code_triple_with_resolved_context() {
 
 #[test]
 fn outcome_provenance_skips_nodes_with_no_facts() {
-    // A provenance-free corpus (no adapter facts, no declared contexts)
-    // yields an empty index — the emitter then renders plain source objects.
     let outcome = super::diff(
         CheckInput::new(Graph::default(), Vec::new(), VerbOwnership::default()),
         nodes(vec![code("Bare")]),
@@ -1087,9 +1003,6 @@ fn outcome_provenance_skips_nodes_with_no_facts() {
     );
 }
 
-// --- the `retired` value, matrix rows 7 and 8 ---
-
-/// A spec node carrying the `- status: retired` marker.
 fn spec_retired(name: &str) -> ConceptNode {
     let mut n = spec(name);
     n.marker = Marker::Retired;
@@ -1098,8 +1011,6 @@ fn spec_retired(name: &str) -> ConceptNode {
 
 #[test]
 fn retired_heading_with_code_is_retirement_incomplete() {
-    // Matrix row 7. The retirement was announced and the code has not gone
-    // yet — the window every correct retirement opens, not a failure.
     let input = CheckInput::new(
         nodes(vec![spec_retired("Widget")]),
         Vec::new(),
@@ -1124,8 +1035,6 @@ fn retired_heading_with_code_is_retirement_incomplete() {
 
 #[test]
 fn retired_heading_without_code_is_retirement_complete_not_missing_in_code() {
-    // Matrix row 8 — the terminal retirement state where code is absent
-    // and marker is present.
     let input = CheckInput::new(
         nodes(vec![spec_retired("Widget")]),
         Vec::new(),
@@ -1149,9 +1058,6 @@ fn retired_heading_without_code_is_retirement_complete_not_missing_in_code() {
 
 #[test]
 fn rows_7_and_8_are_selected_by_the_same_backing_item_fact_as_rows_3_and_4() {
-    // "Backing item present" is ONE fact with two spellings: a name-matched
-    // pub item, or a resolved `- impl:` anchor. Both marker values read the
-    // same fact, so both spellings are exercised for both.
     for (marker, spelling_by_name) in [
         (Marker::Draft, true),
         (Marker::Draft, false),
@@ -1205,9 +1111,6 @@ fn rows_7_and_8_are_selected_by_the_same_backing_item_fact_as_rows_3_and_4() {
 
 #[test]
 fn a_retired_marker_never_parks_a_divergence() {
-    // Row 7 enforces equivalence in full: a retired heading whose backing
-    // item exists and whose signature drifted still produces the ordinary
-    // violation.
     let specs = {
         let mut n = spec_with_sig("Widget", "pub struct Widget;");
         n.marker = Marker::Retired;
@@ -1236,9 +1139,6 @@ fn a_retired_marker_never_parks_a_divergence() {
 
 #[test]
 fn non_declared_polarity_is_terminal_over_the_retired_value_too() {
-    // The marker/polarity product combines in a specific pattern: true of
-    // `draft`, it does NOT transfer unexamined to `retired`, because row 7
-    // ADDS an emission alongside full enforcement rather than relaxing.
     for polarity in [Polarity::Forbidden, Polarity::Illustrative] {
         for code_present in [false, true] {
             let mut node = spec_with_polarity("Member", polarity);
@@ -1263,10 +1163,6 @@ fn non_declared_polarity_is_terminal_over_the_retired_value_too() {
 
 #[test]
 fn row_8_verb_anchors_impose_no_obligation() {
-    // Row 8 carries row 3's obligation skip IN FULL, and the mechanism is a
-    // SET the verb pass is handed, not an inference it makes. Silence
-    // resolves to armed: a row-8 concept is not in `pending`, so if `diff`
-    // failed to add it to the unobliged set, this bullet would fire.
     let ctx = ContextDecl::new(
         "eq".to_owned(),
         vec![OwnedUnit("domain".to_owned())],
@@ -1286,8 +1182,6 @@ fn row_8_verb_anchors_impose_no_obligation() {
             line: 3,
         },
     };
-    // A second, ordinary pair so the context owns a live member; `Widget`
-    // itself is absent from code in both arms, which is what makes it row 8.
     let neighbour_code = ConceptNode::new(
         "Anchorage".to_owned(),
         Source::Code {
@@ -1332,11 +1226,6 @@ fn row_8_verb_anchors_impose_no_obligation() {
     );
 }
 
-// --- the target-side obligation rule, at the edge pass ---
-
-/// A spec graph of `## Source - depends on: Target`, with `Target`'s heading
-/// in the given state. `Source` always has a backing code item so its edges
-/// participate at all (that is the source-side rule, unchanged here).
 fn edge_into(target_state: ConceptNode, target_has_code: bool) -> (CheckInput, Graph) {
     let specs = Graph::new(
         vec![spec("Source"), target_state],
@@ -1367,14 +1256,9 @@ fn fires_edge_missing_in_code(input: CheckInput, code: Graph) -> bool {
 
 #[test]
 fn the_marker_matrix_suppresses_in_exactly_the_two_marked_and_absent_cells() {
-    // The six-cell marker matrix: suppression is keyed on "marked AND
-    // absent", never on absence alone. The unmarked+absent cell is matrix
-    // row 1, where nothing accounts for the absence, and moving it would
-    // break the invariant.
     for marker in [Marker::Unmarked, Marker::Draft, Marker::Retired] {
         for present in [false, true] {
             let (input, code) = edge_into(target(marker, Polarity::Declared), present);
-            // Suppressed exactly when marked AND absent; armed otherwise.
             let want = !marker.is_marked() || present;
             assert_eq!(
                 fires_edge_missing_in_code(input, code),
@@ -1387,9 +1271,6 @@ fn the_marker_matrix_suppresses_in_exactly_the_two_marked_and_absent_cells() {
 
 #[test]
 fn an_anchored_target_counts_as_present_and_is_not_suppressed() {
-    // "Backing item present" has two spellings and the target side reads the
-    // same fact as the concept pass. A marked target backed by a RESOLVED
-    // `- impl:` anchor is PRESENT, so the edge into it still fires.
     let (input, code) = edge_into(target(Marker::Draft, Polarity::Declared), false);
     let input = input.with_concept_anchors(vec![resolved_anchor("Target", "build_target", true)]);
     assert!(
@@ -1400,9 +1281,6 @@ fn an_anchored_target_counts_as_present_and_is_not_suppressed() {
 
 #[test]
 fn the_polarity_matrix_fires_only_for_illustrative_with_an_item() {
-    // The witness cell: `illustrative` + present is `unobliged` and yet
-    // POINTABLE: the item is a legitimate edge target, and keying the target
-    // side on `unobliged` would lose that distinction.
     for (polarity, present, want_fire) in [
         (Polarity::Forbidden, false, false),
         (Polarity::Forbidden, true, false),
@@ -1420,8 +1298,6 @@ fn the_polarity_matrix_fires_only_for_illustrative_with_an_item() {
 
 #[test]
 fn adding_the_field_clears_the_illustrative_present_finding() {
-    // The remedy is clean and actionable, which is the whole reason that
-    // cell must stay armed: 2 violations → 1, and nothing is introduced.
     let armed = super::diff(
         edge_into(target(Marker::Unmarked, Polarity::Illustrative), true).0,
         Graph::new(vec![code("Source"), code("Target")], Vec::new()),
@@ -1447,9 +1323,6 @@ fn adding_the_field_clears_the_illustrative_present_finding() {
 
 #[test]
 fn edge_missing_in_spec_fires_in_every_cell_of_both_matrices() {
-    // Invariant 5 — the exemption is one-directional. Code may not carry a
-    // relationship the specs do not declare, whatever the target's marker or
-    // polarity says. This is the reverse tooth.
     let states = [
         (Marker::Unmarked, Polarity::Declared),
         (Marker::Draft, Polarity::Declared),
@@ -1459,10 +1332,6 @@ fn edge_missing_in_spec_fires_in_every_cell_of_both_matrices() {
     ];
     for (marker, polarity) in states {
         for present in [false, true] {
-            // `Source` carries a spec edge so it participates at all (edge
-            // comparison is opt-in on concepts with >=1 spec edge), and the
-            // CODE edge is of a different kind, so it has no spec
-            // counterpart whatever the target's state.
             let specs = Graph::new(
                 vec![spec("Source"), target(marker, polarity)],
                 vec![spec_edge("Source", EdgeKind::DependsOn, "Target")],
@@ -1492,8 +1361,6 @@ fn edge_missing_in_spec_fires_in_every_cell_of_both_matrices() {
 
 #[test]
 fn a_suppressed_target_yields_no_edge_target_unknown_and_a_mirage_still_does() {
-    // `known_concepts` is never filtered — the name is still declared in
-    // specs, so the two findings keep their distinct meanings.
     let (input, code_graph) = edge_into(target(Marker::Retired, Polarity::Declared), false);
     let suppressed = super::diff(input, code_graph);
     assert!(
@@ -1528,8 +1395,6 @@ fn a_suppressed_target_yields_no_edge_target_unknown_and_a_mirage_still_does() {
 
 #[test]
 fn the_target_side_mirror_of_the_source_side_marker_skip() {
-    // The asymmetry: source-side is pinned, target side relies on
-    // construction. This pin completes the mirror.
     let (input, code) = edge_into(target(Marker::Draft, Polarity::Declared), false);
     let outcome = super::diff(input, code);
     assert!(
@@ -1542,14 +1407,6 @@ fn the_target_side_mirror_of_the_source_side_marker_skip() {
 
 #[test]
 fn the_source_side_per_name_conversion_stays_permissive() {
-    // Per-name conversion asymmetry: TARGET-side conversion is conservative
-    // (a name is `unpointable` only if every heading is), while SOURCE-side
-    // is permissive (a name is `unobliged` if ANY heading is).
-    //
-    // Here the two headings disagree: `T` is `illustrative` in one file
-    // (unobliged) and `declared` with a backing item in another. Under the
-    // permissive source-side conversion the name is unobliged, so a `- verb:`
-    // bullet under it imposes nothing and `VerbMissingInCode` does not fire.
     let ctx = ContextDecl::new(
         "eq".to_owned(),
         vec![OwnedUnit("domain".to_owned())],

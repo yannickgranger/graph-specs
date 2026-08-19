@@ -235,8 +235,6 @@ fn each_record_has_schema_version_four() {
     assert_eq!(r["schema_version"], "4");
 }
 
-// --- v0.4 context violation records -----
-
 #[test]
 fn context_membership_unknown_record() {
     let v = Violation::Context(ContextViolation::MembershipUnknown {
@@ -277,8 +275,6 @@ fn cross_context_edge_unauthorized_record() {
     assert_eq!(r["target_context"], "trading");
     assert_eq!(r["spec_source"]["kind"], "spec");
 }
-
-// --- v0.5 verb violation records -----------------------------------
 
 #[test]
 fn verb_missing_in_code_record() {
@@ -370,8 +366,6 @@ fn cross_context_edge_undeclared_record() {
     assert_eq!(r["target_context"], "equivalence");
 }
 
-// --- cohesion records ---
-
 #[test]
 fn concept_context_mismatch_record() {
     let v = Violation::Cohesion(CohesionViolation::ConceptContextMismatch {
@@ -413,8 +407,6 @@ fn spec_side_cohesion_records_carry_file() {
     assert_eq!(orphan["sub_concept"], "Inner");
 }
 
-// --- RFC-012 §3.6 / R12-1 dangling-anchor record (additive, v3) ---
-
 #[test]
 fn dangling_anchor_record_is_additive_v3() {
     let v = Violation::DanglingAnchor {
@@ -434,8 +426,6 @@ fn dangling_anchor_record_is_additive_v3() {
     assert_eq!(r["source"]["line"], 3);
     assert_ne!(r["violation"], "unknown_violation");
 }
-
-// --- `marker`-keyed records ---
 
 fn spec_at(path: &str, line: usize) -> Source {
     Source::Spec {
@@ -512,8 +502,6 @@ fn violations_precede_markers_in_the_stream() {
     assert_eq!(kinds, vec!["missing_in_code", "pending", "realized"]);
 }
 
-// --- provenance triple on code source objects ---
-
 fn code_at(path: &str, line: usize) -> Source {
     Source::Code {
         path: PathBuf::from(path),
@@ -529,8 +517,6 @@ fn prov_full() -> Provenance {
     }
 }
 
-/// Render one violation with `concept` indexed to `p` in the outcome's
-/// provenance side-channel.
 fn render_with_prov(v: Violation, concept: &str, p: Provenance) -> Value {
     let mut outcome = CheckOutcome {
         violations: vec![v],
@@ -568,7 +554,6 @@ fn signature_drift_triple_lands_on_code_source_only() {
     };
     let r = render_with_prov(v, "Reader", prov_full());
     assert_triple(&r["code_source"]);
-    // The spec side is not code-bearing — provenance is a code fact.
     assert!(r["spec_source"]["module_path"].is_null());
     assert!(r["spec_source"]["unit"].is_null());
     assert!(r["spec_source"]["context"].is_null());
@@ -599,9 +584,6 @@ fn edge_missing_in_spec_source_carries_provenance_triple() {
 
 #[test]
 fn context_membership_unknown_source_carries_provenance_triple() {
-    // The motivating partial case: membership unknown means no context
-    // resolved, so the triple typically carries module_path/unit only —
-    // but a full index entry renders in full.
     let v = Violation::Context(ContextViolation::MembershipUnknown {
         concept: "Stray".into(),
         owned_unit: OwnedUnit("straycrate".into()),
@@ -626,7 +608,6 @@ fn forbidden_concept_reintroduced_code_source_carries_provenance_triple() {
 
 #[test]
 fn partial_triple_renders_only_present_fields() {
-    // Optional per-field: absent facts are omitted, never null.
     let v = Violation::MissingInSpecs {
         name: "Bar".into(),
         code_source: code_at("domain/src/lib.rs", 3),
@@ -645,7 +626,6 @@ fn partial_triple_renders_only_present_fields() {
 
 #[test]
 fn unknown_concept_renders_plain_source_object() {
-    // Lookup miss (empty index) — the plain record shape.
     let v = Violation::MissingInSpecs {
         name: "Bar".into(),
         code_source: code_at("domain/src/lib.rs", 3),
@@ -657,8 +637,6 @@ fn unknown_concept_renders_plain_source_object() {
 
 #[test]
 fn spec_kind_source_never_carries_the_triple() {
-    // Even with the concept indexed, a spec-kind source stays plain —
-    // provenance is a code fact.
     let v = Violation::MissingInCode {
         name: "Foo".into(),
         spec_source: spec_at("specs/a.md", 12),

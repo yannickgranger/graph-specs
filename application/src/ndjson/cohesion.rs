@@ -1,5 +1,3 @@
-//! [`CohesionViolation`] → NDJSON record conversion.
-
 use super::source::source_to_json;
 use domain::{CohesionViolation, SchemaVersion};
 use serde_json::{json, Value};
@@ -31,8 +29,6 @@ pub(super) fn cohesion_violation_to_record(v: &CohesionViolation) -> Value {
             "code_context": code_context,
             "spec_source": source_to_json(spec_source),
         }),
-        // Forward-compat with `#[non_exhaustive]`: a future variant emits a
-        // generic record rather than panicking.
         _ => json!({
             "schema_version": SchemaVersion::CURRENT.as_str(),
             "violation": "unknown_cohesion_violation",

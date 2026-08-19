@@ -1,13 +1,3 @@
-//! Bounded-context equivalence types.
-//!
-//! This module introduces the vocabulary for declaring bounded contexts,
-//! their `Owns` / `Exports` / `Imports` surfaces, and the violation
-//! variants emitted by the context pass.
-//!
-//! The types are pure data — no diff algorithm here. The context pass
-//! lives alongside the three existing passes in `diff.rs` and consumes
-//! [`CheckInput`] as its spec-side argument.
-
 mod check_input;
 mod cycle;
 mod decl;

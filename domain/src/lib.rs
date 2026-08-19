@@ -1,9 +1,3 @@
-//! Graph domain — pure types with no infrastructure dependencies.
-//!
-//! Models the four-level equivalence from the root README. This crate
-//! defines only the types and pure algorithms that operate on them.
-//! Infrastructure concerns (reading, parsing, I/O) live in adapter crates.
-
 use std::path::PathBuf;
 
 mod abstraction;
@@ -40,47 +34,18 @@ pub use report::{
 };
 pub use tokens::tokenise_target;
 
-/// NDJSON wire-contract version stamped on every record emitted by
-/// `graph-specs check --format=ndjson`.
-///
-/// Promoted from a serialization literal to a domain-owned Published
-/// Language type so downstream consumers gate their parse dispatch against a
-/// single typed source rather than re-typing `"1"` / `"2"` magic
-/// strings per consumer.
-///
-/// The current production value — what every new record this build
-/// emits carries — is [`SchemaVersion::CURRENT`]. [`SchemaVersion::V1`]
-/// is retained for consumers reading v0.3-era fixtures during the
-/// overlap window.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum SchemaVersion {
     V1,
     V2,
-    /// v3 — versions the abstraction-ladder `Cohesion`
-    /// record kinds (`context_without_cohesion_unit`, `sub_concept_orphan`,
-    /// `concept_context_mismatch`). Consumers dispatch on
-    /// `"3"`. Provenance source fields are a planned additive
-    /// (non-breaking) extension that will NOT bump the version again.
     V3,
-    /// v4 — versions the `marker`-keyed record kinds
-    /// (`pending`, `realized`) **and** the retirement of the
-    /// `implements_draft_concept` violation kind.
-    ///
-    /// The `marker` key alone would have been additive; removing a
-    /// `violation` discriminator value entirely is breaking (a
-    /// discriminator that silently stops appearing is a worse failure mode
-    /// for a pattern-matching consumer than a hard version bump), so the
-    /// version moves.
     V4,
 }
 
 impl SchemaVersion {
-    /// The version stamped on every record this build emits.
     pub const CURRENT: Self = Self::V4;
 
-    /// Wire form — the exact string literal that appears in the
-    /// `schema_version` JSON field.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -98,12 +63,6 @@ impl std::fmt::Display for SchemaVersion {
     }
 }
 
-/// A graph of concepts extracted from one side of the equivalence check.
-///
-/// Either a spec tree or a code tree. Two graphs are equivalent at
-/// concept level iff their `nodes` carry the same set of names;
-/// equivalent at relationship level iff their `edges` also align (see
-/// [`Edge`]).
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Graph {
@@ -117,65 +76,25 @@ impl Graph {
         Self { nodes, edges }
     }
 
-    /// Alias for [`Graph::default`].
     #[must_use]
     pub fn empty() -> Self {
         Self::default()
     }
 }
 
-/// A single named concept located at a specific source site.
-///
-/// `signature` carries the optional signature-level payload (v0.2): the
-/// normalized form of the pub item's declaration (for code) or of the
-/// fenced `rust` block inside the concept section (for specs). Left as
-/// [`SignatureState::Absent`] when the reader has no signature data.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConceptNode {
     pub name: String,
     pub source: Source,
     pub signature: SignatureState,
-    /// Language-agnostic containment provenance. Populated
-    /// by a `CodeFacts`-style adapter; `None` on the spec side and wherever no code facts
-    /// are available. Deliberately **not** cfdb's Rust-specific prop names
-    /// (`module_qpath` / `crate` / `bounded_context`) — PHP `:Item` carries
-    /// no such props, so the agnostic triple is translated by the ACL.
-    ///
-    /// `module_path` — the owning module path, crate-root-collapsed.
     pub module_path: Option<String>,
-    /// `unit` — the owning crate / package, relative to the code root.
     pub unit: Option<String>,
-    /// `context` — the resolved bounded context (`specs/contexts/` Owns or
-    /// the cfdb-query ACL), used by the R10-3 cohesion pass.
     pub context: Option<String>,
-    /// Spec-state marker: which
-    /// `- status:` value this heading carries as its first content line, or
-    /// inherits from a `status:` front-matter file.
-    ///
-    /// An enum over two values, and still **not** a state machine: neither
-    /// value transitions to the other, and the progress axis is the code.
-    /// `draft` is deleted at ratification; `retired` is
-    /// never deleted.
-    ///
-    /// The graph is the single carrier of marker state; there is no side
-    /// index. Always [`Marker::Unmarked`] on the code side.
     pub marker: Marker,
-    /// Grounding polarity — which direction this heading's
-    /// obligation points.
-    ///
-    /// A second field alongside `marked` rather than one fused carrier:
-    /// different upstream sources, different grammars, different extension
-    /// seams. Spec-side only — the code side is a fact, not a declaration.
     pub polarity: Polarity,
 }
 
 impl ConceptNode {
-    /// Construct a concept node with **no** containment provenance — the
-    /// spec-side / no-code-facts case. The three provenance fields default
-    /// to `None`; populate them with [`ConceptNode::with_provenance`].
-    ///
-    /// This is an explicit "provenance unknown" constructor, **not** a
-    /// `Default` escape: `ConceptNode` does not derive `Default`.
     #[must_use]
     pub const fn new(name: String, source: Source, signature: SignatureState) -> Self {
         Self {
@@ -190,21 +109,12 @@ impl ConceptNode {
         }
     }
 
-    /// Builder: attach the grounding polarity parsed from the heading's
-    /// grounding comment.
-    ///
-    /// A builder rather than a positional argument on [`ConceptNode::new`],
-    /// which deliberately does not derive `Default` — polarity is an
-    /// opt-in fact.
     #[must_use]
     pub const fn with_polarity(mut self, polarity: Polarity) -> Self {
         self.polarity = polarity;
         self
     }
 
-    /// Builder: attach the language-agnostic containment triple
-    /// (`module_path` / `unit` / `context`) derived by a code-facts
-    /// adapter.
     #[must_use]
     pub fn with_provenance(
         mut self,
@@ -219,15 +129,6 @@ impl ConceptNode {
     }
 }
 
-/// The signature-level payload on a [`ConceptNode`].
-///
-/// - `Absent` — reader did not produce a signature (legacy concept-only mode).
-/// - `Normalized(s)` — the reader parsed a `syn::Item` and rendered its
-///   normalised token stream as `s`. Two concepts match at signature level
-///   iff their `Normalized` strings are byte-equal.
-/// - `Unparseable { raw, error }` — a spec-side fenced `rust` block failed
-///   to parse. Surfaced separately from drift because the cause is a typo
-///   in prose, not a drift between sides.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum SignatureState {
     #[default]
@@ -239,17 +140,6 @@ pub enum SignatureState {
     },
 }
 
-/// A declared relationship between two concepts (v0.3).
-///
-/// Edges are *declared* — derived textually from the spec bullet lines
-/// (`- implements: Foo`, `- depends on: Bar`, `- returns: Baz`) or from
-/// `syn` AST nodes on the code side (`impl Trait for Type`, struct field
-/// types, `pub fn` return types). No name resolution or HIR-level chain
-/// following is performed.
-///
-/// `target` is the tokenised matching key (see [`tokenise_target`]);
-/// `raw_target` preserves the original textual form for display in drift
-/// messages.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Edge {
     pub source_concept: String,
@@ -259,21 +149,14 @@ pub struct Edge {
     pub source: Source,
 }
 
-/// The relationship kind of an [`Edge`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EdgeKind {
-    /// Spec bullet: `- implements: Foo`. Code: `impl Foo for Type`.
     Implements,
-    /// Spec bullet: `- depends on: Foo`. Code: struct field type,
-    /// `pub fn` parameter type.
     DependsOn,
-    /// Spec bullet: `- returns: Foo`. Code: top-level `pub fn` return type.
     Returns,
 }
 
 impl EdgeKind {
-    /// Wire-form label used in violation messages and fixture output.
-    /// Stable across versions — changing it would break proof files.
     #[must_use]
     pub const fn as_label(self) -> &'static str {
         match self {
@@ -290,15 +173,12 @@ impl std::fmt::Display for EdgeKind {
     }
 }
 
-/// Where a concept was found — either in a spec file or a code file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Source {
     Spec { path: PathBuf, line: usize },
     Code { path: PathBuf, line: usize },
 }
 
-/// A top-level `pub fn` declaration found in code, with its owning crate
-/// and the location of its declaration site.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerbDecl {
     pub qname: String,
@@ -306,12 +186,6 @@ pub struct VerbDecl {
     pub source: Source,
 }
 
-/// Spec-side anchor parsed from a `- verb: <ident>` bullet inside a
-/// concept section. `concept` names the owning concept; `qname` is the
-/// bare identifier; `raw_target` preserves the verbatim bullet text.
-///
-/// `concept` and `source` are placeholder-initialised by
-/// `parse_verb_bullet` and filled in by the caller (`finish_bullet`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerbAnchor {
     pub concept: String,
@@ -320,11 +194,6 @@ pub struct VerbAnchor {
     pub source: Source,
 }
 
-/// Aggregates both sides of the verb-anchoring contract carried by [`CheckInput`].
-///
-/// `decls` are `pub fn` declarations from code; `anchors` are `- verb:` bullets
-/// from spec files. [`Default`] is derived so `CheckInput`'s `#[derive(Default)]`
-/// compiles.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct VerbOwnership {
     pub decls: Vec<VerbDecl>,
@@ -341,29 +210,22 @@ impl From<PubFnDecl> for VerbDecl {
     }
 }
 
-/// A single equivalence violation between spec and code graphs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Violation {
-    /// Concept declared in specs but absent from code.
-    MissingInCode { name: String, spec_source: Source },
-    /// Concept declared in code but absent from specs.
-    MissingInSpecs { name: String, code_source: Source },
-    /// A `pub` code item bearing a name its spec heading **expelled** — the
-    /// heading carries `polarity:forbidden`. Both sites are
-    /// carried, so the finding names what expelled the name *and* what
-    /// reintroduced it.
+    MissingInCode {
+        name: String,
+        spec_source: Source,
+    },
+    MissingInSpecs {
+        name: String,
+        code_source: Source,
+    },
     ForbiddenConceptReintroduced {
         name: String,
         spec_source: Source,
         code_source: Source,
     },
-    // `ImplementsDraftConcept` retired here. Code backing a
-    // marked heading is the normal mid-arc state, not a failure — it is now
-    // [`crate::RealizedRecord`]. Its `violation_key` sort slot is
-    // retired, not reused; existing slots are not renumbered.
-    /// Both sides declare the concept with a signature, but the signatures
-    /// disagree after normalisation.
     SignatureDrift {
         name: String,
         spec_sig: String,
@@ -371,83 +233,51 @@ pub enum Violation {
         spec_source: Source,
         code_source: Source,
     },
-    /// Code side has a signature for the concept; spec side has the concept
-    /// heading but no fenced `rust` block. Soft warning — the spec file is
-    /// under-specified, not drifted.
     SignatureMissingInSpec {
         name: String,
         code_sig: String,
         code_source: Source,
     },
-    /// A spec fenced `rust` block did not parse via `syn`. The concept is
-    /// dropped from signature-level comparison until the spec is fixed.
     SignatureUnparseable {
         name: String,
         raw: String,
         error: String,
         source: Source,
     },
-    /// Spec declares an edge (e.g. `- implements: Foo`) that the code side
-    /// does not emit. The spec is claiming a relationship code does not
-    /// actually have.
     EdgeMissingInCode {
         concept: String,
         edge_kind: EdgeKind,
         target: String,
         spec_source: Source,
     },
-    /// Code side emits an edge that the spec does not declare. Only fires
-    /// for concepts whose spec section declared at least one bullet edge
-    /// (opt-in semantics — a concept with no spec bullets is not inspected
-    /// at relationship level).
     EdgeMissingInSpec {
         concept: String,
         edge_kind: EdgeKind,
         target: String,
         code_source: Source,
     },
-    /// Spec bullet names a target that is not present as a concept in
-    /// either graph. The spec is referencing an abstraction that does not
-    /// exist in this project.
     EdgeTargetUnknown {
         concept: String,
         edge_kind: EdgeKind,
         target: String,
         spec_source: Source,
     },
-    /// A v0.4 bounded-context violation. Wraps the three
-    /// [`ContextViolation`] variants so consumers that do not opt
-    /// into context checking match one arm rather than three.
     Context(ContextViolation),
-    /// Spec anchor `- verb: <qname>` found under `concept` but no
-    /// `pub fn` named `qname` exists anywhere in the code tree.
     VerbMissingInCode {
         concept: String,
         qname: String,
         spec_source: Source,
     },
-    /// A `pub fn` named `qname` exists in a verb-anchored context but
-    /// no spec anchor claims it.
-    VerbMissingInSpec { qname: String, code_source: Source },
-    /// Spec anchor references `qname` but no `pub fn` with that name
-    /// belongs to any declared bounded context.
+    VerbMissingInSpec {
+        qname: String,
+        code_source: Source,
+    },
     VerbTargetUnknown {
         concept: String,
         qname: String,
         spec_source: Source,
     },
-    /// An abstraction-ladder cohesion violation. Wraps
-    /// the three [`CohesionViolation`] variants so consumers that do not
-    /// opt into cohesion checking match one arm rather than three —
-    /// distinct from [`Violation::Context`].
     Cohesion(CohesionViolation),
-    /// A spec anchor (`- impl: <qname>`) names a code item that does
-    /// not exist anywhere in the code tree. The
-    /// equivalence-defect analog of [`Violation::MissingInCode`] for an
-    /// anchored concept — kept a **top-level** arm (not nested in
-    /// [`Violation::Cohesion`]) so a consumer that opts out of cohesion
-    /// checking cannot silently suppress broken-anchor detection.
-    /// `spec_source` points at the anchor bullet for `path:line`.
     DanglingAnchor {
         concept: String,
         target: String,
@@ -459,20 +289,14 @@ pub enum Violation {
 mod tests {
     use super::*;
 
-    // --- RFC-013 §3.5 NDJSON schema v4 tripwire ---
-
     #[test]
     fn schema_version_current_is_v4() {
-        // Tripwire: the production wire version is `"4"`. A change here is a
-        // breaking NDJSON contract change.
         assert_eq!(SchemaVersion::CURRENT, SchemaVersion::V4);
         assert_eq!(SchemaVersion::CURRENT.as_str(), "4");
     }
 
     #[test]
     fn schema_version_wire_strings_are_stable() {
-        // Retired versions keep their wire strings — a consumer reading an
-        // archived fixture must still resolve them.
         assert_eq!(SchemaVersion::V1.as_str(), "1");
         assert_eq!(SchemaVersion::V2.as_str(), "2");
         assert_eq!(SchemaVersion::V3.as_str(), "3");
@@ -507,14 +331,12 @@ mod tests {
         assert_eq!(n.module_path.as_deref(), Some("domain"));
         assert_eq!(n.unit.as_deref(), Some("domain"));
         assert_eq!(n.context.as_deref(), Some("equivalence"));
-        // name / source / signature are preserved through the builder.
         assert_eq!(n.name, "Graph");
         assert_eq!(n.signature, SignatureState::Absent);
     }
 
     #[test]
     fn with_provenance_accepts_partial_facts() {
-        // PHP `:Item` may yield context via edge-traversal but no module_path.
         let n = ConceptNode::new("X".to_owned(), code_src(), SignatureState::Absent)
             .with_provenance(None, None, Some("equivalence".to_owned()));
         assert_eq!(n.module_path, None);

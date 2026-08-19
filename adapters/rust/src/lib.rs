@@ -1,17 +1,3 @@
-//! Rust code reader — concept-level.
-//!
-//! Walks a directory tree, parses each `*.rs` file with `syn`, and emits a
-//! [`ConceptNode`] for every top-level `pub struct`, `pub enum`, `pub trait`,
-//! `pub type`. Honours the filter rules documented in `specs/dialect.md`:
-//! non-public items, `#[cfg(test)]`-gated items, and files under
-//! `target/` / `.git/` / `.claude/` / `.proofs/` / per-crate `tests/`,
-//! `benches/`, `examples/` are skipped, as is any directory carrying a
-//! `CACHEDIR.TAG` marker — a build tree keeps its generated `pub` items off
-//! the surface however `--target-dir` happened to name it.
-//!
-//! Scope: only top-level items in each file are visited. Concepts nested
-//! inside `pub mod foo { ... }` are not extracted at this level.
-
 mod anchor_resolver;
 mod cfg_gate;
 mod concepts;
@@ -32,10 +18,6 @@ use ports::{CodeFacts, Extraction, LanguageBackend, Reader, ReaderError, VerbRea
 use std::path::Path;
 use walkdir::WalkDir;
 
-/// Low-level Rust extractor.
-///
-/// Walks a source tree once and emits flat concepts + raw edges. Used by
-/// [`RustReader`] to build a [`Graph`].
 #[derive(Debug, Default)]
 pub struct RustBackend;
 
@@ -75,11 +57,6 @@ impl LanguageBackend for RustBackend {
     }
 }
 
-/// High-level Rust reader.
-///
-/// Wraps [`RustBackend`] with language-neutral graph assembly: pulls
-/// concepts + raw edges, filters edges against the discovered concept set,
-/// and returns a [`Graph`] for the diff engine.
 #[derive(Debug, Default)]
 pub struct RustReader;
 
@@ -95,11 +72,6 @@ impl Reader for RustReader {
 }
 
 impl CodeFacts for RustReader {
-    /// The concept set the [`Reader`] graph already carries, each node
-    /// bearing the per-file containment provenance attached by
-    /// `extract_from_file` (`module_path` collapsed to crate root, `unit`
-    /// relative to the code root). Both `module_path` and `unit` must match
-    /// exactly for a concept to be considered properly recorded.
     fn concepts(&self, root: &Path) -> Result<Vec<ConceptNode>, ReaderError> {
         Ok(Reader::extract(self, root)?.nodes)
     }

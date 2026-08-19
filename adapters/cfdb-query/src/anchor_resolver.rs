@@ -1,25 +1,3 @@
-//! cfdb-query anchor resolver.
-//!
-//! The cfdb-keyspace counterpart to the source-walk `RustAnchorResolver`: it
-//! resolves a `- impl: <qname>` anchor against the `:Item` facts a `cfdb
-//! extract` run already holds — for **per-crate** repos (e.g. agentry) whose
-//! keyspace is the code-fact source. Like the
-//! source-walk resolver it builds an index once and `resolve` is a lookup, so
-//! the concept set is unchanged.
-//!
-//! **Any visibility.** The concept ACL ([`crate::CfdbQueryReader`]) filters
-//! `visibility == "pub"` for population parity; anchor resolution lifts that —
-//! a `pub(crate)` item (cfdb reports it as `visibility == "private"`) resolves
-//! just as a `pub` one does.
-//!
-//! **Kinds.** `struct`/`enum`/`trait`/`type_alias` → [`AnchorKind::Type`];
-//! `fn`/`method` → [`AnchorKind::Fn`]; `const`/`static` → [`AnchorKind::Const`].
-//! A `method` resolves under its `Type::method` form (the 2-segment qname the
-//! `- impl:` grammar accepts), derived from cfdb's full `crate::Type::method`
-//! qname. **Enum variants are NOT resolvable here:** cfdb does **not** emit a `variant` `:Item` kind — only the container
-//! `enum`. Variant anchoring remains deferred, awaiting
-//! a paired cfdb change that extracts variants as items. The source-walk path has the same MVP cut.
-
 use crate::{prop, relativize, KeyspaceFile, EXCLUDED_DIRS};
 use cfdb_core::fact::{Node, PropValue};
 use cfdb_core::schema::Label;
@@ -28,22 +6,12 @@ use ports::{AnchorResolver, ReaderError};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-/// A cfdb-keyspace [`AnchorResolver`].
 #[derive(Debug, Clone)]
 pub struct CfdbAnchorResolver {
     index: HashMap<String, AnchorTarget>,
 }
 
 impl CfdbAnchorResolver {
-    /// Build the any-visibility anchor index from the cfdb keyspace JSON at
-    /// `keyspace`. `root` is the code root the keyspace was extracted from —
-    /// used to relativize `:Item.file` paths so the same directory exclusions
-    /// the source-walk resolver applies hold here too.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ReaderError::IoFailed`] when the keyspace cannot be read or
-    /// [`ReaderError::ParseFailed`] when it cannot be deserialized.
     pub fn index(keyspace: &Path, root: &Path) -> Result<Self, ReaderError> {
         let bytes = std::fs::read(keyspace).map_err(|e| ReaderError::IoFailed {
             path: keyspace.to_path_buf(),
@@ -74,9 +42,6 @@ impl AnchorResolver for CfdbAnchorResolver {
     }
 }
 
-/// Translate one `:Item` into an `(index-key, target)` pair, at any
-/// visibility, or `None` when the item is not anchorable (a stub, an excluded
-/// dir, test-gated, or a non-resolvable kind such as `impl_block`).
 fn index_entry(node: &Node, root: &Path) -> Option<(String, AnchorTarget)> {
     if node
         .props
@@ -86,7 +51,6 @@ fn index_entry(node: &Node, root: &Path) -> Option<(String, AnchorTarget)> {
     {
         return None;
     }
-    // Stub filter (RFC-010 §12-F): a synthetic `:Item` carries no `file`.
     let file = prop(node, "file")?;
     let rel = relativize(file, root);
     if rel.split('/').any(|seg| EXCLUDED_DIRS.contains(&seg)) {
@@ -97,7 +61,7 @@ fn index_entry(node: &Node, root: &Path) -> Option<(String, AnchorTarget)> {
         "struct" | "enum" | "trait" | "type_alias" => AnchorKind::Type,
         "fn" | "method" => AnchorKind::Fn,
         "const" | "static" => AnchorKind::Const,
-        _ => return None, // impl_block, and any future kind, are not anchorable
+        _ => return None,
     };
     let key = if kind == "method" {
         method_key(prop(node, "qname")?)?
@@ -122,8 +86,6 @@ fn index_entry(node: &Node, root: &Path) -> Option<(String, AnchorTarget)> {
     ))
 }
 
-/// Reduce a method qname `crate::Type::method` to the `Type::method` form the
-/// `- impl:` grammar accepts (the same 2-segment shape `- verb:` uses).
 fn method_key(qname: &str) -> Option<String> {
     let mut segments: Vec<&str> = qname.split("::").collect();
     let method = segments.pop()?;
@@ -139,8 +101,6 @@ mod tests {
 
     const ROOT: &str = "/ws";
 
-    /// Write a keyspace JSON with the given `:Item` prop objects and return its
-    /// path (kept alive by the returned `TempDir`).
     fn keyspace(items: &[&str]) -> (TempDir, PathBuf) {
         let d = TempDir::new().expect("tmp");
         let path = d.path().join("ks.json");
@@ -168,8 +128,6 @@ mod tests {
 
     #[test]
     fn resolves_pub_crate_fn_at_any_visibility() {
-        // cfdb reports `pub(crate)` as `visibility:"private"` — resolution
-        // lifts the pub-only filter, so it still resolves.
         let (_d, ks) = keyspace(&[&item(
             "validate_intake",
             "fn",
@@ -199,7 +157,6 @@ mod tests {
         let (_d, ks) = keyspace(&[&item("bar", "method", "private", "krate::Foo::bar")]);
         let r = CfdbAnchorResolver::index(&ks, Path::new(ROOT)).expect("index");
         assert_eq!(r.resolve("Foo::bar").expect("method").kind, AnchorKind::Fn);
-        // The full crate-qualified qname is NOT the anchor grammar's form.
         assert!(r.resolve("krate::Foo::bar").is_none());
     }
 

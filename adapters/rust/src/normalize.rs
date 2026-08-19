@@ -1,27 +1,5 @@
-//! Signature normalisation — the byte-equal comparison target.
-//!
-//! Both the markdown reader (parsing fenced `rust` blocks from specs) and
-//! the Rust reader (parsing source files) funnel through [`normalize`]
-//! before emitting a [`domain::SignatureState::Normalized`]. Byte equality
-//! of the output string is the signature-match criterion.
-//!
-//! Normalisation rules:
-//!
-//! - Strip `#[doc = "..."]` / `///` / `//!`.
-//! - Strip `#[cfg(...)]`, `#[must_use]`, `#[inline]`, `#[derive(...)]`.
-//! - Collapse visibility refinements other than `pub`: `pub(crate)`,
-//!   `pub(super)`, `pub(in ...)` → inherited (non-public marker). The
-//!   top-level reader only emits `pub` items, so this mostly matters on
-//!   fields and trait items.
-//! - Render via `quote!` — this gives consistent token-level whitespace
-//!   and trailing-comma handling.
-//!
-//! The function is a pure transform on a cloned `syn::Item` — the input is
-//! not mutated.
-
 use syn::{Attribute, Fields, Item, TraitItem, Visibility};
 
-/// Produce the normalised string form of `item`.
 #[must_use]
 pub fn normalize(item: &Item) -> String {
     let mut item = item.clone();
@@ -30,9 +8,6 @@ pub fn normalize(item: &Item) -> String {
     collapse_trailing_commas(&raw)
 }
 
-/// `quote!` emits tokens space-separated, so a trailing comma inside a
-/// group renders as ` , }` or ` , )`. We collapse both to make signatures
-/// with and without trailing commas byte-equal.
 fn collapse_trailing_commas(s: &str) -> String {
     s.replace(" , }", " }").replace(" , )", " )")
 }

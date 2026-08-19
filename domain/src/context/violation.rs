@@ -1,25 +1,13 @@
-//! The context-level violation variants.
-
 use crate::{EdgeKind, OwnedUnit, Source};
 
-/// The context-level violation variants. Wrapped inside
-/// [`crate::Violation::Context`] so consumers that do not opt into
-/// context checking match one arm rather than three.
-///
-/// Every variant carries a `concept` field so the sort key in
-/// `violation_key()` can extract a stable `&str` without destructuring.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ContextViolation {
-    /// A `pub` type in code lives in a crate that is not listed under
-    /// any declared context's `Owns` block.
     MembershipUnknown {
         concept: String,
         owned_unit: OwnedUnit,
         code_source: Source,
     },
-    /// A v0.3 edge targets a concept in another context that is NOT
-    /// listed in the owning context's `Imports`.
     CrossEdgeUnauthorized {
         concept: String,
         owning_context: String,
@@ -28,10 +16,6 @@ pub enum ContextViolation {
         target_context: String,
         spec_source: Source,
     },
-    /// A v0.3 edge crosses a context boundary and IS listed in the
-    /// importing context's `Imports`, but the target context does not
-    /// declare the import back as an `Exports` entry (asymmetric
-    /// declaration — invariant 5 from RFC-001 §4).
     CrossEdgeUndeclared {
         concept: String,
         owning_context: String,
@@ -40,9 +24,6 @@ pub enum ContextViolation {
         target_context: String,
         spec_source: Source,
     },
-    /// A `- verb: <qname>` anchor's concept lives in `owning_context`
-    /// but the `pub fn` named `qname` belongs to `target_context`
-    /// (cross-context verb routing without a matching `Imports` entry).
     CrossVerbUnauthorized {
         concept: String,
         qname: String,
@@ -53,9 +34,6 @@ pub enum ContextViolation {
 }
 
 impl ContextViolation {
-    /// Sort key used by `violation_key()` — every variant carries a
-    /// `concept` field, and this accessor avoids per-variant destructure
-    /// at every call site.
     #[must_use]
     pub const fn concept(&self) -> &str {
         match self {
