@@ -69,7 +69,10 @@ Once ratified, the RFC's "Issue decomposition" section becomes the concrete back
 1. **Dogfood / self-integration.** Exercise the change against this repo's own source tree via `graph-specs check --specs specs/ --code .` and assert on the observable output (e.g. "the new output variant appears in NDJSON", or "violations count is still zero after the refactor"). Strongest signal — real data, real pipeline.
 2. **Integration against real inputs.** Construct a small real-shaped fixture (a synthetic `specs/` directory, a crafted Rust source file) and run the markdown and rust readers end-to-end. Assert on the resulting `Graph` / `Violation` output.
 3. **Unit tests on pure functions.** Fine when the function is genuinely pure. Do not stub out reader I/O that could be exercised via option 2.
-4. **Mocks / doubles.** Last resort. Must carry an inline comment naming why real infra was unavailable.
+4. **Mocks / doubles.** Last resort. The PR body names why real infra
+   was unavailable — never an inline comment (operator ruling
+   2026-08-19: no comment in code that is not gate-read data; enforced
+   by `scripts/comment_fence.py` in CI).
 
 **Prescribed test categories by work type:**
 
