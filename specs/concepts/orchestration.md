@@ -9,6 +9,8 @@ equivalence. Prose is encouraged — it is ignored by the reader.
 
 ## ReportFormat
 
+<!-- parent:rfc:graph-specs-005-verb-coverage-report#3.4 anchor:"Text format: a three-section human table" -->
+
 Output format for `graph-specs report`. `text` is the human-readable
 default; `ndjson` emits one JSON object per report record — see
 `specs/ndjson-output.md` §Report records (v0.5) for the schema. Lives

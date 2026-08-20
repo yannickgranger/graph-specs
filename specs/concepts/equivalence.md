@@ -159,6 +159,8 @@ future dialect growth adds variants here.
 
 ## Reader
 
+<!-- parent:rfc:graph-specs-004-multi-language-adapter-contract#3.2 anchor:"The `Reader` trait (`ports/src/lib.rs:15`) stays" -->
+
 The language-neutral port trait. Concrete readers (markdown specs,
 Rust code, later PHP / TypeScript) implement it and produce graphs with
 identical shape. Lives in `ports`.
@@ -212,6 +214,8 @@ pub trait ContextReader {
 
 ## ReaderError
 
+<!-- parent:spec:Reader -->
+
 Failure modes of a [Reader](#reader) implementation. Describes
 *reading operations* (I/O, parse, walk) rather than domain concerns,
 which is why this type lives in the port layer rather than in `domain`.
@@ -219,6 +223,8 @@ Adapters map their language-specific failures onto `ReaderError` at the
 port boundary.
 
 ## LanguageBackend
+
+<!-- parent:rfc:graph-specs-016-parse-once-reading-port#3.3 anchor:"recorded here as an RFC-004 amendment" -->
 
 Lower-level code-side port: walks a source root in one pass and emits an
 [Extraction](#extraction) of flat [ConceptNode](#conceptnode) values plus
@@ -241,6 +247,8 @@ pub trait LanguageBackend {
 - depends on: ReaderError
 
 ## Extraction
+
+<!-- parent:spec:LanguageBackend -->
 
 Bundle returned by [LanguageBackend::extract](#languagebackend) — a flat
 [ConceptNode](#conceptnode) vector and a flat [Edge](#edge) vector, the

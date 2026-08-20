@@ -39,6 +39,8 @@ the previous design needed is retired.
 
 ## RustBackend
 
+<!-- parent:spec:LanguageBackend -->
+
 Concrete [LanguageBackend](#languagebackend) implementation for Rust
 source files. Uses `syn`. Walks the source tree once (skipping `target/`,
 `.git/`, `.claude/`, `.proofs/`, per-crate `tests/` / `benches/` /
@@ -82,6 +84,8 @@ the cfdb-query [CfdbQueryReader](#cfdbqueryreader) ACL must match. Lives in
 
 ## RustAnchorResolver
 
+<!-- parent:spec:AnchorResolver -->
+
 Source-walk [AnchorResolver](equivalence.md#anchorresolver) implementation
 (graph-specs-012-non-pub-spec-anchor#3.4 / R12-3). Builds an index of code items at **any** visibility
 (the concept walk is `pub`-only) so a `- impl: <qname>` spec anchor can
@@ -103,6 +107,8 @@ variants are deferred to the cfdb-query path. Returns an
 
 ## CfdbQueryReader
 
+<!-- parent:spec:CodeFacts -->
+
 The cfdb-query [CodeFacts](equivalence.md#codefacts) Anti-Corruption Layer
 (graph-specs-010-abstraction-level-equivalence#3.3 / R10-6). Reads a cfdb keyspace JSON and translates `:Item`
 nodes into agnostic [ConceptNode](#conceptnode)s — `unit` / `module_path`
@@ -121,6 +127,8 @@ Lives in `adapters/cfdb-query`.
 - returns: CfdbQueryReader
 
 ## CfdbAnchorResolver
+
+<!-- parent:spec:AnchorResolver -->
 
 cfdb-keyspace [AnchorResolver](equivalence.md#anchorresolver) (graph-specs-012-non-pub-spec-anchor#3.4
 / R12-6 — the OQ-1 parity path). The keyspace counterpart to the source-walk
