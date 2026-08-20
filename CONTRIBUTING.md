@@ -51,13 +51,14 @@ Practically, this means:
 | Change | Path |
 |---|---|
 | Bug fix (wrong behaviour on existing capability) | Open an issue → PR with a **regression test** that reproduces the bug first |
-| New capability (output format, equivalence level, CLI subcommand, violation variant, schema-version bump) | **RFC first** (`docs/rfc/NNN-*.md`) → discussion → issues → PR |
+| New capability (output format, equivalence level, CLI subcommand, violation variant, schema-version bump) | **RFC first** (authored in `yg/doxa` as `rfc/graph-specs-NNN-<kebab-title>.md`; `docs/rfc/` here is a read-only mirror) → discussion → issues → PR |
 | Docs, CI, chore | PR directly |
 
 **RFC-first** means: for a genuinely new capability, the *shape* of the
-solution is negotiated in a short RFC under `docs/rfc/`, not in the PR. This
+solution is negotiated in a short RFC in the `yg/doxa` corpus
+(`rfc/graph-specs-NNN-<kebab-title>.md`), not in the PR. This
 keeps the design reviewable before code exists. Look at the existing RFCs
-(`docs/rfc/001`…`010`) for the format: Problem, Scope, Design, Invariants,
+(`docs/rfc/001`…`015`, a read-only mirror of the corpus) for the format: Problem, Scope, Design, Invariants,
 Non-goals, and an issue decomposition with a `Tests:` line per slice.
 
 Open a `rfc-proposal` issue (template provided) to start that conversation.
@@ -105,7 +106,7 @@ fixed in the same PR that introduces them, or the PR does not land.
 ## Commit & PR conventions
 
 - Conventional-commit prefixes: `feat:`, `fix:`, `docs:`, `chore:`,
-  `refactor:`, `test:`. Reference the issue/RFC (`#123`, `Refs: docs/rfc/010-…`).
+  `refactor:`, `test:`. Reference the issue/RFC (`#123`, `Refs: graph-specs-010-<slug>#<clause>`).
 - Keep PRs focused — one slice per PR.
 - Describe what you changed and how you verified it.
 

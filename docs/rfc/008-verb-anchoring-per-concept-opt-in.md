@@ -1,6 +1,6 @@
 ---
 title: RFC-008 — per-concept opt-in granularity for `VerbMissingInSpec`
-status: Ratified (4-lens unanimous RATIFY round 2 — clean-arch / ddd / solid / rust-systems; round 1: 3 BLOCKERs (DDD BLK-1 free-fn exemption + DDD BLK-2 / clean-arch empty type-root guard + SOLID B1 RFC-006 Inv 2 amendment) + DDD Q2 cross-context homonym + advisories; round 2: hybrid design (per-concept for impl-methods, per-context for free-fns) + Invariants 8 & 9 folded; ready for implementation issue filing)
+status: Ratified (4-lens unanimous RATIFY round 2 — clean-arch / ddd / solid / rust-systems; round 1: 3 BLOCKERs (DDD BLK-1 free-fn exemption + DDD BLK-2 / clean-arch empty type-root guard + SOLID B1 RFC-006 Inv 2 amendment) + DDD Q2 cross-context homonym + advisories; round 2: hybrid design (per-concept for impl-methods, per-context for free-fns) + Invariants 8 & 9 folded; ready for implementation issue filing; AMENDED 2026-08-19 by a three-seat grounding council: §2 item 3 and §6 bullet 1 marked superseded in place, the ratified free-fn rule being §3.1 + §4 Invariant 1)
 date: 2026-05-27
 authors: agentry-captain-2026-05-27
 companion: consumer-side EPIC agentry#793; gap incident on agentry#1249 (blast-radius blocked the first attempted L2-verb fence conversion)
@@ -27,7 +27,7 @@ In scope:
 
 1. **`VerbMissingInSpec` activation predicate is rewritten to per-concept.** A `pub fn` is inspected for missing-anchor iff its qname maps to a concept that itself carries at least one `- verb:` anchor.
 2. **Type-based mapping for impl-method qnames** (depends on RFC-007 `Type::method` grammar): a decl `Foo::bar` is inspected iff some spec H2 `## Foo` exists AND that `## Foo` concept has at least one `- verb:` anchor.
-3. **No automatic mapping for top-level free fns.** A bare-ident decl `bar` is inspected only if SOME concept in the spec explicitly anchors `- verb: bar` — i.e., free fns trigger `VerbMissingInSpec` only when they would have been a positive match (which by definition means they're not missing — so this branch never fires; free fns are effectively NOT inspected for MissingInSpec). The consumer is expected to anchor each free fn they want fenced; missing anchors on free fns are not auto-detected.
+3. **No automatic mapping for top-level free fns.** A bare-ident decl `bar` is inspected only if SOME concept in the spec explicitly anchors `- verb: bar` — i.e., free fns trigger `VerbMissingInSpec` only when they would have been a positive match (which by definition means they're not missing — so this branch never fires; free fns are effectively NOT inspected for MissingInSpec). The consumer is expected to anchor each free fn they want fenced; missing anchors on free fns are not auto-detected. **[AMENDED 2026-08-19 — superseded by §3.1 and §4 Invariant 1: this is round-1 text, reversed by the round-2 hybrid, under which a bare-ident free-fn decl IS inspected iff its bounded context carries at least one opt-in concept (per-context, preserving RFC-006 Slice A). Nothing roots here; the free-fn rule is cited at §3.1 or §4 Invariant 1, never at §2 (grounding council 2026-08-19).]**
 4. **`VerbMissingInCode`, `VerbTargetUnknown`, `CrossVerbUnauthorized` are unchanged.** Those violations fire from the spec side (an anchor exists; its target is missing/wrong). RFC-008 only refines the code-side `VerbMissingInSpec` activation.
 5. **No NDJSON schema change.** The `VerbMissingInSpec` discriminator stays; only the set of decls that produce it shrinks.
 
@@ -278,7 +278,7 @@ RFC ratifies when round 2 re-pass confirms.
 
 ## §6 — Non-goals
 
-- Top-level free-fn opt-in. Future RFC if consumer demands a way to fence free-fn coverage.
+- Top-level free-fn opt-in. Future RFC if consumer demands a way to fence free-fn coverage. **[AMENDED 2026-08-19 — superseded by §3.1 and §4 Invariant 1: this is round-1 text, reversed by the round-2 hybrid, which already inspects free fns per-context. Nothing roots here (grounding council 2026-08-19).]**
 - Aliasing concepts to differently-named types via `- type-alias:` bullets. Future RFC.
 - Reverse-coverage (concepts-without-anchors warnings). Stays in `report --verb-coverage` per RFC-005.
 - Per-file activation. Per-concept subsumes per-file under the existing concept-name-matches-type-name dialect.

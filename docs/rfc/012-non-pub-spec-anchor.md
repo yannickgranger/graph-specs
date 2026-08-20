@@ -134,6 +134,8 @@ A bare `cohesion: behavioral` marker is an *assertion*, and the methodology's sp
 
 Resolving an anchor asks a question the concept walk does not: *does an item named `<qname>` exist anywhere in the code, at any visibility?* The data already exists on both adapters — the source-walk `syn` AST visits every item before the `pub` filter drops non-`pub` ones (`adapters/rust/src/lib.rs:370`); the cfdb keyspace carries every `:Item` with a `visibility` prop (the ACL drops non-`pub` at `adapters/cfdb-query/src/lib.rs:127`). RFC-012 adds a **resolution query** that consults that data *only for names an anchor references* — the global concept set is unchanged (§4 I1).
 
+#### §3.4.1 — AnchorTarget
+
 **The resolution result type — `AnchorTarget` (clean-arch B-1 blocker; defined here, lives in `domain`, zero infrastructure imports):**
 
 ```
@@ -144,9 +146,13 @@ pub struct AnchorTarget { pub kind: AnchorKind, pub source: Source }
 pub enum AnchorKind { Type, Fn, Const }   // Variant deferred to R12-6 (DD-7)
 ```
 
+#### §3.4.2 — Locus
+
 **Locus — DD-2 ruled (council unanimous): source-walk MVP; cfdb-query deferred.**
 - **MVP = source-walk.** The `RustReader` gains a *lazy* anchor-resolution pass (mirroring `extract_verb_anchors` / `VerbReader::extract_pub_fns`) that resolves **only the qnames an anchor references** — not every non-`pub` item in the tree (rust-systems §3.4: lazy, not eager, so the global concept set is untouched and cost is bounded). The dual-control gate (`graph-specs check`) needs **no keyspace** — it stays a pure source check.
 - **(c)-clean = cfdb-query.** Lift the `adapters/cfdb-query/src/lib.rs:127` filter behind a resolution method so per-crate repos (agentry) resolve anchors through the ACL too, and pick up enum-variant kinds natively (OQ-1 / R12-6).
+
+#### §3.4.3 — AnchorResolver
 
 **Port shape — DD-4 ruled (clean-arch + solid, blocking): a separate `AnchorResolver` trait, NOT a widened `CodeFacts`.** `ports::CodeFacts` has one method (`concepts`) implemented by both adapters; adding `resolve` to it would force `CfdbQueryReader` — whose anchor capability is explicitly deferred to R12-6 — to ship a `None`-returning stub for the whole MVP window, violating ISP and the methodology's "no production stubs" rule (global §6). Instead, a peer trait in `ports` (mirroring how `VerbReader` was split from `Reader`, RFC-005 §3.2):
 
