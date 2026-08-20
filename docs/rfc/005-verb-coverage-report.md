@@ -57,6 +57,8 @@ The `report` subcommand will be added as a sibling to the existing `Check` varia
 
 ### §3.2 — Port + reader extensions (additive)
 
+#### §3.2.1 — VerbReader
+
 **`VerbReader` port (new) — `ports/src/lib.rs`.** Sibling trait to `ContextReader`. Per the unanimous clean-arch + solid + rust-systems verdicts (§5.1 / §5.3 / §5.4), the new pub-fn extraction capability MUST live behind a port trait, not as an inherent impl on `RustReader`. This mirrors RFC-001 §3.6's introduction of `ContextReader` as a separate port:
 
 ```rust
@@ -68,11 +70,15 @@ pub trait VerbReader {
 }
 ```
 
+#### §3.2.2 — RustReader
+
 **`RustReader::extract_pub_fns` — `adapters/rust/src/lib.rs`.** Implements `VerbReader`. **Walk model (per rust-systems §5.4 blocker 1):** separate AST walk from `Reader::extract`. The current `extract` walks every `*.rs` file with `syn::parse_file`; `extract_pub_fns` re-parses the same files independently because (a) `Graph::nodes` (currently `Vec<ConceptNode>`) carries no fn arity/params/return-type, so it cannot be derived from the existing `Graph`; (b) the `report` subcommand is invoked deliberately, **never inside `check`**, so the doubled parse pays no cost on the `check` path. The existing `extract` is untouched.
 
 **Implementation — separate walk function, NOT an extension of `visit_top_level_item`** (per dry-run verification rust-systems-A): the current `visit_top_level_item` (`adapters/rust/src/lib.rs:114-126`) is a closed match over `Item::Struct | Item::Enum | Item::Trait | Item::Type` with an explicit `_ => {}` catch-all whose comment names `Fn` as a deliberately-excluded item: *"All other items (Mod, Fn, Impl, Const, Static, Use, Macro, etc.) are not top-level concepts."* Extending that match to admit `Item::Fn` would contradict the documented invariant. Slice A MUST introduce a NEW parallel walk function `visit_top_level_fn` that exclusively handles `syn::Item::Fn`, driven from a sibling `for item in &file.items` loop. `visit_top_level_item` is not touched. The two walks share no state; they share only the file-iteration shape.
 
 No new syn features required (current `syn = "2"` workspace pin with `["full", "parsing", "extra-traits"]` already supports `ItemFn.vis` + `ItemFn.sig.ident`; the workspace pin additionally lists `"visit"` but that feature is NOT exercised by the current manual `for item in file.items` walk model, and `extract_pub_fns` will NOT introduce a `syn::visit::Visit` impl — same manual walk shape).
+
+#### §3.2.3 — MarkdownReader
 
 **`MarkdownReader::extract_invariant_annotations` — `adapters/markdown/src/lib.rs`.** Inherent method (NOT on a new port trait — the markdown reader is the only adapter that parses markdown). **Parser model (per rust-systems §5.4 blocker 2 + dry-run rust-systems-C):** independent `Parser::new(source).into_offset_iter()` per file — a fresh `pulldown-cmark` parser instance with the offset iterator (mandatory for source-location attribution; `InvariantAnnotation.source` carries file:line, which the offset iter produces via `line_of_offset(range.start)` mirroring `adapters/markdown/src/lib.rs:145-169`). NOT a bare `Parser::new(source)` — that loses line numbers. NOT a shared event stream with the existing concept walk. The markdown source `&str` is already in memory (file-load cost paid once); the second parser allocation is the only cost. This is the RFC-001 §3.6 precedent (each marker-driven extraction owns its own parse) applied to invariant annotations.
 
@@ -89,7 +95,11 @@ A new `InvariantAnnotation` domain type carries `inv_id`, `tier`, `artifact: Opt
 
 The return type stays simple: `Result<Vec<InvariantAnnotation>, ReaderError>`. The `Err` arm is for I/O / pulldown-cmark catastrophic failure only.
 
+#### §3.2.4 — Both extensions are opt-in per spec.
+
 **Both extensions are opt-in per spec.** A spec with no `#### Operational invariants` section yields an empty `Vec`. Equivalence-check behavior is unchanged.
+
+#### §3.2.5 — Bracket-grammar parser is new infrastructure
 
 **Bracket-grammar parser is new infrastructure (per dry-run rust-systems-E)** — the existing `parse_bullet_edge` (`adapters/markdown/src/lib.rs:242-255`) does prefix-matching on bullet text (`- implements:`, `- depends on:`, `- returns:`). The new annotation parser is structurally different: it scans `Event::Text` atoms inside `Event::Start(Tag::Item)` for embedded bracketed `[enforced-by:...]` / `[prose-only:...]` substrings, parses inner `key: value; key: value` fields, and emits an `InvariantAnnotation`. This is a new grammar parser, not additive prefix matching. Slice A scope includes the parser implementation.
 
@@ -99,15 +109,31 @@ The return type stays simple: `Result<Vec<InvariantAnnotation>, ReaderError>`. T
 
 `domain` gains seven new pure types and one pure function. Per the DDD lens §5.2 finding 2 (closing the open question), all new types belong in the existing `domain` crate, not a separate `domain-report` crate — they are pure value objects whose owning context is `equivalence`, the same context that owns `ConceptNode`, `Edge`, and `CheckInput`. Splitting them would create a dependency edge (`domain-report → domain`) that either inverts or duplicates types.
 
+#### §3.3.1 — PubFnDecl
+
 - `pub struct PubFnDecl { name: String, source: Source, owned_unit: Option<String> }` — code-side pub-fn fact.
+#### §3.3.2 — InvariantAnnotation
+
 - `pub struct InvariantAnnotation { inv_id: String, tier: TierKind, artifact: Option<String>, retire_when: Option<String>, prose_only_why: Option<String>, source: Source }` — spec-side annotation fact.
+#### §3.3.3 — VerbCoverageRecord
+
 - `pub struct VerbCoverageRecord { context: Option<String>, pub_fn: PubFnDecl, cited: bool }` — `context: None` mirrors the parallel case in the equivalence check (per DDD §5.2 finding 4): the report-mode analog of `ContextViolation::MembershipUnknown` (`domain/src/context.rs:124-128`). A `None` context means the pub-fn lives in a crate not declared under any context's `Owns` block.
+#### §3.3.4 — TierHistogramRecord
+
 - `pub struct TierHistogramRecord { context: Option<String>, tier: TierKind, count: usize }`.
+#### §3.3.5 — TierKind
+
 - `#[non_exhaustive] pub enum TierKind { Cypher, Tier0, ScriptFence, ProseOnly }` — **`#[non_exhaustive]` per solid §5.3 finding 3 and rust-systems §5.4 concurrence.** Mirrors `ContextPattern`'s `#[non_exhaustive]` (RFC-001 §3.7) for forward compatibility — RFC-006 may add `BehaviorTest`, etc.
+#### §3.3.6 — HomonymRecord
+
 - `pub struct HomonymRecord { name: String, contexts: Vec<HomonymAppearance> }` where `pub struct HomonymAppearance { context_name: String, sanctioned_by_pattern: Option<ContextPattern>, asymmetric: bool }`. Per DDD §5.2 finding 1: `sanctioned_by_pattern` is derived from the `CheckInput.contexts` `ContextImport`/`ContextExport` declarations. **Derivation algorithm (per dry-run DDD-B):** for context C and concept N, (i) prefer C's `ContextExport.pattern` if C exports N — exporting context is authoritative per Evans Ch. 14, the same export-centric framing RFC-001 cites for `ContextExport`; (ii) fall back to the importing context's `ContextImport.pattern` if no export exists; (iii) if both an export and an import exist for N in this context but with disagreeing patterns (the asymmetric-declaration case that RFC-001 §4 invariant 5 makes legal input), set `sanctioned_by_pattern` to the export's pattern AND set `asymmetric: true` to signal the disagreement to downstream consumers. `Some(PublishedLanguage)` or `Some(SharedKernel)` with `asymmetric: false` means the cross-context appearance is doctrine-sanctioned (no council attention warranted); `Some(Conformist)` / `Some(CustomerSupplier)` or `None` (undeclared) means the appearance is a potential split-brain (warrants council review). The NDJSON example in §3.4 reflects this enrichment.
 
   **New domain predicate `ContextPattern::is_doctrine_sanctioned() -> bool` (per dry-run DDD-C):** the report's sanctioned-vs-split-brain dispatch needs a predicate over `ContextPattern` that today's domain code does not expose. Slice A adds `pub fn is_doctrine_sanctioned(&self) -> bool` as an inherent method on `ContextPattern` returning `true` for `PublishedLanguage | SharedKernel`, `false` for `Conformist | CustomerSupplier` (the predicate is forward-compatible with `#[non_exhaustive]` because `ContextPattern` is already `#[non_exhaustive]` per RFC-001 §3.7 — new variants must return their own classification). Justification for `pub`: the report layer in `application` reads the predicate to drive the homonym record's split-brain flag (`pub` is the minimum visibility for this cross-crate use; no internal callers).
+#### §3.3.7 — ReportOutput
+
 - `pub struct ReportOutput { verb_coverage: Vec<VerbCoverageRecord>, tier_histogram: Vec<TierHistogramRecord>, homonyms: Vec<HomonymRecord> }`.
+#### §3.3.8 — report_verb_coverage
+
 - `pub fn report_verb_coverage(check_input: CheckInput, pub_fns: Vec<PubFnDecl>, annotations: Vec<InvariantAnnotation>) -> ReportOutput`.
 
 **Placement of `report_verb_coverage` — author-documented override (per §5.5).** Clean-arch §5.1 and Solid §5.2 both REQUEST CHANGES to move this function from `domain` to `application`. The DDD §5.2 lens dissents, arguing precedent: `diff` (`domain/src/diff.rs`, re-exported at `domain/src/lib.rs:17`) is structurally identical — a pure function taking pre-materialized inputs (`CheckInput + Graph`) and returning pure outputs (`Vec<Violation>`), already RATIFIED in `domain` since the first equivalence check shipped. `report_verb_coverage` has the same shape: pre-materialized inputs in, pure records out, no I/O. The author records a single override per upstream `CLAUDE.md` §2.3 in §5.5 below: **`report_verb_coverage` STAYS in `domain`, parallel to `diff`.**

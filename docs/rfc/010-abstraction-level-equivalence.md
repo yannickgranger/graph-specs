@@ -70,11 +70,15 @@ H1=Context, H2=Concept (the diff unit), **H3=SubConcept** (a nested pub type, di
 The markdown reader treats a file's single H1 as a `Context` declaration whose text *is* the context identifier. One normalization rule — lowercase, internal whitespace→`-` (`# AC verifier` → `ac-verifier`) — is applied to **both** the `specs/contexts/`-side H1 (`contexts.rs`) and the `specs/concepts/`-side H1, so the two resolve to the same identifier (dry-run §12 #I; the single-word lowercase self-dogfood hid this). A descriptive H1 matching no `specs/contexts/` entry and not identifier-shaped is a reader error. H1/parent-tree assembly is a **separate `TreeAssembler` pass** (SRP: the existing `handle_event`/`SectionState` is at the complexity ceiling).
 
 ### §3.3 — Code side: containment through a `CodeFacts` port
+
+#### §3.3.1 — CodeFacts
 graph-specs needs each concept's containment — its `module_path`, `unit`, and resolved `context`. "graph-specs ↔ code" needs the code's *facts*, not parsing, so the code side is a **port**:
 
 ```rust
 pub trait CodeFacts { fn concepts(&self, root: &Path) -> Result<Vec<ConceptNode>, ReaderError>; }
 ```
+
+#### §3.3.2 — ConceptNode
 
 `ConceptNode` gains three **language-agnostic** `Option<String>` fields — **`module_path`, `unit`, `context`** — *not* cfdb's Rust-specific prop names, because cfdb's PHP `:Item` carries no such props (containment is edge-only). Two adapters:
 
@@ -82,6 +86,8 @@ pub trait CodeFacts { fn concepts(&self, root: &Path) -> Result<Vec<ConceptNode>
 - **cfdb-query ACL** (`adapters/cfdb-query`, a **feature-gated** crate, `cfdb-core` **only** path dep — dry-run §12 #E/#G): reads `:Item` from a keyspace and **translates** cfdb's per-language representation into the agnostic fields (Rust = prop-reads `module_qpath`/`crate`/`bounded_context`; PHP = edge-traversal). It is an **Anti-Corruption Layer**, not a Conformist — cfdb's representation differs by language. It filters synthetic `:Item` stubs (absent `file`/`module_qpath`) and parses `schema_version` as a **struct** (dry-run §12 #F).
 
 **Verified:** the agnostic ACL passes parity with source-walk (0 mismatches on `module_path`/`unit`) on a real 513-`:Item` keyspace; `application` does not transitively pull cfdb (opt-in leaf).
+
+#### §3.3.3 — Adapter routing
 
 **Adapter routing (the §13-A decision, MVP = (b)).** The two adapters are **not** universally interchangeable for `context`, because graph-specs' spec contexts are **multi-crate** (`equivalence` owns `domain`+`ports`) while cfdb's default `bounded_context` is **per-crate** (crate-prefix heuristic). The composition root routes by the repo's context model:
 

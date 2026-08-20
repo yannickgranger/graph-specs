@@ -202,6 +202,8 @@ renders.
 
 ### §3.5 — Outcome type and formatters
 
+#### §3.5.1 — CheckOutcome
+
 `run_check` returns a `CheckOutcome { violations: Vec<Violation>,
 pending: Vec<PendingRecord>, realized: Vec<RealizedRecord> }` (final
 type names are the implementer's, reconciled at review; the record
@@ -214,6 +216,8 @@ module serves the Report subcommand's change-reason exclusively, and
 folding Check-outcome types into it would couple two subcommands'
 independent evolution (SOLID lens, review round 1).
 
+#### §3.5.2 — Text
+
 **Text** — records enumerated one per line, never a bare count, both
 lists always represented in the summary even at zero:
 
@@ -225,6 +229,8 @@ realized — ratify: InboundAcl (specs/concepts/fleet_supervision.md:120)
 
 The clean state reads `0 violations, 0 realized-unratified` with
 pending printed as the remaining transcription worklist.
+
+#### §3.5.3 — NDJSON
 
 **NDJSON** — two new record kinds under a `marker` discriminator key,
 deliberately distinct from `violation` so the existing
@@ -239,6 +245,8 @@ key is a content contract, not a literal one:)
 {"schema_version":"4","marker":"pending","concept":"Digest","source":{"kind":"spec","path":"specs/concepts/execution.md","line":41}}
 {"schema_version":"4","marker":"realized","concept":"InboundAcl","source":{"kind":"spec","path":"specs/concepts/fleet_supervision.md","line":120}}
 ```
+
+#### §3.5.4 — schema_version
 
 `schema_version` bumps to `"4"` (rust-systems lens, review round 1,
 ruled here rather than deferred): the `marker` key itself is cleanly

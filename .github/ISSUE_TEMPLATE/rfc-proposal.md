@@ -6,9 +6,10 @@ labels: rfc
 ---
 
 New capabilities in `graph-specs` are **RFC-first**: the shape of the
-solution is negotiated in a short RFC under `docs/rfc/` before code exists.
-This issue starts that conversation — sketch it here; a ratified version
-becomes `docs/rfc/NNN-<kebab-title>.md`.
+solution is negotiated in a short RFC in the `yg/doxa` corpus
+(`rfc/graph-specs-NNN-<kebab-title>.md`) before code exists. This issue starts
+that conversation — sketch it here; a ratified version lands in the corpus,
+never under `docs/rfc/` (a read-only mirror).
 
 ## 1. Problem
 

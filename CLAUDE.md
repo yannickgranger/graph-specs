@@ -19,7 +19,7 @@ Repo-local methodology. Sets the contribution and review discipline for this rep
 
 ### §2.1 — Where RFCs live
 
-`yg/doxa`, as `rfc/graph-specs-NNN-<kebab-title>.md` — one RFC corpus for every repo (operator ruling, 2026-08-17). Numbering stays sequential. `docs/rfc/NNN-<kebab-title>.md` in this tree is the pre-cutover location: 001–015 were imported into doxa at 47220fe (doxa `provenance.json`); a new RFC is authored in doxa, never here.
+`yg/doxa`, as `rfc/graph-specs-NNN-<kebab-title>.md` — one RFC corpus for every repo (operator ruling, 2026-08-17). Numbering stays sequential. `docs/rfc/NNN-<kebab-title>.md` in this tree is the pre-cutover location: the fourteen files 001–015 (no 011 exists) were imported into doxa at 47220fe (doxa `provenance.json`); a new RFC is authored in doxa, never here, and is not mirrored — `graph-specs-016-parse-once-reading-port` lives in the corpus only. What remains under `docs/rfc/` is that provenance-declared set, read-only and byte-identical to the corpus at `doxa.rev`: never edited here, refreshed in the same PR that bumps the pin. `scripts/doxa-mirror-check.py`, run by `scripts/own-gate.sh` on the host and in CI job `own-gate`, refuses a file that diverges from the corpus, is missing against provenance, whose corpus file is absent at the pin, or that provenance does not declare.
 
 ### §2.1b — The harness on this tree (keel-harness §7 step 3)
 
@@ -58,7 +58,7 @@ Invocation is via `Agent(subagent_type=...)` or agent teams — whichever afford
 
 ### §2.4 — Ratification → issues
 
-Once ratified, the RFC's "Issue decomposition" section becomes the concrete backlog. Each vertical slice is filed as a `forge_create_issue` with body linking back to the RFC (`Refs: docs/rfc/NNN-...md`) and carrying the prescribed `Tests:` section from the RFC verbatim. A PR against an issue without the prescribed test is not merged.
+Once ratified, the RFC's "Issue decomposition" section becomes the concrete backlog. Each vertical slice is filed as a `forge_create_issue` with body citing the RFC clause (`Refs: graph-specs-NNN-<slug>#<clause>`) and carrying the prescribed `Tests:` section from the RFC verbatim. A PR against an issue without the prescribed test is not merged.
 
 ### §2.5 — Tests and real infra
 
