@@ -1,18 +1,16 @@
 #!/usr/bin/env bash
 # graph-specs' own gate, corpus-wide (keel-harness §7 step 3, §3.2, §8): keel measures
-# the deployment level keel.json declares — L2, corpus-wide advisory: the cascade
-# pin present, the doxa corpus checked out at doxa.rev, the full declared root
-# every run, every ##/### heading of specs/concepts carrying a verdict (§3.2: any
-# shortfall is silence — refused regardless of how clean the visited subset is),
-# findings visible, nothing else refuses (§8, the L2 row). What refuses here holds
-# at every level: silence (§3.2); a level declared but not running (§8: a repo
-# never claims a level it is not running); the corpus absent or unreadable at
-# its pin (keel-harness §3.1 / keel-dialect §3.3: unavailable, never a pass).
-# Run-level findings (empty RFC / specs / code, duplicate clause) are printed and
-# not refused: keel-dialect §7 keeps them out of the node verdicts and §11 (c)
-# leaves their verdict to a ruling. The ungrounded count is the live worklist for
-# §7 step 2 (own concept docs 100 % grounded); when it reaches zero the
-# declaration moves to L3 and CI refuses on any corpus-wide finding (§8).
+# the deployment level keel.json declares — L3, gated: the cascade pin present, the
+# doxa corpus checked out at doxa.rev, the full declared root every run, every
+# ##/### heading of specs/concepts carrying a verdict (§3.2: any shortfall is
+# silence — refused regardless of how clean the visited subset is), and CI refuses
+# on any corpus-wide finding (§8, the L3 row — declared once §7 step 2 reached zero
+# ungrounded on this tree, 57/57). What refuses here holds at every level: silence
+# (§3.2); a level declared but not running (§8: a repo never claims a level it is
+# not running); the corpus absent or unreadable at its pin (keel-harness §3.1 /
+# keel-dialect §3.3: unavailable, never a pass). Run-level findings (unclosed
+# fence, empty RFC / specs / code) stay out of the node verdicts (keel-dialect §7)
+# and refuse here like any other finding (§8, the L3 row).
 # Exit 0 = the declared level holds on this tree; anything else refuses.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -51,10 +49,10 @@ if not level["holds"]:
 if not cov["covered"]:
     errors.append(f"silence: {cov['silence']} listed heading(s) carry no verdict ({cov['listed']} listed, {cov['verdicts']} verdicts) — refused regardless of how clean the visited subset is (keel-harness §3.2)")
 for f in report["findings"]:
-    if f["class"] in ("EmptyRfc", "EmptySpecs", "EmptyCode", "DuplicateClause", "UnclosedFence"):
-        print(f"    run-level finding, visible (keel-dialect §7; its verdict is an open ruling, §11 c): {json.dumps(f)}")
+    if f["class"] in ("UnclosedFence", "EmptyRfc", "EmptySpecs", "EmptyCode"):
+        print(f"    run-level finding (keel-dialect §7) — refuses at L3 (keel-harness §8): {json.dumps(f)}")
 classes = collections.Counter(f["class"] for f in report["findings"])
-print("    findings visible (L2 — keel-harness §8): " + (", ".join(f"{k} {v}" for k, v in sorted(classes.items())) or "none"))
+print("    findings (L3 — keel-harness §8: any corpus-wide finding refuses): " + (", ".join(f"{k} {v}" for k, v in sorted(classes.items())) or "none"))
 for n in report["nodes"]:
     if n["verdict"] in ("malformed", "diverged"):
         print(f"    visible: {n['file']}:{n['line']} `{n['name']}` {n['verdict']} — {', '.join(n['findings'])}")
@@ -64,7 +62,7 @@ print(f"    ungrounded documents (the live worklist for keel-harness §7 step 2)
 if errors:
     for e in errors:
         print("ERROR:", e, file=sys.stderr)
-    print("keel.json declares L2 corpus-wide: the full declared root every run, zero silence, findings visible (keel-harness §3.2, §8)", file=sys.stderr)
+    print("keel.json declares L3 gated: the full declared root every run, zero silence, any corpus-wide finding refuses (keel-harness §3.2, §8)", file=sys.stderr)
     sys.exit(1)
 print("    ok — the declared level holds on this tree, zero silence")
 PY
