@@ -12,6 +12,8 @@ the reader.
 
 ## Graph
 
+<!-- parent:rfc:graph-specs-017-founding-graph-model#3.1 anchor:"everything one reader found on one side of the check" -->
+
 A collection of concept nodes and declared relationship edges extracted
 from one side of the equivalence check (specs or code). Two graphs are
 equivalent at concept level iff their node sets carry the same names;
@@ -143,6 +145,8 @@ slot 15, appended after `DanglingAnchor` (14).
 
 ## Edge
 
+<!-- parent:rfc:graph-specs-017-founding-graph-model#3.2 anchor:"a relationship one concept declares about another" -->
+
 A declared relationship between two concepts (v0.3): `implements`,
 `depends on`, or `returns`. Each edge owns a tokenised matching target
 plus the raw textual form preserved for display in drift messages.
@@ -150,6 +154,8 @@ plus the raw textual form preserved for display in drift messages.
 - verb: tokenise_target
 
 ## EdgeKind
+
+<!-- parent:rfc:graph-specs-017-founding-graph-model#3.3 anchor:"The kind of an edge is the kind of relationship it states" -->
 
 The relationship kind of an [Edge](#edge). Closed set for v0.3;
 future dialect growth adds variants here.
