@@ -20,6 +20,6 @@
 [companion]
 repo      = "yg/cfdb"
 branch    = "develop"
-sha       = "6a0abaa83f62f02beb014324edac65dee803dcfa"
-bumped_at = "2026-08-01T00:00:00Z"
-bumped_by = "lockstep — cfdb #557 / RFC-054 slice 54-B. SchemaVersion V0_7_0 -> V0_8_0 (target-scoped :Item identity: bin-target ids gain #bin:{name}, new always-emitted :Item.target attr; lib ids byte-stable). Pinned at cfdb PR #563 HEAD (6a0abaa). cfdb-side cross-dogfood at this SHA: 0 violations on graph-specs-rust@f66ff89, exit 0. Merge order: cfdb #563 FIRST, then this PR within minutes (exit-20 window documented in cfdb docs/cross-fixture-bump.md §4)."
+sha       = "fa45ea11aae2493fd961d6dc2003852d623f5e1a"
+bumped_at = "2026-08-24T06:30:49Z"
+bumped_by = "cron — cross-bump (Mon 06:30 UTC)"
