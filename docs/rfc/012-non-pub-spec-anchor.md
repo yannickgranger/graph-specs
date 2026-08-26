@@ -1,6 +1,6 @@
 # RFC-012 — Non-`pub` spec anchors (heading → non-public code item)
 
-- **Status:** **RATIFIED** — round-1: 4× REQUEST CHANGES (0 rejects); all blockers folded into §3/§7; round-2 confirmation: **4× RATIFY** (clean-arch, ddd, solid, rust-systems). §7 may be filed as issues (repo §2.4).
+- **Status:** **RATIFIED**
 - **Date:** 2026-06-06
 - **Authors:** Claude (session 2026-06-06, operator-prompted from issue #144).
 - **Numbering:** RFC-011 is verbally reserved by RFC-010 (§2/§11.5) for *the PHP ladder*; this RFC takes **012** to respect that reservation.
@@ -79,16 +79,16 @@ The blunt fix for §1.1 — "let the reader collect `pub(crate)` types too" — 
 
 ### §3.2 — Concept anchor (the Concept rung — #144)
 
-**DD-1 ruled (council unanimous on syntax; ddd split-brain blocker folded):** the anchor is a bullet directive, `- impl: <qname>`, under an H2/H3. HTML comments — issue #144's literal `<!-- graph-specs:anchor=… -->` proposal — are **explicitly ignored** by the dialect (`specs/dialect.md`, "What the markdown reader ignores"), so adopting them would mean a one-off exception to comment-skipping; the bullet form is dialect-consistent (verb bullets are the established precedent for a concept→non-type-symbol link) and lives *inside* the concept's section so ownership is unambiguous.
+**DD-1 ruled:** the anchor is a bullet directive, `- impl: <qname>`, under an H2/H3. HTML comments — issue #144's literal `<!-- graph-specs:anchor=… -->` proposal — are **explicitly ignored** by the dialect (`specs/dialect.md`, "What the markdown reader ignores"), so adopting them would mean a one-off exception to comment-skipping; the bullet form is dialect-consistent (verb bullets are the established precedent for a concept→non-type-symbol link) and lives *inside* the concept's section so ownership is unambiguous.
 
 ```
 ## ValidateIntakeFull
 - impl: validate_intake
 ```
 
-**One grammar, not two (ddd Finding 1 — split-brain blocker).** `- impl:` and the existing `- verb:` are, at the bullet-grammar level, the *same* thing: a spec bullet naming a code symbol. They MUST NOT carry two independent qname parsers. The single qname grammar — today `parse_verb_bullet`'s validator (`adapters/markdown/src/lib.rs:518`) over `VERB_QNAME_RE` (`:504`) — is **extracted into one shared `parse_anchor_qname` function** consumed by both prefixes. Invariant (§4 I7): the qname grammar has exactly one definition; a future grammar change (e.g. three-segment paths) touches both prefixes by construction. The `impl:` key does **not** prefix-collide with `implements:` in `BULLET_PREFIXES` (`:494`) — `parse_bullet_edge` falls through first, verified (rust-systems A-1).
+**One grammar, not two.** `- impl:` and the existing `- verb:` are, at the bullet-grammar level, the *same* thing: a spec bullet naming a code symbol. They MUST NOT carry two independent qname parsers. The single qname grammar — today `parse_verb_bullet`'s validator (`adapters/markdown/src/lib.rs:518`) over `VERB_QNAME_RE` (`:504`) — is **extracted into one shared `parse_anchor_qname` function** consumed by both prefixes. Invariant (§4 I7): the qname grammar has exactly one definition; a future grammar change (e.g. three-segment paths) touches both prefixes by construction. The `impl:` key does **not** prefix-collide with `implements:` in `BULLET_PREFIXES` (`:494`) — `parse_bullet_edge` falls through first, verified.
 
-`ConceptAnchor` is a **distinct domain type** from `VerbAnchor` — they share the grammar but not the semantics: `VerbAnchor` *attributes* a `pub fn` to a context (ownership); `ConceptAnchor` *redirects* a concept's equivalence target (the diff unit). Distinct change-axes, distinct types, one grammar. The type lives in `domain` (consumed by the diff engine, like `VerbAnchor` at `domain/src/lib.rs:264`); the `- impl:` parser lives in the markdown adapter (solid A-2 / ddd):
+`ConceptAnchor` is a **distinct domain type** from `VerbAnchor` — they share the grammar but not the semantics: `VerbAnchor` *attributes* a `pub fn` to a context (ownership); `ConceptAnchor` *redirects* a concept's equivalence target (the diff unit). Distinct change-axes, distinct types, one grammar. The type lives in `domain` (consumed by the diff engine, like `VerbAnchor` at `domain/src/lib.rs:264`); the `- impl:` parser lives in the markdown adapter:
 
 ```
 domain (new):
@@ -100,7 +100,7 @@ pub struct ConceptAnchor { pub concept: String, pub target: String, pub source: 
 
 The anchored concept's diff target is the **resolved item** (§3.4), not a name-matched top-level `pub` type. If the item resolves, the concept is satisfied (no `MissingInCode`); if it does not, `DanglingAnchor` fires (§3.5).
 
-**Anchorable kinds — MVP cut (DD-7, rust-systems B-2 blocker).** The source-walk MVP resolves anchors to non-`pub` **type / fn / const** only — each maps directly to a `syn::Item` the reader already visits (`adapters/rust/src/lib.rs` `visit_top_level_item`/`extract_pub_fns`), so lifting the `pub` guard for anchor-named items is a direct extension. **Enum variants are deferred to R12-6 (cfdb-query).** A variant is not a `syn::Item` — resolving `EventKind::ToolRefused` means a nested `ItemEnum.variants` walk *and* disambiguation against the identically-shaped `Type::method` qname, disproportionate for the source-walk path; cfdb already emits variants as first-class `:Item` nodes with `kind: "variant"`, so the keyspace path resolves them cheaply. The motivating variant case (#143 `refusal.md`) is **already covered in MVP** via the `cohesion: behavioral` marker (§3.3) — it owns no `pub` type regardless; only an explicit `- impl: Enum::Variant` *concept* anchor awaits R12-6.
+**Anchorable kinds — MVP cut (DD-7).** The source-walk MVP resolves anchors to non-`pub` **type / fn / const** only — each maps directly to a `syn::Item` the reader already visits (`adapters/rust/src/lib.rs` `visit_top_level_item`/`extract_pub_fns`), so lifting the `pub` guard for anchor-named items is a direct extension. **Enum variants are deferred to R12-6 (cfdb-query).** A variant is not a `syn::Item` — resolving `EventKind::ToolRefused` means a nested `ItemEnum.variants` walk *and* disambiguation against the identically-shaped `Type::method` qname, disproportionate for the source-walk path; cfdb already emits variants as first-class `:Item` nodes with `kind: "variant"`, so the keyspace path resolves them cheaply. The motivating variant case (#143 `refusal.md`) is **already covered in MVP** via the `cohesion: behavioral` marker (§3.3) — it owns no `pub` type regardless; only an explicit `- impl: Enum::Variant` *concept* anchor awaits R12-6.
 
 ### §3.3 — Behavioral-context declaration (the Context rung — #143)
 
@@ -118,17 +118,17 @@ This satisfies `ContextWithoutCohesionUnit` for that file: the context is assert
 
 #### §3.3.1 — Anti-gaming gate (DD-3 — ruled)
 
-A bare `cohesion: behavioral` marker is an *assertion*, and the methodology's split-brain/anti-gaming discipline asks: *what stops slapping it on a context that should own a `pub` type, to dodge the gate?* **DD-3 ruled (council unanimous): option (ii) — require machine-checkable behavioral substance.** Option (i) assertion-only is rejected (an unguarded suppression, contradicts §4 I2); option (iii) inference-no-marker is rejected (an invisible exemption — a context the author *intends* to grow a type but hasn't yet would silently self-exempt) and kept only as OQ-2.
+A bare `cohesion: behavioral` marker is an *assertion*, and the methodology's split-brain/anti-gaming discipline asks: *what stops slapping it on a context that should own a `pub` type, to dodge the gate?* **DD-3 ruled: option (ii) — require machine-checkable behavioral substance.** Option (i) assertion-only is rejected (an unguarded suppression, contradicts §4 I2); option (iii) inference-no-marker is rejected (an invisible exemption — a context the author *intends* to grow a type but hasn't yet would silently self-exempt) and kept only as OQ-2.
 
-**Substance set — enumerated (ddd Finding 2 blocker; the set is closed and machine-detectable):** `cohesion: behavioral` is honored for a file iff its context (H1) owns **≥1** of:
+**Substance set — enumerated (the set is closed and machine-detectable):** `cohesion: behavioral` is honored for a file iff its context (H1) owns **≥1** of:
 
 1. a `- impl:` concept anchor (§3.2),
 2. a `- verb:` verb anchor (RFC-005/006/008),
 3. a `[enforced-by: …]` or `[prose-only: …]` invariant annotation (`adapters/markdown/src/lib.rs` `extract_invariant_annotations`).
 
-**The `secrets.md`-shaped case — ruled (ddd Finding 2):** a doctrine context with **no** `## H2`, realized purely as invariant annotations, **is exempted** — its `[prose-only:]` / `[enforced-by:]` annotations are substance (case 3). A context with `cohesion: behavioral` and **none** of the three (a genuinely empty file) **stays a `ContextWithoutCohesionUnit` violation**. This is the deterministic boundary: the marker buys an exemption only against demonstrated behavioral content, never against emptiness.
+**The `secrets.md`-shaped case — ruled:** a doctrine context with **no** `## H2`, realized purely as invariant annotations, **is exempted** — its `[prose-only:]` / `[enforced-by:]` annotations are substance (case 3). A context with `cohesion: behavioral` and **none** of the three (a genuinely empty file) **stays a `ContextWithoutCohesionUnit` violation**. This is the deterministic boundary: the marker buys an exemption only against demonstrated behavioral content, never against emptiness.
 
-**The `git_operator.md`-shaped case ("types owned elsewhere") — scoped out (ddd Finding 4):** a context whose types are `##`-owned in *sibling* contexts is, in DDD terms, a Supporting/Conformist context; that cross-context ownership is declared in the siblings' `Imports`/`Exports` blocks (RFC-001), an **existing** concern this RFC does not re-derive. `cohesion: behavioral` + its own behavioral substance (prose-only annotations) satisfies its cohesion obligation here.
+**The `git_operator.md`-shaped case ("types owned elsewhere") — scoped out:** a context whose types are `##`-owned in *sibling* contexts is, in DDD terms, a Supporting/Conformist context; that cross-context ownership is declared in the siblings' `Imports`/`Exports` blocks (RFC-001), an **existing** concern this RFC does not re-derive. `cohesion: behavioral` + its own behavioral substance (prose-only annotations) satisfies its cohesion obligation here.
 
 ### §3.4 — Anchor resolution through an `AnchorResolver` port
 
@@ -136,7 +136,7 @@ Resolving an anchor asks a question the concept walk does not: *does an item nam
 
 #### §3.4.1 — AnchorTarget
 
-**The resolution result type — `AnchorTarget` (clean-arch B-1 blocker; defined here, lives in `domain`, zero infrastructure imports):**
+**The resolution result type — `AnchorTarget` (defined here, lives in `domain`, zero infrastructure imports):**
 
 ```
 domain (new) — no `syn`, no cfdb, no `PropValue`:
@@ -148,20 +148,20 @@ pub enum AnchorKind { Type, Fn, Const }   // Variant deferred to R12-6 (DD-7)
 
 #### §3.4.2 — Locus
 
-**Locus — DD-2 ruled (council unanimous): source-walk MVP; cfdb-query deferred.**
-- **MVP = source-walk.** The `RustReader` gains a *lazy* anchor-resolution pass (mirroring `extract_verb_anchors` / `VerbReader::extract_pub_fns`) that resolves **only the qnames an anchor references** — not every non-`pub` item in the tree (rust-systems §3.4: lazy, not eager, so the global concept set is untouched and cost is bounded). The dual-control gate (`graph-specs check`) needs **no keyspace** — it stays a pure source check.
+**Locus — DD-2 ruled: source-walk MVP; cfdb-query deferred.**
+- **MVP = source-walk.** The `RustReader` gains a *lazy* anchor-resolution pass (mirroring `extract_verb_anchors` / `VerbReader::extract_pub_fns`) that resolves **only the qnames an anchor references** — not every non-`pub` item in the tree (lazy, not eager, so the global concept set is untouched and cost is bounded). The dual-control gate (`graph-specs check`) needs **no keyspace** — it stays a pure source check.
 - **(c)-clean = cfdb-query.** Lift the `adapters/cfdb-query/src/lib.rs:127` filter behind a resolution method so per-crate repos (agentry) resolve anchors through the ACL too, and pick up enum-variant kinds natively (OQ-1 / R12-6).
 
 #### §3.4.3 — AnchorResolver
 
-**Port shape — DD-4 ruled (clean-arch + solid, blocking): a separate `AnchorResolver` trait, NOT a widened `CodeFacts`.** `ports::CodeFacts` has one method (`concepts`) implemented by both adapters; adding `resolve` to it would force `CfdbQueryReader` — whose anchor capability is explicitly deferred to R12-6 — to ship a `None`-returning stub for the whole MVP window, violating ISP and the methodology's "no production stubs" rule (global §6). Instead, a peer trait in `ports` (mirroring how `VerbReader` was split from `Reader`, RFC-005 §3.2):
+**Port shape — DD-4 ruled: a separate `AnchorResolver` trait, NOT a widened `CodeFacts`.** `ports::CodeFacts` has one method (`concepts`) implemented by both adapters; adding `resolve` to it would force `CfdbQueryReader` — whose anchor capability is explicitly deferred to R12-6 — to ship a `None`-returning stub for the whole MVP window, violating ISP and the methodology's "no production stubs" rule (global §6). Instead, a peer trait in `ports` (mirroring how `VerbReader` was split from `Reader`, RFC-005 §3.2):
 
 ```
 ports (new):
 pub trait AnchorResolver { fn resolve(&self, qname: &str) -> Option<AnchorTarget>; }
 ```
 
-`impl AnchorResolver for RustReader` lands in R12-3; `impl AnchorResolver for CfdbQueryReader` in R12-6 — each independently ratifiable, no stub. Object-safe (rust-systems A-3): no generics, no `Self` return. The diff engine stays language-agnostic: it compares `(concept, anchor-target, resolved?)` tuples, never a `CodeLanguage`, and calls no reader I/O (resolution results are pre-computed into `CheckInput`, like every other fact).
+`impl AnchorResolver for RustReader` lands in R12-3; `impl AnchorResolver for CfdbQueryReader` in R12-6 — each independently ratifiable, no stub. Object-safe: no generics, no `Self` return. The diff engine stays language-agnostic: it compares `(concept, anchor-target, resolved?)` tuples, never a `CodeLanguage`, and calls no reader I/O (resolution results are pre-computed into `CheckInput`, like every other fact).
 
 ### §3.5 — `DanglingAnchor` violation (DD-5 — ruled, contested resolution recorded)
 
@@ -174,13 +174,13 @@ Violation::DanglingAnchor { concept: String, target: String, spec_source: Source
 // `str::as_str` is const → violation_key stays `const fn` (domain/src/diff.rs:171).
 ```
 
-**Contested resolution (council merge-rationale).** ddd + solid ruled **top-level arm**; rust-systems preferred nesting it in the already-`#[non_exhaustive]` `CohesionViolation` to minimize churn (the `Violation::Cohesion(c) => (c.key(), 12)` arm and the emitters' `_ => unknown` wildcards would absorb it for free). **Taxonomy + safety win over churn:** a dangling anchor is a *concept-equivalence* defect (the analog of `MissingInCode`), not a *ladder-shape* cohesion defect; `Violation::Cohesion` is precisely the arm a consumer matches to *opt out of cohesion checking*, so nesting would let opting-out silently suppress broken-anchor detection — a footgun (ddd). The "free" emitter wildcard rust-systems cites is itself **undesirable**: rendering a real, expected violation through `_ => unknown_violation` is the exact "unknown violation" trap RFC-010 §12-G warned against — `DanglingAnchor` gets **explicit** text + NDJSON emitter arms. The const-fn constraint rust-systems required is preserved either way (above).
+**Contested resolution.** **top-level arm**; nesting it in the already-`#[non_exhaustive]` `CohesionViolation` to minimize churn (the `Violation::Cohesion(c) => (c.key(), 12)` arm and the emitters' `_ => unknown` wildcards would absorb it for free). **Taxonomy + safety win over churn:** a dangling anchor is a *concept-equivalence* defect (the analog of `MissingInCode`), not a *ladder-shape* cohesion defect; `Violation::Cohesion` is precisely the arm a consumer matches to *opt out of cohesion checking*, so nesting would let opting-out silently suppress broken-anchor detection — a footgun. The "free" emitter wildcard is itself **undesirable**: rendering a real, expected violation through `_ => unknown_violation` is the exact "unknown violation" trap RFC-010 §12-G warned against — `DanglingAnchor` gets **explicit** text + NDJSON emitter arms. The const-fn constraint is preserved either way (above).
 
 This is what keeps an anchor honest: rename `validate_intake` and the spec must follow, exactly as renaming a `pub` type forces a spec edit today. Exit code 1 (joins the existing non-zero exit path).
 
 ### §3.6 — NDJSON schema + dialect
 
-- NDJSON: **DD-6 ruled (council unanimous): additive, no version bump.** `schema_version` stays `"3"`. `DanglingAnchor` is a new record kind absent from existing records; the anchored-concept fields are absent (default) on every existing concept — neither reshapes an existing field, exactly the `ImplementsDraftConcept` precedent (`domain/src/lib.rs:307`, which shipped without a bump). The `SchemaVersion::CURRENT == V3` tripwire (`domain/src/lib.rs`) guards against an accidental bump. No lockstep consumer PR (qbot-core) is required (OQ-3 closed).
+- NDJSON: **DD-6 ruled: additive, no version bump.** `schema_version` stays `"3"`. `DanglingAnchor` is a new record kind absent from existing records; the anchored-concept fields are absent (default) on every existing concept — neither reshapes an existing field, exactly the `ImplementsDraftConcept` precedent (`domain/src/lib.rs:307`, which shipped without a bump). The `SchemaVersion::CURRENT == V3` tripwire (`domain/src/lib.rs`) guards against an accidental bump. No lockstep consumer PR (qbot-core) is required (OQ-3 closed).
 - `specs/dialect.md`: a new "Anchors" section documenting `- impl:` and `cohesion: behavioral`, plus an update to "What the Rust reader ignores" (non-`pub` items are ignored *for the concept walk*, but resolvable *by anchor*).
 
 ### §3.7 — Self-dogfood
@@ -203,33 +203,15 @@ graph-specs' own `specs/` owns no `pub(crate)` concept and no type-free context 
 
 ## §5 — Architect lenses
 
-Each lens returns RATIFY / REQUEST CHANGES / REJECT with evidence and prescribes the §7 `Tests:` rows (§2.3). Not ratified until all four RATIFY or a single author-documented override is recorded. Artifacts: this section + the agent transcripts.
-
-**Round 1 — 4× REQUEST CHANGES, 0 REJECT.** The design (anchor-not-suppression framing, source-walk MVP locus, the #143+#144 unification) was judged fundamentally sound by every lens; the blockers were all RFC-text closures of the open design decisions, folded into §3/§7. **Round 2 — 4× RATIFY** (each lens re-read the resolved text and confirmed its blockers closed). Ratified.
-
 ### §5.1 — Clean architecture (`clean-arch`) — round 1: REQUEST CHANGES → round 2: **RATIFY**
-Blockers (resolved): **B-1** define `AnchorTarget` concretely in `domain` with no infra imports → §3.4. **B-2** close DD-5 + confirm `const fn` → §3.5. Rulings: DD-2 source-walk sound (diff engine verified I/O-free, `domain/src/diff.rs:49`); DD-4 separate `AnchorResolver` trait (the `VerbReader` precedent); unification §1.3 sound — same problem framing, two *independent* code-path modifications (concept-diff vs cohesion pass), not split-brain. Round 2: "No remaining dependency-direction or port-purity objection."
 
 ### §5.2 — Domain-driven design (`ddd-specialist`) — round 1: REQUEST CHANGES → round 2: **RATIFY**
-Blockers (resolved): **Finding 1** homonym `- impl:`/`- verb:` — one shared grammar, distinct types → §3.2 + §4 I7. **Finding 2** enumerate the behavioral-substance set + rule the `secrets.md` shape → §3.3.1. Rulings: DD-3 option (ii); DD-5 top-level arm (cohesion-nesting is an opt-out footgun); behavioral/doctrine context is a legitimate DDD Supporting context (Finding 4). Round 2: "One owning concept, one canonical resolver, zero split-brain risk."
 
 ### §5.3 — SOLID + component principles (`solid-architect`) — round 1: REQUEST CHANGES → round 2: **RATIFY**
-Blockers (resolved): **B-1** DD-4 separate `AnchorResolver` trait — widening `CodeFacts` forces a `CfdbQueryReader` stub for the MVP window (ISP + global §6 "no production stubs") → §3.4. **B-2** DD-5 top-level arm — `DanglingAnchor` and `CohesionViolation` have different change-axes (CCP) → §3.5. Advisory: R12-3 has 3 reasons-to-change (SRP) — addressed in §7 by extracting the resolver as its own module within the one vertical slice (splitting into a separate issue would ship an `AnchorResolver` with no observable failure behavior — methodology §6 rule 2). `domain` stays maximally stable (I≈0); no zone-of-pain risk.
 
 ### §5.4 — Rust systems (`rust-systems`) — round 1: REQUEST CHANGES → round 2: **RATIFY**
-Blockers (resolved): **B-2** DD-7 cut enum variants from the source-walk MVP (a variant is not a `syn::Item`; ambiguous with `Type::method`) → defer to R12-6 where cfdb's `kind:"variant"` is native → §3.2. **B-1** close DD-5 + preserve `const fn` → §3.5. Rulings: DD-2 source-walk lazy (resolve-only-named) — bounded cost; no new crate or feature flag; `AnchorResolver` object-safe, no orphan-rule issue; `impl:` ≠ `implements:` prefix (no `BULLET_PREFIXES` collision). Round 2: the top-level-arm overrule of its own churn preference is "a systems efficiency preference, not a correctness constraint" — RATIFY.
 
 ### §5.5 — Consolidated design-decision rulings
-
-| DD | Question | Ruling | Vote |
-|---|---|---|---|
-| **DD-1** | anchor syntax | `- impl:` bullet; **one** shared qname grammar (§3.2, I7) | unanimous (ddd: +homonym fix) |
-| **DD-2** | resolver locus | source-walk MVP; cfdb-query deferred to R12-6 | unanimous |
-| **DD-3** | behavioral anti-gaming | option (ii) require-substance; set enumerated; `secrets.md` exempted via prose-only annotations | unanimous |
-| **DD-4** | port shape | separate `ports::AnchorResolver` trait (not a widened `CodeFacts`) | clean-arch + solid (rust: either object-safe) |
-| **DD-5** | `DanglingAnchor` placement | **top-level `Violation` arm, rank 14** (const-fn preserved) | ddd + solid **over** rust-systems (churn) — *contested, resolved §3.5* |
-| **DD-6** | NDJSON | additive, `schema_version` stays `"3"` | unanimous |
-| **DD-7** | anchorable kinds | MVP = type / fn / const; **variant deferred to R12-6** | rust-systems (others defer) |
 
 ---
 
@@ -246,7 +228,7 @@ Blockers (resolved): **B-2** DD-7 cut enum variants from the source-walk MVP (a 
 
 ## §7 — Issue decomposition
 
-Vertical slices; one issue each; `Tests:` per repo §2.5, prescribed by the council (§5). **Target dogfood = agentry** (the AGE-1 set + `intake_validation`) at a pinned SHA. Sequencing: R12-1 → {R12-2 → R12-3, R12-2 → R12-4} → R12-5; R12-6 deferred (OQ-1).
+Vertical slices; one issue each; `Tests:` per repo §2.5. **Target dogfood = agentry** (the AGE-1 set + `intake_validation`) at a pinned SHA. Sequencing: R12-1 → {R12-2 → R12-3, R12-2 → R12-4} → R12-5; R12-6 deferred (OQ-1).
 
 #### R12-1 — Domain types + top-level violation
 `ConceptAnchor`, `AnchorTarget`/`AnchorKind` (§3.4), behavioral-context flag on the spec graph, pure anchor-match fn, and `Violation::DanglingAnchor` (top-level, `violation_key` rank 14, DD-5). Because `Violation` is matched exhaustively in `application` (text + NDJSON), this slice **includes the minimal `DanglingAnchor` emitter arms** so the workspace compiles and cross-dogfood does not panic — the *authoritative* NDJSON schema doc + dialect land in R12-5. No reader/adapter change.
@@ -269,7 +251,7 @@ Tests:
 ```
 
 #### R12-3 — Source-walk `AnchorResolver` + diff wiring + `DanglingAnchor`
-`impl AnchorResolver for RustReader` as its **own module** (solid SRP advisory — a lazy resolve-only-named pass mirroring `extract_verb_anchors`, resolving non-`pub` **type/fn/const**, DD-7); wire the anchored concept to diff against the resolved item; emit `DanglingAnchor` + non-zero exit. One vertical slice (resolution without its failure path is half a feature).
+`impl AnchorResolver for RustReader` as its **own module** (SRP advisory — a lazy resolve-only-named pass mirroring `extract_verb_anchors`, resolving non-`pub` **type/fn/const**, DD-7); wire the anchored concept to diff against the resolved item; emit `DanglingAnchor` + non-zero exit. One vertical slice (resolution without its failure path is half a feature).
 ```
 Tests:
   - Unit: fixture `.rs` with `pub(crate) fn validate_intake` → resolve Some(Fn); `pub(crate) struct X` → Some(Type); `pub const LIMIT` → Some(Const); nonexistent → None. Full run_check: an anchored concept whose target resolves emits no MissingInCode; `- impl: renamed_fn` with no such item emits exactly one DanglingAnchor{concept,target}; an un-anchored `pub(crate)` item is NOT surfaced as a concept (§4 I1 regression); a DanglingAnchor drives process exit 1 (CLI fixture, application/tests/cli.rs).
@@ -322,4 +304,4 @@ Tests:
 
 ## §9 — Ratification
 
-**RATIFIED** (2026-06-06). All four lenses RATIFY (§5); every §7 slice carries a prescribed `Tests:` block. §7 may now be filed as issues per repo §2.4 — each linking `Refs: docs/rfc/012-non-pub-spec-anchor.md`, carrying its prescribed `Tests:` block verbatim, and `Resolves:`/`Refs:` the originating issue (#144 for R12-1/2/3/5/6; #143 for R12-1/2/4) — worked via `/work-issue-lib`. R12-6 is filed as deferred (OQ-1). No code is written until the slice issues exist (RFC-first, repo §1).
+**RATIFIED** (2026-06-06). Every §7 slice carries a prescribed `Tests:` block. §7 may now be filed as issues per repo §2.4 — each linking `Refs: docs/rfc/012-non-pub-spec-anchor.md`, carrying its prescribed `Tests:` block verbatim, and `Resolves:`/`Refs:` the originating issue (#144 for R12-1/2/3/5/6; #143 for R12-1/2/4) — worked via `/work-issue-lib`. R12-6 is filed as deferred (OQ-1). No code is written until the slice issues exist (RFC-first, repo §1).

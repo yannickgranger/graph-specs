@@ -659,6 +659,17 @@ fn parse_verb_bullet_accepts_bare_ident_unchanged() {
     assert_eq!(anchor.qname, "foo");
 }
 
+fn marker_of(dir: &Path, concept: &str) -> Marker {
+    MarkdownReader
+        .extract(dir)
+        .expect("test")
+        .nodes
+        .into_iter()
+        .find(|n| n.name == concept)
+        .unwrap_or_else(|| panic!("{concept} must be a heading"))
+        .marker
+}
+
 fn marks(dir: &Path) -> Vec<(String, bool)> {
     let g = MarkdownReader.extract(dir).expect("test");
     let mut out: Vec<(String, bool)> = g
@@ -676,7 +687,7 @@ fn per_heading_marker_bullet_marks_exactly_that_heading() {
     write(
         d.path(),
         "a.md",
-        "## Widget\n\n- status: draft\n\n## Gadget\n\nPlain prose.\n",
+        "# widgets\n\n## Widget\n\n- status: draft\n\n## Gadget\n\nPlain prose.\n",
     );
     assert_eq!(
         marks(d.path()),
@@ -690,22 +701,19 @@ fn marker_tolerates_the_upstream_citation_parenthetical() {
     write(
         d.path(),
         "a.md",
-        "## Widget\n\n- status: draft (per RFC-vocabulary.md §4)\n",
+        "# widgets\n\n## Widget\n\n- status: draft (per RFC-vocabulary.md §4)\n",
     );
-    assert_eq!(marks(d.path()), vec![("Widget".to_owned(), true)]);
-}
-
-#[test]
-fn marker_value_matches_case_insensitively() {
-    let d = TempDir::new().expect("test");
-    write(d.path(), "a.md", "## Widget\n\n- status: Draft\n");
     assert_eq!(marks(d.path()), vec![("Widget".to_owned(), true)]);
 }
 
 #[test]
 fn there_is_no_second_marker_value() {
     let d = TempDir::new().expect("test");
-    write(d.path(), "a.md", "## Widget\n\n- status: ratified\n");
+    write(
+        d.path(),
+        "a.md",
+        "# widgets\n\n## Widget\n\n- status: ratified\n",
+    );
     assert_eq!(marks(d.path()), vec![("Widget".to_owned(), false)]);
 }
 
@@ -715,7 +723,7 @@ fn misplaced_marker_is_inert_and_the_heading_reads_unmarked() {
     write(
         d.path(),
         "a.md",
-        "## Widget\n\nSome prose first.\n\n- status: draft\n",
+        "# widgets\n\n## Widget\n\nSome prose first.\n\n- status: draft\n",
     );
     assert_eq!(marks(d.path()), vec![("Widget".to_owned(), false)]);
 }
@@ -726,7 +734,7 @@ fn marker_after_a_sibling_bullet_is_inert() {
     write(
         d.path(),
         "a.md",
-        "## Widget\n\n- depends on: Gear\n- status: draft\n\n## Gear\n",
+        "# widgets\n\n## Widget\n\n- depends on: Gear\n- status: draft\n\n## Gear\n",
     );
     let seen = marks(d.path());
     assert_eq!(
@@ -741,7 +749,7 @@ fn a_marker_does_not_inherit_to_sub_concepts() {
     write(
         d.path(),
         "a.md",
-        "## Widget\n\n- status: draft\n\n### Cog\n\nProse.\n",
+        "# widgets\n\n## Widget\n\n- status: draft\n\n### Cog\n\nProse.\n",
     );
     assert_eq!(
         marks(d.path()),
@@ -752,7 +760,11 @@ fn a_marker_does_not_inherit_to_sub_concepts() {
 #[test]
 fn marker_bullet_is_not_an_edge_or_an_anchor() {
     let d = TempDir::new().expect("test");
-    write(d.path(), "a.md", "## Widget\n\n- status: draft\n");
+    write(
+        d.path(),
+        "a.md",
+        "# widgets\n\n## Widget\n\n- status: draft\n",
+    );
     let g = extract_graph(d.path());
     assert!(g.edges.is_empty(), "marker must not become an edge");
     let anchors = MarkdownReader
@@ -762,55 +774,111 @@ fn marker_bullet_is_not_an_edge_or_an_anchor() {
 }
 
 #[test]
-fn parse_status_marker_grammar() {
-    use crate::bullets::parse_status_marker;
-    assert_eq!(parse_status_marker("status: draft"), Some(Marker::Draft));
-    assert_eq!(parse_status_marker("status:draft"), Some(Marker::Draft));
-    assert_eq!(
-        parse_status_marker("status: DRAFT (per x.md §1)"),
-        Some(Marker::Draft)
+fn state_marker_grammar_is_case_exact() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "# widgets\n\n## Exact\n\n- status: draft (per keel-dialect#4)\n\n## Shouted\n\n- status: DRAFT\n\n## Retired\n\n- status: retired\n\n## Retiring\n\n- status: retiring\n",
     );
     assert_eq!(
-        parse_status_marker("status: retired"),
-        Some(Marker::Retired)
+        marker_of(d.path(), "Exact"),
+        Marker::Draft,
+        "the exact form, citation and all, marks the heading"
     );
-    assert_eq!(parse_status_marker("status:retired"), Some(Marker::Retired));
     assert_eq!(
-        parse_status_marker("status: ReTiReD (per 015.md §3.1)"),
-        Some(Marker::Retired)
+        marker_of(d.path(), "Shouted"),
+        Marker::Unmarked,
+        "a shouted value is not the marker"
     );
-    assert_eq!(parse_status_marker("status: drafty"), None);
-    assert_eq!(parse_status_marker("status: retiring"), None);
-    assert_eq!(parse_status_marker("status: ratified"), None);
-    assert_eq!(parse_status_marker("status:"), None);
-    assert_eq!(parse_status_marker("depends on: draft"), None);
+    assert_eq!(marker_of(d.path(), "Retired"), Marker::Retired);
+    assert_eq!(marker_of(d.path(), "Retiring"), Marker::Unmarked);
+}
+
+fn front_matter_refusal(front_matter: &str) -> String {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        &format!("{front_matter}\n# widgets\n\n## Foo\n"),
+    );
+    match MarkdownReader.extract(d.path()) {
+        Err(ports::ReaderError::ParseFailed { message, .. }) => message,
+        other => panic!("expected a refusal, got {other:?}"),
+    }
 }
 
 #[test]
-fn is_draft_recognises_status_draft_front_matter() {
-    let src = "---\nstatus: draft\nauthor_council: council/x.md\n---\n\n## Foo\n";
-    assert!(is_draft(src));
+fn the_front_matter_value_is_the_bare_word_draft() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "---\nstatus: draft\n---\n\n# widgets\n\n## Foo\n",
+    );
+    assert_eq!(marks(d.path()), vec![("Foo".to_owned(), true)]);
 }
 
 #[test]
-fn is_draft_accepts_quoted_and_mixed_case_value() {
-    assert!(is_draft("---\nstatus: \"Draft\"\n---\n"));
-    assert!(is_draft("---\nstatus: 'draft' # pre-authored\n---\n"));
+fn a_quoted_front_matter_value_refuses() {
+    assert!(
+        front_matter_refusal("---\nstatus: \"draft\"\n---\n").contains("unknown status"),
+        "quotes are not stripped — the file is refused, never read as draft"
+    );
 }
 
 #[test]
-fn is_draft_false_for_ratified_status() {
-    assert!(!is_draft("---\nstatus: ratified\n---\n\n## Foo\n"));
+fn a_trailing_comment_on_the_front_matter_value_refuses() {
+    assert!(
+        front_matter_refusal("---\nstatus: 'draft' # pre-authored\n---\n")
+            .contains("unknown status")
+    );
 }
 
 #[test]
-fn is_draft_false_without_front_matter() {
-    assert!(!is_draft("## Foo\n\nstatus: draft mentioned in prose\n"));
+fn a_shouted_front_matter_value_refuses() {
+    assert!(
+        front_matter_refusal("---\nstatus: Draft\n---\n").contains("unknown status"),
+        "case-exact means refused, not unmarked"
+    );
 }
 
 #[test]
-fn is_draft_false_when_front_matter_closes_before_status() {
-    assert!(!is_draft("---\nauthor: x\n---\nstatus: draft\n"));
+fn a_front_matter_value_outside_the_enum_refuses() {
+    assert!(front_matter_refusal("---\nstatus: ratified\n---\n").contains("unknown status"));
+}
+
+#[test]
+fn live_is_the_other_admitted_front_matter_value() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "---\nstatus: live\n---\n\n# widgets\n\n## Foo\n",
+    );
+    assert_eq!(marks(d.path()), vec![("Foo".to_owned(), false)]);
+}
+
+#[test]
+fn a_status_line_in_prose_is_not_front_matter() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "# widgets\n\n## Foo\n\nstatus: draft mentioned in prose\n",
+    );
+    assert_eq!(marks(d.path()), vec![("Foo".to_owned(), false)]);
+}
+
+#[test]
+fn front_matter_that_closes_before_the_status_line_is_not_draft() {
+    let d = TempDir::new().expect("test");
+    write(
+        d.path(),
+        "a.md",
+        "---\nauthor: x\n---\n\n# widgets\n\n## Foo\n",
+    );
+    assert_eq!(marks(d.path()), vec![("Foo".to_owned(), false)]);
 }
 
 #[test]
@@ -819,7 +887,7 @@ fn draft_front_matter_marks_every_heading_in_the_file() {
     write(
         d.path(),
         "draft.md",
-        "---\nstatus: draft\n---\n\n## Reconciler\n\n```rust\npub trait Reconciler {}\n```\n\n## Ledger\n",
+        "---\nstatus: draft\n---\n\n# reconcilers\n\n## Reconciler\n\n```rust\npub trait Reconciler {}\n```\n\n## Ledger\n",
     );
     write(d.path(), "live.md", "## Live\n");
     assert_eq!(
@@ -860,7 +928,7 @@ fn extract_verb_anchors_reads_draft_specs() {
 }
 
 #[test]
-fn extract_invariant_annotations_skips_draft_spec() {
+fn a_draft_marker_suspends_the_obligation_on_code_and_nothing_else() {
     let d = TempDir::new().expect("test");
     write(
         d.path(),
@@ -870,9 +938,10 @@ fn extract_invariant_annotations_skips_draft_spec() {
     let anns = MarkdownReader
         .extract_invariant_annotations(d.path())
         .expect("test");
-    assert!(
-        anns.is_empty(),
-        "draft invariant annotations must be skipped"
+    assert_eq!(
+        anns.len(),
+        1,
+        "the marker narrows the code obligation, never the annotation channel"
     );
 }
 
@@ -1034,40 +1103,48 @@ fn a_blank_line_between_heading_and_comment_still_binds() {
     write(
         d.path(),
         "a.md",
-        "## Member\n\n<!-- polarity:illustrative -->\n",
+        "## Unit\n\nProse.\n\n## Member\n\n<!-- parent:spec:Unit polarity:illustrative -->\n",
     );
     assert_eq!(
         polarities(d.path()),
-        vec![("Member".to_owned(), Polarity::Illustrative)]
+        vec![
+            ("Member".to_owned(), Polarity::Illustrative),
+            ("Unit".to_owned(), Polarity::Declared),
+        ]
     );
 }
 
 #[test]
-fn a_comment_that_is_not_the_first_content_line_is_inert() {
+fn a_comment_that_is_not_the_first_content_line_is_an_orphan() {
     let d = TempDir::new().expect("test");
     write(
         d.path(),
         "a.md",
-        "## Member\n\nSome prose first.\n\n<!-- polarity:forbidden -->\n",
+        "## Member\n\nSome prose first.\n\n<!-- parent:spec:Unit polarity:forbidden -->\n",
     );
-    assert_eq!(
-        polarities(d.path()),
-        vec![("Member".to_owned(), Polarity::Declared)],
-        "a comment further down the section binds nothing"
+    let err = MarkdownReader
+        .extract(d.path())
+        .expect_err("a comment below the first content line attaches to no concept");
+    assert!(
+        matches!(&err, ReaderError::ParseFailed { message, .. } if message.contains("no concept")),
+        "got {err:?}"
     );
 }
 
 #[test]
-fn a_comment_above_the_first_heading_binds_nothing() {
+fn a_comment_above_the_first_heading_is_an_orphan() {
     let d = TempDir::new().expect("test");
     write(
         d.path(),
         "a.md",
-        "<!-- polarity:forbidden -->\n\n## Member\n\nProse.\n",
+        "<!-- parent:spec:Unit polarity:forbidden -->\n\n## Member\n\nProse.\n",
     );
-    assert_eq!(
-        polarities(d.path()),
-        vec![("Member".to_owned(), Polarity::Declared)]
+    let err = MarkdownReader
+        .extract(d.path())
+        .expect_err("a comment before its heading attaches to no concept");
+    assert!(
+        matches!(&err, ReaderError::ParseFailed { message, .. } if message.contains("no concept")),
+        "got {err:?}"
     );
 }
 
@@ -1077,7 +1154,7 @@ fn a_quoted_decoy_in_a_real_grounding_block_is_not_read() {
     write(
         d.path(),
         "a.md",
-        "## Member\n<!-- parent:rfc:RFC-9 anchor:\"why polarity:forbidden exists\" -->\n",
+        "## Member\n<!-- parent:rfc:keel-dialect#3.2 anchor:\"why polarity:forbidden exists\" -->\n",
     );
     assert_eq!(
         polarities(d.path()),
@@ -1108,7 +1185,7 @@ fn a_misplaced_retired_marker_is_inert_and_the_heading_reads_unmarked() {
     write(
         d.path(),
         "a.md",
-        "## Widget\n\nSome prose first.\n\n- status: retired\n",
+        "# widgets\n\n## Widget\n\nSome prose first.\n\n- status: retired\n",
     );
     assert_eq!(marks(d.path()), vec![("Widget".to_owned(), false)]);
 }
@@ -1121,27 +1198,27 @@ fn marker_values(dir: &Path) -> Vec<(String, Marker)> {
 }
 
 #[test]
-fn file_scope_wins_when_it_disagrees_with_a_headings_own_bullet() {
+fn the_headings_own_bullet_wins_over_file_scope() {
     let d = TempDir::new().expect("test");
     write(
         d.path(),
         "a.md",
-        "---\nstatus: draft\n---\n\n## Widget\n\n- status: retired\n",
+        "---\nstatus: draft\n---\n\n# widgets\n\n## Widget\n\n- status: retired\n",
     );
     assert_eq!(
         marker_values(d.path()),
-        vec![("Widget".to_owned(), Marker::Draft)],
-        "the file's value wins; the heading's own bullet is inert inside it"
+        vec![("Widget".to_owned(), Marker::Retired)],
+        "the per-heading marker is the authoring form; the retired file form does not override it"
     );
 }
 
 #[test]
-fn a_retired_file_still_contributes_its_invariant_annotations() {
+fn a_retired_per_heading_marker_still_contributes_its_invariant_annotations() {
     let d = TempDir::new().expect("test");
     write(
         d.path(),
         "retired.md",
-        "---\nstatus: retired\n---\n\n## Concept\n\n#### Operational invariants\n\n- INV-001: desc [enforced-by: .cfdb/queries/rule.cypher; retire-when: never]\n",
+        "## Concept\n\n- status: retired\n\n#### Operational invariants\n\n- INV-001: desc [enforced-by: .cfdb/queries/rule.cypher; retire-when: never]\n",
     );
     let retired = MarkdownReader
         .extract_invariant_annotations(d.path())
@@ -1149,20 +1226,23 @@ fn a_retired_file_still_contributes_its_invariant_annotations() {
     assert_eq!(
         retired.len(),
         1,
-        "a retired file is walked like any other for annotations"
+        "a retired heading is walked like any other for annotations"
     );
+}
 
-    let d2 = TempDir::new().expect("test");
+#[test]
+fn the_annotation_channel_runs_behind_the_one_readers_verdict() {
+    let d = TempDir::new().expect("test");
     write(
-        d2.path(),
-        "draft.md",
-        "---\nstatus: draft\n---\n\n## Concept\n\n#### Operational invariants\n\n- INV-001: desc [enforced-by: .cfdb/queries/rule.cypher; retire-when: never]\n",
+        d.path(),
+        "bad.md",
+        "---\nstatus: retired\n---\n\n## Concept\n\n#### Operational invariants\n\n- INV-001: desc [enforced-by: .cfdb/queries/rule.cypher; retire-when: never]\n",
     );
-    let draft = MarkdownReader
-        .extract_invariant_annotations(d2.path())
-        .expect("test");
+    let err = MarkdownReader
+        .extract_invariant_annotations(d.path())
+        .expect_err("a malformed file refuses before its annotations are read");
     assert!(
-        draft.is_empty(),
-        "the contrast that makes the asymmetry deliberate rather than an oversight"
+        matches!(&err, ports::ReaderError::ParseFailed { message, .. } if message.contains("unknown status")),
+        "got {err:?}"
     );
 }

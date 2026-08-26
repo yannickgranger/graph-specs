@@ -29,14 +29,3 @@ pub fn normalize_context_id(raw: &str) -> String {
         .collect::<Vec<_>>()
         .join("-")
 }
-
-#[must_use]
-pub fn is_context_identifier(id: &str) -> bool {
-    !id.is_empty()
-        && id.split('-').all(|seg| {
-            !seg.is_empty()
-                && seg
-                    .bytes()
-                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
-        })
-}

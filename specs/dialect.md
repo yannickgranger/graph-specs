@@ -92,15 +92,24 @@ four rungs (`domain::AbstractionLevel`):
 identifier. One rule normalises it — lowercase, with internal whitespace
 runs collapsed to a single `-` — and the **same** rule is applied to the
 `specs/contexts/<name>.md` H1, so both sides resolve to one identifier
-(`# AC verifier` → `ac-verifier`). An H1 that does not normalise to an
-identifier (it carries punctuation, e.g. a descriptive title like
-`# Spec: foo`) declares **no** bounded context: the ladder pass skips that
-file rather than failing (companion-dialect robustness).
+(`# AC verifier` → `ac-verifier`). **The H1 is prose** (keel-dialect
+§2.1): its name is never bound to code, and it costs its file nothing.
+An H1 that carries punctuation — a descriptive title like `# Spec: foo` —
+still normalises, still names the file's context for the contexts
+cross-check, and the file is neither dropped from the ladder walk nor
+failed.
 
-**The ladder is a separate pass.** It is assembled by a dedicated
-`TreeAssembler` walk, *not* by the flat concept reader described above — so
-the H1/H4 rungs participate in cohesion checking even though they never
-become concept-graph nodes (see [What the markdown reader ignores](#what-the-markdown-reader-ignores)).
+**The ladder and the concept graph are one read.** Both are projections
+of a single `cascade::parse_spec` call per file: the `##`/`###` rungs are
+that reader's own site list, name for name and line for line, so a
+heading can never be a cohesion unit for the ladder and absent from the
+graph. The H1 and H4 rungs, which the reader keeps internally and does
+not publish at `cascade.rev`, are located beside it under the reader's
+own rule — ATX runs at column zero, outside code fences — and they
+participate in cohesion checking without ever becoming concept-graph
+nodes (see [What the markdown reader ignores](#what-the-markdown-reader-ignores)).
+That residue closes when the reader publishes the whole ladder; until
+then no other pass in this repo recognises a heading.
 
 **Cohesion invariant (level 5).** The ladder must be coherent:
 
@@ -180,8 +189,14 @@ Prose changes never affect the graph. The reader does not see:
 
 - Paragraphs, blockquotes, emphasis, strong, strikethrough
 - Level-1 and level-4+ headings — these never become **concept-graph
-  nodes**, but they are read by the separate ladder pass (H1 = context,
-  H4 = member) for cohesion checking (see [Abstraction ladder](#abstraction-ladder))
+  nodes**, but they are ladder rungs (H1 = context, H4 = member) for
+  cohesion checking (see [Abstraction ladder](#abstraction-ladder))
+- **Everything under a `####` rung.** A callout rung's content is
+  gate-invisible (keel-dialect §2.1, §5): a concept's extent runs from
+  its heading to the next rung of *any* depth, so a reserved bullet or a
+  `rust` block under `#### Distinct from` or `#### Keywords` attaches to
+  no concept and yields no edge, anchor or signature. The enclosing
+  concept resumes at the next `##`/`###`
 - Fenced blocks without a recognised language tag (untagged or `txt` or
   similar)
 - Bullets without a recognised prefix
@@ -213,13 +228,32 @@ status: draft
 ## SomeConcept
 ```
 
-The file is **parsed, not skipped**: every concept heading in it is
-marked. Only the leading front-matter is consulted. The value matches
-case-insensitively, with or without surrounding quotes, and a trailing
-`#` comment is ignored. A front-matter block that closes before any
-`status:` line, a `status:` line in the prose body, or a file with no
-front-matter at all, is not draft. A per-heading bullet inside a draft
-file is redundant, inert text.
+Whole-file front matter is a **retired authoring form** (keel-dialect
+§4); it is read only until the per-heading sweep converts it, marker for
+marker. Its admitted values and its refusals are the one reader's, and
+every concept heading the reader places is marked from there. A heading
+the reader leaves unplaced takes it on the same terms, from the read
+beside the reader described under
+[Grounding polarity](#grounding-polarity-rfc-014). While it is read: the file is
+parsed, not skipped. Only the leading front-matter is consulted, and
+only its `status:` key.
+
+The admitted values are exactly two bare words, `draft` and `live`.
+Anything else **refuses the file** — `"draft"`, `'draft' # pre-authored`
+and `Draft` are each an unknown status, not an unmarked file: quotes are
+not stripped, a trailing `#` comment is not a comment here, and the
+comparison is byte-exact. A second `status:` key refuses; a front-matter
+block that opens `---` and never closes refuses. A block that closes
+before any `status:` line, a `status:` line in the prose body, and a file
+with no front-matter at all are each simply not draft.
+
+A per-heading bullet inside such a file is the authoring form and
+**wins**: a heading marked `retired` inside a `status: draft` file reads
+retired.
+
+The file-scope marker narrows **the obligation on code and nothing else**
+(keel-dialect §4). It never gates another channel: the invariant
+annotations of a draft file are reported like any other file's.
 
 ### Heading scope — the `- status: draft` bullet
 
@@ -241,8 +275,10 @@ Four properties, each load-bearing:
   is still present, and it is **never** deleted. There is no
   `- status: ratified`, and neither value rewrites into the other — still
   a presence flag per value, never a state machine, because the progress
-  axis is the code. Any other `- status:` bullet is an unrecognised
-  prefix under the ordinary dialect rule and stays inert text.
+  axis is the code. The value is compared **case-exact**: `- status:
+  Draft` is not the marker. Any other `- status:` bullet is an
+  unrecognised prefix under the ordinary dialect rule and stays inert
+  text.
 - **No subtree inheritance.** A marker binds only to the heading whose
   block it opens; a marked `H2` does not mark its `H3`s. The reader
   models `H2` and `H3` as flat peers, and inheritance would make
@@ -315,13 +351,61 @@ heading by an upstream tool (cascade / Bosun):
 <!-- parent:spec:Unit polarity:forbidden -->
 ```
 
-graph-specs reads exactly one key from it — `polarity:` — and ignores
-every other key. It performs **no grounding** in the sense the name
-denotes: *grounding* means ancestorship, which is the `parent:` key's job
-and is explicitly out of scope. `polarity:` is an independent axis that
-happens to share the grounding block's syntax, not part of its ancestry
-payload. Reading "graph-specs parses the grounding comment" as
-"graph-specs validates ancestry" would be exactly backwards.
+**graph-specs parses none of this itself.** The dialect grammar has one
+realization — the cascade reader, pinned at `cascade.rev` and linked as a
+crate dependency (keel-dialect §12.1). The markdown adapter consumes that
+reader for every §2–§6 construct it publishes: the grounding declaration
+and its closed key set, the state marker, the front-matter status, the
+`##`/`###` rungs of the ladder and their names. One call per file feeds
+the concept graph, the abstraction ladder and the invariant-annotation
+channel alike, so no two passes here can disagree about what a heading
+is. A second parser of any of it is deleted on sight.
+
+**Two constructs the reader does not publish at `cascade.rev` are read
+beside it**, in that one module, and nowhere else in this repo. Both are
+measured gaps in the one reader, not choices, and both are deleted the
+day the reader publishes them.
+
+- The `#` context rung and the `####` callout rung. The reader keeps
+  them internally: its published site list carries `##`/`###` only, and
+  its concept list carries a `####` rung in an ungrounded document and
+  not in a grounded one. They are located under the reader's own rule —
+  ATX runs at column zero, outside code fences — and they open no
+  concept; see [Abstraction ladder](#abstraction-ladder).
+- The state marker of a `##`/`###` the reader sites but leaves
+  **unplaced**. The reader publishes a marker only on a concept, and it
+  opens no concept for a `##` with no enclosing rung above it — in a
+  file with no `#` context rung, every `##` is such a heading. Dropping
+  the marker there would void a well-formed §4 declaration and turn a
+  suspended obligation into a red gate, which keel-dialect §1 and §3.2
+  forbid, so the marker of an unplaced heading is read here, on the
+  reader's own terms: the first non-blank line under the heading, the
+  bare bullet `- status: draft` or `- status: retired`, value
+  case-exact, the retired bullet outranking a whole-file `status:
+  draft`. A placed heading never reaches this path — its marker is the
+  reader's.
+
+The key set is **closed** — `parent`, `anchor`, `keywords`,
+`reached_for`, `polarity` (keel-dialect §3.2). An unrecognised key is
+**malformed**: the read refuses, never skips and never voids the
+declaration silently. `parent` is required; graph-specs consumes
+`polarity:` and lets the reader own ancestorship, but it no longer
+ignores the keys it does not consume — a declaration the reader calls
+malformed refuses the file.
+
+**What refuses, and what does not.** The reader emits more finding
+classes than keel-dialect §7 gives verdict rows, and this repo maps only
+the rows. A refusal is raised for a class §7 maps to **malformed** at a
+`##`/`###` heading or at the document — a malformed grounding
+declaration, an orphan comment, a malformed document declaration, a
+malformed front-matter status — and for the **run-level** row: an
+unclosed fence stops the run before any node is judged. Classes §7 gives
+no row and no owning concept are **not** this repo's findings and never
+abort the run: a vocabulary callout with no enclosing home (vocabulary is
+another instrument's channel) and a heading that normalises to an empty
+name (its site stands under the reader's own name for it and is diffed
+like any other). Nothing is escalated past its row, and no row is
+dropped.
 
 **This concept is imported, not defined here.** The values and their
 meanings are owned upstream (see [Polarity](concepts/equivalence.md));
@@ -333,9 +417,12 @@ the value semantics nor the comment encoding.
 
 ### Placement and grammar
 
-The comment must be the **first non-blank content line** below an `H2`/`H3`
-concept heading — the same adjacency rule the `- status: draft` marker
-uses. A comment further down is inert.
+The comment sits on the **first non-blank line** below an `H2`/`H3`
+concept heading, **below the state marker when one exists** — the two
+coexist (keel-dialect §3.1), and a marker no longer costs the heading its
+declaration. A comment further down the section, or above its heading,
+attaches to no concept: **orphan grounding, malformed**, and the read
+refuses.
 
 Three values:
 
@@ -345,11 +432,12 @@ Three values:
 | `forbidden` | the name is expelled — code must **not** bear it |
 | `illustrative` | an example — the heading neither compels nor satisfies a code item |
 
-Anything else — no comment, no `polarity:` key, or an unreadable value —
-reads as `declared`, with a `tracing::warn!` on the unreadable case.
-**The fallback direction is the point:** a typo leaves the heading's
-obligation *armed*. A marker can only narrow an obligation somebody
-deliberately wrote down.
+No comment, or a comment carrying no `polarity:` key, reads as
+`declared` — the stated default. An **unknown value is malformed** and
+the read refuses (keel-dialect §3.2, §11(e)): it is never a silent
+default, and never a warning that lets the run continue. The old
+fallback-to-`declared` was the register entry (e) this repo owed; a typo
+now stops the run rather than quietly arming an obligation nobody wrote.
 
 **Extraction is quote-aware.** Upstream makes `anchor:"…"` mandatory for
 every RFC-rooted concept, so a real grounded corpus carries a quoted

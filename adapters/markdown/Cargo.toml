@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 adapter-rust = { workspace = true }
+cascade = { workspace = true }
 domain = { workspace = true }
 ports = { workspace = true }
 pulldown-cmark = { workspace = true }

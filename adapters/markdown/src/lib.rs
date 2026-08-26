@@ -1,6 +1,7 @@
 mod bullets;
 mod contexts;
 mod front_matter;
+#[allow(clippy::redundant_pub_crate)]
 mod grounding;
 mod invariants;
 mod markdown_utils;
@@ -10,9 +11,7 @@ mod tree;
 pub use bullets::{parse_impl_bullet, parse_verb_bullet};
 pub use tree::{assemble_spec_trees, assemble_tree, HeadingNode, SpecTree};
 
-use crate::front_matter::{
-    blank_front_matter, has_behavioral_substance, is_behavioral_context, is_draft,
-};
+use crate::front_matter::{has_behavioral_substance, is_behavioral_context};
 use crate::invariants::extract_annotations_from_source;
 use crate::markdown_utils::path_under_dir;
 use crate::section::extract_from_source;
@@ -41,7 +40,7 @@ impl Reader for MarkdownReader {
                 &mut edges,
                 &mut verb_anchors_scratch,
                 &mut concept_anchors_scratch,
-            );
+            )?;
         }
 
         Ok(Graph::new(nodes, edges))
@@ -69,7 +68,7 @@ impl MarkdownReader {
                 &mut edges_scratch,
                 &mut verb_anchors,
                 &mut concept_anchors_scratch,
-            );
+            )?;
         }
 
         Ok(verb_anchors)
@@ -89,7 +88,7 @@ impl MarkdownReader {
                 &mut edges_scratch,
                 &mut verb_anchors_scratch,
                 &mut concept_anchors,
-            );
+            )?;
         }
 
         Ok(concept_anchors)
@@ -102,11 +101,8 @@ impl MarkdownReader {
         let mut result = Vec::new();
 
         for (path, source) in walk_concept_sources(root)? {
-            if is_draft(&source) {
-                continue;
-            }
-
-            extract_annotations_from_source(&source, &path, &mut result);
+            let dialect = grounding::read(&path, &source)?;
+            extract_annotations_from_source(&source, &path, &dialect, &mut result);
         }
 
         Ok(result)

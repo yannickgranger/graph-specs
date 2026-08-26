@@ -1,13 +1,10 @@
----
-title: RFC-014 — grounding polarity: conform to the upstream `polarity:` marker
-status: Ratified — 4-lens unanimous, 2026-07-30 (round 1 REQUEST CHANGES x4; round 2 RATIFY x4)
-date: 2026-07-30
-upstream-owner: yg/agentry docs/rfc/vocabulary/RFC-vocabulary.md (ratified)
-upstream-impl: yg/cascade src/lib.rs `resolve_polarity`
-depends-on: RFC-013 (ratified) — shares carriers; its Slice A lands first
----
-
 # RFC-014 — grounding polarity
+
+**Status:** Ratified — 2026-07-30
+**Date:** 2026-07-30
+**Upstream owner:** yg/agentry docs/rfc/vocabulary/RFC-vocabulary.md (ratified)
+**Upstream impl:** yg/cascade src/lib.rs `resolve_polarity`
+**Depends on:** RFC-013 (ratified) — shares carriers; its Slice A lands first
 
 ## §1 — Problem
 
@@ -58,7 +55,7 @@ three values and their meanings are cited from cascade's
 `resolve_polarity` (`cascade/src/lib.rs:350-359`), not re-derived; if
 upstream adds a value, that is the seam that changes.
 
-Two scoping corrections, both from round-1 review:
+Two scoping corrections:
 
 **"Conformist" here is prose, not a wired relationship.** RFC-001 §3.7's
 `ContextPattern::Conformist` is a formal enum wired into
@@ -68,9 +65,7 @@ contexts, and RFC-001 §6 scopes that mechanism single-repo. This RFC does
 read as licence to formalize a cross-repo `ContextImport`.
 
 **`domain::Polarity` gets a `## Polarity` heading in
-`specs/concepts/equivalence.md`.** Round 1 corrected the author's original
-ruling, which omitted it on cross-context-homonym grounds. That reasoning
-was wrong twice over: agentry's forest disjointness invariant is scoped to
+`specs/concepts/equivalence.md`.** agentry's forest disjointness invariant is scoped to
 agentry's own corpus (`RFC-vocabulary.md:341-343`, ruling A2-R1, records
 that graph-specs *joining* that forest was raised and **NOT ADOPTED** —
 graph-specs is the external gate, not a participant in agentry's
@@ -166,7 +161,7 @@ concept must **skip that call entirely**, leaving the code node unconsumed
 so it falls through to the orphan sweep. This mirrors cascade, which
 filters illustrative out of the match set *before* matching.
 
-**Precedence rule (round-1 addition, three seats concurring).**
+**Precedence rule.**
 `polarity != declared` is evaluated **first and is terminal**, independent
 of RFC-013's `marked`; the marker pass (`pending` / `realized`) applies
 only when `polarity == declared`.
@@ -303,36 +298,11 @@ not what the discriminator means.
 
 ## §5 — Architect lenses
 
-**Round 1: REQUEST CHANGES x4** (no REJECT). **Round 2: RATIFY x4** —
-`ddd-specialist`, `clean-arch`, `solid-architect`, `rust-systems`, each
-verifying its own conditions against the folded text. Ratified unanimously
-per CLAUDE.md §2.3; no author override was needed or used.
-
-Every round-1 condition below is folded into this document.
-
-| Lens | Verdict | Conditions |
-|---|---|---|
-| `ddd-specialist` | REQUEST CHANGES | add `## Polarity` heading (§3.1); rename `…Realized` → `…Reintroduced` (§3.4); RFC-012 scoped-exception sentence (§3.2) |
-| `clean-arch` | REQUEST CHANGES | restate §3.3 as a match-attempt gate; uniform obligation-skip for edge/verb passes; `anchor_pass` polarity snapshot, not on `ConceptAnchor`; ContextPattern prose-only note |
-| `solid-architect` | REQUEST CHANGES | precedence rule (§3.3); `with_polarity` builder; explicit append-only slot 15 |
-| `rust-systems` | REQUEST CHANGES | quote-aware extraction; explicit sort slot; Integration fixture test row; OQ-4 ruling; `concept_pass` extraction as an RFC-013 Slice A prerequisite |
-
 **Unanimous RATIFY sub-points:** the minimal data-only type surface
 (verified against cascade's own zero-method `Polarity`), and two
 independent `ConceptNode` fields (`marked` + `polarity`) over a fused
 carrier — CCP: different upstream sources, different grammars, different
 extension seams.
-
-**Resolved contradiction.** `clean-arch` §(d) initially proposed that
-marked+forbidden+code-present emit *both* `Realized` and the forbidden
-finding, which is inconsistent with the terminal-precedence rule it
-endorsed in §(c). `solid-architect` and `rust-systems` both ruled for
-terminal precedence explicitly; §(d) is superseded. Recorded rather than
-silently dropped.
-
-**Closed open questions:** OQ-1 (naming) → §3.4. OQ-2 (carrier) → two
-fields. OQ-3 (sequencing) → RFC-013 Slice A first, §3.4. OQ-4 (anchor) → §3.3, ruled.
-Task #6 (cross-product) → §3.3 precedence rule.
 
 ## §6 — Non-goals
 

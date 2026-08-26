@@ -1,10 +1,7 @@
-use crate::markdown_utils::{
-    compute_line_starts, is_context_identifier, line_of_offset, normalize_context_id,
-    path_under_dir,
-};
+use crate::grounding::read;
+use crate::markdown_utils::{normalize_context_id, path_under_dir};
 use domain::{behavioral_exemption_applies, AbstractionLevel, CohesionViolation};
 use ports::ReaderError;
-use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -116,117 +113,33 @@ impl Pointers {
     }
 }
 
-const fn heading_depth(level: HeadingLevel) -> u8 {
-    match level {
-        HeadingLevel::H1 => 1,
-        HeadingLevel::H2 => 2,
-        HeadingLevel::H3 => 3,
-        HeadingLevel::H4 => 4,
-        HeadingLevel::H5 => 5,
-        HeadingLevel::H6 => 6,
-    }
-}
-
-struct AssemblerState<'a> {
-    file: &'a Path,
-    line_starts: Vec<usize>,
-    nodes: Vec<HeadingNode>,
-    pointers: Pointers,
-    in_heading: Option<(u8, usize)>,
-    heading_buf: String,
-    error: Option<ReaderError>,
-}
-
-impl<'a> AssemblerState<'a> {
-    fn new(source: &str, file: &'a Path) -> Self {
-        Self {
-            file,
-            line_starts: compute_line_starts(source),
-            nodes: Vec::new(),
-            pointers: Pointers::default(),
-            in_heading: None,
-            heading_buf: String::new(),
-            error: None,
+pub fn assemble_tree(source: &str, file: &Path) -> Result<SpecTree, ReaderError> {
+    let dialect = read(file, source)?;
+    let mut pointers = Pointers::default();
+    let mut nodes: Vec<HeadingNode> = Vec::new();
+    for rung in &dialect.ladder {
+        if rung.name.is_empty() {
+            continue;
         }
-    }
-
-    fn push_heading(&mut self, depth: u8, line: usize) {
+        let depth = u8::try_from(rung.level).unwrap_or(u8::MAX);
         let level = AbstractionLevel::from_heading_depth(depth);
-        let text = self.heading_buf.trim().to_owned();
-        if text.is_empty() {
-            return;
-        }
-        let id = if level == AbstractionLevel::Context {
-            let normalized = normalize_context_id(&text);
-            if !is_context_identifier(&normalized) {
-                self.error = Some(ReaderError::ParseFailed {
-                    path: self.file.to_path_buf(),
-                    line,
-                    message: format!(
-                        "H1 `{text}` is a descriptive title, not a context identifier \
-                         (normalises to `{normalized}`)"
-                    ),
-                });
-                return;
-            }
-            Some(normalized)
-        } else {
-            None
-        };
-        let idx = self.nodes.len();
-        let parent = self.pointers.link(level, idx);
-        self.nodes.push(HeadingNode {
+        let id = (level == AbstractionLevel::Context).then(|| normalize_context_id(&rung.name));
+        let idx = nodes.len();
+        let parent = pointers.link(level, idx);
+        nodes.push(HeadingNode {
             level,
-            text,
+            text: rung.name.clone(),
             id,
-            line,
+            line: rung.line,
             parent,
         });
     }
-}
-
-pub fn assemble_tree(source: &str, file: &Path) -> Result<SpecTree, ReaderError> {
-    let behavioral = crate::is_behavioral_context(source);
-    let has_substance = crate::has_behavioral_substance(source);
-    let cleaned = crate::blank_front_matter(source);
-    let source = cleaned.as_ref();
-    let mut st = AssemblerState::new(source, file);
-    for (event, range) in Parser::new(source).into_offset_iter() {
-        handle_event(&mut st, &event, range);
-        if st.error.is_some() {
-            break;
-        }
-    }
-    if let Some(err) = st.error {
-        return Err(err);
-    }
     Ok(SpecTree {
         file: file.to_path_buf(),
-        nodes: st.nodes,
-        behavioral,
-        has_substance,
+        nodes,
+        behavioral: crate::is_behavioral_context(source),
+        has_substance: crate::has_behavioral_substance(source),
     })
-}
-
-fn handle_event(st: &mut AssemblerState, event: &Event, range: std::ops::Range<usize>) {
-    match event {
-        Event::Start(Tag::Heading { level, .. }) => {
-            st.in_heading = Some((
-                heading_depth(*level),
-                line_of_offset(&st.line_starts, range.start),
-            ));
-            st.heading_buf.clear();
-        }
-        Event::End(TagEnd::Heading(_)) => {
-            if let Some((depth, line)) = st.in_heading.take() {
-                st.push_heading(depth, line);
-            }
-        }
-        Event::Text(s) | Event::Code(s) if st.in_heading.is_some() => {
-            st.heading_buf.push_str(s);
-        }
-        _ => {}
-    }
 }
 
 pub fn assemble_spec_trees(root: &Path) -> Result<Vec<SpecTree>, ReaderError> {
@@ -254,13 +167,7 @@ pub fn assemble_spec_trees(root: &Path) -> Result<Vec<SpecTree>, ReaderError> {
             path: path.to_path_buf(),
             cause: e.to_string(),
         })?;
-        match assemble_tree(&source, path) {
-            Ok(tree) => trees.push(tree),
-            Err(ReaderError::ParseFailed { .. }) => {
-                tracing::warn!("skipping spec file with non-context H1: {}", path.display());
-            }
-            Err(e) => return Err(e),
-        }
+        trees.push(assemble_tree(&source, path)?);
     }
     Ok(trees)
 }
@@ -271,7 +178,8 @@ mod tests {
     use crate::contexts::parse_context_file;
 
     fn tree(source: &str) -> SpecTree {
-        assemble_tree(source, Path::new("specs/concepts/equivalence.md")).expect("well-formed tree")
+        assemble_tree(source, Path::new("specs/concepts/equivalence.md"))
+            .expect("well-formed dialect")
     }
 
     #[test]
@@ -332,15 +240,64 @@ mod tests {
     }
 
     #[test]
-    fn descriptive_h1_is_a_reader_error() {
-        let err = assemble_tree(
+    fn a_descriptive_h1_is_prose_and_costs_the_file_nothing() {
+        let t = assemble_tree(
             "# Core concepts: the equivalence layer\n\n## Graph\n",
             Path::new("specs/concepts/core.md"),
         )
-        .expect_err("descriptive H1 must be rejected");
-        assert!(
-            matches!(err, ReaderError::ParseFailed { .. }),
-            "got {err:?}"
+        .expect("well-formed dialect");
+        assert_eq!(
+            t.nodes.iter().map(|n| n.level).collect::<Vec<_>>(),
+            vec![AbstractionLevel::Context, AbstractionLevel::Concept],
+            "the H1 is prose; the concept under it still stands"
+        );
+        assert!(t.cohesion_violations().is_empty());
+    }
+
+    #[test]
+    fn a_setext_heading_is_no_cohesion_unit() {
+        let t = tree("# widgets\n\nWidget\n------\n\nProse.\n");
+        assert_eq!(
+            t.cohesion_violations(),
+            vec![CohesionViolation::ContextWithoutCohesionUnit {
+                context: "widgets".to_owned(),
+                file: PathBuf::from("specs/concepts/equivalence.md"),
+            }],
+            "the ladder and the concept read are one list; a setext heading is in neither"
+        );
+    }
+
+    #[test]
+    fn an_indented_hash_run_is_no_cohesion_unit() {
+        let t = tree("# widgets\n\n  ## Widget\n");
+        assert_eq!(
+            t.cohesion_violations(),
+            vec![CohesionViolation::ContextWithoutCohesionUnit {
+                context: "widgets".to_owned(),
+                file: PathBuf::from("specs/concepts/equivalence.md"),
+            }]
+        );
+    }
+
+    #[test]
+    fn the_ladder_names_a_concept_exactly_as_the_one_reader_does() {
+        let t = tree("# widgets\n\n## Widget ##\n\n## *Other*\n");
+        assert_eq!(
+            t.concept_declarations(),
+            vec![("Widget ##", "widgets"), ("*Other*", "widgets")],
+            "the name the ladder binds is the name the graph node carries"
+        );
+    }
+
+    #[test]
+    fn a_hash_run_inside_a_fence_is_no_rung() {
+        let t = tree("# widgets\n\n```markdown\n## Widget\n```\n");
+        assert_eq!(
+            t.cohesion_violations(),
+            vec![CohesionViolation::ContextWithoutCohesionUnit {
+                context: "widgets".to_owned(),
+                file: PathBuf::from("specs/concepts/equivalence.md"),
+            }]
         );
     }
 
@@ -365,7 +322,7 @@ mod tests {
     }
 
     #[test]
-    fn assemble_spec_trees_skips_non_context_h1_files() {
+    fn assemble_spec_trees_drops_no_file_over_its_h1() {
         use std::io::Write;
         let dir = tempfile::TempDir::new().expect("tempdir");
         let write = |rel: &str, body: &str| {
@@ -383,8 +340,8 @@ mod tests {
         let ids: Vec<_> = trees.iter().filter_map(SpecTree::context_id).collect();
         assert_eq!(
             ids,
-            vec!["reading"],
-            "only the identifier-H1 file yields a tree"
+            vec!["spec:-cfdb-cli", "reading"],
+            "a prose H1 keeps its file in the walk"
         );
     }
 

@@ -153,9 +153,10 @@ variants are **not** resolvable because cfdb (v0.5.0) emits no `variant`
 
 The assembled heading tree for a single spec file (graph-specs-010-abstraction-level-equivalence#3.2 / R10-2) —
 a parent-linked vector of [HeadingNode](#headingnode) in document order,
-produced by the `assemble_tree` pass (a separate `pulldown-cmark` walk from
-the concept reader's `handle_event`, which is at the complexity ceiling).
-Exposes `context_id` (the file's single bounded-context identifier) and
+produced by the `assemble_tree` pass over the one dialect read the concept
+reader also projects, so the tree's rungs and the graph's nodes are the
+same list and cannot diverge (keel-dialect §12.1). Exposes `context_id`
+(the file's single bounded-context identifier) and
 `cohesion_violations`, which surfaces the spec-side
 [CohesionViolation](#cohesionviolation)s the tree's shape reveals — an H1
 context with no concept under it, and orphaned H3 sub-concepts. Wiring the

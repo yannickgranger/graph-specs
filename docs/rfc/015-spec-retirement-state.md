@@ -1,20 +1,9 @@
----
-title: RFC-015 — spec retirement state: a second marker value, its two marker records, and the obligation rule the edge pass was never given
-status: Ratified (revision 14, 2026-08-09) — three seats RATIFY on this text (#189, `7fff334`); the fourth seat was absent and is carried by a single author-documented override per CLAUDE.md §2.3, recorded in §5.1
-date: 2026-08-09
-authors: agentry-captain-2026-08-09
-companion: yg/agentry docs/rfc/RFC-spec-state-marker.md §11 (Amendment A2, council-produced, operator-ratified 2026-08-09)
-prior-art: RFC-013 (spec state marker — this RFC amends its §3.1 "One legal value" clause, its §3.3 marker carrier, and its §3.4 obligation-skip rule), RFC-014 §3.3 (which adopted RFC-013 §3.4's rule verbatim and inherited its scoping — amended here too), RFC-012 §3.3 (anchor resolution as backing-item presence)
----
-
 # RFC-015 — spec retirement state
 
-**Revision 14.** Revision 1 was reviewed by three lenses and returned
-REQUEST CHANGES from each (`clean-arch` C0–C3, `ddd` D1–D8, `solid`
-F1–F12). This revision folds every blocking condition. §5 records what
-the review found, including the three findings that were withdrawn by
-their own authors after re-execution — that record is load-bearing and
-is not decoration.
+**Status:** Ratified (revision 14, 2026-08-09)
+**Date:** 2026-08-09
+**Companion:** yg/agentry docs/rfc/RFC-spec-state-marker.md §11 (Amendment A2, council-produced, operator-ratified 2026-08-09)
+**Prior art:** RFC-013 (spec state marker — this RFC amends its §3.1 "One legal value" clause, its §3.3 marker carrier, and its §3.4 obligation-skip rule), RFC-014 §3.3 (which adopted RFC-013 §3.4's rule verbatim and inherited its scoping — amended here too), RFC-012 §3.3 (anchor resolution as backing-item presence)
 
 ## §1 — Problem
 
@@ -299,9 +288,7 @@ cited, never restated, by every carrier.
 > heading describes that item. **Known under-enforced — see §6 and
 > issue #187.**
 
-**The derivation is checkable cell by cell, and it is stated that way
-because spot-checking the motivating cell is how both previous versions
-passed review.** Every heading state × item presence, with the ground:
+**The derivation is checkable cell by cell.** Every heading state × item presence, with the ground:
 
 | heading state | item | member? | ground |
 |---|---|---|---|
@@ -346,13 +333,7 @@ byte-for-byte:
 ```
 
 An implementer keying on the definition rather than the enumeration
-suppresses that edge and silently breaks invariant 2. **Revision 1
-carried the sentence that named this exact failure** — *"item-absence
-alone moves an existing matrix row: target unmarked, item absent, bullet
-present is today's 2-violation cell; suppressing on absence alone
-silently changes it"* — and the rewrite that introduced an
-absence-keyed definition deleted it. It is restored here, because it is
-the only place the document says **why** absence alone is the wrong key.
+suppresses that edge and silently breaks invariant 2.
 Nothing accounts for row 1's absence; that absence *is* the finding.
 
 **The predicates are per-HEADING; the key is per-NAME. That conversion
@@ -703,18 +684,14 @@ No new subcommand, no new flags.
 ## §4 — Invariants
 
 1. **A marker never parks a spec↔code divergence.** Rows 4 and 7 both
-   enforce equivalence in full. Precisified from revision 1: no
+   enforce equivalence in full. No
    spec↔code divergence is parked, on **two** grounds and not one: in
    the absent cells the suppressed edge cannot exist, because the target
    does not; in `forbidden` + present it can exist, and is suppressed
    because its remedy is self-defeating — creating the edge requires the
    expelled item to persist, which `ForbiddenConceptReintroduced`
    forbids. The one cell answering to neither ground —
-   `illustrative` + present — is **not** suppressed. Revision 3's
-   single-ground justification is recorded as withdrawn rather than
-   quietly replaced: it produced two false findings from two lenses in
-   one round, in opposite directions, which is a better argument for
-   stating both grounds than any reasoning about them. But the design does
+   `illustrative` + present — is **not** suppressed. But the design does
    create
    assertions true by suppression rather than by verification, and §6
    names that class rather than leaving it inside this invariant.
@@ -742,88 +719,6 @@ No new subcommand, no new flags.
 7. **No transition exists to implement.** Neither value advances.
 
 ## §5 — Architect lenses
-
-**Revision 1 review: four lenses, all REQUEST CHANGES**
-(`clean-arch` C0–C3, `ddd` D1–D8, `solid` F1–F12, `rust-sys`). Those
-verdicts were rendered against revision 1 at `951b3b9` and speak to no
-later text. The round that speaks to **this** text, and the override it
-rests on, are recorded in §5.1.
-
-`rust-sys`'s seat reached the record through the other three lenses
-rather than directly, and the attribution is corrected here: **D6 — the
-`target dogfood` collision, its `cross-fixture-bump.md:62`/`:64`
-evidence and the "payload, not a bug" argument — is entirely
-`rust-sys`'s finding**, relayed under `ddd`'s number at its request. It
-also filed the verb-pass half of F3 independently, supplied the general
-cause for F4 (an anchor-backed concept can never be a code-edge target,
-`edges.rs:37-43`), and settled the amendment-ledger fix.
-
-**One rule about reviewing that this document earned, and it is not
-about the design.** A verdict rendered on text shaped by the reviewer's
-own condition must check what the fix **admits**, not only what it
-**excludes** — those are different questions, and a ratification here
-was reached by asking only the second. The definition written to satisfy
-B1 was cleared against the cell B1 complained about, while its repair
-silently admitted the cell the whole predicate exists to exclude.
-
-**Findings withdrawn by their own authors after re-execution.** Each is
-kept because a live clause elsewhere rests on it, named inline:
-
-- The `(a)` polarity ruling was **right about the question put to it and
-  wrong about a question nobody put to it** — correct for the source
-  side, over-reaching on the target side, which D9 corrects. Recorded as
-  a **scope** error rather than a detection error, because its author's
-  own first account was harsher than the facts and a later lens checked
-  whether any condition actually leaned on the harsher version. None
-  did.
-- `clean-arch` filed, then withdrew, a claim that a name-match key would
-  park a real divergence — refuted by its own fixture showing the case
-  fires today with no marker present and is structurally un-actionable.
-  It asked the two lenses that had adopted it to withdraw too.
-- `solid` cleared the cohesion pass on the grounds that
-  `ConceptContextMismatch` is code-fact-gated, then corrected itself:
-  true on the marker axis, false on the polarity axis. *"I tested the
-  code-absent cell and generalised from it."*
-- `clean-arch` proposed the canonical rule, then corrected it as
-  incomplete in exactly the way it diagnoses — one leg reading as though
-  it covered the field.
-- `clean-arch` and `solid` then drafted a binding leg each, and **both
-  were false as they wrote them** — each banned
-  `ForbiddenConceptReintroduced`, by different routes, because each
-  subordinated the binding predicate to the obligation one. `ddd`
-  refuted both with the same witness and ruled two named predicates.
-  **`ddd` subsequently withdrew that refutation as against this
-  document**, on audit: the two predicates here carry independent
-  subjects and so never inherit each other's extension. The named form
-  is kept because a named predicate cannot be silently dropped in
-  transcription the way a caveat can. **That rationale is withdrawn**: it
-  describes a PARTIAL-transcription failure, and RFC-014 §3.3
-  transcribed fully and faithfully — which is §1.1's whole force. Shipped
-  as written it would have invited a future reader to check the reason,
-  find it aimed at a non-occurrence, and retire the names on this
-  document's own logic. The names are kept on three grounds that
-  survive: they close the **layer gap** §1.1 diagnoses and §6 measures —
-  a concept load-bearing in the inner layer with no name in the layer
-  that governs it; **restatement is the propagation mechanism** this RFC
-  documents five times, and a named predicate is cited rather than
-  restated; and **#187 needs a subject**, since an unnamed deferred rule
-  is precisely how a fourth carrier gets authored. Three wordings of one error from three
-  authors is why §3.4 forbids the subordinate form on grammatical
-  grounds rather than warning against it.
-
-Two corrections were the author's. Revision 1 offered
-`specs/dialect.md:361-362` as the corrected rule already in the tree;
-`ddd` refuted it by execution — that sentence attributes to the wrong
-heading, since the finding fires against the *source*, which does compel
-a code item. And revision 2 scribed the two-leg form after the lenses
-had already begun refuting it; this revision replaces it.
-
-**The reusable finding, one level above this RFC.** A one-place sentence
-cannot express a two-place rule, and a subordinate clause cannot express
-an independent predicate. Both are cases of **a sentence's form silently
-bounding what it can assert, with an author who is being faithful** —
-which is why "sourced at" survived three RFCs and eight lens verdicts
-without anyone being careless.
 
 **Put to this round, carried as ratified-as-written (§5.1):** the
 canonical statement's placement (§3.4 states it; `specs/dialect.md` is
@@ -960,8 +855,7 @@ code edge carries the anchored item's name and never the concept's. The
 divergence is deliberate: row 7 must stay enforced in full, and
 `illustrative` need not. It is bounded entirely by F4a being a
 pre-existing, out-of-scope false positive, and **if F4a is ever fixed
-the two answers converge and this paragraph dissolves.** Recorded so the
-next reader does not read it as an inconsistency nobody noticed.
+the two answers converge and this paragraph dissolves.**
 
 **Not the polarity axis.** `polarity:forbidden` means *this name was
 never legitimate*; retirement means *this concept was legitimate and was
@@ -989,10 +883,7 @@ upstream's fences.
 
 Both slices carry a **spec co-land**, at RFC-013 §7's granularity. This
 repo's dual control makes it a gate: *"adding a new concept / trait /
-output variant is specs-gated."* Revision 1 omitted it entirely and
-prescribed a self-dogfood inertness that its own deliverables falsify —
-an implementer delivering against that prescription would have had to
-break something to pass it.
+output variant is specs-gated."*
 
 **Corpus reality, quantified.** This repo carries **0 marked headings**
 against **34** distinct edge targets. Self- and cross-dogfood are

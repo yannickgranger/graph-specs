@@ -1,13 +1,9 @@
----
-title: RFC-013 — spec state marker: per-heading draft markers, pending/realized marker records, cohesion tightening
-status: Ratified (4-lens unanimous, 2026-07-29 — clean-arch, DDD round 2, SOLID round 2, rust-systems final pass)
-date: 2026-07-29
-authors: agentry-captain-2026-07-29
-companion: yg/agentry docs/rfc/RFC-spec-state-marker.md (council-ratified 2026-07-29)
-prior-art: RFC-009 (ImplementsDraftConcept), PR #118 (status:draft suppression), RFC-010 §3.5 (cohesion), RFC-012 §3.3 (behavioral exemption)
----
-
 # RFC-013 — spec state marker
+
+**Status:** Ratified (4-lens unanimous, 2026-07-29)
+**Date:** 2026-07-29
+**Companion:** yg/agentry docs/rfc/RFC-spec-state-marker.md (council-ratified 2026-07-29)
+**Prior art:** RFC-009 (ImplementsDraftConcept), PR #118 (status:draft suppression), RFC-010 §3.5 (cohesion), RFC-012 §3.3 (behavioral exemption)
 
 ## §1 — Problem
 
@@ -293,65 +289,13 @@ existing formats.
 
 ## §5 — Architect lenses
 
-Verdicts captured inline (§2.3 process). Round 1 produced two RATIFY
-and two REQUEST CHANGES; every requested change was folded into §3/§4/
-§7 (attributed inline where load-bearing) and re-verified by its
-requesting lens. Final round: unanimous RATIFY, no author override
-used.
-
 ### Clean architecture
-
-Dependency direction preserved at every touched layer; `marked: bool`
-follows `ConceptNode`'s existing adapter-populated-attribute pattern;
-no port-trait signature changes (`Reader::extract` untouched — the
-skip removal is adapter-internal); retiring the RFC-009 side index is
-a genuine surface reduction, not a boundary relocation. Two folds:
-marker-record types pinned to `domain` so the row-3/4 decision stays
-single-sourced in the diff (§3.4), and the retired sort slot corrected
-to 13 (`Cohesion` holds 12). **RATIFY.**
 
 ### Domain-driven design
 
-`pending`/`realized`/`marked` are correct, non-colliding
-ubiquitous-language terms; retiring `ImplementsDraftConcept` loses no
-distinction (the partition survives as row 4's `realized`); the
-single-index consolidation onto `ConceptNode.marked` is textbook
-aggregate discipline. One blocking fold: the wire discriminator
-renamed `"report"` → `"marker"` — `report` already names the RFC-005
-subcommand and its `ReportOutput` aggregate in this same bounded
-context, whose own NDJSON discriminator is `"record"`; the schema is a
-Published Language this repo names, and the upstream RFC's
-illustrative key is a content contract, not a literal one. **RATIFY**
-(round 2, after the rename).
-
 ### SOLID + component principles
 
-`marked: bool` is the correct cardinality (deletion-is-ratification
-forbids an enum's extensibility) and kills the stringly-joined second
-object graph; `CheckOutcome` raises no ISP concern (one full-outcome
-production consumer; struct fields, not trait methods). Folds: the
-pending-side obligation skip stated as one uniform rule across
-sub-passes (edge pass satisfied by construction; verb + anchor passes
-gain marker-awareness); the impl-anchor/marked interaction resolved
-explicitly in §3.4 (anchor resolution IS the row-3/4 fact); the new
-types constrained to a new domain module rather than the verb-coverage
-report module (CCP); both retired-variant test surfaces disposed as
-rewritten-not-deleted. **RATIFY** (round 2).
-
 ### Rust systems
-
-Full consumer enumeration of the retirements verified (incl. formatter
-match arms and the live `- verb:` anchor on the retiring builder that
-invariant 5 depends on removing in the same PR); `CheckInput`'s
-`const fn` constructors unaffected; no orphan-rule/object-safety/
-feature-flag exposure; parse cost is a bounded constant-factor
-increase on the draft-file subset only. Folds: §7 discriminator
-residue fixed; domain diff-tests disposition added; the
-schema-evolution gap RULED — removing a `violation` discriminator
-value entirely is breaking, `schema_version` bumps to `"4"`, and the
-taxonomy gains that bullet in the same PR; anchor-pass pre-snapshot
-note added for the implementer. **RATIFY** (final pass, all folds
-re-verified with zero residue).
 
 ## §6 — Non-goals
 

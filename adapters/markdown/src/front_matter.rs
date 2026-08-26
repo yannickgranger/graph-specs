@@ -1,15 +1,4 @@
-use crate::bullets::{marker_from_value, parse_impl_bullet, parse_verb_bullet};
-use domain::Marker;
-
-pub fn is_draft(source: &str) -> bool {
-    file_marker(source) == Some(Marker::Draft)
-}
-
-pub fn file_marker(source: &str) -> Option<Marker> {
-    front_matter_value(source, "status")
-        .as_deref()
-        .and_then(marker_from_value)
-}
+use crate::bullets::{parse_impl_bullet, parse_verb_bullet};
 
 pub fn has_behavioral_substance(source: &str) -> bool {
     source.lines().any(|line| {

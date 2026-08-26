@@ -1,12 +1,8 @@
----
-title: RFC-002 — Cross-dogfood discipline with cfdb
-status: Ratified
-date: 2026-04-19
-authors: cross-dogfood-review team (team-lead drafted; clean-arch, ddd, solid, rust-systems ratified)
-companion: yg/cfdb RFC-033 (same topic, mirror)
----
-
 # RFC-002 — Cross-dogfood discipline with cfdb
+
+**Status:** Ratified
+**Date:** 2026-04-19
+**Companion:** yg/cfdb RFC-033 (same topic, mirror)
 
 ## §1 — Problem
 
@@ -179,15 +175,11 @@ Separate cron job at **Tuesday 06:30 UTC** (cfdb's closed-loop at Tuesday 06:00 
 
 ## §5 — Architect lenses
 
-Verdicts captured inline after review.
-
 ### §5.1 — Clean architecture (`clean-arch`)
 
 Open question resolved: cross-dogfood integration test lives at `tests/cross_dogfood.rs` (Cargo `[[test]]`, not under `src/`). `application/` stays free of cross-repo fixture knowledge.
 
 Open question resolved: CLI binary (`./target/release/graph-specs check …`) is architecturally correct — cross-dogfood treats graph-specs as a sibling would, i.e. as an external consumer. Using the lib surface from CI YAML would bypass the port layer.
-
-**Verdict (round 2, 2026-04-19): RATIFY.** Mirror verdict to cfdb RFC-033 §5.1 (revision 1, commit `d13c4a9`). All round-1 blockers and non-blockers resolved with citations.
 
 ### §5.2 — DDD (`ddd-specialist`)
 
@@ -195,23 +187,19 @@ Open question resolved: cross-dogfood orchestration is an emerging third bounded
 
 Open question resolved: "cross-dogfood" retained. The term is internally consistent across both RFCs and the `Tests:` prescription template; ubiquitous-language stability argument from DDD wins over "sibling-check" / "paired-integration" rewording.
 
-**Verdict (round 1, 2026-04-19): RATIFY** with three recorded non-blocking concerns (H1 context-vocabulary, C2 orchestration ownership, C3 dependency-direction precision). All three resolved in revision 1.
-
 ### §5.3 — SOLID (`solid-architect`)
 
 Open question resolved: bump-job cohesion is acceptable as one job — three sub-responsibilities change for the same reason (weekly companion-SHA maintenance). CCP satisfied.
 
 Open question resolved: `ci/cross-dogfood.sh` IS the local developer tool — it is a portable shell script, not CI-YAML-only. Developers run `./ci/cross-dogfood.sh` before pushing; CI just invokes the same script. No `just` or second script needed.
 
-**Verdict (round 1, 2026-04-19): RATIFY conditional.** All three required changes (RC1 shared parser, RC2 zero-false-positive obligation, RC3 stable grep) resolved in revision 1. Stability metrics: `.cfdb/cross-fixture.toml` introduces no new Rust crates, so neither graph-specs-rust's domain (D=1.00) nor cfdb-core (D=0.95) Zone-of-Pain scores are affected.
+Stability metrics: `.cfdb/cross-fixture.toml` introduces no new Rust crates, so neither graph-specs-rust's domain (D=1.00) nor cfdb-core (D=0.95) Zone-of-Pain scores are affected.
 
 ### §5.4 — Rust systems (`rust-systems`)
 
 Open question resolved: sccache is added to graph-specs CI as part of Issue B2 (mirroring cfdb `ci.yml` Setup step). Cold install cost absorbed once; subsequent runs hit sccache warm. No separate `cfdb-<sha>` binary cache needed.
 
 Open question resolved: the SHA-pin cycle is a human-mediated deployment protocol, not a compile-time Rust dependency edge. ADP applies to compile-time imports; `.cfdb/cross-fixture.toml` is a runtime pin. No circular compile-time contamination. The bump-protocol lockstep is the right shape — acyclic alternatives (e.g. one repo pins, the other rebuilds nightly) would delay detection of genuine drift by a week.
-
-**Verdict (round 2, 2026-04-19): RATIFY.** Both blockers (B1 sccache, B2 failure-mode differentiation) and three mandatory prose additions (C1 SHA-universe clarifier, C2 dual-keyspace note, C3 distinct cron schedules) resolved in revision 1.
 
 ## §6 — Non-goals
 
