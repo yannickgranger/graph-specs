@@ -1,8 +1,8 @@
 # RFC-010 — Abstraction-level equivalence (the heading ladder)
 
-- **Status:** FINAL — operator-ratified §13-A (cohesion fact-source routing: **(b)-MVP → (c)-clean**); 4-lens council substance converged (rounds 1–2, no unresolved blocker); **dry-run-hardened ×2** against real cfdb keyspaces. Body §1–§11 integrates all binding dry-run resolutions; §12 is the condensed hardening trail. Ready to file §7 issues.
+- **Status:** FINAL — operator-ratified §13-A (cohesion fact-source routing: **(b)-MVP → (c)-clean**). Body §1–§11 integrates all binding dry-run resolutions; §12 is the condensed hardening trail. Ready to file §7 issues.
 - **Date:** 2026-06-05
-- **Authors:** Claude (session 2026-06-05, operator-prompted). Conceptual model converged by the 4-lens council as architectural oracle (ddd-led); §13-A ruled by the operator.
+- **Authors:** Claude (session 2026-06-05, operator-prompted).
 - **Companion:** yg/cfdb — the code-facts **database** and a co-evolving peer. graph-specs queries it as a first-class fact source through an **Anti-Corruption Layer** adapter (§3.3); the convergence step (c) is a small *paired cfdb RFC* (§8 OQ-8, §11) — cfdb already models multi-crate contexts (`.cfdb/concepts/*.toml`), so (c) needs **no cfdb schema change**.
 - **Supersedes:** —
 - **Related:** RFC-001 (`specs/contexts/` + `# <ctx>` H1=context — the **canonical-upstream** context definer, §3.4); RFC-004 (`LanguageBackend` seam; reserved the v3 NDJSON bump); RFC-005/006/007/008 (verb-anchoring — the downward concept→method rung; this RFC adds the upward concept→context rung); RFC-011 (PHP ladder — inherits this via an edge-traversal ACL path, §11.3).
@@ -149,7 +149,6 @@ The cfdb-query ACL is the proper exploitation of cfdb-the-database (don't re-wal
 8. **NDJSON v2 → v3 is a hard break gated by `schema_version`** — no silent mis-parse.
 
 ## §5 — Council review & hardening
-Round 1: 4× REQUEST CHANGES (12 blocking RCs). Round 2 (ddd-led, council-as-oracle): converged model. Two coder dry-runs vs real keyspaces hardened it (§12). Operator ruled §13-A. No lens left an unresolved blocker. Artifacts: `council/rfc-010/`.
 
 ## §6 — Non-goals
 1. Not changing cfdb's *schema*; graph-specs queries it (ACL). The (c) `ContextSource` is a small paired cfdb RFC (OQ-8), not part of RFC-010's ship.
@@ -183,7 +182,7 @@ Vertical slices; `Tests:` per repo §2.5. **Target dogfood = agentry.**
 | **OQ-8** | **(c) convergence:** paired cfdb RFC for a `ContextSource` reading `specs/contexts/` Owns, making cfdb-query cohesion coherent on multi-crate repos. | OPEN — **operator-approved as the post-MVP step (b→c)**; needs **no cfdb schema change** (cfdb already supports multi-crate grouping via `.cfdb/concepts/*.toml` `crates` lists); lockstep with graph-specs. |
 
 ## §9 — Ratification
-**FINAL.** §13-A operator-ratified ((b)→(c)); council substance converged (rounds 1–2, no unresolved blocker); dry-run-hardened ×2 against real keyspaces; §1–§11 integrate all binding resolutions. §7 may be filed as issues (repo §2.4). The (c) cfdb `ContextSource` (OQ-8) and CF-1/CF-2 (§11) are separate tracked work.
+**FINAL.** §13-A operator-ratified ((b)→(c)); §1–§11 integrate all binding resolutions. §7 may be filed as issues (repo §2.4). The (c) cfdb `ContextSource` (OQ-8) and CF-1/CF-2 (§11) are separate tracked work.
 
 ## §11 — Cross-fertilization (ecosystem)
 The ladder maps onto cfdb's vocabulary (`H1 Context↔:Context`, `H2 Concept↔:Item`, `H3 SubConcept↔:Item`, `H4 Member↔:Field/:Variant/:Param`, `:Module`/`:Crate` containment). One vocabulary, two tools: cfdb extracts code-side containment; graph-specs enforces the spec-side ladder is coherent with it.

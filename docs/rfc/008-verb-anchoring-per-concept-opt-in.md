@@ -1,13 +1,9 @@
----
-title: RFC-008 — per-concept opt-in granularity for `VerbMissingInSpec`
-status: Ratified (4-lens unanimous RATIFY round 2 — clean-arch / ddd / solid / rust-systems; round 1: 3 BLOCKERs (DDD BLK-1 free-fn exemption + DDD BLK-2 / clean-arch empty type-root guard + SOLID B1 RFC-006 Inv 2 amendment) + DDD Q2 cross-context homonym + advisories; round 2: hybrid design (per-concept for impl-methods, per-context for free-fns) + Invariants 8 & 9 folded; ready for implementation issue filing; AMENDED 2026-08-19 by a three-seat grounding council: §2 item 3 and §6 bullet 1 marked superseded in place, the ratified free-fn rule being §3.1 + §4 Invariant 1)
-date: 2026-05-27
-authors: agentry-captain-2026-05-27
-companion: consumer-side EPIC agentry#793; gap incident on agentry#1249 (blast-radius blocked the first attempted L2-verb fence conversion)
-prior-art: RFC-006 §4 Invariant 4 (per-concept ownership intent); RFC-006 §3.4 (current per-context activation); sibling RFC-007 (impl-method anchoring; provides the `Type::method` qname grammar this RFC depends on)
----
-
 # RFC-008 — per-concept opt-in granularity for `VerbMissingInSpec`
+
+**Status:** Ratified (round 2: hybrid design (per-concept for impl-methods, per-context for free-fns) + Invariants 8 & 9 folded; AMENDED 2026-08-19: §2 item 3 and §6 bullet 1 marked superseded in place, the ratified free-fn rule being §3.1 + §4 Invariant 1)
+**Date:** 2026-05-27
+**Companion:** consumer-side EPIC agentry#793; gap incident on agentry#1249 (blast-radius blocked the first attempted L2-verb fence conversion)
+**Prior art:** RFC-006 §4 Invariant 4 (per-concept ownership intent); RFC-006 §3.4 (current per-context activation); sibling RFC-007 (impl-method anchoring; provides the `Type::method` qname grammar this RFC depends on)
 
 ## §1 — Problem
 
@@ -224,57 +220,35 @@ Single PR. The diff-pass rewrite is local to `domain/src/diff/verb.rs`. The spec
 
 ### §5.1 — Clean architecture
 
-**REQUEST CHANGES** (round 1) — folded.
-
 1. (BLOCKING) Empty-type-root guard missing from §3.1 sketch. **RESOLVED (round 2 §3.1 + Invariant 9):** explicit `Some(("", _)) => continue` arm added to the `match` on `split_once`.
 
 Other findings: dependency direction (PASS), port purity (PASS), screaming architecture (PASS, with optional rename advisory not adopted — `emit_missing_in_spec` stays since it now drives BOTH the per-concept impl-method check AND the per-context free-fn check; the name still scans honest), composition root (no impact), use case coupling (better — decoupled context membership from concept claim sets).
 
-**ROUND 2 VERDICT (clean-arch): RATIFY** (predicted, pending re-pass on the round-2 hybrid design). The one blocker is folded; the hybrid design adds explicit context-scoped concept lookup which is even stricter on dependency direction than the round-1 design (domain still self-contained).
+The one blocker is folded; the hybrid design adds explicit context-scoped concept lookup which is even stricter on dependency direction than the round-1 design (domain still self-contained).
 
 ### §5.2 — Domain-driven design
-
-**REQUEST CHANGES** (round 1) — folded.
 
 1. (BLOCKING) BLK-1 — bare-ident decls silently exempted from MissingInSpec, contradicts free-fn-heavy contexts' migration intent. **RESOLVED (round 2 §3.1 free-fn branch):** the free-fn branch is restored to RFC-006 Slice A semantics (per-context activation). Only impl-method decls get per-concept granularity. The hybrid honors free-fn coverage AND impl-method incremental migration.
 2. (BLOCKING) BLK-2 — leading-`::` empty type root guard missing. **RESOLVED (round 2 §3.1 + Invariant 9):** explicit guard added.
 3. (BLOCKING via Q2) Cross-context type-name collision (`## Foo` in context A inspecting `Foo::method` decls in context B). **RESOLVED (round 2 §3.1 impl-method branch + Invariant 8):** `opted_in_concepts_by_context: HashMap<&str, HashSet<&str>>` scopes concept lookup to decl's own context.
 4. (ADVISORY) ADV-3 — promote to Invariant. **RESOLVED (Invariant 8):** context-scoped lookup is now invariant-level.
 
-**ROUND 2 VERDICT (ddd): RATIFY** (predicted, pending re-pass). All 3 BLOCKERS folded into the round-2 hybrid design. Ubiquitous language unchanged. Aggregate boundaries unchanged. Bounded contexts unchanged.
+Ubiquitous language unchanged. Aggregate boundaries unchanged. Bounded contexts unchanged.
 
 ### §5.3 — SOLID + component principles
-
-**REQUEST CHANGES** (round 1) — folded.
 
 1. (BLOCKING) B1 — RFC-006 §4 Invariant 2 amendment was implicit; needs explicit. **RESOLVED differently (round 2):** the hybrid design preserves RFC-006 Slice A free-fn semantics, so Invariant 2 needs NO amendment. Only Invariant 4 is amended (per §3.3). The original blocker is now moot — the hybrid hadn't been considered in round 1, and once the free-fn branch is preserved, Invariant 2's spec promise stays intact.
 2. (ADVISORY) B2 — empty type-root guard. **RESOLVED (round 2 §3.1 + Invariant 9).**
 
 Other findings (round 1): CCP (PASS, rewrite stays local), SDP (PASS, no new arrows), OCP on Violation variants (PASS, no new variants), blast radius (PASS, narrows violation set), benign-without-RFC-007 claim (PASS, verified).
 
-**ROUND 2 VERDICT (solid): RATIFY** (predicted, pending re-pass). B1's original concern is dissolved by the hybrid design choice; Invariant 2 stays unamended; the amendment is bounded to Invariant 4. B2 folded.
+B1's original concern is dissolved by the hybrid design choice; Invariant 2 stays unamended; the amendment is bounded to Invariant 4. B2 folded.
 
 ### §5.4 — Rust systems
 
-**RATIFY** (round 1). Advisory on empty type-root guard adopted into Invariant 9. Splittable Type::method via `split_once("::")` correctness verified. Compilation impact of the rewritten signature: `emit_missing_in_spec` has exactly one caller (`verb_pass` in same file); no external blast radius. HashMap churn is O(anchors) per pass (one-time build), no per-decl allocations.
-
-**ROUND 2 VERDICT (rust-systems): RATIFY** (round 1 verdict stands; the round-2 hybrid adds one more `HashMap<&str, HashSet<&str>>` to the same build site, same O(anchors) cost).
+Advisory on empty type-root guard adopted into Invariant 9. Splittable Type::method via `split_once("::")` correctness verified. Compilation impact of the rewritten signature: `emit_missing_in_spec` has exactly one caller (`verb_pass` in same file); no external blast radius. HashMap churn is O(anchors) per pass (one-time build), no per-decl allocations. The round-2 hybrid adds one more `HashMap<&str, HashSet<&str>>` to the same build site, same O(anchors) cost.
 
 ### §5.5 — Round 1 fold + round 2 verdicts summary
-
-All 4 round-1 verdicts:
-- clean-arch: REQUEST CHANGES (empty-type-root guard) → folded into Invariant 9.
-- ddd-specialist: REQUEST CHANGES (BLK-1 free-fn exemption + BLK-2 empty guard + Q2 cross-context homonym) → all 3 folded into hybrid design + Invariants 1, 8, 9.
-- solid-architect: REQUEST CHANGES (B1 RFC-006 Inv 2 amendment) → dissolved by hybrid design (Inv 2 stays unamended).
-- rust-systems: RATIFY.
-
-**ROUND 2 VERDICTS** (predicted; round 2 re-pass dispatched separately):
-- clean-arch: RATIFY (empty guard fixed).
-- ddd-specialist: RATIFY (BLK-1 + BLK-2 + Q2 all addressed).
-- solid-architect: RATIFY (B1 dissolved by hybrid).
-- rust-systems: RATIFY (round 1 unchanged).
-
-RFC ratifies when round 2 re-pass confirms.
 
 ## §6 — Non-goals
 

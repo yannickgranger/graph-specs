@@ -1,13 +1,9 @@
----
-title: RFC-009 — clear diagnostic when code implements a draft spec
-status: Ratified
-date: 2026-05-31
-authors: agentry-captain-2026-05-31
-companion: yg/agentry#1379 item 2
-prior-art: PR #118 (status:draft suppression — draft headings are now retained as a no-obligation index); specs/dialect.md ## Draft specs
----
-
 # RFC-009 — `ImplementsDraftConcept` diagnostic
+
+**Status:** Ratified
+**Date:** 2026-05-31
+**Companion:** yg/agentry#1379 item 2
+**Prior art:** PR #118 (status:draft suppression — draft headings are now retained as a no-obligation index); specs/dialect.md ## Draft specs
 
 ## §1 — Problem
 

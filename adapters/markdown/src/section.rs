@@ -1,65 +1,25 @@
-use crate::bullets::{
-    parse_bullet_edge, parse_impl_bullet, parse_status_marker, parse_verb_bullet,
-};
-use crate::front_matter::{blank_front_matter, file_marker};
-use crate::grounding::polarity_from_comment;
+use crate::bullets::{parse_bullet_edge, parse_impl_bullet, parse_verb_bullet};
+use crate::front_matter::blank_front_matter;
+use crate::grounding::{read, DialectHeading};
 use crate::markdown_utils::{compute_line_starts, line_of_offset};
-use domain::{
-    ConceptAnchor, ConceptNode, Edge, Marker, Polarity, SignatureState, Source, VerbAnchor,
-};
-use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Parser, Tag, TagEnd};
+use domain::{ConceptAnchor, ConceptNode, Edge, SignatureState, Source, VerbAnchor};
+use ports::ReaderError;
+use pulldown_cmark::{CodeBlockKind, Event, Parser, Tag, TagEnd};
 use std::path::Path;
 
-struct SectionState<'a> {
-    line_starts: Vec<usize>,
-    source: &'a str,
-    path: &'a Path,
-    heading_buf: String,
-    in_heading_at: Option<usize>,
-    pending: Option<(String, usize)>,
-    pending_marker: Option<Marker>,
-    file_marker: Option<Marker>,
-    pending_polarity: Polarity,
-    in_html_at: Option<usize>,
-    html_buf: String,
-    rust_blocks: Vec<String>,
-    in_rust_block: bool,
-    block_buf: String,
-    in_bullet: Option<usize>,
-    bullet_buf: String,
-    concept_anchors: Vec<ConceptAnchor>,
+#[derive(Default)]
+struct Collected {
+    rust_blocks: Vec<(usize, String)>,
+    bullets: Vec<(usize, String)>,
 }
 
-impl<'a> SectionState<'a> {
-    fn new(source: &'a str, path: &'a Path, file_marker: Option<Marker>) -> Self {
-        Self {
-            line_starts: compute_line_starts(source),
-            source,
-            path,
-            heading_buf: String::new(),
-            in_heading_at: None,
-            pending: None,
-            pending_marker: None,
-            file_marker,
-            pending_polarity: Polarity::Declared,
-            in_html_at: None,
-            html_buf: String::new(),
-            rust_blocks: Vec::new(),
-            in_rust_block: false,
-            block_buf: String::new(),
-            in_bullet: None,
-            bullet_buf: String::new(),
-            concept_anchors: Vec::new(),
-        }
-    }
-
-    fn effective_marker(&self) -> Option<Marker> {
-        self.file_marker.or(self.pending_marker)
-    }
-
-    fn current_concept(&self) -> Option<&str> {
-        self.pending.as_ref().map(|(n, _)| n.as_str())
-    }
+struct CollectorState {
+    line_starts: Vec<usize>,
+    in_rust_block_at: Option<usize>,
+    block_buf: String,
+    in_bullet_at: Option<usize>,
+    bullet_buf: String,
+    collected: Collected,
 }
 
 pub fn extract_from_source(
@@ -69,201 +29,134 @@ pub fn extract_from_source(
     edges: &mut Vec<Edge>,
     verb_anchors: &mut Vec<VerbAnchor>,
     concept_anchors: &mut Vec<ConceptAnchor>,
-) {
-    let file_marker = file_marker(source);
+) -> Result<(), ReaderError> {
+    let dialect = read(path, source)?;
     let cleaned = blank_front_matter(source);
-    let source = cleaned.as_ref();
-    let mut st = SectionState::new(source, path, file_marker);
-    let parser = Parser::new(source).into_offset_iter();
+    let collected = collect(cleaned.as_ref());
 
-    for (event, range) in parser {
-        handle_event(&mut st, event, range, nodes, edges, verb_anchors);
+    for heading in dialect.concepts() {
+        let (start, end) = dialect.extent(heading);
+        let owned = |line: usize| line > start && line < end;
+
+        let blocks: Vec<&str> = collected
+            .rust_blocks
+            .iter()
+            .filter(|(line, _)| owned(*line))
+            .map(|(_, block)| block.as_str())
+            .collect();
+        let mut node = ConceptNode::new(
+            heading.name.clone(),
+            spec_source(path, heading.line),
+            signature_from_blocks(&blocks),
+        )
+        .with_polarity(heading.polarity);
+        node.marker = heading.marker;
+        nodes.push(node);
+
+        for (line, text) in collected.bullets.iter().filter(|(line, _)| owned(*line)) {
+            absorb_bullet(
+                path,
+                heading,
+                *line,
+                text,
+                edges,
+                verb_anchors,
+                concept_anchors,
+            );
+        }
     }
 
-    let marker = st.effective_marker();
-    flush_pending(
-        &mut st.pending,
-        marker,
-        st.pending_polarity,
-        &st.rust_blocks,
-        st.path,
-        nodes,
-    );
-    concept_anchors.append(&mut st.concept_anchors);
+    Ok(())
 }
 
-fn handle_event(
-    st: &mut SectionState,
-    event: Event,
-    range: std::ops::Range<usize>,
-    nodes: &mut Vec<ConceptNode>,
+fn spec_source(path: &Path, line: usize) -> Source {
+    Source::Spec {
+        path: path.to_path_buf(),
+        line,
+    }
+}
+
+fn absorb_bullet(
+    path: &Path,
+    heading: &DialectHeading,
+    line: usize,
+    text: &str,
     edges: &mut Vec<Edge>,
     verb_anchors: &mut Vec<VerbAnchor>,
+    concept_anchors: &mut Vec<ConceptAnchor>,
 ) {
+    if let Some((kind, token, raw)) = parse_bullet_edge(text) {
+        edges.push(Edge {
+            source_concept: heading.name.clone(),
+            kind,
+            target: token,
+            raw_target: raw,
+            source: spec_source(path, line),
+        });
+    } else if let Some(mut anchor) = parse_verb_bullet(text) {
+        anchor.concept.clone_from(&heading.name);
+        anchor.source = spec_source(path, line);
+        verb_anchors.push(anchor);
+    } else if let Some(mut anchor) = parse_impl_bullet(text) {
+        anchor.concept.clone_from(&heading.name);
+        anchor.source = spec_source(path, line);
+        concept_anchors.push(anchor);
+    }
+}
+
+fn collect(source: &str) -> Collected {
+    let mut st = CollectorState {
+        line_starts: compute_line_starts(source),
+        in_rust_block_at: None,
+        block_buf: String::new(),
+        in_bullet_at: None,
+        bullet_buf: String::new(),
+        collected: Collected::default(),
+    };
+    for (event, range) in Parser::new(source).into_offset_iter() {
+        handle_event(&mut st, &event, range);
+    }
+    st.collected
+}
+
+fn handle_event(st: &mut CollectorState, event: &Event, range: std::ops::Range<usize>) {
     match event {
-        Event::Start(Tag::Heading {
-            level: HeadingLevel::H2 | HeadingLevel::H3,
-            ..
-        }) => {
-            let marker = st.effective_marker();
-            flush_pending(
-                &mut st.pending,
-                marker,
-                st.pending_polarity,
-                &st.rust_blocks,
-                st.path,
-                nodes,
-            );
-            st.pending_marker = None;
-            st.pending_polarity = Polarity::Declared;
-            st.rust_blocks.clear();
-            st.heading_buf.clear();
-            st.in_heading_at = Some(line_of_offset(&st.line_starts, range.start));
-        }
-        Event::End(TagEnd::Heading(HeadingLevel::H2 | HeadingLevel::H3)) => {
-            if let Some(line) = st.in_heading_at.take() {
-                let name = normalize_heading(&st.heading_buf);
-                if !name.is_empty() {
-                    st.pending = Some((name, line));
-                }
-            }
-        }
-        Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(lang)))
-            if st.pending.is_some() && lang.as_ref() == "rust" =>
-        {
-            st.in_rust_block = true;
+        Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(lang))) if lang.as_ref() == "rust" => {
+            st.in_rust_block_at = Some(line_of_offset(&st.line_starts, range.start));
             st.block_buf.clear();
         }
-        Event::End(TagEnd::CodeBlock) if st.in_rust_block => {
-            st.rust_blocks.push(std::mem::take(&mut st.block_buf));
-            st.in_rust_block = false;
-        }
-        Event::Start(Tag::HtmlBlock) if st.pending.is_some() => {
-            st.in_html_at = Some(line_of_offset(&st.line_starts, range.start));
-            st.html_buf.clear();
-        }
-        Event::Html(ref html) if st.in_html_at.is_some() => st.html_buf.push_str(html),
-        Event::End(TagEnd::HtmlBlock) => {
-            if let Some(line) = st.in_html_at.take() {
-                finish_html(st, line);
+        Event::End(TagEnd::CodeBlock) => {
+            if let Some(line) = st.in_rust_block_at.take() {
+                st.collected
+                    .rust_blocks
+                    .push((line, std::mem::take(&mut st.block_buf)));
             }
         }
-        Event::Start(Tag::Item) if st.pending.is_some() => {
-            st.in_bullet = Some(line_of_offset(&st.line_starts, range.start));
+        Event::Start(Tag::Item) => {
+            st.in_bullet_at = Some(line_of_offset(&st.line_starts, range.start));
             st.bullet_buf.clear();
         }
-        Event::End(TagEnd::Item) if st.in_bullet.is_some() => {
-            if let Some(line) = st.in_bullet.take() {
-                finish_bullet(st, line, edges, verb_anchors);
+        Event::End(TagEnd::Item) => {
+            if let Some(line) = st.in_bullet_at.take() {
+                st.collected
+                    .bullets
+                    .push((line, std::mem::take(&mut st.bullet_buf)));
             }
         }
-        Event::Text(s) | Event::Code(s) => absorb_text(st, &s),
+        Event::Text(s) | Event::Code(s) => absorb_text(st, s),
         _ => {}
     }
 }
 
-fn finish_html(st: &mut SectionState, line: usize) {
-    let html = std::mem::take(&mut st.html_buf);
-    let Some((_, heading_line)) = st.pending.as_ref() else {
-        return;
-    };
-    if is_first_content_line(st.source, *heading_line, line) {
-        st.pending_polarity = polarity_from_comment(&html);
-    }
-}
-
-fn absorb_text(st: &mut SectionState, s: &str) {
-    if st.in_heading_at.is_some() {
-        st.heading_buf.push_str(s);
-    } else if st.in_rust_block {
+fn absorb_text(st: &mut CollectorState, s: &str) {
+    if st.in_rust_block_at.is_some() {
         st.block_buf.push_str(s);
-    } else if st.in_bullet.is_some() {
+    } else if st.in_bullet_at.is_some() {
         st.bullet_buf.push_str(s);
     }
 }
 
-fn finish_bullet(
-    st: &mut SectionState,
-    line: usize,
-    edges: &mut Vec<Edge>,
-    verb_anchors: &mut Vec<VerbAnchor>,
-) {
-    let Some(concept) = st.current_concept().map(str::to_owned) else {
-        st.bullet_buf.clear();
-        return;
-    };
-    let text = std::mem::take(&mut st.bullet_buf);
-    if let Some(marker) = parse_status_marker(text.as_str()) {
-        if let Some((_, heading_line)) = st.pending.as_ref() {
-            if is_first_content_line(st.source, *heading_line, line) {
-                st.pending_marker = Some(marker);
-            }
-        }
-        return;
-    }
-    if let Some((kind, token, raw)) = parse_bullet_edge(text.as_str()) {
-        edges.push(Edge {
-            source_concept: concept,
-            kind,
-            target: token,
-            raw_target: raw,
-            source: Source::Spec {
-                path: st.path.to_path_buf(),
-                line,
-            },
-        });
-    } else if let Some(mut anchor) = parse_verb_bullet(text.as_str()) {
-        anchor.concept = concept;
-        anchor.source = Source::Spec {
-            path: st.path.to_path_buf(),
-            line,
-        };
-        verb_anchors.push(anchor);
-    } else if let Some(mut anchor) = parse_impl_bullet(text.as_str()) {
-        anchor.concept = concept;
-        anchor.source = Source::Spec {
-            path: st.path.to_path_buf(),
-            line,
-        };
-        st.concept_anchors.push(anchor);
-    }
-}
-
-fn flush_pending(
-    pending: &mut Option<(String, usize)>,
-    marker: Option<Marker>,
-    polarity: Polarity,
-    rust_blocks: &[String],
-    path: &Path,
-    out: &mut Vec<ConceptNode>,
-) {
-    if let Some((name, line)) = pending.take() {
-        let mut node = ConceptNode::new(
-            name,
-            Source::Spec {
-                path: path.to_path_buf(),
-                line,
-            },
-            signature_from_blocks(rust_blocks),
-        )
-        .with_polarity(polarity);
-        node.marker = marker.unwrap_or_default();
-        out.push(node);
-    }
-}
-
-fn is_first_content_line(source: &str, heading_line: usize, bullet_line: usize) -> bool {
-    if bullet_line <= heading_line {
-        return false;
-    }
-    source
-        .lines()
-        .skip(heading_line)
-        .take(bullet_line - heading_line - 1)
-        .all(|l| l.trim().is_empty())
-}
-
-fn signature_from_blocks(blocks: &[String]) -> SignatureState {
+fn signature_from_blocks(blocks: &[&str]) -> SignatureState {
     match blocks {
         [] => SignatureState::Absent,
         [only] => parse_single_block(only),
@@ -287,11 +180,4 @@ fn parse_single_block(raw: &str) -> SignatureState {
             error: e.to_string(),
         },
     }
-}
-
-fn normalize_heading(raw: &str) -> String {
-    let trimmed = raw.trim();
-    trimmed
-        .find('<')
-        .map_or_else(|| trimmed.to_string(), |i| trimmed[..i].trim().to_string())
 }

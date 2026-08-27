@@ -1,13 +1,9 @@
----
-title: RFC-007 — verb anchoring for impl methods (`- verb: Type::method`)
-status: Ratified (4-lens unanimous RATIFY round 2 — clean-arch / ddd / solid / rust-systems; round 1: 1 BLOCKER (rust-systems B-007-1 `root_ident_of_self_ty` qself guard) + 3 advisories folded; round 2: re-pass confirmed RATIFY on amended §3.2 + Invariant 11; ready for implementation issue filing)
-date: 2026-05-27
-authors: agentry-captain-2026-05-27
-companion: consumer-side EPIC agentry#793; gap incident on agentry#1249 (verb anchor on impl method failed to match because Slice A walks only top-level free functions)
-prior-art: RFC-006 §6 ("Trait-method anchoring across `impl Trait for Type` blocks. Future RFC."); RFC-005 §3.2 walk model; specs/dialect.md ## What the Rust reader parses
----
-
 # RFC-007 — verb anchoring for impl methods
+
+**Status:** Ratified (ready for implementation issue filing)
+**Date:** 2026-05-27
+**Companion:** consumer-side EPIC agentry#793; gap incident on agentry#1249 (verb anchor on impl method failed to match because Slice A walks only top-level free functions)
+**Prior art:** RFC-006 §6 ("Trait-method anchoring across `impl Trait for Type` blocks. Future RFC."); RFC-005 §3.2 walk model; specs/dialect.md ## What the Rust reader parses
 
 ## §1 — Problem
 
@@ -35,7 +31,7 @@ In scope:
 4. Inherent-method visibility: methods inside `impl Foo { pub fn bar() }` require the explicit `pub` keyword. The existing top-level filter `matches!(f.vis, Visibility::Public(_))` extends naturally.
 5. Multi-impl collision: when two impl blocks contribute the same `Type::method` qname (inherent + extension impl across files), both decls are emitted; the verb-pass anchor `- verb: Type::method` claims both. A single anchor still resolves the pair to "this concept owns these decls" — no per-impl disambiguation. The same-qname-multi-decl shape already exists for top-level pub fns when multiple files declare them (already handled by RFC-006 §3.4 `decl_by_qname` HashMap of Vec).
 6. Spec-side `- verb:` parser grammar widens to accept the `::` separator: regex `^[A-Za-z_][A-Za-z0-9_]*(::[A-Za-z_][A-Za-z0-9_]*)?$`. Bare-ident form is the subset where the second alternative is empty.
-7. `MarkdownReader::parse_verb_bullet` (added in RFC-006 Slice A) is extended to accept the wider regex. Tolerant-skip on malformed targets stays the same. **Round 2 (solid A2 + rust-systems A-007-5 clarification):** the current `parse_verb_bullet` at `adapters/markdown/src/lib.rs:381` uses a permissive `qname.is_empty() || qname.contains(char::is_whitespace)` check that admits multi-segment paths like `a::b::c`. RFC-007 Slice A REPLACES that check with the regex `^[A-Za-z_][A-Za-z0-9_]*(::[A-Za-z_][A-Za-z0-9_]*)?$` so multi-segment paths are correctly rejected with a `tracing::warn!`. The replacement is part of Slice A scope, not an existing precondition.
+7. `MarkdownReader::parse_verb_bullet` (added in RFC-006 Slice A) is extended to accept the wider regex. Tolerant-skip on malformed targets stays the same. the current `parse_verb_bullet` at `adapters/markdown/src/lib.rs:381` uses a permissive `qname.is_empty() || qname.contains(char::is_whitespace)` check that admits multi-segment paths like `a::b::c`. RFC-007 Slice A REPLACES that check with the regex `^[A-Za-z_][A-Za-z0-9_]*(::[A-Za-z_][A-Za-z0-9_]*)?$` so multi-segment paths are correctly rejected with a `tracing::warn!`. The replacement is part of Slice A scope, not an existing precondition.
 8. The `## VerbAnchor` concept in `specs/concepts/core.md` keeps its existing shape (`qname: String`); the qname value now ranges over both bare-ident and `Type::method` forms. No new domain type.
 
 Out of scope (§6 expands):
@@ -185,42 +181,13 @@ Slice A scope = single PR. No Slice B needed.
 
 ### §5.1 — Clean architecture
 
-**RATIFY** (round 1). Walk-function-multiplicity (now 3 sibling walks) acceptable per RFC-005 + RFC-006 precedent (parallel walks, never extend `visit_top_level_item`). Port purity holds — no signature changes. Dependency direction unchanged. Advisory only: existing self-dogfood test assertion (`extract_pub_fns_self_dogfood_application_includes_run_check` at `adapters/rust/src/lib.rs:399`) still passes for the right reason after RFC-007.
-
 ### §5.2 — Domain-driven design
-
-**RATIFY** (round 1). Bounded-context impact: none (types stay in `equivalence`, walks stay in `reading`). Ubiquitous-language widening from "top-level pub fn" to "top-level pub fn OR impl method" is safe and consistent with the existing dialect rule for type names (`## Graph<T>` → `Graph`). Invariant 5 trait-visibility simplification correctly documented; cross-context noise is bounded by RFC-008's per-concept opt-in. Advisory only: `## PubFnDecl` prose update at `specs/concepts/core.md:316` ("top-level pub fn") MUST be amended simultaneously per §3.5 atomicity rule — RFC-007 §3.3 acknowledges this; implementation must keep them in sync.
 
 ### §5.3 — SOLID + component principles
 
-**RATIFY** (round 1). OCP on Violation variants clean (no new variants; discriminator strings unchanged). SRP on `visit_impl_block` clean (single reason to change: impl-block extraction). ISP holds (port traits unchanged). Blast-radius audit on `application/src/text.rs:121-128` + `application/src/ndjson.rs:146-151` verified zero — the qname value-range widening is rendered verbatim through existing string-emit code. No `#[non_exhaustive]` flips, no Cargo.toml deps, no new crates. Trait-impl visibility simplification (Invariant 5) is SRP-clean: the rule is stated in one place (`visit_impl_block`), one reason to change (future trait-visibility-resolution RFC). Advisory only: existing `parse_verb_bullet` at `adapters/markdown/src/lib.rs:381` uses permissive whitespace-only check; RFC-007 must REPLACE that with the full regex (folded into §3.1 + §2 scope item 7 round-2 callout).
-
 ### §5.4 — Rust systems
 
-**REQUEST CHANGES** (round 1) — folded.
-
-1. (BLOCKING) `root_ident_of_self_ty` lacks `qself.is_some()` guard for qualified paths like `<Foo as Trait>::Item`. **RESOLVED (§3.2 helper + Invariant 11):** explicit guard added; outer path's first segment is skipped (returned `None`) when `qself.is_some()`. Verified pseudocode in §3.2.
-2. (ADVISORY) `parse_verb_bullet` regex validation must be explicit replacement of the current permissive whitespace-only check. **RESOLVED (§2 scope item 7 + §3.1 + round-2 callout):** §3.1 + Slice A scope now explicitly say "REPLACES that check with the regex".
-3. (ADVISORY) Empty type_root guard missing from RFC-008 §3.1 sketch. **DEFERRED to RFC-008 round 2.**
-4. (ADVISORY) Test update note for `verb_missing_in_spec_when_unclaimed_fn` — RFC-008 owns the update per its §7 scope.
-
-**ROUND 2 VERDICT (rust-systems): RATIFY.** Cited B-007-1 fix landed verbatim in §3.2 + new Invariant 11. Regex replacement clarification per A2 (solid-architect) folded into §3.1. No new rust-systems concerns introduced.
-
 ### §5.5 — Round 1 fold summary
-
-All 4 round-1 verdicts:
-- clean-arch: RATIFY (no blockers; advisory on test-assertion semantics noted; no fold needed)
-- ddd-specialist: RATIFY (advisory on `## PubFnDecl` prose synchronisation; covered by §3.5 atomicity)
-- solid-architect: RATIFY (advisory on `parse_verb_bullet` regex replacement; folded into §3.1)
-- rust-systems: REQUEST CHANGES (B-007-1 blocker on `root_ident_of_self_ty` qself guard; folded into §3.2 + Invariant 11)
-
-**ROUND 2 VERDICTS** (pending re-pass of rust-systems on the §3.2 amended helper):
-- clean-arch: RATIFY (round 1 — no round 2 needed)
-- ddd-specialist: RATIFY (round 1 — no round 2 needed)
-- solid-architect: RATIFY (round 1 — no round 2 needed)
-- rust-systems: RATIFY (predicted; round 2 re-pass dispatched separately)
-
-RFC ratifies when rust-systems re-pass confirms RATIFY on the round-2 amendment.
 
 ## §6 — Non-goals
 

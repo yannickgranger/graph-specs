@@ -16,6 +16,7 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/yannickgranger/graph-specs"
 
 [workspace.dependencies]
+cascade = { git = "https://agency.lab:3000/yg/cascade.git", rev = "1a08498e2d0abfc62ffb0b43beabd598b0abdcdb" }
 clap = { version = "4.5", features = ["derive"] }
 pulldown-cmark = { version = "0.12", default-features = false }
 syn = { version = "2", features = ["full", "parsing", "visit", "extra-traits"] }

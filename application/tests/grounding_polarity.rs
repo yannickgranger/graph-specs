@@ -110,14 +110,22 @@ fn the_168_reproduction_both_directions() {
 }
 
 #[test]
-fn an_unreadable_polarity_leaves_the_obligation_armed() {
-    let o = run_case("frobidden", false);
+fn an_unknown_polarity_value_is_malformed_and_never_a_silent_default() {
+    let specs = TempDir::new().unwrap();
+    let code = TempDir::new().unwrap();
+    write(
+        specs.path(),
+        "concepts/topology.md",
+        "## Member\n<!-- parent:spec:Unit polarity:frobidden -->\n\nProse.\n",
+    );
+    cargo_toml(code.path());
+    write(code.path(), "src/lib.rs", "");
+
+    let err = application::run_check(specs.path(), code.path())
+        .expect_err("a typo'd value must refuse, never fall back to declared");
     assert!(
-        o.violations
-            .iter()
-            .any(|v| matches!(v, Violation::MissingInCode { name, .. } if name == "Member")),
-        "a typo'd value falls back to declared: {:?}",
-        o.violations
+        matches!(&err, ports::ReaderError::ParseFailed { message, .. } if message.contains("unknown polarity")),
+        "got {err:?}"
     );
 }
 
@@ -146,7 +154,7 @@ fn a_verb_anchor_under_a_non_declared_heading_imposes_no_obligation() {
         write(
             specs.path(),
             "concepts/topology.md",
-            &format!("# topology\n\n## Member\n<!-- polarity:{polarity} -->\n\n- verb: reclaim\n"),
+            &format!("# topology\n\n## Member\n<!-- parent:spec:Unit polarity:{polarity} -->\n\n- verb: reclaim\n"),
         );
         write(
             specs.path(),
@@ -180,7 +188,9 @@ fn a_dangling_impl_anchor_under_a_non_declared_heading_fires_nothing() {
         write(
             specs.path(),
             "concepts/topology.md",
-            &format!("## Member\n<!-- polarity:{polarity} -->\n\n- impl: gone_fn\n"),
+            &format!(
+                "## Member\n<!-- parent:spec:Unit polarity:{polarity} -->\n\n- impl: gone_fn\n"
+            ),
         );
         cargo_toml(code.path());
         write(code.path(), "src/lib.rs", "");
@@ -201,7 +211,7 @@ fn the_spec_state_marker_is_inert_under_a_non_declared_heading() {
     write(
         specs.path(),
         "concepts/topology.md",
-        "---\nstatus: draft\n---\n\n## Member\n<!-- polarity:forbidden -->\n\nProse.\n",
+        "---\nstatus: draft\n---\n\n## Member\n<!-- parent:spec:Unit polarity:forbidden -->\n\nProse.\n",
     );
     cargo_toml(code.path());
     write(code.path(), "src/lib.rs", "pub struct Member;\n");

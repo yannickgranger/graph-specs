@@ -88,7 +88,7 @@ fn a_name_is_pointable_when_any_heading_carrying_it_is() {
     write(
         specs.path(),
         "concepts/alpha.md",
-        "## S\n\n- depends on: T\n\n## T\n<!-- polarity:illustrative -->\n\nProse.\n",
+        "## S\n\n- depends on: T\n\n## T\n<!-- parent:spec:S polarity:illustrative -->\n\nProse.\n",
     );
     write(specs.path(), "concepts/beta.md", "## T\n\nProse.\n");
     cargo_toml(code.path());
@@ -115,12 +115,12 @@ fn a_name_is_unpointable_only_when_every_heading_carrying_it_is() {
     write(
         specs.path(),
         "concepts/alpha.md",
-        "## S\n\n- depends on: T\n\n## T\n<!-- polarity:illustrative -->\n\nProse.\n",
+        "## S\n\n- depends on: T\n\n## T\n<!-- parent:spec:S polarity:illustrative -->\n\nProse.\n",
     );
     write(
         specs.path(),
         "concepts/beta.md",
-        "## T\n<!-- polarity:illustrative -->\n\nProse.\n",
+        "## T\n<!-- parent:spec:S polarity:illustrative -->\n\nProse.\n",
     );
     cargo_toml(code.path());
     write(code.path(), "src/lib.rs", "pub struct S;\n");
@@ -142,7 +142,7 @@ fn one_unpointable_heading_does_not_make_a_shared_name_unpointable() {
     write(
         specs.path(),
         "concepts/alpha.md",
-        "## S\n\n- depends on: T\n\n## T\n<!-- polarity:illustrative -->\n\nProse.\n",
+        "## S\n\n- depends on: T\n\n## T\n<!-- parent:spec:S polarity:illustrative -->\n\nProse.\n",
     );
     write(specs.path(), "concepts/beta.md", "## T\n\nProse.\n");
     cargo_toml(code.path());

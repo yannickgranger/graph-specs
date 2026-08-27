@@ -1,4 +1,4 @@
-use domain::{tokenise_target, ConceptAnchor, EdgeKind, Marker, Source, VerbAnchor};
+use domain::{tokenise_target, ConceptAnchor, EdgeKind, Source, VerbAnchor};
 use regex::Regex;
 use std::sync::LazyLock;
 
@@ -53,23 +53,6 @@ pub fn parse_impl_bullet(text: &str) -> Option<ConceptAnchor> {
             line: 0,
         },
     })
-}
-
-#[must_use]
-pub fn parse_status_marker(text: &str) -> Option<Marker> {
-    let rest = text.trim().strip_prefix("status:")?;
-    marker_from_value(rest.split_whitespace().next()?)
-}
-
-#[must_use]
-pub const fn marker_from_value(value: &str) -> Option<Marker> {
-    if value.eq_ignore_ascii_case("draft") {
-        Some(Marker::Draft)
-    } else if value.eq_ignore_ascii_case("retired") {
-        Some(Marker::Retired)
-    } else {
-        None
-    }
 }
 
 pub fn parse_bullet_edge(text: &str) -> Option<(EdgeKind, String, String)> {

@@ -1,13 +1,9 @@
----
-title: RFC-003 — OSS readiness + public CI
-status: RATIFIED — round 2 (2026-04-21): clean-arch RATIFY, ddd-specialist RATIFY, solid-architect RATIFY (round 1, with one advisory carried into R3-3), rust-systems RATIFY
-date: 2026-04-21
-authors: Claude (session 2026-04-21, EPIC umbrella for OSS + multi-language)
-companion: yg/cfdb (visibility mirror only — cfdb gates remain Gitea-only; see §3.2)
-supersedes: —
----
-
 # RFC-003 — OSS readiness + public CI
+
+**Status:** RATIFIED — round 2 (2026-04-21)
+**Date:** 2026-04-21
+**Supersedes:** —
+**Companion:** yg/cfdb (visibility mirror only — cfdb gates remain Gitea-only; see §3.2)
 
 ## §1 — Problem
 
@@ -89,7 +85,7 @@ Four jobs, all on `ubuntu-latest` with the public `rust:1.93` Docker image:
 - `audit` (cargo-audit) — runs weekly on Gitea cron; no need on every contributor PR
 - `cfdb-check`, `cross-dogfood` — Gitea-only per §3.2
 
-**No sccache initially.** The workspace is 5 crates / ~6.3k LOC; cold builds on free-tier `ubuntu-latest` are realistically **3–5 minutes** (syn 2 with `full` features + proc-macro2 are the codegen bottleneck, per rust-systems lens RC-3). This is acceptable for contributor-facing CI. If feedback latency becomes a concern, `Swatinem/rust-cache` (GitHub Actions artifact cache, no external infrastructure) is the first fallback before reaching for sccache.
+**No sccache initially.** The workspace is 5 crates / ~6.3k LOC; cold builds on free-tier `ubuntu-latest` are realistically **3–5 minutes** (syn 2 with `full` features + proc-macro2 are the codegen bottleneck). This is acceptable for contributor-facing CI. If feedback latency becomes a concern, `Swatinem/rust-cache` (GitHub Actions artifact cache, no external infrastructure) is the first fallback before reaching for sccache.
 
 **Workflow yaml is ~50 lines total**, single file. CONTRIBUTING.md (R3-2 deliverable) tells external contributors:
 
@@ -142,7 +138,7 @@ OQ-1 (resolved below): does this go in `specs/concepts/core.md` (under the gate)
 ## §4 — Invariants
 
 1. **The equivalence semantics do not change.** Phase 1 is plumbing and policy. The `domain::diff` algorithm, the four equivalence levels, the NDJSON wire schema v2 — all unchanged.
-2. **Canonical CI is Gitea.** All eight Gitea jobs (fmt, clippy-strict, clippy-pedantic, build, test, dogfood, audit, cfdb-check + cross-dogfood) continue to run unchanged. The mirror workflow (R3-3a) only adds an outbound explicit-refspec push of `develop` / `main` / tags to GitHub (per rust-systems RC-1); it does not modify any existing Gitea job.
+2. **Canonical CI is Gitea.** All eight Gitea jobs (fmt, clippy-strict, clippy-pedantic, build, test, dogfood, audit, cfdb-check + cross-dogfood) continue to run unchanged. The mirror workflow (R3-3a) only adds an outbound explicit-refspec push of `develop` / `main` / tags to GitHub; it does not modify any existing Gitea job.
 3. **Self-dogfood stays green throughout.** Every commit on the work branch passes `graph-specs check --specs specs/ --code .` against the latest tool binary on Gitea.
 4. **Cross-dogfood stays green throughout.** The existing Gitea cross-dogfood job continues to pass against the pinned cfdb SHA; nothing in Phase 1 perturbs the cross-fixture protocol.
 5. **No deletion of agent-author CLAUDE.md slot.** The 3-line stub preserves the path; agent harnesses that auto-load it continue to work.
@@ -152,70 +148,15 @@ OQ-1 (resolved below): does this go in `specs/concepts/core.md` (under the gate)
 
 ## §5 — Architect lenses
 
-(All four return verdicts inline after round 1.)
-
 ### §5.0 — Verdict summary (rounds 1 + 2)
-
-| Lens | Round 1 | RC items | Round 2 |
-|---|---|---|---|
-| Clean architecture | REQUEST CHANGES | RC-1 stale `OSS_CFDB_GATES` ref at §10; RC-2 dup paragraph in §9.3 | RATIFY |
-| Domain-driven design | REQUEST CHANGES | RC-1 "canonical CI surface" conflation §3.1; RC-2 drop "publish-paired" frontmatter+§3.2; RC-3 "shape-mirror" homonym §3.3 | RATIFY |
-| SOLID + components | RATIFY | — (one advisory: R3-3 split-allowance noted in issue body) | (n/a — single round) |
-| Rust systems | REQUEST CHANGES | RC-1 (mandatory) `--mirror` deletes contributor branches → explicit refspec; RC-2 fine-grained PAT scope + 90d rotation; RC-3 cold-build estimate 60–90s → 3–5 min; RC-4 `actions/checkout@v4` + no `/cache/cargo` block | RATIFY (with non-blocking editorial note on §4 I2; fixed in r4) |
-
-**RFC RATIFIED** at round 2. All four lens verdicts returned RATIFY against the patched RFC. §7 is now the concrete backlog and Phase 1 implementation may proceed.
 
 ### §5.1 — Clean architecture (`clean-arch`) — Round 1
 
-**Verdict: REQUEST CHANGES** (both items applied in r3).
-
-- **RC-1 (minor):** §10 line 241 re-introduced `OSS_CFDB_GATES` after §3.2 dropped it; downstream implementer reading §10 as a contract would wire an env-flag the RFC explicitly does not ship. Replaced parenthetical with "the canonical Gitea CI gates (graph-specs check + cfdb-check + cross-dogfood). The contributor-feedback CI on the GitHub mirror is informational only."
-- **RC-2 (minor):** §9.3 contained a duplicated paragraph (copy-paste artifact, the second referenced "R3-5" instead of "R3-2"). Removed the second copy; R3-2 (doc split) owns the workflow-mode blind-spot documentation per §3.4 + §7.
-
-**Findings that did NOT require changes:** dependency direction clean (mirror workflow on Gitea side, contributor CI on GitHub side, no inner-to-outer import); port purity clean (doc split has no trait signatures); screaming architecture satisfactory (`contributor-ci` and `mirror-to-github` are intent-revealing); composition root sound (CLAUDE.md stub preserved per §3.4 / §4 I5); R3-3 bundling acceptable (CCP win for atomic-deploy, both artifacts exist solely because of the GitHub-mirror decision); §9 forward-looking citation correctly scoped as "RFC-004 territory" — no premature dependency.
-
-**Round 2 verdict: RATIFY.** Both round-1 RC items verified clean. The explicit-refspec change from rust-systems RC-1 is a tighter safety constraint that strengthens, not undermines, the composition root boundary (contributor branches on the GitHub side are no longer silently deleted by the mirror push).
-
 ### §5.2 — Domain-driven design (`ddd-specialist`) — Round 1
-
-**Verdict: REQUEST CHANGES** (all three items applied in r3).
-
-- **RC-1:** §3.1 line 56 read "canonical write surface AND the canonical CI surface" — the compound "canonical CI surface" did double duty (Gitea CI + the contributor-vs-canonical CI distinction §3.3 owns). Split into "canonical write surface and the sole merge authority"; let §3.3 own the contributor-vs-canonical CI vocabulary distinction without §3.1 pre-empting it.
-- **RC-2:** Coined term "publish-paired" (frontmatter + §3.2) was a new term that grammatically resembled DDD "Published Language" while describing an operational deployment decision. Dropped entirely; replaced with plain prose "cfdb is mirrored to github.com/yannickgranger/cfdb under the same one-way Gitea→GitHub mirror pattern (§3.1), for visibility only; no CI coupling." Frontmatter changed to "visibility mirror only — cfdb gates remain Gitea-only; see §3.2." `docs/cross-fixture-bump.md §1.1` cited as canonical home for "companion repo" term.
-- **RC-3:** §3.3 Notes column used "shape-mirror of gitea `<job>`" alongside §3.1's "git mirror" sense — homonym. Replaced with "analogous to gitea `<job>`".
-
-**Advisory carried (no RC):** "contributor-feedback CI" vs "canonical CI" is correctly an operational/process concept, NOT a domain concept; no `specs/contexts/` entry needed. CONTRIBUTING.md (R3-2) author should not over-formalize it.
-
-**Round 2 verdict: RATIFY.** All three round-1 RC items resolved cleanly. No new vocabulary terms introduced by the other lenses' RC fixes; "companion repo" stays the canonical relationship term per `docs/cross-fixture-bump.md §1.1`.
 
 ### §5.3 — SOLID + component principles (`solid-architect`) — Round 1
 
-**Verdict: RATIFY** with one advisory (carried into R3-3 issue body via §7).
-
-Stability metrics sanity-checked: zero new crates added in §7, so the existing five-crate stability table is unchanged (domain D=1.00 OK, ports D=0.00 Main Sequence, application D=0.00 composition root). RFC's claim in §3.5 holds.
-
-SRP on the `CONTRIBUTING.md` doc split satisfied — three sub-topics (RFC-first methodology, dual-surface model, cfdb carve-out) share the same consumer (external contributor) and the same change trigger (publishing-model evolution). Bundling them in one file matches RFC-002 §5.3's CCP precedent for `docs/cross-fixture-bump.md`. Splitting into separate files would force CRP violations (contributors reading N files for one workflow).
-
-ISP on the contributor CI satisfied — fmt + clippy-strict + build + test are four orthogonal feedback channels, each with distinguishable signal; the four-job shape is the minimum feedback surface.
-
-OCP on the mirror trigger resolved — §3.1 already includes `tags` in the `on: push` trigger, so RFC-008 tag-based releases extend without modification.
-
-ADP satisfied — no new compile-time edges, the existing acyclic graph (domain ← ports ← adapters ← application) is unperturbed.
-
-**Advisory:** R3-3 bundles `mirror-to-github.yml` and `contributor-ci.yml` for atomic-deploy convenience, but the two have independent change vectors (PAT rotation vs job set / image bump). Splitting into R3-3a/R3-3b post-ship is permitted without methodology violation. Captured inline in R3-3's issue prescription.
-
 ### §5.4 — Rust systems (`rust-systems`) — Round 1
-
-**Verdict: REQUEST CHANGES** (RC-1 mandatory; RC-2/3/4 non-blocking; all four applied in r3).
-
-- **RC-1 (mandatory):** `git push --mirror github` deletes remote refs that don't exist locally. The dual-surface model has contributors push branches directly on GitHub (per §3.1 line 61); the next Gitea-side mirror push would delete those contributor branches before the maintainer cherry-picks. Replaced with explicit refspec `git push github refs/heads/develop:refs/heads/develop refs/heads/main:refs/heads/main 'refs/tags/*:refs/tags/*'` (§3.1 + R3-3) — pushes only develop/main/tags, never deletes GitHub-side branches.
-- **RC-2 (non-blocking):** `GITHUB_MIRROR_PAT` scope was unspecified in r2. R3-3 now requires "fine-grained PAT scoped to `yannickgranger/graph-specs` with `Contents: Write` only, 90-day rotation reminder."
-- **RC-3 (non-blocking):** Cold-build estimate of "60–90s" in §3.3 was optimistic — `syn 2` with `full` features + `proc-macro2` are codegen bottlenecks; realistic is 3–5 min on free-tier `ubuntu-latest`. §3.3 revised; `Swatinem/rust-cache` named as first fallback if feedback latency becomes a concern (artifact cache, no external infra) before reaching for sccache.
-- **RC-4 (non-blocking, implementation guard):** Contributor-CI Setup must use `actions/checkout@v4` directly (github runners have Node.js on the host, unlike Gitea's `rust:1.93` container) and MUST NOT copy the Gitea `/cache/cargo` symlink block (no persistent host mount on github-hosted runners). Inlined into R3-3.
-
-**Findings that did NOT require changes:** `Cargo.toml.repository` portability clean (zero in-tree `CARGO_PKG_REPOSITORY` references); `rust:1.93` Docker Hub image works identically on github-hosted runners; coherence/orphan-rule risk is no-op (zero new Rust crates).
-
-**Round 2 verdict: RATIFY.** All four round-1 RC items resolved. Non-blocking editorial note: §4 Invariant 2 originally still referenced `git push --mirror github` (not updated when §3.1 / §7 were patched in r3); fixed in r4 to "an outbound explicit-refspec push of `develop` / `main` / tags to GitHub (per rust-systems RC-1)". Does not change any design decision.
 
 ## §6 — Non-goals
 
@@ -236,7 +177,7 @@ Each child issue carries the standard `Tests:` template (Unit / Self dogfood / C
 |---|---|---|
 | **R3-1** | Update `Cargo.toml.repository` to `https://github.com/yannickgranger/graph-specs`. Update README links from `agency.lab:3000` to `github.com/yannickgranger`. Add `.github/ISSUE_TEMPLATE/{bug,rfc-proposal,feature-request}.md`. | Unit: none — text changes. Self dogfood: tool runs unchanged after the URL flip (smoke). Cross dogfood: existing pinned cfdb SHA still resolves correctly via Gitea. Target dogfood: none. |
 | **R3-2** | Doc split: `CLAUDE.md` → `CONTRIBUTING.md` + `INTERNAL.md` + 3-line `CLAUDE.md` stub. Add `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1). `CONTRIBUTING.md` documents the dual-surface model (Gitea canonical, GitHub mirror, contributor-feedback CI vs canonical CI distinction). | Unit: none — docs only. Self dogfood: 0 violations. Cross dogfood: none. Target dogfood: none — rationale: no executable surface touched. |
-| **R3-3** | **Gitea→GitHub mirror + contributor-feedback CI.** Two artifacts in one slice: (a) `.gitea/workflows/mirror-to-github.yml` — runs on push to `develop` / `main` / tags, executes `git push github refs/heads/develop:refs/heads/develop refs/heads/main:refs/heads/main 'refs/tags/*:refs/tags/*'` (explicit refspec, NOT `--mirror` per rust-systems RC-1, to avoid deleting GitHub-side contributor branches) using a **fine-grained PAT** scoped to `yannickgranger/graph-specs` with `Contents: Write` only (`GITHUB_MIRROR_PAT`, 90-day rotation reminder per rust-systems RC-2); (b) `.github/workflows/contributor-ci.yml` — fires only on `pull_request: [opened, synchronize, reopened]`, four jobs (fmt / clippy-strict / build / test) on `ubuntu-latest` with `rust:1.93` image, **uses `actions/checkout@v4` directly** (NOT the Gitea manual-clone pattern; github runners have Node.js on the host) and **MUST NOT copy the Gitea `/cache/cargo` symlink Setup block** (rust-systems RC-4). Plus a tiny optional issue-mirror webhook (Gitea side, OQ-3 resolved) that copies new GitHub issues to Gitea. The two workflow files have independent change vectors (PAT rotation vs job set / image bump) — splitting into R3-3a/R3-3b is allowed without methodology violation if they diverge post-ship (solid-architect advisory). | Unit: yaml-lint + shellcheck on both workflow files. Self dogfood: a throwaway PR against the GitHub mirror runs all four jobs green. Cross dogfood: the new mirror workflow on Gitea pushes successfully without breaking existing Gitea jobs. Target dogfood: a green run on `github.com/yannickgranger/graph-specs/pulls/<n>` is the proof. |
+| **R3-3** | **Gitea→GitHub mirror + contributor-feedback CI.** Two artifacts in one slice: (a) `.gitea/workflows/mirror-to-github.yml` — runs on push to `develop` / `main` / tags, executes `git push github refs/heads/develop:refs/heads/develop refs/heads/main:refs/heads/main 'refs/tags/*:refs/tags/*'` (explicit refspec, NOT `--mirror`, to avoid deleting GitHub-side contributor branches) using a **fine-grained PAT** scoped to `yannickgranger/graph-specs` with `Contents: Write` only (`GITHUB_MIRROR_PAT`, 90-day rotation reminder); (b) `.github/workflows/contributor-ci.yml` — fires only on `pull_request: [opened, synchronize, reopened]`, four jobs (fmt / clippy-strict / build / test) on `ubuntu-latest` with `rust:1.93` image, **uses `actions/checkout@v4` directly** (NOT the Gitea manual-clone pattern; github runners have Node.js on the host) and **MUST NOT copy the Gitea `/cache/cargo` symlink Setup block**. Plus a tiny optional issue-mirror webhook (Gitea side, OQ-3 resolved) that copies new GitHub issues to Gitea. The two workflow files have independent change vectors (PAT rotation vs job set / image bump) — splitting into R3-3a/R3-3b is allowed without methodology violation if they diverge post-ship. | Unit: yaml-lint + shellcheck on both workflow files. Self dogfood: a throwaway PR against the GitHub mirror runs all four jobs green. Cross dogfood: the new mirror workflow on Gitea pushes successfully without breaking existing Gitea jobs. Target dogfood: a green run on `github.com/yannickgranger/graph-specs/pulls/<n>` is the proof. |
 | **R3-4** | New "Limits of equivalence checking" section in `specs/concepts/core.md`. Closes #64. Also notes the workflow-mode dimension surfaced in §9 (legacy archaeology has the same blind-spot shape, amplified for codebases without inline attributes). | Unit: none. Self dogfood: section is gated as a spec concept, dogfood passes. Cross dogfood: cfdb still passes. Target dogfood: none. |
 | **R3-5** | README rewrite per §3.6. | Unit: none. Self dogfood: no impact. Cross dogfood: no impact. Target dogfood: none. |
 
@@ -281,9 +222,6 @@ The blind spot to flag in `CONTRIBUTING.md` (R3-2 deliverable): legacy code with
 
 ## §10 — Ratification
 
-**RATIFIED 2026-04-21.** All four architect lenses returned RATIFY:
-
-- Round 1: solid-architect RATIFY; clean-arch / ddd-specialist / rust-systems REQUEST CHANGES (10 RC items total).
-- Round 2: clean-arch RATIFY, ddd-specialist RATIFY, rust-systems RATIFY (with one non-blocking editorial fix to §4 I2, applied in r4).
+**RATIFIED 2026-04-21.**
 
 §7 is now the concrete backlog. Each row is filed as a forge issue with body `Refs: docs/rfc/003-oss-readiness.md`, worked via `/work-issue-lib`, shipped through the canonical Gitea CI gates (graph-specs check + cfdb-check + cross-dogfood). The contributor-feedback CI on the GitHub mirror is informational only.
