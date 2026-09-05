@@ -109,9 +109,31 @@ word-polarity; cascade itself keeps the two apart (`WordPolarity`,
 Data only, no predicate methods: the branch table lives at its single call
 site in the diff, matching upstream, whose own `Polarity` has zero methods.
 
+## CodeLanguage
+
+- status: draft
+<!-- parent:rfc:graph-specs-004-multi-language-adapter-contract#3.1.1 anchor:"The runtime / toolchain that owns a code fact" -->
+
+The runtime or toolchain that owns a code fact, carried on the code
+variant of [Source](#source). Markdown is not a member: markdown is a
+spec format, not a code language. The set is open — a new language is
+added here, and the diff engine never branches on the value.
+
+## SpecFormat
+
+- status: draft
+<!-- parent:rfc:graph-specs-004-multi-language-adapter-contract#3.1.2 anchor:"The authoring format of a spec fact" -->
+
+The authoring format of a spec fact, carried on the spec variant of
+[Source](#source). The markdown value covers every spec file this
+checker reads, concepts and contexts alike — the subdirectory split is a
+reader detail, not a domain concept. The inline-attribute value covers
+the attribute and decorator forms a language reader extracts. The set is
+open.
+
 ## Source
 
-<!-- parent:rfc:graph-specs-004-multi-language-adapter-contract#3.1 anchor:"variants gain a typed payload, NOT a struct rewrite" -->
+<!-- parent:rfc:graph-specs-004-multi-language-adapter-contract#3.1.3 anchor:"variants gain a typed payload, NOT a struct rewrite" -->
 
 Where a concept was found — either in a spec file or a code file. Used
 for error messages that point back at the file and line the violation

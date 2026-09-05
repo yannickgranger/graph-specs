@@ -17,6 +17,8 @@ here. No IO, no parser state — just values, traits, and the three-pass
 - ConceptNode (PublishedLanguage)
 - SignatureState (PublishedLanguage)
 - Source (PublishedLanguage)
+- CodeLanguage (PublishedLanguage)
+- SpecFormat (PublishedLanguage)
 - Edge (PublishedLanguage)
 - EdgeKind (PublishedLanguage)
 - Violation (PublishedLanguage)
