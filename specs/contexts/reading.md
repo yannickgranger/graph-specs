@@ -39,6 +39,8 @@ equivalence publishes.
 - SignatureState from equivalence (PublishedLanguage)
 - Polarity from equivalence (PublishedLanguage)
 - Source from equivalence (PublishedLanguage)
+- CodeLanguage from equivalence (PublishedLanguage)
+- SpecFormat from equivalence (PublishedLanguage)
 - Edge from equivalence (PublishedLanguage)
 - EdgeKind from equivalence (PublishedLanguage)
 - ContextDecl from equivalence (PublishedLanguage)

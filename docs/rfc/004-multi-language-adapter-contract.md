@@ -65,6 +65,8 @@ This RFC is **infra-only**. It ships the framework; it ships **no new adapter**.
 
 **Two enums and one variant added to `domain`.** All `#[non_exhaustive]` per the RFC-001 §3.7 invariant.
 
+#### §3.1.1 — CodeLanguage
+
 ```rust
 /// The runtime / toolchain that owns a code fact. Used on `Source::Code`
 /// and (in RFC-007 cross-language contexts) on owned-unit interpretation.
@@ -77,6 +79,11 @@ pub enum CodeLanguage {
     Php,
     TypeScript,
 }
+```
+
+#### §3.1.2 — SpecFormat
+
+```rust
 
 /// The authoring format of a spec fact. Used on `Source::Spec`.
 /// `Markdown` covers both `specs/concepts/*.md` and `specs/contexts/*.md`
@@ -93,6 +100,8 @@ pub enum SpecFormat {
 }
 ```
 
+#### §3.1.3 — `Source` stays an enum — variants gain a typed payload, NOT a struct rewrite
+
 **`Source` stays an enum — variants gain a typed payload, NOT a struct rewrite.** This avoids the 12+ exhaustive-match-site rewrite flagged in r1. The migration is field-add only at construction sites:
 
 ```rust
@@ -106,7 +115,11 @@ pub enum Source {
 
 Match sites that already destructure with `..` keep working; sites that bind `path` and `line` get one new field to ignore (`format` or `language`) — typically `..`. Match-arm ordering across the 12+ sites is unchanged. Construction sites get one extra field per `Source::Spec` / `Source::Code` literal — mechanical migration covered in R4-1.
 
+#### §3.1.4 — `OwnedUnit` is unchanged in v0.5
+
 **`OwnedUnit` is unchanged in v0.5.** The r1 proposal to add a `build_system: BuildSystemKind` field is **dropped entirely** (would have leaked infrastructure semantics into `domain`, contradicting the deliberate "language-agnostic" rationale at `domain/src/context.rs:17`). The 14 `OwnedUnit(...)` construction sites across the workspace stay as-is. `application/src/ndjson.rs:147`'s `owned_unit.0` field access stays valid. If RFC-007's cross-language bounded contexts need to disambiguate same-named units across build systems, they reintroduce the concept at the spec-language layer (`unit: cargo:foo`) or as a port-level annotation — never as a domain enum.
+
+#### §3.1.5 — Why `Source` parameterization works
 
 **Why `Source` parameterization works (and r1's struct rewrite was overscoped):** The information added in v0.5 is per-fact provenance — every spec fact has a `SpecFormat`, every code fact has a `CodeLanguage`. Putting these on the variant payload is exactly the right shape. The r1 proposal of a `Source { kind: SourceKind, ..., language: Language, spec_kind: Option<SpecSourceKind> }` struct introduced an `Option<SpecSourceKind>` whose `Some`/`None` semantics were tied to `kind` — an invariant the type system did not enforce. The r2 enum-with-payload makes the invariant structural: `Source::Code` cannot have a `format`; `Source::Spec` cannot have a `language`. The two questions ("code language?" / "spec format?") get one type each, no overlap, no conditional fields.
 
