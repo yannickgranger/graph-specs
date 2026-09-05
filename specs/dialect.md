@@ -595,6 +595,30 @@ The code-side filter rules are:
   signed is ordinary source and is walked.
 - Any file whose extension is not `.rs`
 
+## Multi-language fenced blocks (RFC-004)
+
+Fenced code blocks inside a concept's section carry signature-level spec
+content. The fence language tag dispatches the block to the
+language-specific normalizer:
+
+| Fence tag | Adapter | Normalizer |
+|---|---|---|
+| ````rust```` | adapter-rust | `adapter-rust::normalize` (v0.2+) |
+| ````php```` | adapter-php (RFC-005) | `adapter-php::normalize` |
+| ````ts```` | adapter-typescript (RFC-006) | `adapter-typescript::normalize` |
+| other | ignored | — |
+
+A spec concept may carry fenced blocks in multiple languages
+simultaneously. Each block is matched independently against the
+corresponding language's structural code graph. Drift between blocks for
+different languages is NOT a violation — that is intentional
+cross-language spec content, not drift.
+
+The markdown reader does not change for this section: no PHP or
+TypeScript adapter exists yet to consume a PHP or TypeScript fence. The
+dialect declares the contract ahead of the adapters so that RFC-005 and
+RFC-006 land into a known shape.
+
 ## Meta note
 
 This dialect spec is itself written in the dialect it describes: `##` and
