@@ -54,6 +54,7 @@ mod tests {
         Source::Code {
             path: PathBuf::from("some-crate/src/lib.rs"),
             line: 3,
+            provenance: crate::Provenance::empty(),
         }
     }
 
@@ -61,6 +62,7 @@ mod tests {
         Source::Spec {
             path: PathBuf::from("specs/concepts/reader.md"),
             line: 12,
+            context: None,
         }
     }
 

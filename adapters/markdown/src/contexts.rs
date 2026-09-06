@@ -81,6 +81,7 @@ pub fn parse_context_file(path: &Path, source: &str) -> Result<ContextDecl, Read
         Source::Spec {
             path: path.to_path_buf(),
             line: h1_line,
+            context: None,
         },
     ))
 }

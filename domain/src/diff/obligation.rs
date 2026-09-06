@@ -1,3 +1,4 @@
+use super::code_index::CodeIndex;
 use super::concept::AnchorResolutions;
 use crate::{ConceptNode, Polarity};
 use std::collections::{HashMap, HashSet};
@@ -16,7 +17,7 @@ pub(super) const fn is_unpointable(node: &ConceptNode, item_present: bool) -> bo
 
 fn unpointable_names(
     spec_nodes: &[ConceptNode],
-    code_by_name: &HashMap<String, ConceptNode>,
+    code_by_name: &CodeIndex,
     anchored: &AnchorResolutions,
 ) -> HashSet<String> {
     let mut by_name: HashMap<&str, bool> = HashMap::new();
@@ -36,7 +37,7 @@ fn unpointable_names(
 
 fn unobliged_names(
     spec_nodes: &[ConceptNode],
-    code_by_name: &HashMap<String, ConceptNode>,
+    code_by_name: &CodeIndex,
     anchored: &AnchorResolutions,
 ) -> HashSet<String> {
     spec_nodes
@@ -48,10 +49,10 @@ fn unobliged_names(
 
 fn backing_item_present(
     node: &ConceptNode,
-    code_by_name: &HashMap<String, ConceptNode>,
+    code_by_name: &CodeIndex,
     anchored: &AnchorResolutions,
 ) -> bool {
-    code_by_name.contains_key(&node.name) || anchored.get(&node.name).copied().unwrap_or(false)
+    code_by_name.contains(&node.name) || anchored.get(&node.name).copied().unwrap_or(false)
 }
 
 pub(super) struct ObligationKeys {
@@ -61,7 +62,7 @@ pub(super) struct ObligationKeys {
 
 pub(super) fn obligation_keys(
     spec_nodes: &[ConceptNode],
-    code_by_name: &HashMap<String, ConceptNode>,
+    code_by_name: &CodeIndex,
     anchored: &AnchorResolutions,
 ) -> ObligationKeys {
     ObligationKeys {
@@ -82,6 +83,7 @@ mod tests {
             Source::Spec {
                 path: PathBuf::from("specs/concepts/a.md"),
                 line: 1,
+                context: None,
             },
             SignatureState::Absent,
         )

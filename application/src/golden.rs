@@ -2,6 +2,7 @@ use crate::ndjson::write_ndjson;
 use crate::report_ndjson::emit_ndjson;
 use crate::report_text::emit_text;
 use crate::text::format_violation;
+use domain::Provenance;
 use domain::{
     CheckOutcome, CohesionViolation, ContextPattern, ContextViolation, EdgeKind, HomonymAppearance,
     HomonymRecord, OwnedUnit, PubFnDecl, ReportOutput, Source, TierHistogramRecord, TierKind,
@@ -13,6 +14,7 @@ fn spec(line: usize) -> Source {
     Source::Spec {
         path: PathBuf::from("specs/concepts/core.md"),
         line,
+        context: None,
     }
 }
 
@@ -20,6 +22,7 @@ fn code(line: usize) -> Source {
     Source::Code {
         path: PathBuf::from("domain/src/lib.rs"),
         line,
+        provenance: Provenance::empty(),
     }
 }
 
@@ -153,6 +156,7 @@ pub fn code_src() -> Source {
     Source::Code {
         path: PathBuf::from("application/src/lib.rs"),
         line: 33,
+        provenance: Provenance::empty(),
     }
 }
 

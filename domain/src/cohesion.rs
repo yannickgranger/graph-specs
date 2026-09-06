@@ -39,6 +39,7 @@ mod tests {
         Source::Spec {
             path: PathBuf::from("specs/concepts/equivalence.md"),
             line: 42,
+            context: None,
         }
     }
 

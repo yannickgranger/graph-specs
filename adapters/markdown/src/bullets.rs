@@ -36,6 +36,7 @@ pub fn parse_verb_bullet(text: &str) -> Option<VerbAnchor> {
         source: Source::Spec {
             path: std::path::PathBuf::new(),
             line: 0,
+            context: None,
         },
     })
 }
@@ -51,6 +52,7 @@ pub fn parse_impl_bullet(text: &str) -> Option<ConceptAnchor> {
         source: Source::Spec {
             path: std::path::PathBuf::new(),
             line: 0,
+            context: None,
         },
     })
 }

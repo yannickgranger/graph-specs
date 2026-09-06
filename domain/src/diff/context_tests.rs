@@ -1,3 +1,4 @@
+use crate::Provenance;
 use crate::{
     detect_import_cycle, CheckInput, ConceptNode, ContextDecl, ContextExport, ContextImport,
     ContextPattern, ContextViolation, Edge, EdgeKind, Graph, OwnedUnit, SignatureState, Source,
@@ -15,6 +16,7 @@ fn code_node(name: &str, unit: &str) -> ConceptNode {
         Source::Code {
             path: PathBuf::from(format!("./{unit}/src/lib.rs")),
             line: 1,
+            provenance: Provenance::empty(),
         },
         SignatureState::Absent,
     )
@@ -29,6 +31,7 @@ fn code_edge(src: &str, kind: EdgeKind, target: &str) -> Edge {
         source: Source::Code {
             path: PathBuf::from("./x/src/lib.rs"),
             line: 10,
+            provenance: Provenance::empty(),
         },
     }
 }
@@ -37,6 +40,7 @@ fn spec_src() -> Source {
     Source::Spec {
         path: PathBuf::from("specs/contexts/x.md"),
         line: 1,
+        context: None,
     }
 }
 
@@ -92,6 +96,7 @@ fn v03_regression_preserved_when_contexts_empty() {
         Source::Spec {
             path: PathBuf::from("x.md"),
             line: 1,
+            context: None,
         },
         SignatureState::Absent,
     );

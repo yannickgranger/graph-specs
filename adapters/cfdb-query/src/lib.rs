@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use cfdb_core::fact::{Edge, Node, PropValue};
 use cfdb_core::schema::{Label, SchemaVersion};
+use domain::Provenance;
 use domain::{ConceptNode, DeclaredSurface, SignatureState, Source};
 use ports::{CodeFacts, ReaderError};
 use serde::Deserialize;
@@ -130,6 +131,7 @@ fn item_to_concept(node: &Node, root: &Path) -> Option<ConceptNode> {
             Source::Code {
                 path: PathBuf::from(file),
                 line,
+                provenance: Provenance::empty(),
             },
             SignatureState::Absent,
         )
@@ -272,19 +274,16 @@ mod tests {
         );
         let facts = load(&keyspace_with(&item));
         assert_eq!(facts.len(), 1);
-        assert_eq!(facts[0].unit.as_deref(), Some("adapters/rust"));
-        assert_eq!(
-            facts[0].module_path.as_deref(),
-            Some("adapters/rust::edges")
-        );
+        assert_eq!(facts[0].unit(), Some("adapters/rust"));
+        assert_eq!(facts[0].module_path(), Some("adapters/rust::edges"));
     }
 
     #[test]
     fn crate_root_collapses_to_unit() {
         let item = rust_item("Foo", "struct", "domain/src/lib.rs", "domain", "domain");
         let facts = load(&keyspace_with(&item));
-        assert_eq!(facts[0].module_path.as_deref(), Some("domain"));
-        assert_eq!(facts[0].unit.as_deref(), Some("domain"));
+        assert_eq!(facts[0].module_path(), Some("domain"));
+        assert_eq!(facts[0].unit(), Some("domain"));
     }
 
     #[test]
@@ -310,11 +309,8 @@ mod tests {
         );
         let facts = load(&keyspace_with(&item));
         assert_eq!(facts.len(), 1);
-        assert_eq!(facts[0].unit.as_deref(), Some("mycrate"));
-        assert_eq!(
-            facts[0].module_path.as_deref(),
-            Some("mycrate::bin::captain")
-        );
+        assert_eq!(facts[0].unit(), Some("mycrate"));
+        assert_eq!(facts[0].module_path(), Some("mycrate::bin::captain"));
     }
 
     #[test]

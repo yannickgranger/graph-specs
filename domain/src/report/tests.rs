@@ -1,4 +1,5 @@
 use super::*;
+use crate::Provenance;
 use crate::{
     CheckInput, ContextDecl, ContextExport, ContextImport, ContextPattern, Graph, OwnedUnit,
     Source, VerbOwnership,
@@ -9,6 +10,7 @@ fn code_src(line: usize) -> Source {
     Source::Code {
         path: PathBuf::from("some-crate/src/lib.rs"),
         line,
+        provenance: Provenance::empty(),
     }
 }
 
@@ -16,6 +18,7 @@ fn spec_src(line: usize) -> Source {
     Source::Spec {
         path: PathBuf::from("specs/concepts/core.md"),
         line,
+        context: None,
     }
 }
 

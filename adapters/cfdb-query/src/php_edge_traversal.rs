@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use cfdb_core::fact::{Edge, Node, PropValue};
 use cfdb_core::schema::Label;
+use domain::Provenance;
 use domain::{ConceptNode, DeclaredSurface, SignatureState, Source};
 use ports::ReaderError;
 
@@ -76,6 +77,7 @@ impl PhpEdgeTraversal {
                     Source::Code {
                         path: PathBuf::from(&module),
                         line,
+                        provenance: Provenance::empty(),
                     },
                     SignatureState::Absent,
                 )

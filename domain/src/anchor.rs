@@ -56,6 +56,7 @@ mod tests {
         Source::Spec {
             path: PathBuf::from("specs/concepts/intake_validation.md"),
             line,
+            context: None,
         }
     }
 
@@ -63,6 +64,7 @@ mod tests {
         Source::Code {
             path: PathBuf::from("domain/src/intake.rs"),
             line: 7,
+            provenance: crate::Provenance::empty(),
         }
     }
 

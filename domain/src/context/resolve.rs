@@ -33,7 +33,7 @@ pub fn context_for_code_node<'a>(
         }
         Source::Spec { .. } => None,
     };
-    let unit = node.unit.clone().or_else(derived)?;
+    let unit = node.unit().map(str::to_owned).or_else(derived)?;
     contexts
         .iter()
         .find(|ctx| ctx.owned_units.iter().any(|u| u.0 == unit))

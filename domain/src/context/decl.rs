@@ -135,6 +135,7 @@ mod tests {
             source: Source::Spec {
                 path: std::path::PathBuf::from("specs/concepts/reader.md"),
                 line: 12,
+                context: None,
             },
         };
         assert_eq!(decl.name, "equivalence");

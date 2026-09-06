@@ -49,6 +49,7 @@ mod tests {
         Source::Spec {
             path: PathBuf::from("specs/concepts/reading.md"),
             line,
+            context: None,
         }
     }
 
@@ -58,6 +59,7 @@ mod tests {
             Source::Code {
                 path: PathBuf::from(format!("{unit}/src/lib.rs")),
                 line: 1,
+                provenance: crate::Provenance::empty(),
             },
             SignatureState::Absent,
         )

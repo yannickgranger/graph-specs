@@ -163,9 +163,9 @@ fn provenance_lib_rs_collapses_to_crate_root() {
     write(d.path(), "mycrate/src/lib.rs", "pub struct Foo;");
     let g = RustReader.extract(d.path()).expect("extract must succeed");
     let foo = node_named(&g, "Foo");
-    assert_eq!(foo.unit.as_deref(), Some("mycrate"));
-    assert_eq!(foo.module_path.as_deref(), Some("mycrate"));
-    assert_eq!(foo.context, None, "context resolved later, not by reader");
+    assert_eq!(foo.unit(), Some("mycrate"));
+    assert_eq!(foo.module_path(), Some("mycrate"));
+    assert_eq!(foo.context(), None, "context resolved later, not by reader");
 }
 
 #[test]
@@ -174,7 +174,7 @@ fn provenance_main_rs_collapses_to_crate_root() {
     write(d.path(), "app/Cargo.toml", "[package]\nname=\"app\"\n");
     write(d.path(), "app/src/main.rs", "pub struct Cli;");
     let g = RustReader.extract(d.path()).expect("extract must succeed");
-    assert_eq!(node_named(&g, "Cli").module_path.as_deref(), Some("app"));
+    assert_eq!(node_named(&g, "Cli").module_path(), Some("app"));
 }
 
 #[test]
@@ -184,9 +184,9 @@ fn provenance_submodule_file_and_mod_rs() {
     write(d.path(), "c/src/diff.rs", "pub struct A;");
     write(d.path(), "c/src/edge/mod.rs", "pub struct B;");
     let g = RustReader.extract(d.path()).expect("extract must succeed");
-    assert_eq!(node_named(&g, "A").module_path.as_deref(), Some("c::diff"));
-    assert_eq!(node_named(&g, "B").module_path.as_deref(), Some("c::edge"));
-    assert_eq!(node_named(&g, "B").unit.as_deref(), Some("c"));
+    assert_eq!(node_named(&g, "A").module_path(), Some("c::diff"));
+    assert_eq!(node_named(&g, "B").module_path(), Some("c::edge"));
+    assert_eq!(node_named(&g, "B").unit(), Some("c"));
 }
 
 #[test]
@@ -199,10 +199,7 @@ fn provenance_unit_is_relative_to_code_root_not_walked_path() {
     );
     write(d.path(), "adapters/markdown/src/lib.rs", "pub struct R;");
     let g = RustReader.extract(d.path()).expect("extract must succeed");
-    assert_eq!(
-        node_named(&g, "R").unit.as_deref(),
-        Some("adapters/markdown")
-    );
+    assert_eq!(node_named(&g, "R").unit(), Some("adapters/markdown"));
 }
 
 #[test]

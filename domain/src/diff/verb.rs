@@ -179,6 +179,7 @@ mod tests {
         Source::Code {
             path: PathBuf::from(path),
             line: 1,
+            provenance: crate::Provenance::empty(),
         }
     }
 
@@ -186,6 +187,7 @@ mod tests {
         Source::Spec {
             path: PathBuf::from("specs/concepts/core.md"),
             line: 10,
+            context: None,
         }
     }
 

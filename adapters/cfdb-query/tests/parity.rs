@@ -9,7 +9,11 @@ use ports::CodeFacts;
 type ParityKey = (String, Option<String>, Option<String>);
 
 fn parity_key(c: &ConceptNode) -> ParityKey {
-    (c.name.clone(), c.module_path.clone(), c.unit.clone())
+    (
+        c.name.clone(),
+        c.module_path().map(str::to_owned),
+        c.unit().map(str::to_owned),
+    )
 }
 
 #[test]
