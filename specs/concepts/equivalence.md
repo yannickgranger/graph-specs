@@ -288,6 +288,7 @@ future dialect growth adds variants here.
 
 ## Reader
 
+- status: retired (per graph-specs-016-parse-once-reading-port#3.3)
 <!-- parent:rfc:graph-specs-004-multi-language-adapter-contract#3.2 anchor:"The `Reader` trait (`ports/src/lib.rs:15`) stays" -->
 
 The language-neutral port trait. Concrete readers (markdown specs,
@@ -299,6 +300,92 @@ pub trait Reader {
     fn extract(&self, root: &Path) -> Result<Graph, ReaderError>;
 }
 ```
+
+## SpecReader
+
+- status: draft (per graph-specs-016-parse-once-reading-port#3.3)
+<!-- parent:rfc:graph-specs-016-parse-once-reading-port#3.3.1 anchor:"`Reader` splits into `SpecReader` and `CodeReader` and the shared name retires" -->
+
+The spec-side capability port: `extract` over a [SpecFileSet](#specfileset)
+answers the [Graph](#graph) of concept nodes and declared edges, or a
+[ReaderError](#readererror) — structurally `ParseFailed` alone, the walk's
+`IoFailed` and `WalkFailed` being the loader's province. It takes the name
+[Reader](#reader) could not keep: two nominal input types cannot share one
+non-generic method signature, so the shared trait splits by side and the
+shared name retires. One capability per trait, as every port here.
+Implemented by [MarkdownReader](reading.md#markdownreader) and
+[PhpAttributeReader](reading.md#phpattributereader). Lives in `ports`.
+
+### CodeReader
+
+- status: draft (per graph-specs-016-parse-once-reading-port#3.3)
+<!-- parent:spec:SpecReader -->
+
+The code-side twin: `extract` over a [CodeFileSet](#codefileset) answers the
+code-side [Graph](#graph), implemented by [RustReader](reading.md#rustreader),
+which holds the code root it derives provenance from and, once the parse
+cache of graph-specs-016-parse-once-reading-port#3.4 lands, serves from that
+cache
+instead of walking again.
+
+## LoadedFile
+
+- status: draft (per graph-specs-016-parse-once-reading-port#3.1)
+<!-- parent:rfc:graph-specs-016-parse-once-reading-port#3.1 anchor:"a loaded artifact, path + text, no line, no side discriminant of its own" -->
+
+One file as the loader handed it on: its path and its text, nothing more. A
+different pipeline stage from [Source](#source), which is where a concept was
+found — side, path, line — and kept off that stem so the context's published
+language carries no same-stem homonym. Standard-library types only; no `syn`
+type enters `ports`. Lives in `ports`.
+
+### SpecFileSet
+
+- status: draft (per graph-specs-016-parse-once-reading-port#3.1)
+<!-- parent:spec:LoadedFile -->
+
+The spec-side aggregate of loaded files — an aggregate, not a bag: its files
+are private, the constructor sorts them by path, and reading is a slice in
+that order. The order is load-bearing; the byte-stability invariant of
+graph-specs-016-parse-once-reading-port#4 rests on it.
+
+- depends on: LoadedFile
+
+### CodeFileSet
+
+- status: draft (per graph-specs-016-parse-once-reading-port#3.1)
+<!-- parent:spec:LoadedFile -->
+
+The code-side aggregate of loaded files, of the same shape as
+[SpecFileSet](#specfileset): private files, a sorting constructor, an ordered
+slice out. The nominal difference is what lets a capability trait take one
+side and never the other.
+
+- depends on: LoadedFile
+
+## SpecLoader
+
+- status: draft (per graph-specs-016-parse-once-reading-port#3.2)
+<!-- parent:rfc:graph-specs-016-parse-once-reading-port#3.2 anchor:"The loader owns the single walk" -->
+
+The port that owns the single walk over a spec tree: directory traversal, the
+extension filter, the read of each file, then the sorting constructor of
+[SpecFileSet](#specfileset). Partitioning `concepts/` from `contexts/` is no
+longer the walker's: capability extractors filter by path prefix in memory,
+through one shared predicate in the markdown adapter. A monomorphic trait
+with exactly one implementor, [MarkdownReader](reading.md#markdownreader);
+`IoFailed` and `WalkFailed` are its errors and no capability trait's. Lives
+in `ports`.
+
+### CodeLoader
+
+- status: draft (per graph-specs-016-parse-once-reading-port#3.2)
+<!-- parent:spec:SpecLoader -->
+
+The code-side twin: the same single walk over a code tree, ending in a
+[CodeFileSet](#codefileset); one trait of its own rather than a generic one
+because no polymorphic call site exists. Its one implementor is
+[RustLoader](reading.md#rustloader).
 
 ## CodeFacts
 
