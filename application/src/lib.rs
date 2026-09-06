@@ -70,14 +70,15 @@ pub fn run_check(
     code_dir: &Path,
     keyspace: Option<&Path>,
 ) -> Result<CheckOutcome, ReaderError> {
-    let spec_set = MarkdownReader.load(specs_dir)?;
+    let reader = MarkdownReader::new(SIGNATURE_NORMALIZERS);
+    let spec_set = reader.load(specs_dir)?;
     let (code_set, cache) = code_inputs(code_dir)?;
-    let mut specs_graph = MarkdownReader.extract_with(&spec_set, SIGNATURE_NORMALIZERS)?;
+    let mut specs_graph = reader.extract(&spec_set)?;
     let attribute_graph =
         PhpAttributeReader::new().extract(&PhpAttributeReader::new().load(code_dir)?)?;
     let mut within_side = union_spec_graphs(&mut specs_graph, attribute_graph);
-    let spec_contexts = MarkdownReader.extract_contexts(&spec_set)?;
-    let verb_anchors = MarkdownReader.extract_verb_anchors(&spec_set)?;
+    let spec_contexts = reader.extract_contexts(&spec_set)?;
+    let verb_anchors = reader.extract_verb_anchors(&spec_set)?;
     let surface = match keyspace {
         None => DeclaredSurface::default(),
         Some(keyspace) => DeclaredSurface::from_contexts(&spec_contexts)
@@ -118,12 +119,11 @@ pub fn run_check(
         None => RustReader::new(cache.clone()).extract_pub_fns(code_dir)?,
         Some(keyspace) => keyspace_pub_fns(code_dir, keyspace, &surface)?,
     };
-    let concept_anchors = MarkdownReader.extract_concept_anchors(&spec_set)?;
-    let mut spec_findings = MarkdownReader.extract_malformed_anchors(&spec_set)?;
+    let (concept_anchors, mut spec_findings) = reader.extract_concept_anchors(&spec_set)?;
     spec_findings.append(&mut PhpAttributeReader::new().extract_findings(code_dir)?);
     spec_findings.append(&mut within_side);
 
-    let trees = MarkdownReader.extract_spec_trees(&spec_set)?;
+    let trees = reader.extract_spec_trees(&spec_set)?;
     let declared: HashMap<&str, &str> = trees
         .iter()
         .flat_map(SpecTree::concept_declarations)

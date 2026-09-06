@@ -1,9 +1,10 @@
 use super::*;
+use crate::bullets::{parse_impl_bullet, parse_verb_bullet};
 
 const RUST: &[&dyn ports::SignatureNormalizer] = &[&signature_norm::RustSignatures];
 
 fn spec_set(root: &std::path::Path) -> ports::SpecFileSet {
-    ports::SpecLoader::load(&MarkdownReader, root).expect("load")
+    ports::SpecLoader::load(&MarkdownReader::new(RUST), root).expect("load")
 }
 use crate::bullets::parse_anchor_qname;
 use domain::{EdgeKind, Marker, Polarity, SignatureState, Source};
@@ -20,8 +21,8 @@ fn write(dir: &Path, rel: &str, content: &str) {
 }
 
 fn extract(dir: &Path) -> Vec<String> {
-    let g = MarkdownReader
-        .extract_with(&spec_set(dir), RUST)
+    let g = MarkdownReader::new(RUST)
+        .extract(&spec_set(dir))
         .expect("test");
     let mut names: Vec<String> = g.nodes.into_iter().map(|n| n.name).collect();
     names.sort();
@@ -29,8 +30,8 @@ fn extract(dir: &Path) -> Vec<String> {
 }
 
 fn extract_graph(dir: &Path) -> Graph {
-    MarkdownReader
-        .extract_with(&spec_set(dir), RUST)
+    MarkdownReader::new(RUST)
+        .extract(&spec_set(dir))
         .expect("test")
 }
 
@@ -97,8 +98,8 @@ fn handles_inline_backticks_in_heading() {
 fn records_correct_line_number() {
     let d = TempDir::new().expect("test");
     write(d.path(), "a.md", "# Title\n\n## OnLine3\n");
-    let g = MarkdownReader
-        .extract_with(&spec_set(d.path()), RUST)
+    let g = MarkdownReader::new(RUST)
+        .extract(&spec_set(d.path()))
         .expect("test");
     match &g.nodes[0].source {
         Source::Spec { line, .. } => assert_eq!(*line, 3),
@@ -115,8 +116,8 @@ fn non_md_files_are_ignored() {
 }
 
 fn extract_sig(dir: &Path, concept: &str) -> SignatureState {
-    let g = MarkdownReader
-        .extract_with(&spec_set(dir), RUST)
+    let g = MarkdownReader::new(RUST)
+        .extract(&spec_set(dir))
         .expect("test");
     g.nodes
         .into_iter()
@@ -216,8 +217,8 @@ fn rust_block_before_first_heading_is_ignored() {
         "a.md",
         "```rust\npub struct Orphan;\n```\n\n## Foo\n",
     );
-    let g = MarkdownReader
-        .extract_with(&spec_set(d.path()), RUST)
+    let g = MarkdownReader::new(RUST)
+        .extract(&spec_set(d.path()))
         .expect("test");
     let names: Vec<&str> = g.nodes.iter().map(|n| n.name.as_str()).collect();
     assert_eq!(names, vec!["Foo"]);
@@ -427,7 +428,7 @@ fn extract_annotations_empty_on_no_h4_section() {
         "a.md",
         "## Concept\n\nProse.\n\n- implements: Reader\n",
     );
-    let anns = MarkdownReader
+    let anns = MarkdownReader::new(RUST)
         .extract_annotations(&spec_set(d.path()))
         .expect("test");
     assert!(anns.is_empty());
@@ -441,7 +442,7 @@ fn extract_annotations_recognises_enforced_by_cypher() {
         "a.md",
         "## Concept\n\n#### Operational invariants\n\n- INV-001: desc [enforced-by: .cfdb/queries/rule.cypher; retire-when: never]\n",
     );
-    let anns = MarkdownReader
+    let anns = MarkdownReader::new(RUST)
         .extract_annotations(&spec_set(d.path()))
         .expect("test");
     assert_eq!(anns.len(), 1);
@@ -463,7 +464,7 @@ fn extract_annotations_recognises_enforced_by_script() {
         "a.md",
         "## Concept\n\n#### Operational invariants\n\n- [enforced-by: scripts/check.sh; retire-when: done]\n",
     );
-    let anns = MarkdownReader
+    let anns = MarkdownReader::new(RUST)
         .extract_annotations(&spec_set(d.path()))
         .expect("test");
     assert_eq!(anns.len(), 1);
@@ -478,7 +479,7 @@ fn extract_annotations_recognises_prose_only() {
         "a.md",
         "## Concept\n\n#### Operational invariants\n\n- INV-waiver: [prose-only: no tooling available]\n",
     );
-    let anns = MarkdownReader
+    let anns = MarkdownReader::new(RUST)
         .extract_annotations(&spec_set(d.path()))
         .expect("test");
     assert_eq!(anns.len(), 1);
@@ -497,7 +498,7 @@ fn extract_annotations_malformed_skips_with_ok_return() {
         "a.md",
         "## Concept\n\n#### Operational invariants\n\n- [enforced-by: missing-close-bracket\n",
     );
-    let result = MarkdownReader.extract_annotations(&spec_set(d.path()));
+    let result = MarkdownReader::new(RUST).extract_annotations(&spec_set(d.path()));
     assert!(result.is_ok(), "tolerant-skip: malformed should not Err");
     assert!(
         result.expect("asserted Ok above").is_empty(),
@@ -513,7 +514,7 @@ fn extract_annotations_section_ends_at_next_h2() {
         "a.md",
         "## Concept\n\n#### Operational invariants\n\n- [enforced-by: rule.cypher; retire-when: done]\n\n## Other\n\n- [enforced-by: other.cypher]\n",
     );
-    let anns = MarkdownReader
+    let anns = MarkdownReader::new(RUST)
         .extract_annotations(&spec_set(d.path()))
         .expect("test");
     assert_eq!(anns.len(), 1);
@@ -527,7 +528,7 @@ fn extract_annotations_multiple_in_section() {
         "a.md",
         "## Concept\n\n#### Operational invariants\n\n- INV-1: [enforced-by: rule.cypher; retire-when: a]\n- INV-2: [prose-only: reason]\n",
     );
-    let anns = MarkdownReader
+    let anns = MarkdownReader::new(RUST)
         .extract_annotations(&spec_set(d.path()))
         .expect("test");
     assert_eq!(anns.len(), 2);
@@ -541,7 +542,7 @@ fn extract_annotations_returns_ok_empty_on_no_annotations_present() {
         "a.md",
         "## ConceptA\n\nSome prose.\n\n## ConceptB\n\n- depends on: ConceptA\n",
     );
-    let anns = MarkdownReader
+    let anns = MarkdownReader::new(RUST)
         .extract_annotations(&spec_set(d.path()))
         .expect("test");
     assert!(anns.is_empty());
@@ -585,8 +586,8 @@ fn verb_bullet_does_not_yield_edge_in_graph() {
         "a.md",
         "## Concept\n\n- verb: some_fn\n- implements: Reader\n",
     );
-    let g = MarkdownReader
-        .extract_with(&spec_set(d.path()), RUST)
+    let g = MarkdownReader::new(RUST)
+        .extract(&spec_set(d.path()))
         .expect("test");
     let edges = find_edges_for(&g.edges, "Concept");
     assert_eq!(edges.len(), 1, "verb bullet must not become an edge");
@@ -601,7 +602,7 @@ fn extract_verb_anchors_collects_anchors_from_spec() {
         "a.md",
         "## Graph\n\n- verb: diff\n- verb: tokenise_target\n\n## Reader\n\n- verb: extract\n",
     );
-    let anchors = MarkdownReader
+    let anchors = MarkdownReader::new(RUST)
         .extract_verb_anchors(&spec_set(d.path()))
         .expect("test");
     assert_eq!(anchors.len(), 3);
@@ -621,7 +622,7 @@ fn extract_verb_anchors_returns_empty_when_no_verb_bullets() {
         "a.md",
         "## Concept\n\n- implements: Reader\n- depends on: Graph\n",
     );
-    let anchors = MarkdownReader
+    let anchors = MarkdownReader::new(RUST)
         .extract_verb_anchors(&spec_set(d.path()))
         .expect("test");
     assert!(anchors.is_empty());
@@ -631,7 +632,7 @@ fn extract_verb_anchors_returns_empty_when_no_verb_bullets() {
 fn extract_verb_anchors_records_correct_concept_and_source_line() {
     let d = TempDir::new().expect("test");
     write(d.path(), "a.md", "## Graph\n\n- verb: diff\n");
-    let anchors = MarkdownReader
+    let anchors = MarkdownReader::new(RUST)
         .extract_verb_anchors(&spec_set(d.path()))
         .expect("test");
     assert_eq!(anchors.len(), 1);
@@ -684,7 +685,7 @@ fn parse_verb_bullet_accepts_bare_ident_unchanged() {
 }
 
 fn marker_of(dir: &Path, concept: &str) -> Marker {
-    MarkdownReader
+    MarkdownReader::new(RUST)
         .extract(&spec_set(dir))
         .expect("test")
         .nodes
@@ -695,8 +696,8 @@ fn marker_of(dir: &Path, concept: &str) -> Marker {
 }
 
 fn marks(dir: &Path) -> Vec<(String, bool)> {
-    let g = MarkdownReader
-        .extract_with(&spec_set(dir), RUST)
+    let g = MarkdownReader::new(RUST)
+        .extract(&spec_set(dir))
         .expect("test");
     let mut out: Vec<(String, bool)> = g
         .nodes
@@ -793,7 +794,7 @@ fn marker_bullet_is_not_an_edge_or_an_anchor() {
     );
     let g = extract_graph(d.path());
     assert!(g.edges.is_empty(), "marker must not become an edge");
-    let anchors = MarkdownReader
+    let (anchors, _findings) = MarkdownReader::new(RUST)
         .extract_concept_anchors(&spec_set(d.path()))
         .expect("test");
     assert!(anchors.is_empty(), "marker must not become an anchor");
@@ -828,7 +829,7 @@ fn front_matter_refusal(front_matter: &str) -> String {
         "a.md",
         &format!("{front_matter}\n# widgets\n\n## Foo\n"),
     );
-    match MarkdownReader.extract_with(&spec_set(d.path()), RUST) {
+    match MarkdownReader::new(RUST).extract(&spec_set(d.path())) {
         Err(ports::ReaderError::ParseFailed { message, .. }) => message,
         other => panic!("expected a refusal, got {other:?}"),
     }
@@ -948,7 +949,7 @@ fn extract_verb_anchors_reads_draft_specs() {
         "draft.md",
         "---\nstatus: draft\n---\n\n## Reconciler\n\n- verb: reconcile\n",
     );
-    let anchors = MarkdownReader
+    let anchors = MarkdownReader::new(RUST)
         .extract_verb_anchors(&spec_set(d.path()))
         .expect("test");
     assert_eq!(anchors.len(), 1, "draft verb anchors are extracted");
@@ -963,7 +964,7 @@ fn a_draft_marker_suspends_the_obligation_on_code_and_nothing_else() {
         "draft.md",
         "---\nstatus: draft\n---\n\n## Reconciler\n\n#### Operational invariants\n\n- INV-001: x [enforced-by: .cfdb/queries/r.cypher; retire-when: never]\n",
     );
-    let anns = MarkdownReader
+    let anns = MarkdownReader::new(RUST)
         .extract_annotations(&spec_set(d.path()))
         .expect("test");
     assert_eq!(
@@ -1026,7 +1027,7 @@ fn extract_concept_anchors_collects_impl_bullet() {
         "intake.md",
         "## ValidateIntakeFull\n\n- impl: validate_intake\n",
     );
-    let anchors = MarkdownReader
+    let (anchors, _findings) = MarkdownReader::new(RUST)
         .extract_concept_anchors(&spec_set(d.path()))
         .expect("test");
     assert_eq!(anchors.len(), 1);
@@ -1043,7 +1044,7 @@ fn extract_concept_anchors_is_empty_without_impl_and_reads_draft_files() {
         "draft.md",
         "---\nstatus: draft\n---\n\n## Drafted\n\n- impl: drafted_fn\n",
     );
-    let anchors = MarkdownReader
+    let (anchors, _findings) = MarkdownReader::new(RUST)
         .extract_concept_anchors(&spec_set(d.path()))
         .expect("test");
     assert_eq!(anchors.len(), 1, "the draft file's anchor is extracted");
@@ -1100,8 +1101,8 @@ fn has_behavioral_substance_rejects_non_substance() {
 }
 
 fn polarities(dir: &Path) -> Vec<(String, Polarity)> {
-    let g = MarkdownReader
-        .extract_with(&spec_set(dir), RUST)
+    let g = MarkdownReader::new(RUST)
+        .extract(&spec_set(dir))
         .expect("test");
     let mut out: Vec<(String, Polarity)> =
         g.nodes.into_iter().map(|n| (n.name, n.polarity)).collect();
@@ -1152,7 +1153,7 @@ fn a_comment_that_is_not_the_first_content_line_is_an_orphan() {
         "a.md",
         "## Member\n\nSome prose first.\n\n<!-- parent:spec:Unit polarity:forbidden -->\n",
     );
-    let err = MarkdownReader
+    let err = MarkdownReader::new(RUST)
         .extract(&spec_set(d.path()))
         .expect_err("a comment below the first content line attaches to no concept");
     assert!(
@@ -1169,7 +1170,7 @@ fn a_comment_above_the_first_heading_is_an_orphan() {
         "a.md",
         "<!-- parent:spec:Unit polarity:forbidden -->\n\n## Member\n\nProse.\n",
     );
-    let err = MarkdownReader
+    let err = MarkdownReader::new(RUST)
         .extract(&spec_set(d.path()))
         .expect_err("a comment before its heading attaches to no concept");
     assert!(
@@ -1203,10 +1204,10 @@ fn a_grounding_comment_is_not_an_edge_or_an_anchor() {
     );
     let g = extract_graph(d.path());
     assert!(g.edges.is_empty());
-    assert!(MarkdownReader
+    let (anchors, findings) = MarkdownReader::new(RUST)
         .extract_concept_anchors(&spec_set(d.path()))
-        .expect("test")
-        .is_empty());
+        .expect("test");
+    assert!(anchors.is_empty() && findings.is_empty());
 }
 
 #[test]
@@ -1221,8 +1222,8 @@ fn a_misplaced_retired_marker_is_inert_and_the_heading_reads_unmarked() {
 }
 
 fn marker_values(dir: &Path) -> Vec<(String, Marker)> {
-    let g = MarkdownReader
-        .extract_with(&spec_set(dir), RUST)
+    let g = MarkdownReader::new(RUST)
+        .extract(&spec_set(dir))
         .expect("test");
     let mut out: Vec<(String, Marker)> = g.nodes.into_iter().map(|n| (n.name, n.marker)).collect();
     out.sort_by(|a, b| a.0.cmp(&b.0));
@@ -1252,7 +1253,7 @@ fn a_retired_per_heading_marker_still_contributes_its_invariant_annotations() {
         "retired.md",
         "## Concept\n\n- status: retired\n\n#### Operational invariants\n\n- INV-001: desc [enforced-by: .cfdb/queries/rule.cypher; retire-when: never]\n",
     );
-    let retired = MarkdownReader
+    let retired = MarkdownReader::new(RUST)
         .extract_annotations(&spec_set(d.path()))
         .expect("test");
     assert_eq!(
@@ -1270,7 +1271,7 @@ fn the_annotation_channel_runs_behind_the_one_readers_verdict() {
         "bad.md",
         "---\nstatus: retired\n---\n\n## Concept\n\n#### Operational invariants\n\n- INV-001: desc [enforced-by: .cfdb/queries/rule.cypher; retire-when: never]\n",
     );
-    let err = MarkdownReader
+    let err = MarkdownReader::new(RUST)
         .extract_annotations(&spec_set(d.path()))
         .expect_err("a malformed file refuses before its annotations are read");
     assert!(

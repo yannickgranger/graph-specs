@@ -2,7 +2,9 @@ use crate::SIGNATURE_NORMALIZERS;
 use adapter_markdown::MarkdownReader;
 use adapter_rust::{RustLoader, RustReader};
 use domain::{report_verb_coverage, CheckInput, VerbOwnership};
-use ports::{AnnotationReader, CodeLoader, ContextReader, ReaderError, SpecLoader, VerbReader};
+use ports::{
+    AnnotationReader, CodeLoader, ContextReader, ReaderError, SpecLoader, SpecReader, VerbReader,
+};
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -13,12 +15,13 @@ pub enum ReportFormat {
 }
 
 pub fn run_report(specs: &Path, code: &Path, format: ReportFormat) -> Result<u8, ReaderError> {
-    let spec_set = MarkdownReader.load(specs)?;
+    let reader = MarkdownReader::new(SIGNATURE_NORMALIZERS);
+    let spec_set = reader.load(specs)?;
     let cache = adapter_rust::parse(code, &RustLoader.load(code)?)?;
     let pub_fns = RustReader::new(cache).extract_pub_fns(code)?;
-    let annotations = MarkdownReader.extract_annotations(&spec_set)?;
-    let specs_graph = MarkdownReader.extract_with(&spec_set, SIGNATURE_NORMALIZERS)?;
-    let spec_contexts = MarkdownReader.extract_contexts(&spec_set)?;
+    let annotations = reader.extract_annotations(&spec_set)?;
+    let specs_graph = reader.extract(&spec_set)?;
+    let spec_contexts = reader.extract_contexts(&spec_set)?;
     let check_input = CheckInput::new(specs_graph, spec_contexts, VerbOwnership::default());
     let report = report_verb_coverage(&check_input, &pub_fns, &annotations);
 

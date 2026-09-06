@@ -57,6 +57,7 @@ is marked on the node it emits.
 - depends on: Violation
 - depends on: SpecFileSet
 - depends on: SpecTree
+- returns: MarkdownReader
 
 ### RustBackend
 

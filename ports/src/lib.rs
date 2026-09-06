@@ -4,7 +4,7 @@ pub use lang::{Extraction, LanguageBackend};
 
 use domain::{
     AnchorTarget, ConceptAnchor, ConceptNode, ContextDecl, Edge, EdgeKind, Graph,
-    InvariantAnnotation, PubFnDecl, SpecTree, VerbAnchor,
+    InvariantAnnotation, PubFnDecl, SpecTree, VerbAnchor, Violation,
 };
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -85,7 +85,7 @@ pub trait ConceptAnchorReader {
     fn extract_concept_anchors(
         &self,
         files: &SpecFileSet,
-    ) -> Result<Vec<ConceptAnchor>, ReaderError>;
+    ) -> Result<(Vec<ConceptAnchor>, Vec<Violation>), ReaderError>;
 }
 
 pub trait AnnotationReader {
