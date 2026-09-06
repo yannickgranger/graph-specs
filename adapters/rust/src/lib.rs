@@ -13,7 +13,7 @@ mod tests;
 pub use anchor_resolver::RustAnchorResolver;
 pub use normalize::normalize;
 
-use domain::{ConceptNode, Edge, Graph, PubFnDecl};
+use domain::{ConceptNode, Edge, EdgeKind, Graph, PubFnDecl};
 use ports::{CodeFacts, Extraction, LanguageBackend, Reader, ReaderError, VerbReader};
 use std::path::Path;
 use walkdir::WalkDir;
@@ -78,6 +78,14 @@ impl CodeFacts for RustReader {
 
     fn relationships(&self, root: &Path) -> Result<Vec<Edge>, ReaderError> {
         Ok(Reader::extract(self, root)?.edges)
+    }
+
+    fn answerable_relationships(&self, _root: &Path) -> Result<Vec<EdgeKind>, ReaderError> {
+        Ok(vec![
+            EdgeKind::Implements,
+            EdgeKind::DependsOn,
+            EdgeKind::Returns,
+        ])
     }
 }
 
