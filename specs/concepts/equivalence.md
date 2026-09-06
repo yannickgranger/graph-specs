@@ -134,6 +134,18 @@ reader detail, not a domain concept. The inline-attribute value covers
 the attribute and decorator forms a language reader extracts. The set is
 open.
 
+## SignatureNormalizer
+
+- status: draft (per graph-specs-004-multi-language-adapter-contract#3.6)
+<!-- parent:rfc:graph-specs-004-multi-language-adapter-contract#3.6 anchor:"through a normalizer port supplied at the composition root" -->
+
+The port by which the markdown reader normalizes a fenced signature of any
+language without depending on an adapter crate: it takes the fence tag and the
+block and answers the byte-equal comparison target, or the `Unparseable` state
+with the tag naming the language. The composition root supplies the
+implementation per fence tag — `signature-norm` for `rust`,
+`adapter-php::normalize` for `php`.
+
 ## Source
 
 <!-- parent:rfc:graph-specs-004-multi-language-adapter-contract#3.1.3 anchor:"variants gain a typed payload, NOT a struct rewrite" -->
