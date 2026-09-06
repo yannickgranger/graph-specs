@@ -122,6 +122,19 @@ fn violation_to_record(v: &Violation) -> Value {
             "error": error,
             "source": source_to_json(source),
         }),
+        Violation::MalformedAnchorBullet {
+            concept,
+            bullet,
+            qname,
+            spec_source,
+        } => json!({
+            "schema_version": SchemaVersion::CURRENT.as_str(),
+            "violation": "malformed_anchor_bullet",
+            "concept": concept,
+            "bullet": bullet,
+            "qname": qname,
+            "spec_source": source_to_json(spec_source),
+        }),
         Violation::EdgeUnanswerable {
             concept,
             edge_kind,

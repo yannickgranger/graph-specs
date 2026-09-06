@@ -25,6 +25,19 @@ pub fn parse_anchor_qname(rest: &str) -> Option<&str> {
 }
 
 #[must_use]
+pub fn malformed_anchor(text: &str) -> Option<(&'static str, String)> {
+    let trimmed = text.trim();
+    for prefix in ["verb:", "impl:"] {
+        if let Some(rest) = trimmed.strip_prefix(prefix) {
+            if parse_anchor_qname(rest).is_none() {
+                return Some((prefix.trim_end_matches(':'), rest.trim().to_owned()));
+            }
+        }
+    }
+    None
+}
+
+#[must_use]
 pub fn parse_verb_bullet(text: &str) -> Option<VerbAnchor> {
     let trimmed = text.trim();
     let rest = trimmed.strip_prefix("verb:")?;

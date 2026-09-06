@@ -1,9 +1,9 @@
-use crate::bullets::{parse_bullet_edge, parse_impl_bullet, parse_verb_bullet};
+use crate::bullets::{malformed_anchor, parse_bullet_edge, parse_impl_bullet, parse_verb_bullet};
 use crate::front_matter::blank_front_matter;
 use crate::grounding::{read, DialectHeading};
 use crate::markdown_utils::{compute_line_starts, line_of_offset};
-use domain::ConceptRef;
-use domain::{ConceptAnchor, ConceptNode, Edge, SignatureState, Source, VerbAnchor};
+use domain::{ConceptNode, Edge, SignatureState, Source};
+use domain::{ConceptRef, Violation};
 use ports::ReaderError;
 use pulldown_cmark::{CodeBlockKind, Event, Parser, Tag, TagEnd};
 use std::path::Path;
@@ -26,10 +26,7 @@ struct CollectorState {
 pub fn extract_from_source(
     source: &str,
     path: &Path,
-    nodes: &mut Vec<ConceptNode>,
-    edges: &mut Vec<Edge>,
-    verb_anchors: &mut Vec<VerbAnchor>,
-    concept_anchors: &mut Vec<ConceptAnchor>,
+    sink: &mut crate::BulletSink<'_>,
 ) -> Result<(), ReaderError> {
     let dialect = read(path, source)?;
     let cleaned = blank_front_matter(source);
@@ -52,18 +49,10 @@ pub fn extract_from_source(
         )
         .with_polarity(heading.polarity);
         node.marker = heading.marker;
-        nodes.push(node);
+        sink.nodes.push(node);
 
         for (line, text) in collected.bullets.iter().filter(|(line, _)| owned(*line)) {
-            absorb_bullet(
-                path,
-                heading,
-                *line,
-                text,
-                edges,
-                verb_anchors,
-                concept_anchors,
-            );
+            absorb_bullet(path, heading, *line, text, sink);
         }
     }
 
@@ -83,12 +72,19 @@ fn absorb_bullet(
     heading: &DialectHeading,
     line: usize,
     text: &str,
-    edges: &mut Vec<Edge>,
-    verb_anchors: &mut Vec<VerbAnchor>,
-    concept_anchors: &mut Vec<ConceptAnchor>,
+    sink: &mut crate::BulletSink<'_>,
 ) {
+    if let Some((bullet, qname)) = malformed_anchor(text) {
+        sink.malformed.push(Violation::MalformedAnchorBullet {
+            concept: heading.name.clone(),
+            bullet: bullet.to_owned(),
+            qname,
+            spec_source: spec_source(path, line),
+        });
+        return;
+    }
     if let Some((kind, token, raw)) = parse_bullet_edge(text) {
-        edges.push(Edge {
+        sink.edges.push(Edge {
             source_concept: ConceptRef::named(heading.name.clone()),
             kind,
             target: ConceptRef::named(token),
@@ -98,11 +94,11 @@ fn absorb_bullet(
     } else if let Some(mut anchor) = parse_verb_bullet(text) {
         anchor.concept.clone_from(&heading.name);
         anchor.source = spec_source(path, line);
-        verb_anchors.push(anchor);
+        sink.verb_anchors.push(anchor);
     } else if let Some(mut anchor) = parse_impl_bullet(text) {
         anchor.concept.clone_from(&heading.name);
         anchor.source = spec_source(path, line);
-        concept_anchors.push(anchor);
+        sink.concept_anchors.push(anchor);
     }
 }
 

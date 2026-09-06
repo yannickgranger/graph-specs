@@ -56,6 +56,7 @@ pub fn diff(spec: CheckInput, code: Graph, answerable: Option<&[crate::EdgeKind]
         verb_ownership: spec_verb_ownership,
         spec_cohesion,
         concept_anchors,
+        spec_findings,
     } = spec;
     let Graph {
         nodes: spec_nodes,
@@ -91,7 +92,7 @@ pub fn diff(spec: CheckInput, code: Graph, answerable: Option<&[crate::EdgeKind]
 
     let (matched_concepts, known_concepts) = snapshot_name_sets(&spec_nodes, &code_by_name);
 
-    let mut violations = Vec::new();
+    let mut violations = spec_findings;
     let mut records = MarkerRecords::default();
 
     let anchored_concepts = run_anchor_pass(
@@ -232,6 +233,7 @@ const fn violation_key(v: &Violation) -> (&str, u8) {
         Violation::EdgeMissingInSpec { concept, .. } => (concept.as_str(), 6),
         Violation::EdgeTargetUnknown { concept, .. } => (concept.as_str(), 7),
         Violation::EdgeUnanswerable { concept, .. } => (concept.as_str(), 16),
+        Violation::MalformedAnchorBullet { concept, .. } => (concept.as_str(), 17),
         Violation::Context(ctx) => (ctx.concept(), 8),
         Violation::VerbMissingInCode { concept, .. } => (concept.as_str(), 9),
         Violation::VerbMissingInSpec { qname, .. } => (qname.as_str(), 10),

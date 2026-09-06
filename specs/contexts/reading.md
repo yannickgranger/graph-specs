@@ -60,6 +60,7 @@ equivalence publishes.
 - TierKind from equivalence (PublishedLanguage)
 - AbstractionLevel from equivalence (PublishedLanguage)
 - CohesionViolation from equivalence (PublishedLanguage)
+- Violation from equivalence (PublishedLanguage)
 
 ## Concepts
 

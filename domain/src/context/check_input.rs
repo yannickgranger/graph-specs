@@ -1,4 +1,4 @@
-use crate::{CohesionViolation, ContextDecl, Graph, ResolvedAnchor, VerbOwnership};
+use crate::{CohesionViolation, ContextDecl, Graph, ResolvedAnchor, VerbOwnership, Violation};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CheckInput {
@@ -7,6 +7,7 @@ pub struct CheckInput {
     pub verb_ownership: VerbOwnership,
     pub spec_cohesion: Vec<CohesionViolation>,
     pub concept_anchors: Vec<ResolvedAnchor>,
+    pub spec_findings: Vec<Violation>,
 }
 
 impl CheckInput {
@@ -22,6 +23,7 @@ impl CheckInput {
             verb_ownership,
             spec_cohesion: Vec::new(),
             concept_anchors: Vec::new(),
+            spec_findings: Vec::new(),
         }
     }
 
@@ -36,6 +38,15 @@ impl CheckInput {
             },
             spec_cohesion: Vec::new(),
             concept_anchors: Vec::new(),
+            spec_findings: Vec::new(),
+        }
+    }
+
+    #[must_use]
+    pub fn with_spec_findings(self, spec_findings: Vec<Violation>) -> Self {
+        Self {
+            spec_findings,
+            ..self
         }
     }
 
