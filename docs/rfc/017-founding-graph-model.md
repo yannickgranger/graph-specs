@@ -103,7 +103,7 @@ Outside the context a kind is carried by one label — `IMPLEMENTS`, `DEPENDS_ON
 
 Three headings of `specs/concepts/equivalence.md` in `yg/graph-specs-rust` gain a root on ratification: the graph on §3.1, the edge on §3.2, the kind on §3.3, each with an anchor taken verbatim from that clause's body. The anchor phrases are not quoted here: a phrase this document repeated in a second clause would stop discriminating between the two, and the declaration citing it would be malformed (the dialect's §3.4). No other heading's root moves, and no ratified clause is renumbered by this RFC.
 
-This RFC is authored in the corpus and enters no repository's mirror: it takes no provenance entry, and a corpus id without a provenance entry is not mirrored — the precedent is `graph-specs-016-parse-once-reading-port`, which carries none. The only change owed in the source repository beyond the three roots is the corpus pin the transcribing pass bumps.
+This RFC is authored in the corpus and enters no repository's mirror: it takes no provenance entry, and a corpus id without a provenance entry is not mirrored — the precedent is `graph-specs-016-parse-once-reading-port`, which carries none. The only change owed in the source repository beyond the three roots is the corpus pin the transcribing pass bumps. Amendment 2026-09-07: the mirror of `yg/graph-specs-rust` derives its set from the corpus at the pin — every id carrying the `graph-specs-` prefix — and reads no provenance entry (graph-specs #246); this document and `graph-specs-016-parse-once-reading-port` are mirrored from that change on, and still take no provenance entry.
 
 ## §7 — Raises
 
