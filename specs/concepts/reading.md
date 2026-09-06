@@ -126,6 +126,30 @@ Lives in `adapters/cfdb-query`.
 - depends on: ReaderError
 - returns: CfdbQueryReader
 
+### PhpEdgeTraversal
+
+- status: draft (per graph-specs-011-php-ladder#3.1)
+<!-- parent:spec:CfdbQueryReader -->
+
+The PHP fact-extraction path of the [CfdbQueryReader](#cfdbqueryreader)
+ACL (graph-specs-010-abstraction-level-equivalence#11.5: PHP `:Item` is
+prop-less, so containment is read by traversing `IN_MODULE` / `IN_CRATE`
+edges, never by prop reads). It yields a [ConceptNode](equivalence.md#conceptnode)
+for every concept-rung PHP `:Item` — `class_declaration` and
+`interface_declaration` alike, both emitted as `kind: "trait"` and told
+apart by the `php_construct` property
+(graph-specs-011-php-ladder#3.1; cfdb-045-polyglot-relationship-edges#3.2) —
+and for nothing below that rung: a method `:Item` binds no heading and is
+reached only through an anchor. The `unit` of the agnostic triple is the
+namespace prefix of the qualified name (`\Ns\Class`), matched against the
+[DeclaredSurface](equivalence.md#declaredsurface) before the node is
+emitted; an item outside every declared prefix is not on the surface and
+is not emitted. Lives in `adapters/cfdb-query`.
+
+- depends on: ConceptNode
+- depends on: DeclaredSurface
+- depends on: ReaderError
+
 ## CfdbAnchorResolver
 
 <!-- parent:spec:AnchorResolver -->
@@ -146,6 +170,36 @@ variants are **not** resolvable because cfdb (v0.5.0) emits no `variant`
 - depends on: AnchorTarget
 - depends on: ReaderError
 - depends on: CfdbAnchorResolver
+
+## PhpAttributeReader
+
+- status: draft (per graph-specs-011-php-ladder#3.3)
+<!-- parent:rfc:graph-specs-011-php-ladder#3.3 anchor:"it reads attributes" -->
+
+The one reader that reads PHP source, and it reads attributes only: the
+`#[Spec(...)]` attribute channel of
+graph-specs-004-multi-language-adapter-contract#3.1, emitted as spec-side
+facts whose [Source](equivalence.md#source) carries the inline-attribute
+[SpecFormat](equivalence.md#specformat). It emits no code-side fact — the
+PHP code side is the [CodeFacts](equivalence.md#codefacts) port reached
+through [PhpEdgeTraversal](#phpedgetraversal), and graph-specs owns no PHP
+structural parser (graph-specs-011-php-ladder#4 invariant 1). Markdown is
+the canonical upstream of every attribute it reads; where the two
+disagree the attribute is the conformist
+(graph-specs-004-multi-language-adapter-contract#4 invariant 7). A `.php`
+file routes to this reader and to no other (graph-specs-011-php-ladder#3.4).
+Its parser backend is tree-sitter with the `tree-sitter-php` grammar the
+cfdb PHP producer already pins, so one PHP syntax model runs in the
+ecosystem; it is a leaf adapter and takes no dependency on any other
+adapter (graph-specs-016-parse-once-reading-port#1). Lives in
+`adapters/php`.
+
+- implements: Reader
+- depends on: Graph
+- depends on: Source
+- depends on: SpecFormat
+- depends on: ReaderError
+- returns: PhpAttributeReader
 
 ## SpecTree
 

@@ -30,6 +30,7 @@ here. No IO, no parser state — just values, traits, and the three-pass
 - ContextImport (PublishedLanguage)
 - ContextPattern (PublishedLanguage)
 - OwnedUnit (PublishedLanguage)
+- DeclaredSurface (PublishedLanguage)
 - CheckInput (PublishedLanguage)
 - SchemaVersion (PublishedLanguage)
 - Reader (PublishedLanguage)
