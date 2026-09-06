@@ -1003,7 +1003,8 @@ add `BehaviorTest`. Lives in `domain`.
 Report record: one `pub fn` in code, its bounded context (if known), and
 whether any spec section cites it by name. `context: None` is the
 report-mode analog of `ContextViolation::MembershipUnknown` — the fn
-lives in a crate not declared under any context's `Owns` block.
+lives in a unit no declared `Owns` prefix covers, membership being the
+longest declared prefix covering the unit (graph-specs-011-php-ladder#3.2).
 Per graph-specs-005-verb-coverage-report#3.3. Lives in `domain`.
 
 - depends on: PubFnDecl

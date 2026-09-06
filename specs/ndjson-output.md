@@ -202,7 +202,7 @@ Spec bullet names a target concept that is not present as a concept in either gr
 
 ### `context_membership_unknown` (v2, v0.4)
 
-A `pub` type in code lives in a crate that is not listed under any declared context's `Owns` block.
+A `pub` type in code lives in a unit that begins with no prefix any declared context's `Owns` block declares — membership is decided by the longest declared prefix covering the unit, never by equality of the unit and a listed value (graph-specs-011-php-ladder#3.2); a unit below a declared prefix belongs to that prefix's context and yields no record.
 
 ```json
 {"schema_version":"5","violation":"context_membership_unknown","concept":"Orphan","owned_unit":"stray-crate","source":{"kind":"code","path":"stray-crate/src/lib.rs","line":3,"language":"rust"}}
@@ -549,7 +549,7 @@ One record per `pub fn` found in the code tree.
 
 | Field | Type | Meaning |
 |---|---|---|
-| `context` | string or null | bounded context that owns the fn's crate; `null` if the crate is not declared under any `Owns` block |
+| `context` | string or null | bounded context that owns the fn's crate; `null` if no declared `Owns` prefix covers the crate (graph-specs-011-php-ladder#3.2) |
 | `pub_fn.name` | string | function name |
 | `pub_fn.source` | source object | location of the declaration (`kind` always `"code"`) |
 | `cited` | bool | `true` if the fn name appears as a concept node in the spec graph |
