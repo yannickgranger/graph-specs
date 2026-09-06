@@ -203,13 +203,18 @@ Its parser backend is tree-sitter with the `tree-sitter-php` grammar the
 cfdb PHP producer already pins, so one PHP syntax model runs in the
 ecosystem; it is a leaf adapter and takes no dependency on any other
 adapter (graph-specs-016-parse-once-reading-port#1). Lives in
-`adapters/php`.
+`adapters/php`. An attribute key outside the set the contract fixes —
+`implements`, `extends`, `signature`
+(graph-specs-004-multi-language-adapter-contract#3.5) — is a
+[Violation](equivalence.md#violation) naming the key and the concept, never
+a skip; the reader carries the inline-attribute format on every fact it
+emits and declares as bullets only what the source walk answers, a type
+named by a signature.
 
 - implements: Reader
 - depends on: Graph
-- depends on: Source
-- depends on: SpecFormat
 - depends on: ReaderError
+- depends on: Violation
 - returns: PhpAttributeReader
 
 ## SpecTree
