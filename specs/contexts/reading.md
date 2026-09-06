@@ -22,6 +22,7 @@ equivalence publishes.
 - MarkdownReader (PublishedLanguage)
 - RustReader (PublishedLanguage)
 - RustLoader (PublishedLanguage)
+- ParseCache (PublishedLanguage)
 - RustBackend (PublishedLanguage)
 - CfdbQueryReader (PublishedLanguage)
 - PhpEdgeTraversal (PublishedLanguage)

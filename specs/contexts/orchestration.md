@@ -36,6 +36,7 @@ cross-context. The CLI binary is its own deliverable.)
 - InvariantAnnotation from equivalence (PublishedLanguage)
 - MarkdownReader from reading (CustomerSupplier)
 - RustReader from reading (CustomerSupplier)
+- ParseCache from reading (CustomerSupplier)
 
 ## Concepts
 
