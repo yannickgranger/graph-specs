@@ -128,11 +128,44 @@ fn a_php_construct_value_the_reader_does_not_know_is_refused_not_dropped() {
     let json = r#"{"schema_version":{"major":0,"minor":8,"patch":0},"nodes":[
       {"id":"item:App\\A\\Told","label":"Item","props":{"kind":"trait","name":"Told",
        "php_construct":"class_declaration","qname":"App\\A\\Told"}},
-      {"id":"item:App\\A\\Level","label":"Item","props":{"kind":"trait","name":"Level",
-       "php_construct":"enum_declaration","qname":"App\\A\\Level"}}],"edges":[]}"#;
+      {"id":"item:App\\A\\Borrowed","label":"Item","props":{"kind":"trait","name":"Borrowed",
+       "php_construct":"trait_use_clause","qname":"App\\A\\Borrowed"}}],"edges":[]}"#;
     let err = read_err(json).to_string();
-    assert!(err.contains("App\\A\\Level"), "{err}");
-    assert!(err.contains("enum_declaration"), "{err}");
+    assert!(err.contains("App\\A\\Borrowed"), "{err}");
+    assert!(err.contains("trait_use_clause"), "{err}");
+}
+
+const ENUM_KEYSPACE: &str = r#"{"schema_version":{"major":0,"minor":8,"patch":0},"nodes":[
+{"id":"module:App\\Enrolment\\Domain","label":"Module","props":{"name":"App\\Enrolment\\Domain"}},
+{"id":"item:App\\Enrolment\\Domain\\Enrolment","label":"Item","props":{"kind":"trait","line":7,
+ "name":"Enrolment","php_construct":"class_declaration","qname":"App\\Enrolment\\Domain\\Enrolment"}},
+{"id":"item:App\\Enrolment\\Domain\\PriorStudy","label":"Item","props":{"kind":"enum","line":3,
+ "name":"PriorStudy","php_construct":"enum_declaration","qname":"App\\Enrolment\\Domain\\PriorStudy"}}
+],"edges":[
+{"src":"item:App\\Enrolment\\Domain\\Enrolment","dst":"module:App\\Enrolment\\Domain","label":"IN_MODULE"},
+{"src":"item:App\\Enrolment\\Domain\\PriorStudy","dst":"module:App\\Enrolment\\Domain","label":"IN_MODULE"}
+]}"#;
+
+fn read_enum_keyspace(units: &[&str]) -> Vec<ConceptNode> {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("keyspace.json");
+    std::fs::write(&path, ENUM_KEYSPACE).expect("write keyspace");
+    CfdbQueryReader::new(&path)
+        .with_surface(surface(units))
+        .concepts(Path::new("/ws"))
+        .expect("read keyspace")
+}
+
+#[test]
+fn an_enum_under_a_declared_prefix_is_concept_rung() {
+    let nodes = read_enum_keyspace(&["App\\Enrolment"]);
+    assert_eq!(names(&nodes), vec!["Enrolment", "PriorStudy"]);
+}
+
+#[test]
+fn an_enum_outside_every_declared_prefix_binds_nothing() {
+    let nodes = read_enum_keyspace(&["App\\Catalogue"]);
+    assert!(nodes.is_empty());
 }
 
 #[test]
