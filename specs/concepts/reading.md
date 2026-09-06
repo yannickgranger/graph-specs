@@ -30,6 +30,7 @@ the previous design needed is retired.
 
 - implements: Reader
 - implements: ContextReader
+- depends on: SignatureNormalizer
 - depends on: Graph
 - depends on: ReaderError
 - depends on: ContextDecl
