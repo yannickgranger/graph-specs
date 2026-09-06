@@ -194,6 +194,10 @@ fn heading_annotations_do_not_affect_section_dispatch() {
 
 mod walker {
     use super::super::walk_contexts;
+
+    fn spec_set(root: &std::path::Path) -> ports::SpecFileSet {
+        ports::SpecLoader::load(&crate::MarkdownReader, root).expect("load")
+    }
     use std::io::Write;
     use tempfile::TempDir;
 
@@ -215,7 +219,7 @@ mod walker {
             "contexts/equivalence.md",
             "# equivalence\n\n## Owns\n\n- domain\n",
         );
-        let out = walk_contexts(d.path()).expect("walk");
+        let out = walk_contexts(&spec_set(d.path())).expect("walk");
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].name, "equivalence");
     }
@@ -224,7 +228,7 @@ mod walker {
     fn v03_spec_tree_without_contexts_subdir_yields_empty() {
         let d = TempDir::new().expect("test");
         write(d.path(), "core.md", "## Foo\n## Bar\n");
-        let out = walk_contexts(d.path()).expect("walk");
+        let out = walk_contexts(&spec_set(d.path())).expect("walk");
         assert!(out.is_empty());
     }
 
@@ -235,7 +239,7 @@ mod walker {
         std::fs::create_dir_all(&ctx_dir).expect("test");
         write(&ctx_dir, "equivalence.md", "# equivalence\n");
         write(&ctx_dir, "reading.md", "# reading\n");
-        let out = walk_contexts(&ctx_dir).expect("walk");
+        let out = walk_contexts(&spec_set(&ctx_dir)).expect("walk");
         assert_eq!(out.len(), 2);
     }
 }

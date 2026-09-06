@@ -45,6 +45,7 @@ the previous design needed is retired.
 - depends on: ConceptAnchor
 - depends on: Violation
 - depends on: SpecFileSet
+- depends on: SpecTree
 
 ### RustBackend
 

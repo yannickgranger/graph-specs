@@ -329,7 +329,6 @@ instead of walking again.
 
 ### VerbAnchorReader
 
-- status: draft (per graph-specs-016-parse-once-reading-port#3.3.2)
 <!-- parent:spec:SpecReader -->
 
 The capability that reads the verb anchors of a spec set — the `- verb:`
@@ -342,7 +341,6 @@ in `ports`.
 
 ### ConceptAnchorReader
 
-- status: draft (per graph-specs-016-parse-once-reading-port#3.3.2)
 <!-- parent:spec:SpecReader -->
 
 The capability that reads the concept anchors of a spec set — the anchor
@@ -352,7 +350,6 @@ values. Same shape, same implementor, no I/O. Lives in `ports`.
 
 ### AnnotationReader
 
-- status: draft (per graph-specs-016-parse-once-reading-port#3.3.2)
 <!-- parent:spec:SpecReader -->
 
 The capability that reads the invariant annotations of a spec set over a
@@ -362,7 +359,6 @@ implementor, no I/O. Lives in `ports`.
 
 ### SpecTreeReader
 
-- status: draft (per graph-specs-016-parse-once-reading-port#3.3.2)
 <!-- parent:spec:SpecReader -->
 
 The capability that assembles the heading trees of a spec set over a
@@ -479,12 +475,13 @@ valid result on v0.3 spec trees. Lives in `ports`.
 
 ```rust
 pub trait ContextReader {
-    fn extract_contexts(&self, root: &Path) -> Result<Vec<ContextDecl>, ReaderError>;
+    fn extract_contexts(&self, files: &SpecFileSet) -> Result<Vec<ContextDecl>, ReaderError>;
 }
 ```
 
 - depends on: ContextDecl
 - depends on: ReaderError
+- depends on: SpecFileSet
 
 ### ReaderError
 

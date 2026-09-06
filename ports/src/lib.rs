@@ -2,7 +2,10 @@ mod lang;
 
 pub use lang::{Extraction, LanguageBackend};
 
-use domain::{AnchorTarget, ConceptNode, ContextDecl, Edge, EdgeKind, Graph, PubFnDecl};
+use domain::{
+    AnchorTarget, ConceptAnchor, ConceptNode, ContextDecl, Edge, EdgeKind, Graph,
+    InvariantAnnotation, PubFnDecl, SpecTree, VerbAnchor,
+};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
@@ -71,7 +74,29 @@ pub trait VerbReader {
 }
 
 pub trait ContextReader {
-    fn extract_contexts(&self, root: &Path) -> Result<Vec<ContextDecl>, ReaderError>;
+    fn extract_contexts(&self, files: &SpecFileSet) -> Result<Vec<ContextDecl>, ReaderError>;
+}
+
+pub trait VerbAnchorReader {
+    fn extract_verb_anchors(&self, files: &SpecFileSet) -> Result<Vec<VerbAnchor>, ReaderError>;
+}
+
+pub trait ConceptAnchorReader {
+    fn extract_concept_anchors(
+        &self,
+        files: &SpecFileSet,
+    ) -> Result<Vec<ConceptAnchor>, ReaderError>;
+}
+
+pub trait AnnotationReader {
+    fn extract_annotations(
+        &self,
+        files: &SpecFileSet,
+    ) -> Result<Vec<InvariantAnnotation>, ReaderError>;
+}
+
+pub trait SpecTreeReader {
+    fn extract_spec_trees(&self, files: &SpecFileSet) -> Result<Vec<SpecTree>, ReaderError>;
 }
 
 pub trait CodeFacts {

@@ -428,7 +428,7 @@ fn extract_annotations_empty_on_no_h4_section() {
         "## Concept\n\nProse.\n\n- implements: Reader\n",
     );
     let anns = MarkdownReader
-        .extract_invariant_annotations(d.path())
+        .extract_annotations(&spec_set(d.path()))
         .expect("test");
     assert!(anns.is_empty());
 }
@@ -442,7 +442,7 @@ fn extract_annotations_recognises_enforced_by_cypher() {
         "## Concept\n\n#### Operational invariants\n\n- INV-001: desc [enforced-by: .cfdb/queries/rule.cypher; retire-when: never]\n",
     );
     let anns = MarkdownReader
-        .extract_invariant_annotations(d.path())
+        .extract_annotations(&spec_set(d.path()))
         .expect("test");
     assert_eq!(anns.len(), 1);
     assert_eq!(anns[0].inv_id, "INV-001: desc");
@@ -464,7 +464,7 @@ fn extract_annotations_recognises_enforced_by_script() {
         "## Concept\n\n#### Operational invariants\n\n- [enforced-by: scripts/check.sh; retire-when: done]\n",
     );
     let anns = MarkdownReader
-        .extract_invariant_annotations(d.path())
+        .extract_annotations(&spec_set(d.path()))
         .expect("test");
     assert_eq!(anns.len(), 1);
     assert_eq!(anns[0].tier, domain::TierKind::ScriptFence);
@@ -479,7 +479,7 @@ fn extract_annotations_recognises_prose_only() {
         "## Concept\n\n#### Operational invariants\n\n- INV-waiver: [prose-only: no tooling available]\n",
     );
     let anns = MarkdownReader
-        .extract_invariant_annotations(d.path())
+        .extract_annotations(&spec_set(d.path()))
         .expect("test");
     assert_eq!(anns.len(), 1);
     assert_eq!(anns[0].tier, domain::TierKind::ProseOnly);
@@ -497,7 +497,7 @@ fn extract_annotations_malformed_skips_with_ok_return() {
         "a.md",
         "## Concept\n\n#### Operational invariants\n\n- [enforced-by: missing-close-bracket\n",
     );
-    let result = MarkdownReader.extract_invariant_annotations(d.path());
+    let result = MarkdownReader.extract_annotations(&spec_set(d.path()));
     assert!(result.is_ok(), "tolerant-skip: malformed should not Err");
     assert!(
         result.expect("asserted Ok above").is_empty(),
@@ -514,7 +514,7 @@ fn extract_annotations_section_ends_at_next_h2() {
         "## Concept\n\n#### Operational invariants\n\n- [enforced-by: rule.cypher; retire-when: done]\n\n## Other\n\n- [enforced-by: other.cypher]\n",
     );
     let anns = MarkdownReader
-        .extract_invariant_annotations(d.path())
+        .extract_annotations(&spec_set(d.path()))
         .expect("test");
     assert_eq!(anns.len(), 1);
 }
@@ -528,7 +528,7 @@ fn extract_annotations_multiple_in_section() {
         "## Concept\n\n#### Operational invariants\n\n- INV-1: [enforced-by: rule.cypher; retire-when: a]\n- INV-2: [prose-only: reason]\n",
     );
     let anns = MarkdownReader
-        .extract_invariant_annotations(d.path())
+        .extract_annotations(&spec_set(d.path()))
         .expect("test");
     assert_eq!(anns.len(), 2);
 }
@@ -542,7 +542,7 @@ fn extract_annotations_returns_ok_empty_on_no_annotations_present() {
         "## ConceptA\n\nSome prose.\n\n## ConceptB\n\n- depends on: ConceptA\n",
     );
     let anns = MarkdownReader
-        .extract_invariant_annotations(d.path())
+        .extract_annotations(&spec_set(d.path()))
         .expect("test");
     assert!(anns.is_empty());
 }
@@ -601,7 +601,9 @@ fn extract_verb_anchors_collects_anchors_from_spec() {
         "a.md",
         "## Graph\n\n- verb: diff\n- verb: tokenise_target\n\n## Reader\n\n- verb: extract\n",
     );
-    let anchors = MarkdownReader.extract_verb_anchors(d.path()).expect("test");
+    let anchors = MarkdownReader
+        .extract_verb_anchors(&spec_set(d.path()))
+        .expect("test");
     assert_eq!(anchors.len(), 3);
     let qnames: Vec<&str> = anchors.iter().map(|a| a.qname.as_str()).collect();
     assert!(qnames.contains(&"diff"));
@@ -619,7 +621,9 @@ fn extract_verb_anchors_returns_empty_when_no_verb_bullets() {
         "a.md",
         "## Concept\n\n- implements: Reader\n- depends on: Graph\n",
     );
-    let anchors = MarkdownReader.extract_verb_anchors(d.path()).expect("test");
+    let anchors = MarkdownReader
+        .extract_verb_anchors(&spec_set(d.path()))
+        .expect("test");
     assert!(anchors.is_empty());
 }
 
@@ -627,7 +631,9 @@ fn extract_verb_anchors_returns_empty_when_no_verb_bullets() {
 fn extract_verb_anchors_records_correct_concept_and_source_line() {
     let d = TempDir::new().expect("test");
     write(d.path(), "a.md", "## Graph\n\n- verb: diff\n");
-    let anchors = MarkdownReader.extract_verb_anchors(d.path()).expect("test");
+    let anchors = MarkdownReader
+        .extract_verb_anchors(&spec_set(d.path()))
+        .expect("test");
     assert_eq!(anchors.len(), 1);
     assert_eq!(anchors[0].concept, "Graph");
     assert_eq!(anchors[0].qname, "diff");
@@ -788,7 +794,7 @@ fn marker_bullet_is_not_an_edge_or_an_anchor() {
     let g = extract_graph(d.path());
     assert!(g.edges.is_empty(), "marker must not become an edge");
     let anchors = MarkdownReader
-        .extract_concept_anchors(d.path())
+        .extract_concept_anchors(&spec_set(d.path()))
         .expect("test");
     assert!(anchors.is_empty(), "marker must not become an anchor");
 }
@@ -942,7 +948,9 @@ fn extract_verb_anchors_reads_draft_specs() {
         "draft.md",
         "---\nstatus: draft\n---\n\n## Reconciler\n\n- verb: reconcile\n",
     );
-    let anchors = MarkdownReader.extract_verb_anchors(d.path()).expect("test");
+    let anchors = MarkdownReader
+        .extract_verb_anchors(&spec_set(d.path()))
+        .expect("test");
     assert_eq!(anchors.len(), 1, "draft verb anchors are extracted");
     assert_eq!(anchors[0].qname, "reconcile");
 }
@@ -956,7 +964,7 @@ fn a_draft_marker_suspends_the_obligation_on_code_and_nothing_else() {
         "---\nstatus: draft\n---\n\n## Reconciler\n\n#### Operational invariants\n\n- INV-001: x [enforced-by: .cfdb/queries/r.cypher; retire-when: never]\n",
     );
     let anns = MarkdownReader
-        .extract_invariant_annotations(d.path())
+        .extract_annotations(&spec_set(d.path()))
         .expect("test");
     assert_eq!(
         anns.len(),
@@ -1019,7 +1027,7 @@ fn extract_concept_anchors_collects_impl_bullet() {
         "## ValidateIntakeFull\n\n- impl: validate_intake\n",
     );
     let anchors = MarkdownReader
-        .extract_concept_anchors(d.path())
+        .extract_concept_anchors(&spec_set(d.path()))
         .expect("test");
     assert_eq!(anchors.len(), 1);
     assert_eq!(anchors[0].concept, "ValidateIntakeFull");
@@ -1036,7 +1044,7 @@ fn extract_concept_anchors_is_empty_without_impl_and_reads_draft_files() {
         "---\nstatus: draft\n---\n\n## Drafted\n\n- impl: drafted_fn\n",
     );
     let anchors = MarkdownReader
-        .extract_concept_anchors(d.path())
+        .extract_concept_anchors(&spec_set(d.path()))
         .expect("test");
     assert_eq!(anchors.len(), 1, "the draft file's anchor is extracted");
     assert_eq!(anchors[0].target, "drafted_fn");
@@ -1196,7 +1204,7 @@ fn a_grounding_comment_is_not_an_edge_or_an_anchor() {
     let g = extract_graph(d.path());
     assert!(g.edges.is_empty());
     assert!(MarkdownReader
-        .extract_concept_anchors(d.path())
+        .extract_concept_anchors(&spec_set(d.path()))
         .expect("test")
         .is_empty());
 }
@@ -1245,7 +1253,7 @@ fn a_retired_per_heading_marker_still_contributes_its_invariant_annotations() {
         "## Concept\n\n- status: retired\n\n#### Operational invariants\n\n- INV-001: desc [enforced-by: .cfdb/queries/rule.cypher; retire-when: never]\n",
     );
     let retired = MarkdownReader
-        .extract_invariant_annotations(d.path())
+        .extract_annotations(&spec_set(d.path()))
         .expect("test");
     assert_eq!(
         retired.len(),
@@ -1263,7 +1271,7 @@ fn the_annotation_channel_runs_behind_the_one_readers_verdict() {
         "---\nstatus: retired\n---\n\n## Concept\n\n#### Operational invariants\n\n- INV-001: desc [enforced-by: .cfdb/queries/rule.cypher; retire-when: never]\n",
     );
     let err = MarkdownReader
-        .extract_invariant_annotations(d.path())
+        .extract_annotations(&spec_set(d.path()))
         .expect_err("a malformed file refuses before its annotations are read");
     assert!(
         matches!(&err, ports::ReaderError::ParseFailed { message, .. } if message.contains("unknown status")),
