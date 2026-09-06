@@ -7,6 +7,7 @@ use std::path::Path;
 #[cfg(test)]
 use std::path::PathBuf;
 use syn::spanned::Spanned;
+use syn::TypeParamBound;
 use syn::{
     FnArg, GenericArgument, ImplItem, Item, ItemEnum, ItemImpl, ItemStruct, ItemTrait,
     PathArguments, ReturnType, Signature, TraitItem, Type, Visibility,
@@ -198,6 +199,26 @@ fn collect_type_path_heads(ty: &Type, out: &mut Vec<(String, String)>) {
         Type::Paren(p) => collect_type_path_heads(&p.elem, out),
         Type::Group(g) => collect_type_path_heads(&g.elem, out),
         Type::Slice(s) => collect_type_path_heads(&s.elem, out),
+        Type::TraitObject(t) => {
+            for bound in &t.bounds {
+                if let TypeParamBound::Trait(b) = bound {
+                    if let Some(last) = b.path.segments.last() {
+                        let head = last.ident.to_string();
+                        out.push((head.clone(), head));
+                    }
+                }
+            }
+        }
+        Type::ImplTrait(t) => {
+            for bound in &t.bounds {
+                if let TypeParamBound::Trait(b) = bound {
+                    if let Some(last) = b.path.segments.last() {
+                        let head = last.ident.to_string();
+                        out.push((head.clone(), head));
+                    }
+                }
+            }
+        }
         Type::Array(a) => collect_type_path_heads(&a.elem, out),
         Type::Tuple(t) => {
             for elem in &t.elems {
@@ -266,6 +287,60 @@ mod tests {
         let edges = edges_of("pub struct Foo; impl Foo { pub fn new() -> Foo { Foo } }");
         let filtered = filter_by_known_concepts(edges, &nodes(&["Foo"]));
         assert!(filtered.iter().all(|e| e.kind != EdgeKind::Implements));
+    }
+
+    #[test]
+    fn a_dyn_trait_parameter_emits_depends_on() {
+        let edges = edges_of(
+            "pub trait Port {} pub struct Holder; impl Holder { pub fn take(&self, p: &dyn Port) {} }",
+        );
+        let filtered = filter_by_known_concepts(edges, &nodes(&["Port", "Holder"]));
+        assert!(
+            filtered.iter().any(|e| e.source_concept.name == "Holder"
+                && e.kind == EdgeKind::DependsOn
+                && e.target.name == "Port"),
+            "a concept named in a function's parameters is a dependency (graph-specs-017-founding-graph-model#3.3): {filtered:?}"
+        );
+    }
+
+    #[test]
+    fn a_slice_of_dyn_trait_parameters_emits_depends_on() {
+        let edges = edges_of(
+            "pub trait Port {} pub struct Holder; impl Holder { pub fn take(&self, p: &[&dyn Port]) {} }",
+        );
+        let filtered = filter_by_known_concepts(edges, &nodes(&["Port", "Holder"]));
+        assert!(
+            filtered.iter().any(|e| e.source_concept.name == "Holder"
+                && e.kind == EdgeKind::DependsOn
+                && e.target.name == "Port"),
+            "{filtered:?}"
+        );
+    }
+
+    #[test]
+    fn an_impl_trait_parameter_emits_depends_on() {
+        let edges = edges_of(
+            "pub trait Port {} pub struct Holder; impl Holder { pub fn take(&self, p: impl Port) {} }",
+        );
+        let filtered = filter_by_known_concepts(edges, &nodes(&["Port", "Holder"]));
+        assert!(
+            filtered.iter().any(|e| e.source_concept.name == "Holder"
+                && e.kind == EdgeKind::DependsOn
+                && e.target.name == "Port"),
+            "{filtered:?}"
+        );
+    }
+
+    #[test]
+    fn a_box_dyn_trait_field_emits_depends_on() {
+        let edges = edges_of("pub trait Port {} pub struct Holder { pub p: Box<dyn Port> }");
+        let filtered = filter_by_known_concepts(edges, &nodes(&["Port", "Holder"]));
+        assert!(
+            filtered.iter().any(|e| e.source_concept.name == "Holder"
+                && e.kind == EdgeKind::DependsOn
+                && e.target.name == "Port"),
+            "a concept named in another concept's fields is a dependency: {filtered:?}"
+        );
     }
 
     #[test]
