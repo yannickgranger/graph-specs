@@ -16,6 +16,7 @@ import filecmp
 import glob
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 
@@ -66,7 +67,11 @@ def report(bad, declared_count):
 
 
 def plant(root, corpus_files, mirror_files):
-    os.makedirs(os.path.join(root, "doxa", "rfc"), exist_ok=True)
+    if corpus_files is None:
+        os.makedirs(os.path.join(root, "doxa"), exist_ok=True)
+        corpus_files = {}
+    else:
+        os.makedirs(os.path.join(root, "doxa", "rfc"), exist_ok=True)
     os.makedirs(os.path.join(root, "docs", "rfc"), exist_ok=True)
     for name, body in corpus_files.items():
         with open(os.path.join(root, "doxa", "rfc", name), "w", encoding="utf-8") as fh:
@@ -76,47 +81,67 @@ def plant(root, corpus_files, mirror_files):
             fh.write(body)
 
 
+def run_script(root):
+    return subprocess.run(
+        [
+            sys.executable,
+            os.path.abspath(__file__),
+            "--doxa",
+            "doxa",
+            "--prefix",
+            "demo",
+            "--path-template",
+            "docs/rfc/{tail}.md",
+            "--mirror",
+            "docs/rfc/*.md",
+        ],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
 def self_test():
     corpus = {
         "demo-001-first.md": "one\n",
         "demo-002-second.md": "two\n",
         "other-009-not-ours.md": "elsewhere\n",
     }
+    mirror = {"001-first.md": "one\n", "002-second.md": "two\n"}
     cases = [
         ("the corpus' set mirrored byte-for-byte",
-         corpus, {"001-first.md": "one\n", "002-second.md": "two\n"}, 0, ""),
+         corpus, mirror, 0, "mirror ok: 2 files"),
         ("a corpus RFC absent from the mirror",
-         dict(corpus, **{"demo-003-third.md": "three\n"}),
-         {"001-first.md": "one\n", "002-second.md": "two\n"}, 1, "missing in mirror"),
+         dict(corpus, **{"demo-003-third.md": "three\n"}), mirror, 1, "missing in mirror"),
         ("a mirrored file the corpus does not carry",
-         corpus,
-         {"001-first.md": "one\n", "002-second.md": "two\n", "004-extra.md": "four\n"},
-         1, "not carried by the corpus"),
+         corpus, dict(mirror, **{"004-extra.md": "four\n"}), 1, "not carried by the corpus"),
         ("a byte changed in a mirrored file",
          corpus, {"001-first.md": "one\n", "002-second.md": "two!\n"}, 1, "diverges from corpus"),
+        ("the corpus unreadable at its pin", None, mirror, 1, "unreadable at its pin"),
+        ("nothing on either side", {}, {}, 1, "nothing to check"),
     ]
     failures = []
-    cwd = os.getcwd()
     for name, corpus_files, mirror_files, want_rc, want_text in cases:
         root = tempfile.mkdtemp()
         try:
             plant(root, corpus_files, mirror_files)
-            os.chdir(root)
-            bad = check("doxa", "demo", "docs/rfc/{tail}.md", "docs/rfc/*.md")
-            rc = 1 if bad else 0
-            if rc != want_rc:
-                failures.append(f"{name}: expected exit {want_rc}, got {rc} — {bad}")
-            elif want_text and not any(want_text in b for b in bad):
-                failures.append(f"{name}: expected a finding naming {want_text!r}, got {bad}")
+            got = run_script(root)
+            out = got.stdout + got.stderr
+            if got.returncode != want_rc:
+                failures.append(f"{name}: expected exit {want_rc}, got {got.returncode} — {out.strip()}")
+            elif want_text not in out:
+                failures.append(f"{name}: expected output naming {want_text!r}, got {out.strip()!r}")
         finally:
-            os.chdir(cwd)
             shutil.rmtree(root, ignore_errors=True)
     if failures:
         print("doxa-mirror-check self-test FAILED — the check does not refuse what it claims to refuse:")
         for f in failures:
             print("  " + f)
         return 1
-    print(f"doxa-mirror-check self-test ok: {len(cases)} plants, 1 clean and 3 refused")
+    refused = sum(1 for c in cases if c[3] == 1)
+    print(f"doxa-mirror-check self-test ok: {len(cases)} plants driven through the script, "
+          f"{len(cases) - refused} clean and {refused} refused, each on its exit status")
     return 0
 
 
