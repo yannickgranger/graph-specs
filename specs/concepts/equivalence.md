@@ -143,8 +143,8 @@ The port by which the markdown reader normalizes a fenced signature of any
 language without depending on an adapter crate: it takes the fence tag and the
 block and answers the byte-equal comparison target, or the `Unparseable` state
 with the tag naming the language. The composition root supplies the
-implementation per fence tag — `signature-norm` for `rust`,
-`adapter-php::normalize` for `php`.
+implementation per fence tag — [RustSignatures](reading.md#rustsignatures)
+for `rust`, [PhpSignatures](reading.md#phpsignatures) for `php`.
 
 ## Source
 

@@ -15,6 +15,7 @@ equivalence publishes.
 - adapters/rust
 - adapters/cfdb-query
 - adapters/php
+- adapters/signature
 
 ## Exports (Published Language)
 
@@ -24,6 +25,8 @@ equivalence publishes.
 - CfdbQueryReader (PublishedLanguage)
 - PhpEdgeTraversal (PublishedLanguage)
 - PhpAttributeReader (PublishedLanguage)
+- RustSignatures (PublishedLanguage)
+- PhpSignatures (PublishedLanguage)
 - RustAnchorResolver (PublishedLanguage)
 - CfdbAnchorResolver (PublishedLanguage)
 
@@ -36,6 +39,7 @@ equivalence publishes.
 - VerbReader from equivalence (Conformist)
 - AnchorResolver from equivalence (Conformist)
 - LanguageBackend from equivalence (Conformist)
+- SignatureNormalizer from equivalence (Conformist)
 - Extraction from equivalence (PublishedLanguage)
 - ReaderError from equivalence (PublishedLanguage)
 - Graph from equivalence (PublishedLanguage)
