@@ -2,7 +2,6 @@ mod anchor_resolver;
 mod cfg_gate;
 mod concepts;
 mod edges;
-mod normalize;
 mod provenance;
 mod pub_fns;
 mod walk;
@@ -11,7 +10,7 @@ mod walk;
 mod tests;
 
 pub use anchor_resolver::RustAnchorResolver;
-pub use normalize::normalize;
+pub use signature_norm::normalize;
 
 use domain::{ConceptNode, Edge, EdgeKind, Graph, PubFnDecl};
 use ports::{CodeFacts, Extraction, LanguageBackend, Reader, ReaderError, VerbReader};
