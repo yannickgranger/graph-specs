@@ -196,7 +196,7 @@ mod walker {
     use super::super::walk_contexts;
 
     fn spec_set(root: &std::path::Path) -> ports::SpecFileSet {
-        ports::SpecLoader::load(&crate::MarkdownReader, root).expect("load")
+        ports::SpecLoader::load(&crate::MarkdownReader::new(&[]), root).expect("load")
     }
     use std::io::Write;
     use tempfile::TempDir;

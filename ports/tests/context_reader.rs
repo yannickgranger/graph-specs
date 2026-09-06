@@ -38,8 +38,8 @@ impl ConceptAnchorReader for ErrStub {
     fn extract_concept_anchors(
         &self,
         _: &SpecFileSet,
-    ) -> Result<Vec<domain::ConceptAnchor>, ReaderError> {
-        Ok(Vec::new())
+    ) -> Result<(Vec<domain::ConceptAnchor>, Vec<domain::Violation>), ReaderError> {
+        Ok((Vec::new(), Vec::new()))
     }
 }
 
@@ -66,7 +66,8 @@ fn the_four_spec_capability_ports_are_object_safe() {
     let c: Box<dyn AnnotationReader> = Box::new(ErrStub);
     let d: Box<dyn SpecTreeReader> = Box::new(ErrStub);
     assert!(a.extract_verb_anchors(&empty).unwrap().is_empty());
-    assert!(b.extract_concept_anchors(&empty).unwrap().is_empty());
+    let (anchors, findings) = b.extract_concept_anchors(&empty).unwrap();
+    assert!(anchors.is_empty() && findings.is_empty());
     assert!(c.extract_annotations(&empty).unwrap().is_empty());
     assert!(d.extract_spec_trees(&empty).unwrap().is_empty());
 }

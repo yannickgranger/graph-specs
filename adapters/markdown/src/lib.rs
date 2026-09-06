@@ -8,9 +8,6 @@ mod markdown_utils;
 mod section;
 mod tree;
 
-pub use bullets::{parse_impl_bullet, parse_verb_bullet};
-pub use tree::{assemble_spec_trees, assemble_tree};
-
 use crate::front_matter::{has_behavioral_substance, is_behavioral_context};
 use crate::invariants::extract_annotations_from_source;
 use crate::markdown_utils::path_under_dir;
@@ -26,21 +23,20 @@ use ports::{
 use std::path::Path;
 use walkdir::WalkDir;
 
-#[derive(Debug, Default)]
-pub struct MarkdownReader;
-
-impl SpecReader for MarkdownReader {
-    fn extract(&self, files: &SpecFileSet) -> Result<Graph, ReaderError> {
-        self.extract_with(files, &[])
-    }
+pub struct MarkdownReader {
+    normalizers: &'static [&'static dyn SignatureNormalizer],
 }
 
 impl MarkdownReader {
-    pub fn extract_with(
-        &self,
-        files: &SpecFileSet,
-        normalizers: &[&dyn SignatureNormalizer],
-    ) -> Result<Graph, ReaderError> {
+    #[must_use]
+    pub const fn new(normalizers: &'static [&'static dyn SignatureNormalizer]) -> Self {
+        Self { normalizers }
+    }
+}
+
+impl SpecReader for MarkdownReader {
+    fn extract(&self, files: &SpecFileSet) -> Result<Graph, ReaderError> {
+        let normalizers = self.normalizers;
         let mut nodes = Vec::new();
         let mut edges = Vec::new();
 
@@ -89,38 +85,7 @@ struct BulletSink<'a> {
     malformed: &'a mut Vec<Violation>,
 }
 
-impl MarkdownReader {
-    pub fn extract_malformed_anchors(
-        &self,
-        files: &SpecFileSet,
-    ) -> Result<Vec<Violation>, ReaderError> {
-        let mut malformed: Vec<Violation> = Vec::new();
-
-        for (path, source) in concept_files(files)
-            .into_iter()
-            .map(|f| (f.path.clone(), f.text.clone()))
-        {
-            let mut nodes_scratch: Vec<ConceptNode> = Vec::new();
-            let mut edges_scratch: Vec<Edge> = Vec::new();
-            let mut verb_anchors_scratch: Vec<VerbAnchor> = Vec::new();
-            let mut concept_anchors_scratch: Vec<ConceptAnchor> = Vec::new();
-            extract_from_source(
-                &source,
-                &path,
-                &mut BulletSink {
-                    nodes: &mut nodes_scratch,
-                    edges: &mut edges_scratch,
-                    verb_anchors: &mut verb_anchors_scratch,
-                    concept_anchors: &mut concept_anchors_scratch,
-                    malformed: &mut malformed,
-                },
-                &[],
-            )?;
-        }
-
-        Ok(malformed)
-    }
-}
+impl MarkdownReader {}
 
 impl VerbAnchorReader for MarkdownReader {
     fn extract_verb_anchors(&self, files: &SpecFileSet) -> Result<Vec<VerbAnchor>, ReaderError> {
@@ -156,8 +121,9 @@ impl ConceptAnchorReader for MarkdownReader {
     fn extract_concept_anchors(
         &self,
         files: &SpecFileSet,
-    ) -> Result<Vec<ConceptAnchor>, ReaderError> {
+    ) -> Result<(Vec<ConceptAnchor>, Vec<Violation>), ReaderError> {
         let mut concept_anchors: Vec<ConceptAnchor> = Vec::new();
+        let mut malformed: Vec<Violation> = Vec::new();
 
         for (path, source) in concept_files(files)
             .into_iter()
@@ -166,7 +132,6 @@ impl ConceptAnchorReader for MarkdownReader {
             let mut nodes_scratch: Vec<ConceptNode> = Vec::new();
             let mut edges_scratch: Vec<Edge> = Vec::new();
             let mut verb_anchors_scratch: Vec<VerbAnchor> = Vec::new();
-            let mut malformed_scratch: Vec<Violation> = Vec::new();
             extract_from_source(
                 &source,
                 &path,
@@ -175,13 +140,13 @@ impl ConceptAnchorReader for MarkdownReader {
                     edges: &mut edges_scratch,
                     verb_anchors: &mut verb_anchors_scratch,
                     concept_anchors: &mut concept_anchors,
-                    malformed: &mut malformed_scratch,
+                    malformed: &mut malformed,
                 },
                 &[],
             )?;
         }
 
-        Ok(concept_anchors)
+        Ok((concept_anchors, malformed))
     }
 }
 

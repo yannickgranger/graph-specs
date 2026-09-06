@@ -74,7 +74,7 @@ mod tests {
     use std::path::PathBuf;
 
     fn spec_set(root: &std::path::Path) -> ports::SpecFileSet {
-        ports::SpecLoader::load(&crate::MarkdownReader, root).expect("load")
+        ports::SpecLoader::load(&crate::MarkdownReader::new(&[]), root).expect("load")
     }
     use super::*;
     use crate::contexts::parse_context_file;
