@@ -6,8 +6,10 @@ use domain::{
     Source,
 };
 use ports::ReaderError;
+use ports::SpecFileSet;
 use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
 use std::path::Path;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Section {
@@ -261,44 +263,17 @@ fn parse_err(path: &Path, line: usize, message: &str) -> ReaderError {
     }
 }
 
-pub fn walk_contexts(root: &Path) -> Result<Vec<ContextDecl>, ReaderError> {
+pub fn walk_contexts(files: &SpecFileSet) -> Result<Vec<ContextDecl>, ReaderError> {
     let mut out = Vec::new();
-    let walker = walkdir::WalkDir::new(root).sort_by_file_name();
-    for entry in walker {
-        let entry = match entry {
-            Ok(e) => e,
-            Err(e)
-                if e.io_error()
-                    .is_some_and(|io| io.kind() == std::io::ErrorKind::NotFound) =>
-            {
-                return Ok(out);
-            }
-            Err(e) => {
-                return Err(ReaderError::WalkFailed {
-                    root: root.to_path_buf(),
-                    cause: e.to_string(),
-                })
-            }
-        };
-        if !entry.file_type().is_file() {
+    for file in files.files() {
+        if !path_under_dir(&file.path, "contexts") {
             continue;
         }
-        let p = entry.path();
-        if p.extension().is_none_or(|ext| ext != "md") {
-            continue;
-        }
-        if !path_under_dir(p, "contexts") {
-            continue;
-        }
-        let source = std::fs::read_to_string(p).map_err(|e| ReaderError::IoFailed {
-            path: p.to_path_buf(),
-            cause: e.to_string(),
-        })?;
-        out.push(parse_context_file(p, &source)?);
+        out.push(parse_context_file(&file.path, &file.text)?);
     }
     if let Some(cycle) = detect_import_cycle(&out) {
         return Err(ReaderError::ParseFailed {
-            path: root.to_path_buf(),
+            path: PathBuf::new(),
             line: 0,
             message: format!("cyclic import declarations detected: {}", cycle.join(" → ")),
         });

@@ -41,6 +41,8 @@ equivalence publishes.
 - ConceptAnchorReader from equivalence (Conformist)
 - AnnotationReader from equivalence (Conformist)
 - SpecTreeReader from equivalence (Conformist)
+- SpecTree from equivalence (PublishedLanguage)
+- HeadingNode from equivalence (PublishedLanguage)
 - SpecLoader from equivalence (Conformist)
 - CodeLoader from equivalence (Conformist)
 - LoadedFile from equivalence (PublishedLanguage)

@@ -1,90 +1,8 @@
 use crate::grounding::read;
-use crate::markdown_utils::{normalize_context_id, path_under_dir};
-use domain::{behavioral_exemption_applies, AbstractionLevel, CohesionViolation};
-use ports::ReaderError;
-use std::path::{Path, PathBuf};
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HeadingNode {
-    pub level: AbstractionLevel,
-    pub text: String,
-    pub id: Option<String>,
-    pub line: usize,
-    pub parent: Option<usize>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SpecTree {
-    pub file: PathBuf,
-    pub nodes: Vec<HeadingNode>,
-    pub behavioral: bool,
-    pub has_substance: bool,
-}
-
-impl SpecTree {
-    #[must_use]
-    pub fn context_id(&self) -> Option<&str> {
-        self.nodes
-            .iter()
-            .find(|n| n.level == AbstractionLevel::Context)
-            .and_then(|n| n.id.as_deref())
-    }
-
-    #[must_use]
-    pub fn concept_declarations(&self) -> Vec<(&str, &str)> {
-        let Some(ctx) = self.context_id() else {
-            return Vec::new();
-        };
-        self.nodes
-            .iter()
-            .filter(|n| {
-                matches!(
-                    n.level,
-                    AbstractionLevel::Concept | AbstractionLevel::SubConcept
-                )
-            })
-            .map(|n| (n.text.as_str(), ctx))
-            .collect()
-    }
-
-    #[must_use]
-    pub fn cohesion_violations(&self) -> Vec<CohesionViolation> {
-        let context_exempt = behavioral_exemption_applies(self.behavioral, self.has_substance);
-        let mut out = Vec::new();
-        for (idx, node) in self.nodes.iter().enumerate() {
-            match node.level {
-                AbstractionLevel::Context => {
-                    if !self.has_cohesion_unit(idx) && !context_exempt {
-                        out.push(CohesionViolation::ContextWithoutCohesionUnit {
-                            context: node.id.clone().unwrap_or_else(|| node.text.clone()),
-                            file: self.file.clone(),
-                        });
-                    }
-                }
-                AbstractionLevel::SubConcept if node.parent.is_none() => {
-                    out.push(CohesionViolation::SubConceptOrphan {
-                        sub_concept: node.text.clone(),
-                        file: self.file.clone(),
-                    });
-                }
-                _ => {}
-            }
-        }
-        out
-    }
-
-    fn has_cohesion_unit(&self, ctx_idx: usize) -> bool {
-        self.nodes[ctx_idx + 1..]
-            .iter()
-            .take_while(|n| n.level != AbstractionLevel::Context)
-            .any(|n| {
-                matches!(
-                    n.level,
-                    AbstractionLevel::Concept | AbstractionLevel::SubConcept
-                )
-            })
-    }
-}
+use crate::markdown_utils::normalize_context_id;
+use domain::{AbstractionLevel, HeadingNode, SpecTree};
+use ports::{ReaderError, SpecFileSet};
+use std::path::Path;
 
 #[derive(Default)]
 struct Pointers {
@@ -142,38 +60,22 @@ pub fn assemble_tree(source: &str, file: &Path) -> Result<SpecTree, ReaderError>
     })
 }
 
-pub fn assemble_spec_trees(root: &Path) -> Result<Vec<SpecTree>, ReaderError> {
-    let concepts_subdir = root.join("concepts");
-    let walk_root: &Path = if concepts_subdir.is_dir() {
-        concepts_subdir.as_path()
-    } else {
-        root
-    };
-
+pub fn assemble_spec_trees(files: &SpecFileSet) -> Result<Vec<SpecTree>, ReaderError> {
     let mut trees = Vec::new();
-    for entry in walkdir::WalkDir::new(walk_root).sort_by_file_name() {
-        let entry = entry.map_err(|e| ReaderError::WalkFailed {
-            root: root.to_path_buf(),
-            cause: e.to_string(),
-        })?;
-        if !entry.file_type().is_file() {
-            continue;
-        }
-        let path = entry.path();
-        if path.extension().is_none_or(|ext| ext != "md") || path_under_dir(path, "contexts") {
-            continue;
-        }
-        let source = std::fs::read_to_string(path).map_err(|e| ReaderError::IoFailed {
-            path: path.to_path_buf(),
-            cause: e.to_string(),
-        })?;
-        trees.push(assemble_tree(&source, path)?);
+    for file in crate::concept_files(files) {
+        trees.push(assemble_tree(&file.text, &file.path)?);
     }
     Ok(trees)
 }
 
 #[cfg(test)]
 mod tests {
+    use domain::CohesionViolation;
+    use std::path::PathBuf;
+
+    fn spec_set(root: &std::path::Path) -> ports::SpecFileSet {
+        ports::SpecLoader::load(&crate::MarkdownReader, root).expect("load")
+    }
     use super::*;
     use crate::contexts::parse_context_file;
 
@@ -336,7 +238,7 @@ mod tests {
         write("concepts/cfdb-cli.md", "# Spec: cfdb-cli\n\n## Foo\n");
         write("concepts/reading.md", "# reading\n\n## Bar\n");
 
-        let trees = assemble_spec_trees(dir.path()).expect("walk must not abort");
+        let trees = assemble_spec_trees(&spec_set(dir.path())).expect("walk must not abort");
         let ids: Vec<_> = trees.iter().filter_map(SpecTree::context_id).collect();
         assert_eq!(
             ids,
@@ -407,7 +309,7 @@ mod tests {
         );
         write("concepts/live.md", "# equivalence\n\n## Graph\n");
 
-        let trees = assemble_spec_trees(dir.path()).expect("walk");
+        let trees = assemble_spec_trees(&spec_set(dir.path())).expect("walk");
         let ids: Vec<_> = trees.iter().filter_map(SpecTree::context_id).collect();
         assert_eq!(
             ids,
@@ -432,7 +334,7 @@ mod tests {
             .join("../../specs/concepts")
             .canonicalize()
             .expect("specs/concepts exists");
-        let trees = assemble_spec_trees(&specs).expect("assemble self specs");
+        let trees = assemble_spec_trees(&spec_set(&specs)).expect("assemble self specs");
         assert!(!trees.is_empty(), "expected concept spec files");
         for t in &trees {
             let contexts = t

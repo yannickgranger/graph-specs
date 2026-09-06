@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+mod spec_tree;
+pub use spec_tree::{HeadingNode, SpecTree};
 mod abstraction;
 mod anchor;
 mod cohesion;

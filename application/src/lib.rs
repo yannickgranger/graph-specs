@@ -1,14 +1,14 @@
-use adapter_markdown::{assemble_spec_trees, MarkdownReader, SpecTree};
+use adapter_markdown::MarkdownReader;
 use adapter_php::PhpAttributeReader;
 use adapter_rust::{RustAnchorResolver, RustLoader, RustReader};
 use domain::{
     diff, CheckInput, CheckOutcome, CohesionViolation, ConceptNode, ContextViolation,
     DeclaredSurface, DiffSide, EdgeKind, Graph, OwnershipAmbiguity, ResolvedAnchor, SignatureState,
-    SourceWithSig, VerbDecl, VerbOwnership, Violation,
+    SourceWithSig, SpecTree, VerbDecl, VerbOwnership, Violation,
 };
 use ports::{
-    AnchorResolver, CodeFacts, CodeLoader, CodeReader, ContextReader, ReaderError, SpecLoader,
-    SpecReader, VerbReader,
+    AnchorResolver, CodeFacts, CodeLoader, CodeReader, ConceptAnchorReader, ContextReader,
+    ReaderError, SpecLoader, SpecReader, SpecTreeReader, VerbAnchorReader, VerbReader,
 };
 use std::collections::HashMap;
 use std::path::Path;
@@ -68,8 +68,8 @@ pub fn run_check(
     let attribute_graph =
         PhpAttributeReader::new().extract(&PhpAttributeReader::new().load(code_dir)?)?;
     let mut within_side = union_spec_graphs(&mut specs_graph, attribute_graph);
-    let spec_contexts = MarkdownReader.extract_contexts(specs_dir)?;
-    let verb_anchors = MarkdownReader.extract_verb_anchors(specs_dir)?;
+    let spec_contexts = MarkdownReader.extract_contexts(&spec_set)?;
+    let verb_anchors = MarkdownReader.extract_verb_anchors(&spec_set)?;
     let surface = match keyspace {
         None => DeclaredSurface::default(),
         Some(keyspace) => DeclaredSurface::from_contexts(&spec_contexts)
@@ -110,12 +110,12 @@ pub fn run_check(
         None => RustReader::new(code_dir).extract_pub_fns(code_dir)?,
         Some(keyspace) => keyspace_pub_fns(code_dir, keyspace, &surface)?,
     };
-    let concept_anchors = MarkdownReader.extract_concept_anchors(specs_dir)?;
-    let mut spec_findings = MarkdownReader.extract_malformed_anchors(specs_dir)?;
+    let concept_anchors = MarkdownReader.extract_concept_anchors(&spec_set)?;
+    let mut spec_findings = MarkdownReader.extract_malformed_anchors(&spec_set)?;
     spec_findings.append(&mut PhpAttributeReader::new().extract_findings(code_dir)?);
     spec_findings.append(&mut within_side);
 
-    let trees = assemble_spec_trees(specs_dir)?;
+    let trees = MarkdownReader.extract_spec_trees(&spec_set)?;
     let declared: HashMap<&str, &str> = trees
         .iter()
         .flat_map(SpecTree::concept_declarations)

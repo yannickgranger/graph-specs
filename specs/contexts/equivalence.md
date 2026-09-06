@@ -40,6 +40,8 @@ here. No IO, no parser state — just values, traits, and the three-pass
 - ConceptAnchorReader (PublishedLanguage)
 - AnnotationReader (PublishedLanguage)
 - SpecTreeReader (PublishedLanguage)
+- SpecTree (PublishedLanguage)
+- HeadingNode (PublishedLanguage)
 - SpecLoader (PublishedLanguage)
 - CodeLoader (PublishedLanguage)
 - LoadedFile (PublishedLanguage)

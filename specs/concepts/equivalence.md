@@ -329,7 +329,6 @@ instead of walking again.
 
 ### VerbAnchorReader
 
-- status: draft (per graph-specs-016-parse-once-reading-port#3.3.2)
 <!-- parent:spec:SpecReader -->
 
 The capability that reads the verb anchors of a spec set — the `- verb:`
@@ -342,7 +341,6 @@ in `ports`.
 
 ### ConceptAnchorReader
 
-- status: draft (per graph-specs-016-parse-once-reading-port#3.3.2)
 <!-- parent:spec:SpecReader -->
 
 The capability that reads the concept anchors of a spec set — the anchor
@@ -352,7 +350,6 @@ values. Same shape, same implementor, no I/O. Lives in `ports`.
 
 ### AnnotationReader
 
-- status: draft (per graph-specs-016-parse-once-reading-port#3.3.2)
 <!-- parent:spec:SpecReader -->
 
 The capability that reads the invariant annotations of a spec set over a
@@ -362,7 +359,6 @@ implementor, no I/O. Lives in `ports`.
 
 ### SpecTreeReader
 
-- status: draft (per graph-specs-016-parse-once-reading-port#3.3.2)
 <!-- parent:spec:SpecReader -->
 
 The capability that assembles the heading trees of a spec set over a
@@ -479,12 +475,13 @@ valid result on v0.3 spec trees. Lives in `ports`.
 
 ```rust
 pub trait ContextReader {
-    fn extract_contexts(&self, root: &Path) -> Result<Vec<ContextDecl>, ReaderError>;
+    fn extract_contexts(&self, files: &SpecFileSet) -> Result<Vec<ContextDecl>, ReaderError>;
 }
 ```
 
 - depends on: ContextDecl
 - depends on: ReaderError
+- depends on: SpecFileSet
 
 ### ReaderError
 
@@ -1146,3 +1143,38 @@ whose canonical implementation is `pub(crate)` (or a `fn` / `const`) can be
 a spec concept without a manufactured `pub` type. Resolution is consulted
 only for the qnames an anchor references, so the global concept set is
 unchanged. Lives in `ports`.
+
+## SpecTree
+
+<!-- parent:rfc:graph-specs-010-abstraction-level-equivalence#3.2 anchor:"H1/parent-tree assembly" -->
+
+The assembled heading tree for a single spec file (graph-specs-010-abstraction-level-equivalence#3.2 / R10-2) —
+a parent-linked vector of [HeadingNode](#headingnode) in document order,
+assembled behind the [SpecTreeReader](#spectreereader) port over the one dialect read the concept
+reader also projects, so the tree's rungs and the graph's nodes are the
+same list and cannot diverge (keel-dialect §12.1). Exposes `context_id`
+(the file's single bounded-context identifier) and
+`cohesion_violations`, which surfaces the spec-side
+[CohesionViolation](#cohesionviolation)s the tree's shape reveals — an H1
+context with no concept under it, and orphaned H3 sub-concepts. Wiring the
+detection into the `check` diff is R10-3. Lives in `domain` since
+graph-specs-016-parse-once-reading-port#3.3.3, with its four methods; only
+the assembly stays adapter-side.
+
+Marker-blind by construction (graph-specs-013-spec-state-marker#3.2 row 6): the assembler records
+heading *depth*, so a marked `## Concept` is a `Concept` node like any
+other and counts as its context's cohesion unit. Since graph-specs-013-spec-state-marker the walk
+also no longer skips `status: draft` files — the doc-level structural
+check applies to them on the same terms as any other doc.
+
+### HeadingNode
+
+<!-- parent:spec:SpecTree -->
+
+One node of the abstraction-ladder tree (graph-specs-010-abstraction-level-equivalence#3.2 / R10-2) — a single
+markdown heading, tagged with the [AbstractionLevel](#abstractionlevel) its
+depth maps to (`H1 → Context`, `H2 → Concept`, `H3 → SubConcept`,
+`H4+ → Member`), its trimmed text, the normalised context identifier for an
+H1 node (`# AC verifier` → `ac-verifier`, `None` deeper), its 1-based line,
+and the index of its parent one rung up (`None` for a context, or for an
+orphaned sub-concept). Lives in `domain` (graph-specs-016-parse-once-reading-port#3.3.3).

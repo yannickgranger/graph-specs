@@ -9,21 +9,21 @@ mod section;
 mod tree;
 
 pub use bullets::{parse_impl_bullet, parse_verb_bullet};
-pub use tree::{assemble_spec_trees, assemble_tree, HeadingNode, SpecTree};
+pub use tree::{assemble_spec_trees, assemble_tree};
 
 use crate::front_matter::{has_behavioral_substance, is_behavioral_context};
 use crate::invariants::extract_annotations_from_source;
 use crate::markdown_utils::path_under_dir;
 use crate::section::extract_from_source;
 use domain::{
-    ConceptAnchor, ConceptNode, ContextDecl, Edge, Graph, InvariantAnnotation, VerbAnchor,
-    Violation,
+    ConceptAnchor, ConceptNode, ContextDecl, Edge, Graph, InvariantAnnotation, SpecTree,
+    VerbAnchor, Violation,
 };
 use ports::{
-    ContextReader, LoadedFile, ReaderError, SignatureNormalizer, SpecFileSet, SpecLoader,
-    SpecReader,
+    AnnotationReader, ConceptAnchorReader, ContextReader, LoadedFile, ReaderError,
+    SignatureNormalizer, SpecFileSet, SpecLoader, SpecReader, SpecTreeReader, VerbAnchorReader,
 };
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use walkdir::WalkDir;
 
 #[derive(Debug, Default)]
@@ -69,9 +69,15 @@ impl MarkdownReader {
     }
 }
 
+impl SpecTreeReader for MarkdownReader {
+    fn extract_spec_trees(&self, files: &SpecFileSet) -> Result<Vec<SpecTree>, ReaderError> {
+        tree::assemble_spec_trees(files)
+    }
+}
+
 impl ContextReader for MarkdownReader {
-    fn extract_contexts(&self, root: &Path) -> Result<Vec<ContextDecl>, ReaderError> {
-        contexts::walk_contexts(root)
+    fn extract_contexts(&self, files: &SpecFileSet) -> Result<Vec<ContextDecl>, ReaderError> {
+        contexts::walk_contexts(files)
     }
 }
 
@@ -84,10 +90,16 @@ struct BulletSink<'a> {
 }
 
 impl MarkdownReader {
-    pub fn extract_malformed_anchors(&self, root: &Path) -> Result<Vec<Violation>, ReaderError> {
+    pub fn extract_malformed_anchors(
+        &self,
+        files: &SpecFileSet,
+    ) -> Result<Vec<Violation>, ReaderError> {
         let mut malformed: Vec<Violation> = Vec::new();
 
-        for (path, source) in walk_concept_sources(root)? {
+        for (path, source) in concept_files(files)
+            .into_iter()
+            .map(|f| (f.path.clone(), f.text.clone()))
+        {
             let mut nodes_scratch: Vec<ConceptNode> = Vec::new();
             let mut edges_scratch: Vec<Edge> = Vec::new();
             let mut verb_anchors_scratch: Vec<VerbAnchor> = Vec::new();
@@ -108,11 +120,16 @@ impl MarkdownReader {
 
         Ok(malformed)
     }
+}
 
-    pub fn extract_verb_anchors(&self, root: &Path) -> Result<Vec<VerbAnchor>, ReaderError> {
+impl VerbAnchorReader for MarkdownReader {
+    fn extract_verb_anchors(&self, files: &SpecFileSet) -> Result<Vec<VerbAnchor>, ReaderError> {
         let mut verb_anchors: Vec<VerbAnchor> = Vec::new();
 
-        for (path, source) in walk_concept_sources(root)? {
+        for (path, source) in concept_files(files)
+            .into_iter()
+            .map(|f| (f.path.clone(), f.text.clone()))
+        {
             let mut nodes_scratch: Vec<ConceptNode> = Vec::new();
             let mut edges_scratch: Vec<Edge> = Vec::new();
             let mut concept_anchors_scratch: Vec<ConceptAnchor> = Vec::new();
@@ -133,11 +150,19 @@ impl MarkdownReader {
 
         Ok(verb_anchors)
     }
+}
 
-    pub fn extract_concept_anchors(&self, root: &Path) -> Result<Vec<ConceptAnchor>, ReaderError> {
+impl ConceptAnchorReader for MarkdownReader {
+    fn extract_concept_anchors(
+        &self,
+        files: &SpecFileSet,
+    ) -> Result<Vec<ConceptAnchor>, ReaderError> {
         let mut concept_anchors: Vec<ConceptAnchor> = Vec::new();
 
-        for (path, source) in walk_concept_sources(root)? {
+        for (path, source) in concept_files(files)
+            .into_iter()
+            .map(|f| (f.path.clone(), f.text.clone()))
+        {
             let mut nodes_scratch: Vec<ConceptNode> = Vec::new();
             let mut edges_scratch: Vec<Edge> = Vec::new();
             let mut verb_anchors_scratch: Vec<VerbAnchor> = Vec::new();
@@ -158,14 +183,19 @@ impl MarkdownReader {
 
         Ok(concept_anchors)
     }
+}
 
-    pub fn extract_invariant_annotations(
+impl AnnotationReader for MarkdownReader {
+    fn extract_annotations(
         &self,
-        root: &Path,
+        files: &SpecFileSet,
     ) -> Result<Vec<InvariantAnnotation>, ReaderError> {
         let mut result = Vec::new();
 
-        for (path, source) in walk_concept_sources(root)? {
+        for (path, source) in concept_files(files)
+            .into_iter()
+            .map(|f| (f.path.clone(), f.text.clone()))
+        {
             let dialect = grounding::read(&path, &source)?;
             extract_annotations_from_source(&source, &path, &dialect, &mut result);
         }
@@ -214,48 +244,6 @@ pub fn concept_files(files: &SpecFileSet) -> Vec<&LoadedFile> {
         .filter(|f| !path_under_dir(&f.path, "contexts"))
         .filter(|f| !scoped || path_under_dir(&f.path, "concepts"))
         .collect()
-}
-
-fn walk_concept_sources(root: &Path) -> Result<Vec<(PathBuf, String)>, ReaderError> {
-    let walk_root = concept_walk_root(root);
-    let mut out = Vec::new();
-    for entry in WalkDir::new(walk_root) {
-        let entry = entry.map_err(|e| ReaderError::WalkFailed {
-            root: root.to_path_buf(),
-            cause: e.to_string(),
-        })?;
-        if let Some(pair) = read_concept_entry(&entry)? {
-            out.push(pair);
-        }
-    }
-    Ok(out)
-}
-
-fn concept_walk_root(root: &Path) -> PathBuf {
-    let concepts_subdir = root.join("concepts");
-    if concepts_subdir.is_dir() {
-        concepts_subdir
-    } else {
-        root.to_path_buf()
-    }
-}
-
-fn read_concept_entry(entry: &walkdir::DirEntry) -> Result<Option<(PathBuf, String)>, ReaderError> {
-    if !entry.file_type().is_file() {
-        return Ok(None);
-    }
-    if entry.path().extension().is_none_or(|ext| ext != "md") {
-        return Ok(None);
-    }
-    if path_under_dir(entry.path(), "contexts") {
-        return Ok(None);
-    }
-    let path = entry.path();
-    let source = std::fs::read_to_string(path).map_err(|e| ReaderError::IoFailed {
-        path: path.to_path_buf(),
-        cause: e.to_string(),
-    })?;
-    Ok(Some((path.to_path_buf(), source)))
 }
 
 #[cfg(test)]
