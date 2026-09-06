@@ -17,6 +17,7 @@ use crate::markdown_utils::path_under_dir;
 use crate::section::extract_from_source;
 use domain::{
     ConceptAnchor, ConceptNode, ContextDecl, Edge, Graph, InvariantAnnotation, VerbAnchor,
+    Violation,
 };
 use ports::{ContextReader, Reader, ReaderError};
 use std::path::{Path, PathBuf};
@@ -32,14 +33,18 @@ impl Reader for MarkdownReader {
 
         for (path, source) in walk_concept_sources(root)? {
             let mut verb_anchors_scratch: Vec<VerbAnchor> = Vec::new();
+            let mut malformed_scratch: Vec<Violation> = Vec::new();
             let mut concept_anchors_scratch: Vec<ConceptAnchor> = Vec::new();
             extract_from_source(
                 &source,
                 &path,
-                &mut nodes,
-                &mut edges,
-                &mut verb_anchors_scratch,
-                &mut concept_anchors_scratch,
+                &mut BulletSink {
+                    nodes: &mut nodes,
+                    edges: &mut edges,
+                    verb_anchors: &mut verb_anchors_scratch,
+                    concept_anchors: &mut concept_anchors_scratch,
+                    malformed: &mut malformed_scratch,
+                },
             )?;
         }
 
@@ -53,7 +58,39 @@ impl ContextReader for MarkdownReader {
     }
 }
 
+struct BulletSink<'a> {
+    nodes: &'a mut Vec<ConceptNode>,
+    edges: &'a mut Vec<Edge>,
+    verb_anchors: &'a mut Vec<VerbAnchor>,
+    concept_anchors: &'a mut Vec<ConceptAnchor>,
+    malformed: &'a mut Vec<Violation>,
+}
+
 impl MarkdownReader {
+    pub fn extract_malformed_anchors(&self, root: &Path) -> Result<Vec<Violation>, ReaderError> {
+        let mut malformed: Vec<Violation> = Vec::new();
+
+        for (path, source) in walk_concept_sources(root)? {
+            let mut nodes_scratch: Vec<ConceptNode> = Vec::new();
+            let mut edges_scratch: Vec<Edge> = Vec::new();
+            let mut verb_anchors_scratch: Vec<VerbAnchor> = Vec::new();
+            let mut concept_anchors_scratch: Vec<ConceptAnchor> = Vec::new();
+            extract_from_source(
+                &source,
+                &path,
+                &mut BulletSink {
+                    nodes: &mut nodes_scratch,
+                    edges: &mut edges_scratch,
+                    verb_anchors: &mut verb_anchors_scratch,
+                    concept_anchors: &mut concept_anchors_scratch,
+                    malformed: &mut malformed,
+                },
+            )?;
+        }
+
+        Ok(malformed)
+    }
+
     pub fn extract_verb_anchors(&self, root: &Path) -> Result<Vec<VerbAnchor>, ReaderError> {
         let mut verb_anchors: Vec<VerbAnchor> = Vec::new();
 
@@ -61,13 +98,17 @@ impl MarkdownReader {
             let mut nodes_scratch: Vec<ConceptNode> = Vec::new();
             let mut edges_scratch: Vec<Edge> = Vec::new();
             let mut concept_anchors_scratch: Vec<ConceptAnchor> = Vec::new();
+            let mut malformed_scratch: Vec<Violation> = Vec::new();
             extract_from_source(
                 &source,
                 &path,
-                &mut nodes_scratch,
-                &mut edges_scratch,
-                &mut verb_anchors,
-                &mut concept_anchors_scratch,
+                &mut BulletSink {
+                    nodes: &mut nodes_scratch,
+                    edges: &mut edges_scratch,
+                    verb_anchors: &mut verb_anchors,
+                    concept_anchors: &mut concept_anchors_scratch,
+                    malformed: &mut malformed_scratch,
+                },
             )?;
         }
 
@@ -81,13 +122,17 @@ impl MarkdownReader {
             let mut nodes_scratch: Vec<ConceptNode> = Vec::new();
             let mut edges_scratch: Vec<Edge> = Vec::new();
             let mut verb_anchors_scratch: Vec<VerbAnchor> = Vec::new();
+            let mut malformed_scratch: Vec<Violation> = Vec::new();
             extract_from_source(
                 &source,
                 &path,
-                &mut nodes_scratch,
-                &mut edges_scratch,
-                &mut verb_anchors_scratch,
-                &mut concept_anchors,
+                &mut BulletSink {
+                    nodes: &mut nodes_scratch,
+                    edges: &mut edges_scratch,
+                    verb_anchors: &mut verb_anchors_scratch,
+                    concept_anchors: &mut concept_anchors,
+                    malformed: &mut malformed_scratch,
+                },
             )?;
         }
 

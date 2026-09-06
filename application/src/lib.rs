@@ -66,6 +66,7 @@ pub fn run_check(
         Some(keyspace) => keyspace_pub_fns(code_dir, keyspace, &surface)?,
     };
     let concept_anchors = MarkdownReader.extract_concept_anchors(specs_dir)?;
+    let spec_findings = MarkdownReader.extract_malformed_anchors(specs_dir)?;
 
     let trees = assemble_spec_trees(specs_dir)?;
     let declared: HashMap<&str, &str> = trees
@@ -110,6 +111,7 @@ pub fn run_check(
     Ok(diff(
         CheckInput::new(specs_graph, spec_contexts, verb_ownership)
             .with_spec_cohesion(spec_cohesion)
+            .with_spec_findings(spec_findings)
             .with_concept_anchors(resolved_anchors),
         code_graph,
         answerable,
@@ -268,6 +270,81 @@ mod tests {
         }
         let mut f = std::fs::File::create(&full).unwrap();
         f.write_all(content.as_bytes()).unwrap();
+    }
+
+    fn malformed_run(bullet: &str) -> Vec<Violation> {
+        let specs = TempDir::new().unwrap();
+        let code = TempDir::new().unwrap();
+        write(
+            specs.path(),
+            "concepts/catalogue.md",
+            &format!("# catalogue\n\n## Course\n\n{bullet}\n"),
+        );
+        write(code.path(), "Cargo.toml", "[package]\nname = \"c\"\n");
+        write(code.path(), "src/lib.rs", "pub struct Course;\n");
+        run_check(specs.path(), code.path(), None)
+            .unwrap()
+            .violations
+    }
+
+    fn malformed(violations: &[Violation]) -> Vec<(&str, &str, &str)> {
+        violations
+            .iter()
+            .filter_map(|v| match v {
+                Violation::MalformedAnchorBullet {
+                    concept,
+                    bullet,
+                    qname,
+                    ..
+                } => Some((concept.as_str(), bullet.as_str(), qname.as_str())),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_namespace_qualified_verb_bullet_is_reported_not_discarded() {
+        let violations = malformed_run("- verb: App\\Catalogue\\Course::rename");
+        assert_eq!(
+            malformed(&violations),
+            vec![("Course", "verb", "App\\Catalogue\\Course::rename")],
+            "the bullet, its heading and its qname are named: {violations:?}"
+        );
+    }
+
+    #[test]
+    fn a_namespace_qualified_impl_bullet_is_reported_not_discarded() {
+        let violations = malformed_run("- impl: App\\Catalogue\\Course::rename");
+        assert_eq!(
+            malformed(&violations),
+            vec![("Course", "impl", "App\\Catalogue\\Course::rename")]
+        );
+        assert!(
+            !violations
+                .iter()
+                .any(|v| matches!(v, Violation::DanglingAnchor { .. })),
+            "a bullet the grammar cannot read is malformed, not a dangling anchor: {violations:?}"
+        );
+    }
+
+    #[test]
+    fn a_bullet_the_grammar_reads_is_not_malformed() {
+        let bare = malformed_run("- verb: rename");
+        assert!(
+            malformed(&bare).is_empty(),
+            "a bare identifier is one of the two admitted forms: {bare:?}"
+        );
+        let typed = malformed_run("- impl: Course::rename");
+        assert!(
+            malformed(&typed).is_empty(),
+            "`Type::method` is the other: {typed:?}"
+        );
+    }
+
+    #[test]
+    fn an_empty_anchor_bullet_is_malformed_too() {
+        let violations = malformed_run("- verb:");
+        assert_eq!(malformed(&violations), vec![("Course", "verb", "")]);
     }
 
     #[test]

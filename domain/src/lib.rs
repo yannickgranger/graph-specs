@@ -360,6 +360,12 @@ pub enum Violation {
         error: String,
         source: Source,
     },
+    MalformedAnchorBullet {
+        concept: String,
+        bullet: String,
+        qname: String,
+        spec_source: Source,
+    },
     EdgeUnanswerable {
         concept: String,
         edge_kind: EdgeKind,

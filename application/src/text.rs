@@ -92,6 +92,18 @@ pub fn format_violation(v: &Violation, out: &mut impl Write) -> std::io::Result<
                 "signature unparseable: {name} ({at})\n  raw: {raw}\n  error: {error}"
             )
         }
+        Violation::MalformedAnchorBullet {
+            concept,
+            bullet,
+            qname,
+            spec_source,
+        } => {
+            let at = located(spec_source);
+            writeln!(
+                out,
+                "malformed anchor bullet: {concept} writes `- {bullet}: {qname}`, which the anchor grammar cannot read — a bare identifier (`rename`) or `Type::method` (`Course::rename`) are the two forms specs/dialect.md admits; a namespace-qualified name is not one of them ({at})"
+            )
+        }
         Violation::EdgeUnanswerable {
             concept,
             edge_kind,

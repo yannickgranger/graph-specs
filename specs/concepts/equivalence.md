@@ -513,6 +513,7 @@ by name.
 - depends on: VerbOwnership
 - depends on: CohesionViolation
 - depends on: ResolvedAnchor
+- depends on: Violation
 - returns: CheckInput
 - verb: diff
 - verb: context_for_concept
@@ -521,6 +522,7 @@ by name.
 - verb: CheckInput::new
 - verb: CheckInput::with_graph_and_contexts
 - verb: CheckInput::with_spec_cohesion
+- verb: CheckInput::with_spec_findings
 - verb: CheckInput::with_concept_anchors
 
 ### ResolvedAnchor

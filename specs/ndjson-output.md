@@ -203,6 +203,28 @@ A v0.3 edge crosses a context boundary, IS listed in the importing context's `Im
 
 Same field shape as `cross_context_edge_unauthorized`. The difference is the cause: `unauthorized` means "you didn't ask"; `undeclared` means "you asked but they don't publish that."
 
+### `malformed_anchor_bullet` (v0.8)
+
+A `- verb:` or `- impl:` bullet whose qname the shared anchor grammar cannot read. `specs/dialect.md` admits exactly two forms — a bare identifier (`rename`) and `Type::method` (`Course::rename`) — and a qname outside them was previously **discarded in silence**, so the bullet had no effect and said nothing. keel-harness R1 and `graph-specs-010-abstraction-level-equivalence` §11.6 both forbid that: a reader states what it cannot read.
+
+```json
+{"schema_version":"4","violation":"malformed_anchor_bullet","concept":"Course","bullet":"verb","qname":"App\\Catalogue\\Course::rename","spec_source":{"kind":"spec","path":"specs/concepts/catalogue.md","line":5}}
+```
+
+| Extra field | Type | Meaning |
+|---|---|---|
+| `bullet` | string | `"verb"` or `"impl"` — which anchor bullet carried it |
+| `qname` | string | the qname as written, empty when the bullet named nothing |
+| `spec_source` | source object (kind=spec) | the bullet's own site |
+
+A malformed bullet produces **only** this record: it is not additionally a `dangling_anchor` or a `verb_missing_in_code`, because the tool never read a target to look for.
+
+The case the message is written to make legible is a **namespace-qualified PHP name** — `App\Catalogue\Course::rename` — because that is the form a PHP author writes first and it is not one of the two the dialect admits. The admitted form for a PHP method is `Course::rename`, the class's short name.
+
+**Remediation:** rewrite the bullet in one of the two admitted forms.
+
+**Schema evolution.** Additive — a new `violation` discriminator rides the current `schema_version` (see §Schema evolution).
+
 ### `edge_unanswerable` (v0.8)
 
 A spec heading declares a `- depends on:` or `- returns:` bullet, and the code input this run read emits **no fact of that kind at all**. The bullet is unanswered, not unmet: charging it to the specs as `edge_missing_in_code` would blame the author for a shortfall in the reader (`graph-specs-010-abstraction-level-equivalence` §11.6).
@@ -519,7 +541,7 @@ Adding a **new top-level discriminator key** (as v4 did with `marker`) is on its
 Version history:
 - `"1"` — v0.1–v0.3 (concept / signature / edge variants).
 - `"2"` — v0.4 added the bounded-context variants (`context_membership_unknown`, `cross_context_edge_*`, `cross_verb_unauthorized`).
-- `"4"` — v0.8 added `cross_edge_off_surface`, `surface_admits_nothing` and `edge_unanswerable` additively (no bump; the version is listed here because the variant arrived during `"4"`).
+- `"4"` — v0.8 added `cross_edge_off_surface`, `surface_admits_nothing`, `edge_unanswerable` and `malformed_anchor_bullet` additively (no bump; the version is listed here because the variant arrived during `"4"`).
 - `"3"` — RFC-010 added the abstraction-ladder `Cohesion` variants (`context_without_cohesion_unit`, `sub_concept_orphan`, `concept_context_mismatch`). Consumers dispatch on `"3"`; the qbot-core `compare-spec-change` lockstep arm is tracked at #135. Like `ContextViolation`, `CohesionViolation` is `#[non_exhaustive]` — an unknown future cohesion variant emits `"violation":"unknown_cohesion_violation"` as a tripwire.
 
 ## Determinism

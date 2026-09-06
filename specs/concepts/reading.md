@@ -36,6 +36,7 @@ the previous design needed is retired.
 - depends on: InvariantAnnotation
 - depends on: VerbAnchor
 - depends on: ConceptAnchor
+- depends on: Violation
 
 ## RustBackend
 
