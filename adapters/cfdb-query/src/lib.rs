@@ -1,10 +1,13 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use cfdb_core::fact::{Edge, Node, PropValue};
 use cfdb_core::schema::{Label, SchemaVersion};
 use domain::LocationKind;
 use domain::Provenance;
-use domain::{ConceptNode, DeclaredSurface, EdgeKind, PubFnDecl, SignatureState, Source};
+use domain::{
+    ConceptNode, ConceptRef, DeclaredSurface, EdgeKind, PubFnDecl, SignatureState, Source,
+};
 use ports::{CodeFacts, ReaderError, VerbReader};
 use serde::Deserialize;
 
@@ -163,6 +166,169 @@ fn could_not_run(keyspace: &Path, cause: &str) -> ReaderError {
     }
 }
 
+const CONCEPT_RUNG_KINDS: &[&str] = &["struct", "enum", "trait", "type_alias"];
+
+fn rust_owner_name(node: &Node) -> Option<&str> {
+    let kind = prop(node, "kind")?;
+    if CONCEPT_RUNG_KINDS.contains(&kind) {
+        return prop(node, "name");
+    }
+    if kind == "method" {
+        let qname = prop(node, "qname")?;
+        let (class_path, _) = qname.rsplit_once("::")?;
+        return class_path.rsplit("::").next();
+    }
+    None
+}
+
+fn type_heads(text: &str) -> Vec<String> {
+    let bytes: Vec<char> = text.chars().collect();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i].is_alphabetic() || bytes[i] == '_' {
+            let start = i;
+            while i < bytes.len() && (bytes[i].is_alphanumeric() || bytes[i] == '_') {
+                i += 1;
+            }
+            let ident: String = bytes[start..i].iter().collect();
+            let mut j = i;
+            while j < bytes.len() && bytes[j].is_whitespace() {
+                j += 1;
+            }
+            let qualifier = j + 1 < bytes.len() && bytes[j] == ':' && bytes[j + 1] == ':';
+            if !qualifier {
+                out.push(ident);
+            }
+        } else {
+            i += 1;
+        }
+    }
+    out
+}
+
+fn return_text(signature: &str) -> Option<&str> {
+    signature.split_once("->").map(|(_, tail)| tail.trim())
+}
+
+fn translate_rust_relationships(file: &KeyspaceFile) -> Vec<domain::Edge> {
+    let items: HashMap<&str, &Node> = file
+        .nodes
+        .iter()
+        .filter(|n| n.label.as_str() == Label::ITEM)
+        .map(|n| (n.id.as_str(), n))
+        .collect();
+    let concept_names: std::collections::HashSet<&str> = items
+        .values()
+        .filter(|n| prop(n, "kind").is_some_and(|k| CONCEPT_RUNG_KINDS.contains(&k)))
+        .filter_map(|n| prop(n, "name"))
+        .collect();
+    let by_qname: HashMap<&str, &Node> = items
+        .values()
+        .filter_map(|n| prop(n, "qname").map(|q| (q, *n)))
+        .collect();
+
+    let mut impl_for: HashMap<&str, &str> = HashMap::new();
+    for edge in &file.edges {
+        if edge.label.as_str() == "IMPLEMENTS_FOR" {
+            impl_for.insert(edge.src.as_str(), edge.dst.as_str());
+        }
+    }
+
+    let mut out: Vec<domain::Edge> = Vec::new();
+    let mut push = |owner: &Node, kind: EdgeKind, target: &str| {
+        if !concept_names.contains(target) {
+            return;
+        }
+        let (Some(owner_name), Some(source)) = (rust_owner_name(owner), item_source(owner)) else {
+            return;
+        };
+        out.push(domain::Edge {
+            source_concept: ConceptRef::named(owner_name.to_owned()),
+            kind,
+            target: ConceptRef::named(target.to_owned()),
+            raw_target: target.to_owned(),
+            source,
+        });
+    };
+
+    for edge in &file.edges {
+        if edge.label.as_str() != "IMPLEMENTS" {
+            continue;
+        }
+        let (Some(type_id), Some(trait_item)) = (
+            impl_for.get(edge.src.as_str()),
+            items.get(edge.dst.as_str()),
+        ) else {
+            continue;
+        };
+        let (Some(owner), Some(trait_name)) = (items.get(type_id), prop(trait_item, "name")) else {
+            continue;
+        };
+        push(owner, EdgeKind::Implements, trait_name);
+    }
+
+    for node in &file.nodes {
+        let label = node.label.as_str();
+        if label != "Field" && label != "Param" {
+            continue;
+        }
+        let (Some(parent), Some(text)) = (
+            prop(node, "parent_qname").and_then(|q| by_qname.get(q)),
+            prop(node, "type_path").or_else(|| prop(node, "type_normalized")),
+        ) else {
+            continue;
+        };
+        for head in type_heads(text) {
+            push(parent, EdgeKind::DependsOn, &head);
+        }
+    }
+
+    for node in items.values() {
+        let Some(text) = prop(node, "signature").and_then(return_text) else {
+            continue;
+        };
+        let heads = type_heads(text);
+        let mut heads = heads.into_iter();
+        if let Some(first) = heads.next() {
+            push(node, EdgeKind::Returns, &first);
+        }
+        for inner in heads {
+            push(node, EdgeKind::DependsOn, &inner);
+        }
+    }
+
+    out.sort_by(|a, b| {
+        (&a.source_concept.name, a.kind.as_label(), &a.target.name).cmp(&(
+            &b.source_concept.name,
+            b.kind.as_label(),
+            &b.target.name,
+        ))
+    });
+    out.dedup_by(|a, b| {
+        a.source_concept.name == b.source_concept.name
+            && a.kind == b.kind
+            && a.target.name == b.target.name
+    });
+    out
+}
+
+fn item_source(node: &Node) -> Option<Source> {
+    let file = prop(node, "file")?;
+    let line = node
+        .props
+        .get("line")
+        .and_then(PropValue::as_i64)
+        .and_then(|n| usize::try_from(n).ok())
+        .unwrap_or(0);
+    Some(Source::Code {
+        path: PathBuf::from(file),
+        line,
+        provenance: Provenance::empty(),
+        location: LocationKind::Path,
+    })
+}
+
 impl VerbReader for CfdbQueryReader {
     fn extract_pub_fns(&self, _root: &Path) -> Result<Vec<PubFnDecl>, ReaderError> {
         let file = self.load()?;
@@ -234,7 +400,11 @@ impl CodeFacts for CfdbQueryReader {
         let file = self.load()?;
         match discriminate(&self.keyspace, &file.nodes)? {
             Producer::Php => Ok(vec![EdgeKind::Implements]),
-            Producer::Rust => Ok(Vec::new()),
+            Producer::Rust => Ok(vec![
+                EdgeKind::Implements,
+                EdgeKind::DependsOn,
+                EdgeKind::Returns,
+            ]),
         }
     }
 
@@ -244,7 +414,7 @@ impl CodeFacts for CfdbQueryReader {
             Producer::Php => {
                 PhpEdgeTraversal::new(self.surface.clone()).relationships(&file.nodes, &file.edges)
             }
-            Producer::Rust => Ok(Vec::new()),
+            Producer::Rust => Ok(translate_rust_relationships(&file)),
         }
     }
 
@@ -531,3 +701,7 @@ mod tests {
         assert!(load(&keyspace_with(item)).is_empty());
     }
 }
+
+#[cfg(test)]
+#[path = "rust_relationships_tests.rs"]
+mod rust_relationships_tests;
