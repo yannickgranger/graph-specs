@@ -326,6 +326,52 @@ cache of graph-specs-016-parse-once-reading-port#3.4 lands, serves from that
 cache
 instead of walking again.
 
+
+### VerbAnchorReader
+
+- status: draft (per graph-specs-016-parse-once-reading-port#3.3.2)
+<!-- parent:spec:SpecReader -->
+
+The capability that reads the verb anchors of a spec set — the `- verb:`
+bullets of graph-specs-006-verb-anchoring — over a
+[SpecFileSet](#specfileset), answering [VerbAnchor](#verbanchor) values;
+formerly an inherent method of the markdown reader, now a sibling port of
+the same one-capability shape, performing no I/O because its input carries
+the text. Implemented by [MarkdownReader](reading.md#markdownreader). Lives
+in `ports`.
+
+### ConceptAnchorReader
+
+- status: draft (per graph-specs-016-parse-once-reading-port#3.3.2)
+<!-- parent:spec:SpecReader -->
+
+The capability that reads the concept anchors of a spec set — the anchor
+bullet of graph-specs-012-non-pub-spec-anchor#3.2 — over a
+[SpecFileSet](#specfileset), answering [ConceptAnchor](#conceptanchor)
+values. Same shape, same implementor, no I/O. Lives in `ports`.
+
+### AnnotationReader
+
+- status: draft (per graph-specs-016-parse-once-reading-port#3.3.2)
+<!-- parent:spec:SpecReader -->
+
+The capability that reads the invariant annotations of a spec set over a
+[SpecFileSet](#specfileset), answering
+[InvariantAnnotation](#invariantannotation) values. Same shape, same
+implementor, no I/O. Lives in `ports`.
+
+### SpecTreeReader
+
+- status: draft (per graph-specs-016-parse-once-reading-port#3.3.2)
+<!-- parent:spec:SpecReader -->
+
+The capability that assembles the heading trees of a spec set over a
+[SpecFileSet](#specfileset), answering one [SpecTree](#spectree) per file:
+the markdown event walk and the [ReaderError](#readererror) it can produce
+stay adapter-side behind this port, while the tree itself and its methods
+live in `domain` (graph-specs-016-parse-once-reading-port#3.3.3). It
+replaces the adapter free function that answered an adapter type. Lives in
+`ports`.
 ## LoadedFile
 
 <!-- parent:rfc:graph-specs-016-parse-once-reading-port#3.1 anchor:"a loaded artifact, path + text, no line, no side discriminant of its own" -->

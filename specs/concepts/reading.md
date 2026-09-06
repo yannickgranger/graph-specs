@@ -32,6 +32,10 @@ the previous design needed is retired.
 - implements: SpecReader
 - implements: SpecLoader
 - implements: ContextReader
+- implements: VerbAnchorReader
+- implements: ConceptAnchorReader
+- implements: AnnotationReader
+- implements: SpecTreeReader
 - depends on: SignatureNormalizer
 - depends on: Graph
 - depends on: ReaderError
@@ -272,6 +276,7 @@ no second port. Lives in `adapters/php`; the composition root supplies it
 for `php` and for no other tag.
 
 - implements: SignatureNormalizer
+
 
 ## SpecTree
 
