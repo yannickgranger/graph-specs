@@ -239,6 +239,17 @@ fn violation_to_record(v: &Violation) -> Value {
             "target": target,
             "source": source_to_json(spec_source),
         }),
+        Violation::UnknownAttributeKey {
+            concept,
+            key,
+            spec_source,
+        } => json!({
+            "schema_version": SchemaVersion::CURRENT.as_str(),
+            "violation": "unknown_attribute_key",
+            "concept": concept,
+            "key": key,
+            "spec_source": source_to_json(spec_source),
+        }),
         Violation::SignatureDriftWithinSide {
             name,
             side,

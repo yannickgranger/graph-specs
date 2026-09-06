@@ -184,7 +184,6 @@ variants are **not** resolvable because cfdb (v0.5.0) emits no `variant`
 
 ## PhpAttributeReader
 
-- status: draft (per graph-specs-011-php-ladder#3.3)
 <!-- parent:rfc:graph-specs-011-php-ladder#3.3 anchor:"it reads attributes" -->
 
 The one reader that reads PHP source, and it reads attributes only: the

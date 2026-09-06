@@ -405,6 +405,11 @@ pub enum Violation {
         spec_source: Source,
         code_source: Source,
     },
+    UnknownAttributeKey {
+        concept: String,
+        key: String,
+        spec_source: Source,
+    },
     SignatureDriftWithinSide {
         name: String,
         side: DiffSide,

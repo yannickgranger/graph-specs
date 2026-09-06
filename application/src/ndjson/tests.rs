@@ -694,6 +694,24 @@ fn documented_record(discriminator: &str) -> Value {
 }
 
 #[test]
+fn an_unknown_attribute_key_serializes_to_the_record_the_contract_documents() {
+    let want = documented_record("\"violation\":\"unknown_attribute_key\"");
+    let v = Violation::UnknownAttributeKey {
+        concept: "Course".into(),
+        key: "inherits".into(),
+        spec_source: Source::Spec {
+            format: domain::SpecFormat::InlineAttribute,
+            path: PathBuf::from("src/Catalogue/Course.php"),
+            line: 3,
+            context: None,
+        },
+    };
+    let got = record(&render_one(v));
+    assert_eq!(got["spec_source"]["format"], "inline_attribute");
+    assert_eq!(got, want, "the finding and the contract's example");
+}
+
+#[test]
 fn a_rust_code_source_serializes_to_the_record_the_contract_documents() {
     let want = documented_record("\"violation\":\"missing_in_specs\"");
     let v = Violation::MissingInSpecs {

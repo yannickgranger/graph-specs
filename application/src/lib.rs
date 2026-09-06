@@ -1,9 +1,10 @@
 use adapter_markdown::{assemble_spec_trees, MarkdownReader, SpecTree};
+use adapter_php::PhpAttributeReader;
 use adapter_rust::{RustAnchorResolver, RustReader};
 use domain::{
     diff, CheckInput, CheckOutcome, CohesionViolation, ConceptNode, ContextViolation,
-    DeclaredSurface, EdgeKind, Graph, OwnershipAmbiguity, ResolvedAnchor, VerbDecl, VerbOwnership,
-    Violation,
+    DeclaredSurface, DiffSide, EdgeKind, Graph, OwnershipAmbiguity, ResolvedAnchor, SignatureState,
+    SourceWithSig, VerbDecl, VerbOwnership, Violation,
 };
 use ports::{AnchorResolver, CodeFacts, ContextReader, Reader, ReaderError, VerbReader};
 use std::collections::HashMap;
@@ -17,12 +18,47 @@ mod report_ndjson;
 mod report_text;
 pub mod text;
 
+fn union_spec_graphs(markdown: &mut Graph, attribute: Graph) -> Vec<Violation> {
+    let mut drift = Vec::new();
+    for node in attribute.nodes {
+        match markdown.nodes.iter().find(|n| n.name == node.name) {
+            None => markdown.nodes.push(node),
+            Some(upstream) => {
+                if let (SignatureState::Normalized(up), SignatureState::Normalized(down)) =
+                    (&upstream.signature, &node.signature)
+                {
+                    if up != down {
+                        drift.push(Violation::SignatureDriftWithinSide {
+                            name: node.name.clone(),
+                            side: DiffSide::Spec,
+                            sources: vec![
+                                SourceWithSig {
+                                    source: upstream.source.clone(),
+                                    sig: up.clone(),
+                                },
+                                SourceWithSig {
+                                    source: node.source.clone(),
+                                    sig: down.clone(),
+                                },
+                            ],
+                        });
+                    }
+                }
+            }
+        }
+    }
+    markdown.edges.extend(attribute.edges);
+    drift
+}
+
 pub fn run_check(
     specs_dir: &Path,
     code_dir: &Path,
     keyspace: Option<&Path>,
 ) -> Result<CheckOutcome, ReaderError> {
     let mut specs_graph = MarkdownReader.extract(specs_dir)?;
+    let attribute_graph = PhpAttributeReader::new().extract(code_dir)?;
+    let mut within_side = union_spec_graphs(&mut specs_graph, attribute_graph);
     let spec_contexts = MarkdownReader.extract_contexts(specs_dir)?;
     let verb_anchors = MarkdownReader.extract_verb_anchors(specs_dir)?;
     let surface = match keyspace {
@@ -66,7 +102,9 @@ pub fn run_check(
         Some(keyspace) => keyspace_pub_fns(code_dir, keyspace, &surface)?,
     };
     let concept_anchors = MarkdownReader.extract_concept_anchors(specs_dir)?;
-    let spec_findings = MarkdownReader.extract_malformed_anchors(specs_dir)?;
+    let mut spec_findings = MarkdownReader.extract_malformed_anchors(specs_dir)?;
+    spec_findings.append(&mut PhpAttributeReader::new().extract_findings(code_dir)?);
+    spec_findings.append(&mut within_side);
 
     let trees = assemble_spec_trees(specs_dir)?;
     let declared: HashMap<&str, &str> = trees
