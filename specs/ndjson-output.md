@@ -203,6 +203,26 @@ A v0.3 edge crosses a context boundary, IS listed in the importing context's `Im
 
 Same field shape as `cross_context_edge_unauthorized`. The difference is the cause: `unauthorized` means "you didn't ask"; `undeclared` means "you asked but they don't publish that."
 
+### `edge_unanswerable` (v0.8)
+
+A spec heading declares a `- depends on:` or `- returns:` bullet, and the code input this run read emits **no fact of that kind at all**. The bullet is unanswered, not unmet: charging it to the specs as `edge_missing_in_code` would blame the author for a shortfall in the reader (`graph-specs-010-abstraction-level-equivalence` §11.6).
+
+```json
+{"schema_version":"4","violation":"edge_unanswerable","concept":"Course","edge_kind":"DEPENDS_ON","target":"Clock","spec_source":{"kind":"spec","path":"specs/concepts/catalogue.md","line":5}}
+```
+
+| Extra field | Type | Meaning |
+|---|---|---|
+| `edge_kind` | string | the relationship the bullet declares |
+| `target` | string | the concept the bullet points at |
+| `spec_source` | source object (kind=spec) | the bullet's own site |
+
+On a PHP keyspace the answerable set is `IMPLEMENTS` alone: cfdb's PHP producer emits no field-type or return-type edge, so `DEPENDS_ON` and `RETURNS` bullets are unanswerable there. On the source walk every kind is answerable and this record never appears.
+
+**Remediation:** none available in the specs — the fact does not exist in the input. Either check the repository against an input whose producer emits that relationship, or accept the bullet as undecidable for this input.
+
+**Schema evolution.** Additive — a new `violation` discriminator rides the current `schema_version` (see §Schema evolution).
+
 ### `surface_admits_nothing` (v0.8)
 
 The declared surface admitted **no** concept-rung item while the keyspace holds `N` of them. Emitted **instead of** the per-heading `missing_in_code` records, which would otherwise report every heading as unrealized and make a declaration that matches nothing indistinguishable from a code tree that was deleted. One line naming `N` and the declared prefixes; the run stops there, because a code side that admitted nothing can say nothing true about equivalence.
@@ -499,7 +519,7 @@ Adding a **new top-level discriminator key** (as v4 did with `marker`) is on its
 Version history:
 - `"1"` — v0.1–v0.3 (concept / signature / edge variants).
 - `"2"` — v0.4 added the bounded-context variants (`context_membership_unknown`, `cross_context_edge_*`, `cross_verb_unauthorized`).
-- `"4"` — v0.8 added `cross_edge_off_surface` and `surface_admits_nothing` additively (no bump; the version is listed here because the variant arrived during `"4"`).
+- `"4"` — v0.8 added `cross_edge_off_surface`, `surface_admits_nothing` and `edge_unanswerable` additively (no bump; the version is listed here because the variant arrived during `"4"`).
 - `"3"` — RFC-010 added the abstraction-ladder `Cohesion` variants (`context_without_cohesion_unit`, `sub_concept_orphan`, `concept_context_mismatch`). Consumers dispatch on `"3"`; the qbot-core `compare-spec-change` lockstep arm is tracked at #135. Like `ContextViolation`, `CohesionViolation` is `#[non_exhaustive]` — an unknown future cohesion variant emits `"violation":"unknown_cohesion_violation"` as a tripwire.
 
 ## Determinism

@@ -2,7 +2,8 @@ use adapter_markdown::{assemble_spec_trees, MarkdownReader, SpecTree};
 use adapter_rust::{RustAnchorResolver, RustReader};
 use domain::{
     diff, CheckInput, CheckOutcome, CohesionViolation, ConceptNode, ContextViolation,
-    DeclaredSurface, Graph, ResolvedAnchor, VerbDecl, VerbOwnership, Violation,
+    DeclaredSurface, EdgeKind, Graph, OwnershipAmbiguity, ResolvedAnchor, VerbDecl, VerbOwnership,
+    Violation,
 };
 use ports::{AnchorResolver, CodeFacts, ContextReader, Reader, ReaderError, VerbReader};
 use std::collections::HashMap;
@@ -24,10 +25,14 @@ pub fn run_check(
     let mut specs_graph = MarkdownReader.extract(specs_dir)?;
     let spec_contexts = MarkdownReader.extract_contexts(specs_dir)?;
     let verb_anchors = MarkdownReader.extract_verb_anchors(specs_dir)?;
+    let surface = match keyspace {
+        None => DeclaredSurface::default(),
+        Some(keyspace) => DeclaredSurface::from_contexts(&spec_contexts)
+            .map_err(|a| ambiguous_ownership(keyspace, &a))?,
+    };
     let code_graph = match keyspace {
         None => RustReader.extract(code_dir)?,
         Some(keyspace) => {
-            let surface = DeclaredSurface::from_contexts(&spec_contexts);
             let facts = code_facts(code_dir, Some(keyspace), &surface)?;
             if facts.is_empty() {
                 let concept_rung_items = concept_rung_items(code_dir, keyspace)?;
@@ -48,10 +53,18 @@ pub fn run_check(
                     ));
                 }
             }
-            Graph::new(facts, code_relationships(code_dir, keyspace, &surface)?)
+            let relationships = code_relationships(code_dir, keyspace, &surface)?;
+            eprintln!(
+                "graph-specs: relationship channel read {} edge(s) on the declared surface",
+                relationships.len()
+            );
+            Graph::new(facts, relationships)
         }
     };
-    let pub_fn_decls = RustReader.extract_pub_fns(code_dir)?;
+    let pub_fn_decls = match keyspace {
+        None => RustReader.extract_pub_fns(code_dir)?,
+        Some(keyspace) => keyspace_pub_fns(code_dir, keyspace, &surface)?,
+    };
     let concept_anchors = MarkdownReader.extract_concept_anchors(specs_dir)?;
 
     let trees = assemble_spec_trees(specs_dir)?;
@@ -83,22 +96,92 @@ pub fn run_check(
     let resolved_anchors: Vec<ResolvedAnchor> = if concept_anchors.is_empty() {
         Vec::new()
     } else {
-        let resolver = RustAnchorResolver::index(code_dir)?;
+        let resolve = anchor_resolver(code_dir, keyspace)?;
         concept_anchors
             .into_iter()
             .map(|anchor| {
-                let target = resolver.resolve(&anchor.target);
+                let target = resolve(&anchor.target);
                 ResolvedAnchor { anchor, target }
             })
             .collect()
     };
 
+    let answerable = keyspace.map(|_| ANSWERABLE_ON_A_PHP_KEYSPACE);
     Ok(diff(
         CheckInput::new(specs_graph, spec_contexts, verb_ownership)
             .with_spec_cohesion(spec_cohesion)
             .with_concept_anchors(resolved_anchors),
         code_graph,
+        answerable,
     ))
+}
+
+const ANSWERABLE_ON_A_PHP_KEYSPACE: &[EdgeKind] = &[EdgeKind::Implements];
+
+fn ambiguous_ownership(keyspace: &Path, ambiguity: &OwnershipAmbiguity) -> ReaderError {
+    ReaderError::ParseFailed {
+        path: keyspace.to_path_buf(),
+        line: 0,
+        message: format!(
+            "could not run the declared surface: context `{}` owns `{}` and context `{}` owns `{}`, which nests inside it, so which context owns an item beneath the inner prefix has two answers; resolving it by length would pick one silently (graph-specs-011-php-ladder#3.2). Longest-wins still stands inside a single context's own Owns block",
+            ambiguity.outer_context,
+            ambiguity.outer.0,
+            ambiguity.inner_context,
+            ambiguity.inner.0
+        ),
+    }
+}
+
+type AnchorLookup = Box<dyn Fn(&str) -> Option<domain::AnchorTarget>>;
+
+fn anchor_resolver(code_dir: &Path, keyspace: Option<&Path>) -> Result<AnchorLookup, ReaderError> {
+    match keyspace {
+        None => {
+            let resolver = RustAnchorResolver::index(code_dir)?;
+            Ok(Box::new(move |qname: &str| resolver.resolve(qname)))
+        }
+        Some(keyspace) => keyspace_anchor_resolver(code_dir, keyspace),
+    }
+}
+
+#[cfg(feature = "codefacts")]
+fn keyspace_anchor_resolver(code_dir: &Path, keyspace: &Path) -> Result<AnchorLookup, ReaderError> {
+    let resolver = adapter_cfdb_query::CfdbAnchorResolver::index(keyspace, code_dir)?;
+    Ok(Box::new(move |qname: &str| resolver.resolve(qname)))
+}
+
+#[cfg(not(feature = "codefacts"))]
+fn keyspace_anchor_resolver(
+    code_dir: &Path,
+    _keyspace: &Path,
+) -> Result<AnchorLookup, ReaderError> {
+    Err(ReaderError::WalkFailed {
+        root: code_dir.to_path_buf(),
+        cause: "cfdb-query keyspace routing requires the `codefacts` feature".to_owned(),
+    })
+}
+
+#[cfg(feature = "codefacts")]
+fn keyspace_pub_fns(
+    code_dir: &Path,
+    keyspace: &Path,
+    surface: &DeclaredSurface,
+) -> Result<Vec<domain::PubFnDecl>, ReaderError> {
+    adapter_cfdb_query::CfdbQueryReader::new(keyspace)
+        .with_surface(surface.clone())
+        .extract_pub_fns(code_dir)
+}
+
+#[cfg(not(feature = "codefacts"))]
+fn keyspace_pub_fns(
+    code_dir: &Path,
+    _keyspace: &Path,
+    _surface: &DeclaredSurface,
+) -> Result<Vec<domain::PubFnDecl>, ReaderError> {
+    Err(ReaderError::WalkFailed {
+        root: code_dir.to_path_buf(),
+        cause: "cfdb-query keyspace routing requires the `codefacts` feature".to_owned(),
+    })
 }
 
 pub fn code_facts(
@@ -260,6 +343,133 @@ mod tests {
         let via_adapter = RustReader.concepts(code.path()).unwrap();
         assert_eq!(via_router, via_adapter);
         assert!(via_router.iter().any(|c| c.name == "Foo"));
+    }
+
+    #[cfg(feature = "codefacts")]
+    fn php_keyspace(dir: &Path) -> std::path::PathBuf {
+        let keyspace = dir.join("coreen.json");
+        std::fs::write(
+            &keyspace,
+            r#"{"schema_version":{"major":0,"minor":8,"patch":0},"nodes":[
+            {"id":"module:App\\Catalogue","label":"Module","props":{"name":"App\\Catalogue"}},
+            {"id":"item:App\\Catalogue\\Course","label":"Item","props":{"kind":"trait","line":3,
+             "name":"Course","php_construct":"class_declaration","qname":"App\\Catalogue\\Course"}},
+            {"id":"item:App\\Catalogue\\Course::rename","label":"Item","props":{"kind":"fn","line":7,
+             "name":"rename","php_construct":"method_declaration",
+             "qname":"App\\Catalogue\\Course::rename"}}
+            ],"edges":[
+            {"src":"item:App\\Catalogue\\Course","dst":"module:App\\Catalogue","label":"IN_MODULE"}
+            ]}"#,
+        )
+        .unwrap();
+        keyspace
+    }
+
+    #[cfg(feature = "codefacts")]
+    fn catalogue_specs(specs: &Path) {
+        write(
+            specs,
+            "contexts/catalogue.md",
+            "# catalogue\n\n## Owns\n\n- App\\Catalogue\n",
+        );
+    }
+
+    #[cfg(feature = "codefacts")]
+    #[test]
+    fn a_bullet_the_producer_cannot_answer_is_unanswerable_not_missing_in_code() {
+        let specs = TempDir::new().unwrap();
+        let dir = TempDir::new().unwrap();
+        let code = TempDir::new().unwrap();
+        catalogue_specs(specs.path());
+        write(
+            specs.path(),
+            "concepts/catalogue.md",
+            "# catalogue\n\n## Course\n\n- depends on: Clock\n\n## Clock\n",
+        );
+        let keyspace = php_keyspace(dir.path());
+
+        let violations = run_check(specs.path(), code.path(), Some(&keyspace))
+            .unwrap()
+            .violations;
+        assert!(
+            violations.iter().any(
+                |v| matches!(v, Violation::EdgeUnanswerable { concept, edge_kind, .. }
+                    if concept == "Course" && *edge_kind == EdgeKind::DependsOn)
+            ),
+            "the producer emits no field-type fact, so the bullet is unanswered: {violations:?}"
+        );
+        assert!(
+            !violations.iter().any(
+                |v| matches!(v, Violation::EdgeMissingInCode { concept, .. } if concept == "Course")
+            ),
+            "never charged to the specs as unmet: {violations:?}"
+        );
+    }
+
+    #[cfg(feature = "codefacts")]
+    fn keyspace_violations(specs_body: &str) -> Vec<Violation> {
+        let specs = TempDir::new().unwrap();
+        let dir = TempDir::new().unwrap();
+        let code = TempDir::new().unwrap();
+        catalogue_specs(specs.path());
+        write(specs.path(), "concepts/catalogue.md", specs_body);
+        let keyspace = php_keyspace(dir.path());
+        run_check(specs.path(), code.path(), Some(&keyspace))
+            .unwrap()
+            .violations
+    }
+
+    #[cfg(feature = "codefacts")]
+    #[test]
+    fn a_verb_bullet_in_the_dialects_own_form_resolves_against_the_keyspace() {
+        let violations =
+            keyspace_violations("# catalogue\n\n## Course\n\n- verb: Course::rename\n");
+        assert!(
+            !violations
+                .iter()
+                .any(|v| matches!(v, Violation::VerbMissingInCode { .. })),
+            "`Type::method` is one of the two forms specs/dialect.md admits, and the keyspace carries the method: {violations:?}"
+        );
+    }
+
+    #[cfg(feature = "codefacts")]
+    #[test]
+    fn a_verb_bullet_naming_a_method_the_keyspace_lacks_is_reported() {
+        let violations =
+            keyspace_violations("# catalogue\n\n## Course\n\n- verb: Course::missing\n");
+        assert!(
+            violations
+                .iter()
+                .any(|v| matches!(v, Violation::VerbMissingInCode { qname, .. } if qname == "Course::missing")),
+            "the pass runs: an unmatched verb in a readable form is reported: {violations:?}"
+        );
+    }
+
+    #[cfg(feature = "codefacts")]
+    #[test]
+    fn an_impl_anchor_in_the_dialects_own_form_resolves_against_the_keyspace() {
+        let violations = keyspace_violations(
+            "# catalogue\n\n## Course\n\n## Renaming\n\n- impl: Course::rename\n",
+        );
+        assert!(
+            !violations.iter().any(
+                |v| matches!(v, Violation::DanglingAnchor { concept, .. } if concept == "Renaming")
+            ),
+            "the cfdb-backed resolver answers the anchor: {violations:?}"
+        );
+    }
+
+    #[cfg(feature = "codefacts")]
+    #[test]
+    fn an_impl_anchor_naming_nothing_dangles_on_the_keyspace_path() {
+        let violations =
+            keyspace_violations("# catalogue\n\n## Course\n\n## Bogus\n\n- impl: nonexistent\n");
+        assert!(
+            violations
+                .iter()
+                .any(|v| matches!(v, Violation::DanglingAnchor { concept, .. } if concept == "Bogus")),
+            "the pass runs: an anchor naming nothing dangles, so the absence above is evidence: {violations:?}"
+        );
     }
 
     #[cfg(feature = "codefacts")]

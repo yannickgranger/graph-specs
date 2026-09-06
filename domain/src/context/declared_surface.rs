@@ -1,22 +1,36 @@
-use super::decl::ContextDecl;
+use super::decl::{ContextDecl, OwnedUnit};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DeclaredSurface {
     prefixes: Vec<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OwnershipAmbiguity {
+    pub outer: OwnedUnit,
+    pub outer_context: String,
+    pub inner: OwnedUnit,
+    pub inner_context: String,
+}
+
 impl DeclaredSurface {
-    #[must_use]
-    pub fn from_contexts(contexts: &[ContextDecl]) -> Self {
-        let mut prefixes: Vec<String> = contexts
+    pub fn from_contexts(contexts: &[ContextDecl]) -> Result<Self, OwnershipAmbiguity> {
+        let mut declared: Vec<(String, &str)> = contexts
             .iter()
-            .flat_map(|ctx| ctx.owned_units.iter())
-            .map(|unit| normalize(&unit.0))
-            .filter(|unit| !unit.is_empty())
+            .flat_map(|ctx| {
+                ctx.owned_units
+                    .iter()
+                    .map(move |unit| (normalize(&unit.0), ctx.name.as_str()))
+            })
+            .filter(|(unit, _)| !unit.is_empty())
             .collect();
-        prefixes.sort();
+        declared.sort();
+        if let Some(ambiguity) = nested_across_contexts(&declared) {
+            return Err(ambiguity);
+        }
+        let mut prefixes: Vec<String> = declared.into_iter().map(|(unit, _)| unit).collect();
         prefixes.dedup();
-        Self { prefixes }
+        Ok(Self { prefixes })
     }
 
     #[must_use]
@@ -38,6 +52,30 @@ impl DeclaredSurface {
     pub const fn is_empty(&self) -> bool {
         self.prefixes.is_empty()
     }
+}
+
+fn nested_across_contexts(declared: &[(String, &str)]) -> Option<OwnershipAmbiguity> {
+    for (i, (outer, outer_context)) in declared.iter().enumerate() {
+        for (inner, inner_context) in declared.iter().skip(i + 1) {
+            if outer_context == inner_context {
+                continue;
+            }
+            let (outer, inner, outer_context, inner_context) = if covers(outer, inner) {
+                (outer, inner, outer_context, inner_context)
+            } else if covers(inner, outer) {
+                (inner, outer, inner_context, outer_context)
+            } else {
+                continue;
+            };
+            return Some(OwnershipAmbiguity {
+                outer: OwnedUnit(outer.clone()),
+                outer_context: (*outer_context).to_owned(),
+                inner: OwnedUnit(inner.clone()),
+                inner_context: (*inner_context).to_owned(),
+            });
+        }
+    }
+    None
 }
 
 fn normalize(raw: &str) -> String {
