@@ -293,10 +293,19 @@ cfdb-045-polyglot-relationship-edges#3.2). The source-walking adapter
 answers from its own edge walk, the cfdb-query ACL from the keyspace's
 `IMPLEMENTS` edges, both endpoints a [ConceptRef](#conceptref).
 
+The port also states **which** relationship kinds it can answer for the
+input it read, because a kind the input carries no fact of is unanswered
+rather than unmet (graph-specs-010-abstraction-level-equivalence#11.6).
+The source walk answers all three; the cfdb-query ACL answers
+`IMPLEMENTS` on a PHP keyspace and, until it translates cfdb's Rust
+relationship facts, nothing on a Rust one. The set is the reader's own
+statement about its input, never a constant the composition root holds.
+
 ```rust
 pub trait CodeFacts {
     fn concepts(&self, root: &Path) -> Result<Vec<ConceptNode>, ReaderError>;
     fn relationships(&self, root: &Path) -> Result<Vec<Edge>, ReaderError>;
+    fn answerable_relationships(&self, root: &Path) -> Result<Vec<EdgeKind>, ReaderError>;
 }
 ```
 

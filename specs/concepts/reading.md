@@ -81,6 +81,7 @@ the cfdb-query [CfdbQueryReader](#cfdbqueryreader) ACL must match. Lives in
 - depends on: Graph
 - depends on: ConceptNode
 - depends on: Edge
+- depends on: EdgeKind
 - depends on: ReaderError
 - depends on: PubFnDecl
 
@@ -128,6 +129,7 @@ Lives in `adapters/cfdb-query`.
 - depends on: ReaderError
 - depends on: DeclaredSurface
 - depends on: Edge
+- depends on: EdgeKind
 - depends on: PubFnDecl
 - implements: VerbReader
 - returns: CfdbQueryReader

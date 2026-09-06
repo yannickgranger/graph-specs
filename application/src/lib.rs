@@ -107,18 +107,32 @@ pub fn run_check(
             .collect()
     };
 
-    let answerable = keyspace.map(|_| ANSWERABLE_ON_A_PHP_KEYSPACE);
+    let answerable = match keyspace {
+        None => None,
+        Some(keyspace) => Some(keyspace_answerable(code_dir, keyspace)?),
+    };
     Ok(diff(
         CheckInput::new(specs_graph, spec_contexts, verb_ownership)
             .with_spec_cohesion(spec_cohesion)
             .with_spec_findings(spec_findings)
             .with_concept_anchors(resolved_anchors),
         code_graph,
-        answerable,
+        answerable.as_deref(),
     ))
 }
 
-const ANSWERABLE_ON_A_PHP_KEYSPACE: &[EdgeKind] = &[EdgeKind::Implements];
+#[cfg(feature = "codefacts")]
+fn keyspace_answerable(code_dir: &Path, keyspace: &Path) -> Result<Vec<EdgeKind>, ReaderError> {
+    adapter_cfdb_query::CfdbQueryReader::new(keyspace).answerable_relationships(code_dir)
+}
+
+#[cfg(not(feature = "codefacts"))]
+fn keyspace_answerable(code_dir: &Path, _keyspace: &Path) -> Result<Vec<EdgeKind>, ReaderError> {
+    Err(ReaderError::WalkFailed {
+        root: code_dir.to_path_buf(),
+        cause: "cfdb-query keyspace routing requires the `codefacts` feature".to_owned(),
+    })
+}
 
 fn ambiguous_ownership(keyspace: &Path, ambiguity: &OwnershipAmbiguity) -> ReaderError {
     ReaderError::ParseFailed {
@@ -448,6 +462,89 @@ mod tests {
             specs,
             "contexts/catalogue.md",
             "# catalogue\n\n## Owns\n\n- App\\Catalogue\n",
+        );
+    }
+
+    #[cfg(feature = "codefacts")]
+    fn rust_keyspace(dir: &Path) -> std::path::PathBuf {
+        let keyspace = dir.join("rust.json");
+        std::fs::write(
+            &keyspace,
+            r#"{"schema_version":{"major":0,"minor":5,"patch":0},"nodes":[
+            {"id":"item:domain::Reader","label":"Item","props":{"kind":"trait","name":"Reader",
+             "visibility":"pub","is_test":false,"line":1,"file":"/ws/domain/src/lib.rs",
+             "module_qpath":"domain","crate":"domain","bounded_context":"equivalence"}},
+            {"id":"item:domain::Walker","label":"Item","props":{"kind":"struct","name":"Walker",
+             "visibility":"pub","is_test":false,"line":9,"file":"/ws/domain/src/lib.rs",
+             "module_qpath":"domain","crate":"domain","bounded_context":"equivalence"}}
+            ],"edges":[]}"#,
+        )
+        .unwrap();
+        keyspace
+    }
+
+    #[cfg(feature = "codefacts")]
+    #[test]
+    fn an_implements_bullet_on_a_rust_keyspace_is_unanswerable_not_missing_in_code() {
+        let specs = TempDir::new().unwrap();
+        let dir = TempDir::new().unwrap();
+        let code = TempDir::new().unwrap();
+        write(
+            specs.path(),
+            "concepts/equivalence.md",
+            "# equivalence\n\n## Walker\n\n- implements: Reader\n\n## Reader\n",
+        );
+        let keyspace = rust_keyspace(dir.path());
+
+        let violations = run_check(specs.path(), code.path(), Some(&keyspace))
+            .unwrap()
+            .violations;
+        assert!(
+            violations.iter().any(|v| matches!(
+                v,
+                Violation::EdgeUnanswerable { concept, edge_kind, .. }
+                    if concept == "Walker" && *edge_kind == EdgeKind::Implements
+            )),
+            "the cfdb-query reader answers no relationship at all on a Rust keyspace: {violations:?}"
+        );
+        assert!(
+            !violations.iter().any(
+                |v| matches!(v, Violation::EdgeMissingInCode { concept, .. } if concept == "Walker")
+            ),
+            "never charged to the specs as unmet: {violations:?}"
+        );
+    }
+
+    #[test]
+    fn the_same_implements_bullet_on_the_source_walk_keeps_its_ordinary_verdict() {
+        let specs = TempDir::new().unwrap();
+        let code = TempDir::new().unwrap();
+        write(
+            specs.path(),
+            "concepts/equivalence.md",
+            "# equivalence\n\n## Walker\n\n- implements: Reader\n\n## Reader\n",
+        );
+        write(code.path(), "Cargo.toml", "[package]\nname = \"c\"\n");
+        write(
+            code.path(),
+            "src/lib.rs",
+            "pub trait Reader {}\npub struct Walker;\n",
+        );
+
+        let violations = run_check(specs.path(), code.path(), None)
+            .unwrap()
+            .violations;
+        assert!(
+            violations.iter().any(
+                |v| matches!(v, Violation::EdgeMissingInCode { concept, .. } if concept == "Walker")
+            ),
+            "the walk answers all three kinds, so an unmet bullet is unmet: {violations:?}"
+        );
+        assert!(
+            !violations
+                .iter()
+                .any(|v| matches!(v, Violation::EdgeUnanswerable { .. })),
+            "and nothing is unanswerable there: {violations:?}"
         );
     }
 

@@ -4,7 +4,7 @@ use cfdb_core::fact::{Edge, Node, PropValue};
 use cfdb_core::schema::{Label, SchemaVersion};
 use domain::LocationKind;
 use domain::Provenance;
-use domain::{ConceptNode, DeclaredSurface, PubFnDecl, SignatureState, Source};
+use domain::{ConceptNode, DeclaredSurface, EdgeKind, PubFnDecl, SignatureState, Source};
 use ports::{CodeFacts, ReaderError, VerbReader};
 use serde::Deserialize;
 
@@ -230,6 +230,14 @@ fn namespace_of(qname: &str) -> String {
 }
 
 impl CodeFacts for CfdbQueryReader {
+    fn answerable_relationships(&self, _root: &Path) -> Result<Vec<EdgeKind>, ReaderError> {
+        let file = self.load()?;
+        match discriminate(&self.keyspace, &file.nodes)? {
+            Producer::Php => Ok(vec![EdgeKind::Implements]),
+            Producer::Rust => Ok(Vec::new()),
+        }
+    }
+
     fn relationships(&self, _root: &Path) -> Result<Vec<domain::Edge>, ReaderError> {
         let file = self.load()?;
         match discriminate(&self.keyspace, &file.nodes)? {

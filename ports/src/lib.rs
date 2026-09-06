@@ -2,7 +2,7 @@ mod lang;
 
 pub use lang::{Extraction, LanguageBackend};
 
-use domain::{AnchorTarget, ConceptNode, ContextDecl, Edge, Graph, PubFnDecl};
+use domain::{AnchorTarget, ConceptNode, ContextDecl, Edge, EdgeKind, Graph, PubFnDecl};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
@@ -21,6 +21,7 @@ pub trait ContextReader {
 pub trait CodeFacts {
     fn concepts(&self, root: &Path) -> Result<Vec<ConceptNode>, ReaderError>;
     fn relationships(&self, root: &Path) -> Result<Vec<Edge>, ReaderError>;
+    fn answerable_relationships(&self, root: &Path) -> Result<Vec<EdgeKind>, ReaderError>;
 }
 
 pub trait AnchorResolver {
