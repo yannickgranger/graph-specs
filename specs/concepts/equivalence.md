@@ -136,7 +136,6 @@ open.
 
 ## SignatureNormalizer
 
-- status: draft (per graph-specs-004-multi-language-adapter-contract#3.6)
 <!-- parent:rfc:graph-specs-004-multi-language-adapter-contract#3.6 anchor:"through a normalizer port supplied at the composition root" -->
 
 The port by which the markdown reader normalizes a fenced signature of any

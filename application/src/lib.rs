@@ -18,6 +18,9 @@ mod report_ndjson;
 mod report_text;
 pub mod text;
 
+const SIGNATURE_NORMALIZERS: &[&dyn ports::SignatureNormalizer] =
+    &[&signature_norm::RustSignatures, &adapter_php::PhpSignatures];
+
 fn union_spec_graphs(markdown: &mut Graph, attribute: Graph) -> Vec<Violation> {
     let mut drift = Vec::new();
     for node in attribute.nodes {
@@ -56,7 +59,7 @@ pub fn run_check(
     code_dir: &Path,
     keyspace: Option<&Path>,
 ) -> Result<CheckOutcome, ReaderError> {
-    let mut specs_graph = MarkdownReader.extract(specs_dir)?;
+    let mut specs_graph = MarkdownReader.extract_with(specs_dir, SIGNATURE_NORMALIZERS)?;
     let attribute_graph = PhpAttributeReader::new().extract(code_dir)?;
     let mut within_side = union_spec_graphs(&mut specs_graph, attribute_graph);
     let spec_contexts = MarkdownReader.extract_contexts(specs_dir)?;
