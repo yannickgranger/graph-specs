@@ -122,6 +122,19 @@ fn violation_to_record(v: &Violation) -> Value {
             "error": error,
             "source": source_to_json(source),
         }),
+        Violation::EdgeUnanswerable {
+            concept,
+            edge_kind,
+            target,
+            spec_source,
+        } => json!({
+            "schema_version": SchemaVersion::CURRENT.as_str(),
+            "violation": "edge_unanswerable",
+            "concept": concept,
+            "edge_kind": edge_kind.as_label(),
+            "target": target,
+            "spec_source": source_to_json(spec_source),
+        }),
         Violation::EdgeMissingInCode {
             concept,
             edge_kind,

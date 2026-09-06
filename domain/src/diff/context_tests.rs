@@ -9,7 +9,7 @@ use crate::{
 use std::path::PathBuf;
 
 fn diff(spec: CheckInput, code: Graph) -> Vec<Violation> {
-    crate::diff(spec, code).violations
+    crate::diff(spec, code, None).violations
 }
 
 fn code_node(name: &str, unit: &str) -> ConceptNode {

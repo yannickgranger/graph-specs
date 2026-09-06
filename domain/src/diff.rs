@@ -49,7 +49,7 @@ fn snapshot_declared_contexts(
 }
 
 #[must_use]
-pub fn diff(spec: CheckInput, code: Graph) -> CheckOutcome {
+pub fn diff(spec: CheckInput, code: Graph, answerable: Option<&[crate::EdgeKind]>) -> CheckOutcome {
     let CheckInput {
         graph: specs,
         contexts: spec_contexts,
@@ -120,6 +120,7 @@ pub fn diff(spec: CheckInput, code: Graph) -> CheckOutcome {
         &known_concepts,
         &matched_concepts,
         &keys.unpointable,
+        answerable,
         &mut violations,
     );
 
@@ -230,6 +231,7 @@ const fn violation_key(v: &Violation) -> (&str, u8) {
         Violation::EdgeMissingInCode { concept, .. } => (concept.as_str(), 5),
         Violation::EdgeMissingInSpec { concept, .. } => (concept.as_str(), 6),
         Violation::EdgeTargetUnknown { concept, .. } => (concept.as_str(), 7),
+        Violation::EdgeUnanswerable { concept, .. } => (concept.as_str(), 16),
         Violation::Context(ctx) => (ctx.concept(), 8),
         Violation::VerbMissingInCode { concept, .. } => (concept.as_str(), 9),
         Violation::VerbMissingInSpec { qname, .. } => (qname.as_str(), 10),

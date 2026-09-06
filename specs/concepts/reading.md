@@ -127,6 +127,8 @@ Lives in `adapters/cfdb-query`.
 - depends on: ReaderError
 - depends on: DeclaredSurface
 - depends on: Edge
+- depends on: PubFnDecl
+- implements: VerbReader
 - returns: CfdbQueryReader
 
 ### PhpEdgeTraversal

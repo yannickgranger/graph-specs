@@ -4,8 +4,8 @@ use cfdb_core::fact::{Edge, Node, PropValue};
 use cfdb_core::schema::{Label, SchemaVersion};
 use domain::LocationKind;
 use domain::Provenance;
-use domain::{ConceptNode, DeclaredSurface, SignatureState, Source};
-use ports::{CodeFacts, ReaderError};
+use domain::{ConceptNode, DeclaredSurface, PubFnDecl, SignatureState, Source};
+use ports::{CodeFacts, ReaderError, VerbReader};
 use serde::Deserialize;
 
 mod anchor_resolver;
@@ -75,21 +75,169 @@ impl CfdbQueryReader {
 impl CfdbQueryReader {
     pub fn concept_rung_items(&self) -> Result<usize, ReaderError> {
         let file = self.load()?;
-        if !PhpEdgeTraversal::declares_php(&file.nodes) {
+        if discriminate(&self.keyspace, &file.nodes)? != Producer::Php {
             return Ok(0);
         }
         Ok(PhpEdgeTraversal::concept_rung_items(&file.nodes))
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Producer {
+    Rust,
+    Php,
+}
+
+impl Producer {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Rust => "rust (`crate` / `bounded_context`)",
+            Self::Php => "php (`php_construct`)",
+        }
+    }
+}
+
+fn mark_of(node: &Node) -> Option<Producer> {
+    if prop(node, "php_construct").is_some() {
+        return Some(Producer::Php);
+    }
+    if prop(node, "crate").is_some() || prop(node, "bounded_context").is_some() {
+        return Some(Producer::Rust);
+    }
+    None
+}
+
+fn discriminate(keyspace: &Path, nodes: &[Node]) -> Result<Producer, ReaderError> {
+    let items: Vec<&Node> = nodes
+        .iter()
+        .filter(|n| n.label.as_str() == Label::ITEM)
+        .collect();
+    if items.is_empty() {
+        return Ok(Producer::Rust);
+    }
+    let mut seen: Option<Producer> = None;
+    let mut unmarked: Option<&Node> = None;
+    for item in &items {
+        match mark_of(item) {
+            None => unmarked = unmarked.or(Some(item)),
+            Some(mark) => match seen {
+                None => seen = Some(mark),
+                Some(first) if first != mark => {
+                    return Err(could_not_run(
+                        keyspace,
+                        &format!(
+                            "the keyspace carries items of two producers — {} and {} — and graph-specs-011-php-ladder#4 invariant 7 rules one producer per keyspace, so neither side is read rather than one side dropped",
+                            first.as_str(),
+                            mark.as_str()
+                        ),
+                    ))
+                }
+                Some(_) => {}
+            },
+        }
+    }
+    match (seen, unmarked) {
+        (Some(mark), None) => Ok(mark),
+        (_, Some(node)) => Err(could_not_run(
+            keyspace,
+            &format!(
+                "`{}` carries none of the marks a producer stamps — neither `php_construct` nor `crate`/`bounded_context` (cfdb-045-polyglot-relationship-edges#3.2, the mark sets measured at cfdb 0.8.0) — so which producer wrote this keyspace cannot be told, and the concept channel refuses rather than reading it as the other producer's shape",
+                item_name(node)
+            ),
+        )),
+        (None, None) => Ok(Producer::Rust),
+    }
+}
+
+fn item_name(node: &Node) -> &str {
+    prop(node, "qname")
+        .or_else(|| prop(node, "name"))
+        .unwrap_or(node.id.as_str())
+}
+
+fn could_not_run(keyspace: &Path, cause: &str) -> ReaderError {
+    ReaderError::ParseFailed {
+        path: keyspace.to_path_buf(),
+        line: 0,
+        message: format!("could not run the concept channel on this keyspace: {cause}"),
+    }
+}
+
+impl VerbReader for CfdbQueryReader {
+    fn extract_pub_fns(&self, _root: &Path) -> Result<Vec<PubFnDecl>, ReaderError> {
+        let file = self.load()?;
+        if discriminate(&self.keyspace, &file.nodes)? != Producer::Php {
+            return Ok(Vec::new());
+        }
+        let mut out = Vec::new();
+        for node in &file.nodes {
+            if node.label.as_str() != Label::ITEM {
+                continue;
+            }
+            let Some(construct) = prop(node, "php_construct") else {
+                continue;
+            };
+            if !matches!(construct, "method_declaration" | "function_definition") {
+                continue;
+            }
+            let Some(qname) = prop(node, "qname") else {
+                continue;
+            };
+            let Some(unit) = self.surface.unit_of(qname) else {
+                continue;
+            };
+            let line = node
+                .props
+                .get("line")
+                .and_then(PropValue::as_i64)
+                .and_then(|n| usize::try_from(n).ok())
+                .unwrap_or(0);
+            out.push(PubFnDecl {
+                name: anchor_key(qname, construct),
+                source: Source::Code {
+                    path: PathBuf::from(namespace_of(qname)),
+                    line,
+                    provenance: Provenance::empty(),
+                    location: LocationKind::Namespace,
+                },
+                owned_unit: Some(unit.to_owned()),
+            });
+        }
+        Ok(out)
+    }
+}
+
+fn anchor_key(qname: &str, construct: &str) -> String {
+    if construct == "method_declaration" {
+        let Some((class_path, method)) = qname.rsplit_once("::") else {
+            return short_name(qname).to_owned();
+        };
+        return format!("{}::{method}", short_name(class_path));
+    }
+    short_name(qname).to_owned()
+}
+
+fn short_name(qname: &str) -> &str {
+    qname.rsplit('\\').next().unwrap_or(qname)
+}
+
+fn namespace_of(qname: &str) -> String {
+    let head = qname.split("::").next().unwrap_or(qname);
+    match head.rsplit_once('\\') {
+        Some((namespace, _)) => namespace.to_string(),
+        None => head.to_string(),
+    }
+}
+
 impl CodeFacts for CfdbQueryReader {
     fn relationships(&self, _root: &Path) -> Result<Vec<domain::Edge>, ReaderError> {
         let file = self.load()?;
-        if PhpEdgeTraversal::declares_php(&file.nodes) {
-            return PhpEdgeTraversal::new(self.surface.clone())
-                .relationships(&file.nodes, &file.edges);
+        match discriminate(&self.keyspace, &file.nodes)? {
+            Producer::Php => {
+                PhpEdgeTraversal::new(self.surface.clone()).relationships(&file.nodes, &file.edges)
+            }
+            Producer::Rust => Ok(Vec::new()),
         }
-        Ok(Vec::new())
     }
 
     fn concepts(&self, root: &Path) -> Result<Vec<ConceptNode>, ReaderError> {
@@ -104,7 +252,7 @@ impl CodeFacts for CfdbQueryReader {
                 message: e.to_string(),
             })?;
 
-        if PhpEdgeTraversal::declares_php(&file.nodes) {
+        if discriminate(&self.keyspace, &file.nodes)? == Producer::Php {
             return PhpEdgeTraversal::new(self.surface.clone()).concepts(&file.nodes, &file.edges);
         }
 

@@ -92,6 +92,18 @@ pub fn format_violation(v: &Violation, out: &mut impl Write) -> std::io::Result<
                 "signature unparseable: {name} ({at})\n  raw: {raw}\n  error: {error}"
             )
         }
+        Violation::EdgeUnanswerable {
+            concept,
+            edge_kind,
+            target,
+            spec_source,
+        } => {
+            let at = located(spec_source);
+            writeln!(
+                out,
+                "edge unanswerable: {concept} --{edge_kind}--> {target} — the code input this run read emits no fact of that kind, so the bullet is unanswered rather than unmet ({at})"
+            )
+        }
         Violation::EdgeMissingInCode {
             concept,
             edge_kind,

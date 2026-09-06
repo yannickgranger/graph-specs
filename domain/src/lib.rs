@@ -20,6 +20,7 @@ pub use cohesion::CohesionViolation;
 pub use context::{
     context_for_concept, detect_import_cycle, resolve_declared_context, CheckInput, ContextDecl,
     ContextExport, ContextImport, ContextPattern, ContextViolation, DeclaredSurface, OwnedUnit,
+    OwnershipAmbiguity,
 };
 pub use diff::diff;
 pub use marker::{
@@ -358,6 +359,12 @@ pub enum Violation {
         raw: String,
         error: String,
         source: Source,
+    },
+    EdgeUnanswerable {
+        concept: String,
+        edge_kind: EdgeKind,
+        target: String,
+        spec_source: Source,
     },
     EdgeMissingInCode {
         concept: String,

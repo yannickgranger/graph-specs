@@ -36,6 +36,7 @@ fn surface(units: &[&str]) -> DeclaredSurface {
             context: None,
         },
     )])
+    .expect("no nested prefixes across contexts")
 }
 
 fn read(units: &[&str]) -> Vec<ConceptNode> {
@@ -109,7 +110,8 @@ fn an_empty_surface_admits_nothing_and_the_keyspace_is_not_at_fault() {
 fn a_rust_keyspace_does_not_take_the_php_path() {
     let rust = r#"{"schema_version":{"major":0,"minor":8,"patch":0},"nodes":[
       {"id":"item:domain::Thing","label":"Item","props":{"kind":"struct","name":"Thing",
-       "visibility":"pub","is_test":false,"file":"/ws/domain/src/lib.rs","module_qpath":"domain"}}
+       "visibility":"pub","is_test":false,"file":"/ws/domain/src/lib.rs","module_qpath":"domain",
+       "crate":"domain","bounded_context":"equivalence"}}
     ],"edges":[]}"#;
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().join("rust.json");
@@ -142,7 +144,7 @@ fn a_php_item_with_no_php_construct_is_refused_naming_the_item() {
        "qname":"App\\A\\Untold"}}],"edges":[]}"#;
     let err = read_err(json).to_string();
     assert!(err.contains("App\\A\\Untold"), "{err}");
-    assert!(err.contains("no `php_construct`"), "{err}");
+    assert!(err.contains("none of the marks a producer stamps"), "{err}");
 }
 
 #[test]
@@ -221,4 +223,50 @@ fn an_implements_edge_whose_far_end_is_off_surface_is_emitted_not_dropped() {
         "the off-surface far end is carried so the diff can report it: {edges:?}"
     );
     assert_eq!(off[0].target.unit, None);
+}
+
+#[test]
+fn an_in_module_edge_to_an_absent_node_is_a_could_not_run_naming_the_item() {
+    let json = r#"{"schema_version":{"major":0,"minor":8,"patch":0},"nodes":[
+      {"id":"item:App\\A\\Told","label":"Item","props":{"kind":"trait","name":"Told",
+       "php_construct":"class_declaration","qname":"App\\A\\Told"}}],
+      "edges":[{"src":"item:App\\A\\Told","dst":"module:App\\Gone","label":"IN_MODULE"}]}"#;
+    let err = read_err(json).to_string();
+    assert!(
+        err.contains("could not run the containment traversal"),
+        "{err}"
+    );
+    assert!(err.contains("App\\A\\Told"), "{err}");
+    assert!(err.contains("module:App\\Gone"), "{err}");
+}
+
+#[test]
+fn two_in_module_edges_on_one_item_are_a_could_not_run_naming_the_item() {
+    let json = r#"{"schema_version":{"major":0,"minor":8,"patch":0},"nodes":[
+      {"id":"module:App\\A","label":"Module","props":{"name":"App\\A"}},
+      {"id":"module:App\\B","label":"Module","props":{"name":"App\\B"}},
+      {"id":"item:App\\A\\Told","label":"Item","props":{"kind":"trait","name":"Told",
+       "php_construct":"class_declaration","qname":"App\\A\\Told"}}],
+      "edges":[
+      {"src":"item:App\\A\\Told","dst":"module:App\\A","label":"IN_MODULE"},
+      {"src":"item:App\\A\\Told","dst":"module:App\\B","label":"IN_MODULE"}]}"#;
+    let err = read_err(json).to_string();
+    assert!(err.contains("more than one `IN_MODULE` edge"), "{err}");
+    assert!(err.contains("App\\A\\Told"), "{err}");
+}
+
+#[test]
+fn an_item_with_no_containment_edge_keeps_the_declared_prefix_fallback() {
+    let json = r#"{"schema_version":{"major":0,"minor":8,"patch":0},"nodes":[
+      {"id":"item:App\\A\\Told","label":"Item","props":{"kind":"trait","name":"Told",
+       "php_construct":"class_declaration","qname":"App\\A\\Told"}}],"edges":[]}"#;
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("keyspace.json");
+    std::fs::write(&path, json).expect("write keyspace");
+    let nodes = CfdbQueryReader::new(&path)
+        .with_surface(surface(&["App\\A"]))
+        .concepts(Path::new("/ws"))
+        .expect("no containment edge is not malformed");
+    assert_eq!(names(&nodes), vec!["Told"]);
+    assert_eq!(nodes[0].module_path(), Some("App\\A"));
 }

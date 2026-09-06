@@ -438,7 +438,8 @@ RFC-007's (graph-specs-011-php-ladder#6 item 2). Pure value, no IO. Lives
 in `domain`.
 
 - depends on: ContextDecl
-- returns: DeclaredSurface
+- depends on: DeclaredSurface
+- depends on: OwnershipAmbiguity
 - verb: DeclaredSurface::from_contexts
 - verb: DeclaredSurface::admits
 - verb: DeclaredSurface::unit_of

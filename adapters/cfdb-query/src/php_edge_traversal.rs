@@ -55,7 +55,7 @@ impl PhpEdgeTraversal {
         nodes: &[Node],
         edges: &[Edge],
     ) -> Result<Vec<ConceptNode>, ReaderError> {
-        let containers = containers(nodes, edges);
+        let containers = containers(nodes, edges)?;
         let mut out = Vec::new();
         for node in nodes {
             if node.label.as_str() != Label::ITEM {
@@ -107,7 +107,7 @@ impl PhpEdgeTraversal {
         nodes: &[Node],
         edges: &[Edge],
     ) -> Result<Vec<domain::Edge>, ReaderError> {
-        let containers = containers(nodes, edges);
+        let containers = containers(nodes, edges)?;
         let mut by_id: HashMap<&str, (&str, Option<&str>)> = HashMap::new();
         for node in nodes {
             if node.label.as_str() != Label::ITEM {
@@ -186,28 +186,62 @@ fn unknown_rung(node: &Node, construct: Option<&str>) -> ReaderError {
     }
 }
 
-fn containers<'a>(nodes: &'a [Node], edges: &'a [Edge]) -> HashMap<&'a str, &'a str> {
+fn containers<'a>(
+    nodes: &'a [Node],
+    edges: &'a [Edge],
+) -> Result<HashMap<&'a str, &'a str>, ReaderError> {
     let named: HashMap<&str, &str> = nodes
         .iter()
         .filter(|n| n.label.as_str() != Label::ITEM)
         .filter_map(|n| prop(n, "name").map(|name| (n.id.as_str(), name)))
         .collect();
+    let by_id: HashMap<&str, &Node> = nodes.iter().map(|n| (n.id.as_str(), n)).collect();
     let mut out: HashMap<&str, &str> = HashMap::new();
+    let mut modules_seen: HashMap<&str, usize> = HashMap::new();
     for edge in edges {
         let label = edge.label.as_str();
         if label != IN_MODULE && label != IN_CRATE {
             continue;
         }
         let Some(container) = named.get(edge.dst.as_str()) else {
-            continue;
+            return Err(malformed_containment(
+                by_id.get(edge.src.as_str()).copied(),
+                edge.src.as_str(),
+                &format!(
+                    "its `{label}` edge points at `{}`, which the keyspace's node set does not carry",
+                    edge.dst
+                ),
+            ));
         };
         if label == IN_MODULE {
+            let count = modules_seen.entry(edge.src.as_str()).or_insert(0);
+            *count += 1;
+            if *count > 1 {
+                return Err(malformed_containment(
+                    by_id.get(edge.src.as_str()).copied(),
+                    edge.src.as_str(),
+                    "it carries more than one `IN_MODULE` edge, so which module contains it has no answer",
+                ));
+            }
             out.insert(edge.src.as_str(), container);
         } else {
             out.entry(edge.src.as_str()).or_insert(container);
         }
     }
-    out
+    Ok(out)
+}
+
+fn malformed_containment(node: Option<&Node>, id: &str, cause: &str) -> ReaderError {
+    let named = node
+        .and_then(|n| prop(n, "qname").or_else(|| prop(n, "name")))
+        .unwrap_or(id);
+    ReaderError::ParseFailed {
+        path: PathBuf::from(named),
+        line: 0,
+        message: format!(
+            "could not run the containment traversal for `{named}`: {cause}; containment on the PHP path is read by traversing `IN_MODULE` and `IN_CRATE` because the PHP `:Item` is prop-less (graph-specs-010-abstraction-level-equivalence#11.5), and a malformed traversal is a could-not-run rather than a silent fallback"
+        ),
+    }
 }
 
 fn prop<'a>(node: &'a Node, key: &str) -> Option<&'a str> {

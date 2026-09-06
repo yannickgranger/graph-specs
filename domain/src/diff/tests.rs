@@ -12,6 +12,7 @@ fn diff(specs: Graph, code: Graph) -> Vec<Violation> {
     super::diff(
         CheckInput::new(specs, Vec::new(), VerbOwnership::default()),
         code,
+        None,
     )
     .violations
 }
@@ -562,7 +563,7 @@ fn marked_heading_without_code_is_pending_not_missing_in_code() {
         Vec::new(),
         VerbOwnership::default(),
     );
-    let outcome = super::diff(input, Graph::default());
+    let outcome = super::diff(input, Graph::default(), None);
     assert!(
         outcome.violations.is_empty(),
         "a marked heading imposes no code-existence obligation: {:?}",
@@ -581,7 +582,7 @@ fn marked_heading_with_code_is_realized_not_a_violation() {
         Vec::new(),
         VerbOwnership::default(),
     );
-    let outcome = super::diff(input, nodes(vec![code("Widget")]));
+    let outcome = super::diff(input, nodes(vec![code("Widget")]), None);
     assert!(
         outcome.violations.is_empty(),
         "code backing a marked heading is the normal mid-arc state: {:?}",
@@ -603,6 +604,7 @@ fn a_marker_never_parks_a_divergence() {
     let outcome = super::diff(
         input,
         nodes(vec![code_with_sig("Widget", "pub enum Widget {}")]),
+        None,
     );
     assert!(
         outcome
@@ -620,7 +622,7 @@ fn a_marker_never_parks_a_divergence() {
 fn unmarked_trees_produce_no_marker_records() {
     let specs = nodes(vec![spec("Present"), spec("Absent")]);
     let input = CheckInput::new(specs, Vec::new(), VerbOwnership::default());
-    let outcome = super::diff(input, nodes(vec![code("Present"), code("Orphan")]));
+    let outcome = super::diff(input, nodes(vec![code("Present"), code("Orphan")]), None);
     assert!(outcome.pending.is_empty());
     assert!(outcome.realized.is_empty());
     let ranks: Vec<_> = outcome.violations.iter().map(violation_key).collect();
@@ -649,7 +651,7 @@ fn pending_concepts_edge_bullets_impose_no_obligation() {
         }],
     );
     let input = CheckInput::new(specs, Vec::new(), VerbOwnership::default());
-    let outcome = super::diff(input, nodes(vec![code("Gear")]));
+    let outcome = super::diff(input, nodes(vec![code("Gear")]), None);
     assert!(
         !outcome
             .violations
@@ -664,7 +666,7 @@ fn pending_concepts_edge_bullets_impose_no_obligation() {
 #[test]
 fn orphan_without_a_heading_is_missing_in_specs() {
     let input = CheckInput::new(Graph::default(), Vec::new(), VerbOwnership::default());
-    let v = super::diff(input, nodes(vec![code("Gadget")])).violations;
+    let v = super::diff(input, nodes(vec![code("Gadget")]), None).violations;
     assert_eq!(v.len(), 1);
     assert!(
         matches!(&v[0], Violation::MissingInSpecs { name, .. } if name == "Gadget"),
@@ -704,6 +706,7 @@ fn anchored_concept_with_resolved_target_is_not_missing_in_code() {
             resolved_anchor("ValidateIntakeFull", "validate_intake", true),
         ]),
         Graph::default(),
+        None,
     )
     .violations;
     assert!(
@@ -719,6 +722,7 @@ fn anchored_concept_with_unresolved_target_is_dangling_not_missing() {
         CheckInput::new(specs, Vec::new(), VerbOwnership::default())
             .with_concept_anchors(vec![resolved_anchor("ValidateIntakeFull", "gone", false)]),
         Graph::default(),
+        None,
     )
     .violations;
     assert_eq!(v.len(), 1, "exactly one violation: {v:?}");
@@ -744,6 +748,7 @@ fn unanchored_missing_concept_still_missing_in_code() {
     let v = super::diff(
         CheckInput::new(specs, Vec::new(), VerbOwnership::default()),
         Graph::default(),
+        None,
     )
     .violations;
     assert!(
@@ -777,6 +782,7 @@ fn polarity_presence_matrix() {
         let outcome = super::diff(
             CheckInput::new(specs, Vec::new(), VerbOwnership::default()),
             code,
+            None,
         );
         let ranks: Vec<u8> = outcome
             .violations
@@ -798,6 +804,7 @@ fn illustrative_does_not_consume_the_code_node() {
     let outcome = super::diff(
         CheckInput::new(specs, Vec::new(), VerbOwnership::default()),
         nodes(vec![code("Member")]),
+        None,
     );
     assert!(
         matches!(
@@ -815,6 +822,7 @@ fn forbidden_reintroduction_names_both_sites() {
     let outcome = super::diff(
         CheckInput::new(specs, Vec::new(), VerbOwnership::default()),
         nodes(vec![code("Member")]),
+        None,
     );
     match outcome.violations.as_slice() {
         [Violation::ForbiddenConceptReintroduced {
@@ -857,6 +865,7 @@ fn non_declared_polarity_is_terminal_over_the_spec_state_marker() {
             let outcome = super::diff(
                 CheckInput::new(nodes(vec![node]), Vec::new(), VerbOwnership::default()),
                 code_graph,
+                None,
             );
             assert!(
                 outcome.pending.is_empty(),
@@ -885,6 +894,7 @@ fn declared_polarity_leaves_the_marker_dispatch_intact() {
     let outcome = super::diff(
         CheckInput::new(nodes(vec![node]), Vec::new(), VerbOwnership::default()),
         Graph::default(),
+        None,
     );
     assert_eq!(outcome.pending.len(), 1);
 }
@@ -909,6 +919,7 @@ fn a_non_declared_concepts_edge_bullets_impose_no_obligation() {
         let outcome = super::diff(
             CheckInput::new(specs, Vec::new(), VerbOwnership::default()),
             nodes(vec![code("Member"), code("Gear")]),
+            None,
         );
         assert!(
             !outcome
@@ -929,6 +940,7 @@ fn a_dangling_anchor_under_a_non_declared_heading_fires_nothing() {
             CheckInput::new(specs, Vec::new(), VerbOwnership::default())
                 .with_concept_anchors(vec![resolved_anchor("Member", "gone", false)]),
             Graph::default(),
+            None,
         );
         assert!(
             outcome.is_clean(),
@@ -942,6 +954,7 @@ fn a_dangling_anchor_under_a_non_declared_heading_fires_nothing() {
         CheckInput::new(specs, Vec::new(), VerbOwnership::default())
             .with_concept_anchors(vec![resolved_anchor("Member", "gone", false)]),
         Graph::default(),
+        None,
     );
     assert!(
         outcome
@@ -979,6 +992,7 @@ fn an_ungrounded_corpus_is_byte_identical() {
     let outcome = super::diff(
         CheckInput::new(specs, Vec::new(), VerbOwnership::default()),
         nodes(vec![code("Present"), code("Orphan")]),
+        None,
     );
     let ranks: Vec<_> = outcome.violations.iter().map(violation_key).collect();
     assert_eq!(ranks, vec![("Absent", 0u8), ("Orphan", 1u8)]);
@@ -1002,6 +1016,7 @@ fn outcome_provenance_snapshots_the_code_triple_with_resolved_context() {
     let outcome = super::diff(
         CheckInput::new(Graph::default(), contexts, VerbOwnership::default()),
         nodes(vec![widget]),
+        None,
     );
     let code_source = outcome
         .violations
@@ -1033,6 +1048,7 @@ fn outcome_provenance_skips_nodes_with_no_facts() {
     let outcome = super::diff(
         CheckInput::new(Graph::default(), Vec::new(), VerbOwnership::default()),
         nodes(vec![code("Bare")]),
+        None,
     );
     let code_source = outcome
         .violations
@@ -1060,7 +1076,7 @@ fn retired_heading_with_code_is_retirement_incomplete() {
         Vec::new(),
         VerbOwnership::default(),
     );
-    let outcome = super::diff(input, nodes(vec![code("Widget")]));
+    let outcome = super::diff(input, nodes(vec![code("Widget")]), None);
     assert!(
         outcome.violations.is_empty(),
         "marker/code co-presence is not itself the contradiction: {:?}",
@@ -1084,7 +1100,7 @@ fn retired_heading_without_code_is_retirement_complete_not_missing_in_code() {
         Vec::new(),
         VerbOwnership::default(),
     );
-    let outcome = super::diff(input, Graph::default());
+    let outcome = super::diff(input, Graph::default(), None);
     assert!(
         outcome.violations.is_empty(),
         "a retired heading imposes no code-existence obligation: {:?}",
@@ -1125,7 +1141,7 @@ fn rows_7_and_8_are_selected_by_the_same_backing_item_fact_as_rows_3_and_4() {
                     backed,
                 )]);
             }
-            let outcome = super::diff(input, code_graph);
+            let outcome = super::diff(input, code_graph, None);
             let backed_len = match marker {
                 Marker::Draft => outcome.realized.len(),
                 _ => outcome.retirement_incomplete.len(),
@@ -1164,6 +1180,7 @@ fn a_retired_marker_never_parks_a_divergence() {
     let outcome = super::diff(
         input,
         nodes(vec![code_with_sig("Widget", "pub enum Widget {}")]),
+        None,
     );
     assert!(
         outcome
@@ -1195,6 +1212,7 @@ fn non_declared_polarity_is_terminal_over_the_retired_value_too() {
             let outcome = super::diff(
                 CheckInput::new(nodes(vec![node]), Vec::new(), VerbOwnership::default()),
                 code_graph,
+                None,
             );
             assert!(
                 outcome.retirement_incomplete.is_empty() && outcome.retirement_complete.is_empty(),
@@ -1251,6 +1269,7 @@ fn row_8_verb_anchors_impose_no_obligation() {
                 },
             ),
             Graph::new(vec![neighbour_code.clone()], vec![]),
+            None,
         )
         .violations
         .into_iter()
@@ -1296,7 +1315,7 @@ fn target(marker: Marker, polarity: Polarity) -> ConceptNode {
 }
 
 fn fires_edge_missing_in_code(input: CheckInput, code: Graph) -> bool {
-    super::diff(input, code)
+    super::diff(input, code, None)
         .violations
         .iter()
         .any(|v| matches!(v, Violation::EdgeMissingInCode { target, .. } if target == "Target"))
@@ -1349,6 +1368,7 @@ fn adding_the_field_clears_the_illustrative_present_finding() {
     let armed = super::diff(
         edge_into(target(Marker::Unmarked, Polarity::Illustrative), true).0,
         Graph::new(vec![code("Source"), code("Target")], Vec::new()),
+        None,
     );
     let cleared = super::diff(
         edge_into(target(Marker::Unmarked, Polarity::Illustrative), true).0,
@@ -1356,6 +1376,7 @@ fn adding_the_field_clears_the_illustrative_present_finding() {
             vec![code("Source"), code("Target")],
             vec![code_edge("Source", EdgeKind::DependsOn, "Target")],
         ),
+        None,
     );
     assert_eq!(armed.violations.len(), 2, "{:?}", armed.violations);
     assert_eq!(cleared.violations.len(), 1, "{:?}", cleared.violations);
@@ -1394,6 +1415,7 @@ fn edge_missing_in_spec_fires_in_every_cell_of_both_matrices() {
                     code_nodes,
                     vec![code_edge("Source", EdgeKind::Implements, "Target")],
                 ),
+                None,
             );
             assert!(
                 outcome
@@ -1410,7 +1432,7 @@ fn edge_missing_in_spec_fires_in_every_cell_of_both_matrices() {
 #[test]
 fn a_suppressed_target_yields_no_edge_target_unknown_and_a_mirage_still_does() {
     let (input, code_graph) = edge_into(target(Marker::Retired, Polarity::Declared), false);
-    let suppressed = super::diff(input, code_graph);
+    let suppressed = super::diff(input, code_graph, None);
     assert!(
         !suppressed
             .violations
@@ -1430,6 +1452,7 @@ fn a_suppressed_target_yields_no_edge_target_unknown_and_a_mirage_still_does() {
             VerbOwnership::default(),
         ),
         nodes(vec![code("Source")]),
+        None,
     );
     assert!(
         mirage
@@ -1444,7 +1467,7 @@ fn a_suppressed_target_yields_no_edge_target_unknown_and_a_mirage_still_does() {
 #[test]
 fn the_target_side_mirror_of_the_source_side_marker_skip() {
     let (input, code) = edge_into(target(Marker::Draft, Polarity::Declared), false);
-    let outcome = super::diff(input, code);
+    let outcome = super::diff(input, code, None);
     assert!(
         outcome.is_clean(),
         "a draft-marked absent target bears no code-existence demand: {:?}",
@@ -1502,6 +1525,7 @@ fn the_source_side_per_name_conversion_stays_permissive() {
             )],
             Vec::new(),
         ),
+        None,
     );
     assert!(
         !outcome

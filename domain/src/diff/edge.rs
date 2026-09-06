@@ -1,4 +1,4 @@
-use crate::{Edge, Violation};
+use crate::{Edge, EdgeKind, Violation};
 use std::collections::{HashMap, HashSet};
 
 pub(super) fn edge_diff(
@@ -7,6 +7,7 @@ pub(super) fn edge_diff(
     known_concepts: &HashSet<String>,
     matched_concepts: &HashSet<String>,
     unpointable: &HashSet<String>,
+    answerable: Option<&[EdgeKind]>,
     out: &mut Vec<Violation>,
 ) {
     let spec_by_concept = group_by_matched_concept(spec_edges, matched_concepts);
@@ -19,6 +20,7 @@ pub(super) fn edge_diff(
             code_for_concept,
             known_concepts,
             unpointable,
+            answerable,
             out,
         );
     }
@@ -44,6 +46,7 @@ fn compare_edges(
     code: Vec<Edge>,
     known_concepts: &HashSet<String>,
     unpointable: &HashSet<String>,
+    answerable: Option<&[EdgeKind]>,
     out: &mut Vec<Violation>,
 ) {
     let spec_matched: Vec<bool> = spec
@@ -63,6 +66,15 @@ fn compare_edges(
 
     for (spec_edge, matched) in spec.into_iter().zip(spec_matched) {
         if unpointable.contains(spec_edge.target.name.as_str()) {
+            continue;
+        }
+        if answerable.is_some_and(|kinds| !kinds.contains(&spec_edge.kind)) {
+            out.push(Violation::EdgeUnanswerable {
+                concept: spec_edge.source_concept.name,
+                edge_kind: spec_edge.kind,
+                target: spec_edge.target.name,
+                spec_source: spec_edge.source,
+            });
             continue;
         }
         if !known_concepts.contains(spec_edge.target.name.as_str()) {

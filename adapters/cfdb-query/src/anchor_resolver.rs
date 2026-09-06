@@ -53,11 +53,21 @@ fn index_entry(node: &Node, root: &Path) -> Option<(String, AnchorTarget)> {
     {
         return None;
     }
-    let file = prop(node, "file")?;
-    let rel = relativize(file, root);
-    if rel.split('/').any(|seg| EXCLUDED_DIRS.contains(&seg)) {
-        return None;
-    }
+    let php_construct = prop(node, "php_construct");
+    let (path, location) = match (prop(node, "file"), php_construct) {
+        (Some(file), _) => {
+            let rel = relativize(file, root);
+            if rel.split('/').any(|seg| EXCLUDED_DIRS.contains(&seg)) {
+                return None;
+            }
+            (PathBuf::from(file), LocationKind::Path)
+        }
+        (None, Some(_)) => (
+            PathBuf::from(namespace_of(prop(node, "qname")?)),
+            LocationKind::Namespace,
+        ),
+        (None, None) => return None,
+    };
     let kind = prop(node, "kind")?;
     let anchor_kind = match kind {
         "struct" | "enum" | "trait" | "type_alias" => AnchorKind::Type,
@@ -65,7 +75,9 @@ fn index_entry(node: &Node, root: &Path) -> Option<(String, AnchorTarget)> {
         "const" | "static" => AnchorKind::Const,
         _ => return None,
     };
-    let key = if kind == "method" {
+    let key = if matches!(php_construct, Some("method_declaration")) {
+        php_method_key(prop(node, "qname")?)?
+    } else if kind == "method" {
         method_key(prop(node, "qname")?)?
     } else {
         prop(node, "name")?.to_string()
@@ -81,13 +93,26 @@ fn index_entry(node: &Node, root: &Path) -> Option<(String, AnchorTarget)> {
         AnchorTarget {
             kind: anchor_kind,
             source: Source::Code {
-                path: PathBuf::from(file),
+                path,
                 line,
                 provenance: Provenance::empty(),
-                location: LocationKind::Path,
+                location,
             },
         },
     ))
+}
+
+fn namespace_of(qname: &str) -> String {
+    match qname.rsplit_once('\\') {
+        Some((namespace, _)) => namespace.to_string(),
+        None => qname.to_string(),
+    }
+}
+
+fn php_method_key(qname: &str) -> Option<String> {
+    let (class_path, method) = qname.rsplit_once("::")?;
+    let class = class_path.rsplit('\\').next().unwrap_or(class_path);
+    Some(format!("{class}::{method}"))
 }
 
 fn method_key(qname: &str) -> Option<String> {
