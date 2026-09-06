@@ -137,13 +137,21 @@ open.
 
 Where a concept was found — either in a spec file or a code file. Used
 for error messages that point back at the file and line the violation
-came from. The code variant carries, beside its location and line, the
+came from. Each variant carries the facts its own side resolves, and
+neither reads the other's (graph-specs-010-abstraction-level-equivalence#3.4:
+the spec-side declaration and the code-side resolution are two
+questions, never one chain). The spec variant carries, beside its
+location and line, the context the document declares — the author's
+claim. The code variant carries, beside its location and line, the
 containment triple the cohesion pass reads — `module_path`, `unit`,
 `context` — as the NDJSON source object already does
 (`specs/ndjson-output.md`), so a code fact identifies itself by name and
 unit at the source and no side index keyed on a bare name stands between
 a record and its provenance (graph-specs-010-abstraction-level-equivalence#4
-invariant 9). For a fact read from a code-fact keyspace whose graph
+invariant 9); a context mismatch is a comparison of the two sources. One
+writer per side: the composition root writes the declared context into
+the spec node's source, the code adapter writes the resolved triple into
+the code node's. For a fact read from a code-fact keyspace whose graph
 carries no file node, the location is the containing module's qualified
 name — the only coordinate the graph affords
 (graph-specs-011-php-ladder#3.2; cfdb-045-polyglot-relationship-edges#3.4)
