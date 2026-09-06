@@ -447,7 +447,6 @@ in `domain`.
 
 ### OwnershipAmbiguity
 
-- status: draft (per graph-specs-011-php-ladder#3.2)
 <!-- parent:spec:DeclaredSurface -->
 
 Two contexts whose declarations both own one item — an outer prefix and
