@@ -72,9 +72,11 @@ Two monomorphic traits, not one generic `Loader<T>`: each has exactly one implem
 
 ### §3.3 Capability traits take file sets
 
+#### §3.3.1 — The split
+
 The existing traits keep their one-capability-per-trait shape (RFC-001 §3.6 / RFC-005 §3.2 precedent — this RFC extends that discipline, it does not replace it), and their methods change input: `&SpecFileSet` / `&CodeFileSet` instead of `&Path`. One trait cannot keep its name: `Reader` is the only trait implemented on both sides (`MarkdownReader` and `RustReader`), and two nominal input types cannot share one non-generic method signature (E0053), so `Reader` splits into `SpecReader` and `CodeReader` and the shared name retires — the same monomorphic-traits ruling as §3.2, applied to the one place revision 2 missed it. The value of a trait with one production implementor here is testability plus machine-enforced policy (the port-bypass ban family in `.cfdb/queries/`), not hypothetical substitutability. The four unported capabilities gain sibling traits of the same shape:
 
-#### §3.3.1 — The port table
+#### §3.3.2 — The port table
 
 | Capability today | Port after this RFC |
 |---|---|
@@ -93,7 +95,7 @@ Error-contract honesty: after re-anchoring, capability trait methods can structu
 
 **Amendment 2026-09-06.** The table above predates `SignatureNormalizer` and its implementers `RustSignatures` and `PhpSignatures` (graph-specs-004-multi-language-adapter-contract#3.6; landed by graph-specs #263, #265 and #267): a normalizer takes a fenced block of text handed to it and never a file set, so no row of the table applies to it and slice S1 of §7 leaves the three untouched.
 
-#### §3.3.2 — `SpecTree` relocates to `domain`
+#### §3.3.3 — `SpecTree` relocates to `domain`
 
 `SpecTree` relocates to `domain` — the struct, its field type `HeadingNode` (`SpecTree.nodes: Vec<HeadingNode>` makes the pair inseparable), and its four inherent methods (`context_id`, `concept_declarations`, `cohesion_violations`, `has_cohesion_unit`). Rust forbids an inherent `impl` on a type defined outside the current crate (E0116), and the methods touch only domain types today (`AbstractionLevel`, `CohesionViolation`, `behavioral_exemption_applies`), so the move is both compilable and consistent with existing precedent. Only assembly — the pulldown-cmark event walk and `ReaderError` production — stays adapter-side behind `SpecTreeReader`.
 
