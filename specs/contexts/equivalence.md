@@ -55,6 +55,7 @@ here. No IO, no parser state — just values, traits, and the three-pass
 - HomonymAppearance (PublishedLanguage)
 - HomonymRecord (PublishedLanguage)
 - ReportOutput (PublishedLanguage)
+- SignatureNormalizer (PublishedLanguage)
 
 ## Imports
 

@@ -217,6 +217,41 @@ named by a signature.
 - depends on: Violation
 - returns: PhpAttributeReader
 
+### RustSignatures
+
+- status: draft (per graph-specs-004-multi-language-adapter-contract#3.6)
+<!-- parent:spec:SignatureNormalizer -->
+
+The [SignatureNormalizer](equivalence.md#signaturenormalizer) implementation
+for the `rust` fence tag. It carries no state and answers by the `normalize`
+of graph-specs-016-parse-once-reading-port#3.5 — the `syn`-specific
+normalizer moved verbatim into `signature-norm` — so the comparison target
+of a `rust` fence is the same bytes the Rust code side emits. It is not a
+reader and reads no tree. Lives in `adapters/signature`; the composition
+root supplies it for `rust` and for no other tag.
+
+- implements: SignatureNormalizer
+
+### PhpSignatures
+
+- status: draft (per graph-specs-004-multi-language-adapter-contract#3.6)
+<!-- parent:spec:SignatureNormalizer -->
+
+The [SignatureNormalizer](equivalence.md#signaturenormalizer) implementation
+for the `php` fence tag. It carries no state and answers by
+`adapter-php::normalize` of
+graph-specs-004-multi-language-adapter-contract#3.6: the fence parsed by the
+pinned `tree-sitter-php` grammar (graph-specs-011-php-ladder#3.3), its
+tokens re-printed single-spaced with comments, attributes and body dropped,
+byte-equal to the target the PHP code side carries; a fence the grammar
+cannot parse, or a section carrying two `php` fences, answers the
+`Unparseable` state with the tag naming the language. It is not a reader:
+[PhpAttributeReader](#phpattributereader) reads attributes and implements
+no second port. Lives in `adapters/php`; the composition root supplies it
+for `php` and for no other tag.
+
+- implements: SignatureNormalizer
+
 ## SpecTree
 
 <!-- parent:rfc:graph-specs-010-abstraction-level-equivalence#3.2 anchor:"H1/parent-tree assembly" -->
