@@ -211,7 +211,7 @@ fn rust_block_before_first_heading_is_ignored() {
 fn find_edges_for<'a>(edges: &'a [Edge], concept: &str) -> Vec<&'a Edge> {
     edges
         .iter()
-        .filter(|e| e.source_concept == concept)
+        .filter(|e| e.source_concept.name == concept)
         .collect()
 }
 
@@ -227,7 +227,7 @@ fn implements_bullet_yields_edge() {
     let edges = find_edges_for(&g.edges, "MarkdownReader");
     assert_eq!(edges.len(), 1);
     assert_eq!(edges[0].kind, EdgeKind::Implements);
-    assert_eq!(edges[0].target, "Reader");
+    assert_eq!(edges[0].target.name, "Reader");
     assert_eq!(edges[0].raw_target, "Reader");
 }
 
@@ -243,7 +243,7 @@ fn depends_on_bullet_yields_edge() {
     let edges = find_edges_for(&g.edges, "MarkdownReader");
     assert_eq!(edges.len(), 1);
     assert_eq!(edges[0].kind, EdgeKind::DependsOn);
-    assert_eq!(edges[0].target, "pulldown_cmark");
+    assert_eq!(edges[0].target.name, "pulldown_cmark");
 }
 
 #[test]
@@ -258,7 +258,7 @@ fn returns_bullet_yields_edge_and_tokenises_target() {
     let edges = find_edges_for(&g.edges, "Reader");
     assert_eq!(edges.len(), 1);
     assert_eq!(edges[0].kind, EdgeKind::Returns);
-    assert_eq!(edges[0].target, "Result");
+    assert_eq!(edges[0].target.name, "Result");
     assert_eq!(edges[0].raw_target, "Result<Graph, ReaderError>");
 }
 
@@ -338,10 +338,10 @@ fn edges_are_scoped_to_current_concept_section() {
     let bar = find_edges_for(&g.edges, "Bar");
     assert_eq!(foo.len(), 1);
     assert_eq!(foo[0].kind, EdgeKind::Implements);
-    assert_eq!(foo[0].target, "X");
+    assert_eq!(foo[0].target.name, "X");
     assert_eq!(bar.len(), 1);
     assert_eq!(bar[0].kind, EdgeKind::DependsOn);
-    assert_eq!(bar[0].target, "Y");
+    assert_eq!(bar[0].target.name, "Y");
 }
 
 #[test]
@@ -351,7 +351,7 @@ fn bullet_with_inline_backticks_yields_edge() {
     let g = extract_graph(d.path());
     let edges = find_edges_for(&g.edges, "Foo");
     assert_eq!(edges.len(), 1);
-    assert_eq!(edges[0].target, "Reader");
+    assert_eq!(edges[0].target.name, "Reader");
 }
 
 #[test]
@@ -399,7 +399,7 @@ fn module_path_target_is_tokenised() {
     let g = extract_graph(d.path());
     let edges = find_edges_for(&g.edges, "Foo");
     assert_eq!(edges.len(), 1);
-    assert_eq!(edges[0].target, "Graph");
+    assert_eq!(edges[0].target.name, "Graph");
     assert_eq!(edges[0].raw_target, "domain::Graph");
 }
 

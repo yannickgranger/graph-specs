@@ -1,3 +1,4 @@
+use domain::ConceptRef;
 use domain::{tokenise_target, ConceptNode, Edge, EdgeKind, Provenance, Source};
 use proc_macro2::Span;
 use std::collections::HashSet;
@@ -15,7 +16,7 @@ pub fn filter_by_known_concepts(edges: Vec<Edge>, nodes: &[ConceptNode]) -> Vec<
     let known: HashSet<&str> = nodes.iter().map(|n| n.name.as_str()).collect();
     edges
         .into_iter()
-        .filter(|e| known.contains(e.target.as_str()))
+        .filter(|e| known.contains(e.target.name.as_str()))
         .collect()
 }
 
@@ -76,9 +77,9 @@ fn emit_impl_edges(i: &ItemImpl, path: &Path, out: &mut Vec<Edge>) {
             .unwrap_or_default();
         if !trait_name.is_empty() {
             out.push(Edge {
-                source_concept: owner.clone(),
+                source_concept: ConceptRef::named(owner.clone()),
                 kind: EdgeKind::Implements,
-                target: trait_name.clone(),
+                target: ConceptRef::named(trait_name.clone()),
                 raw_target: trait_name,
                 source: code_source(path, trait_path.span()),
             });
@@ -127,9 +128,9 @@ fn push_return_inner_as_depends_on(ty: &Type, owner: &str, path: &Path, out: &mu
             continue;
         }
         out.push(Edge {
-            source_concept: owner.to_string(),
+            source_concept: ConceptRef::named(owner.to_string()),
             kind: EdgeKind::DependsOn,
-            target: resolve_self(&head, owner).to_string(),
+            target: ConceptRef::named(resolve_self(&head, owner).to_string()),
             raw_target: raw,
             source: line_source.clone(),
         });
@@ -145,9 +146,9 @@ fn push_depends_on_from_type(ty: &Type, owner: &str, path: &Path, out: &mut Vec<
             continue;
         }
         out.push(Edge {
-            source_concept: owner.to_string(),
+            source_concept: ConceptRef::named(owner.to_string()),
             kind: EdgeKind::DependsOn,
-            target: resolve_self(&head, owner).to_string(),
+            target: ConceptRef::named(resolve_self(&head, owner).to_string()),
             raw_target: raw,
             source: line_source.clone(),
         });
@@ -161,9 +162,9 @@ fn push_returns_from_type(ty: &Type, owner: &str, path: &Path, out: &mut Vec<Edg
         return;
     }
     out.push(Edge {
-        source_concept: owner.to_string(),
+        source_concept: ConceptRef::named(owner.to_string()),
         kind: EdgeKind::Returns,
-        target: resolve_self(&head, owner).to_string(),
+        target: ConceptRef::named(resolve_self(&head, owner).to_string()),
         raw_target: raw,
         source: code_source(path, ty.span()),
     });
@@ -250,9 +251,9 @@ mod tests {
     fn trait_impl_emits_implements_edge() {
         let edges = edges_of("pub struct Foo; pub trait Bar {} impl Bar for Foo {}");
         let filtered = filter_by_known_concepts(edges, &nodes(&["Foo", "Bar"]));
-        assert!(filtered.iter().any(|e| e.source_concept == "Foo"
+        assert!(filtered.iter().any(|e| e.source_concept.name == "Foo"
             && e.kind == EdgeKind::Implements
-            && e.target == "Bar"));
+            && e.target.name == "Bar"));
     }
 
     #[test]
@@ -266,18 +267,18 @@ mod tests {
     fn struct_field_emits_depends_on() {
         let edges = edges_of("pub struct Foo; pub struct Bar { pub f: Foo }");
         let filtered = filter_by_known_concepts(edges, &nodes(&["Foo", "Bar"]));
-        assert!(filtered.iter().any(|e| e.source_concept == "Bar"
+        assert!(filtered.iter().any(|e| e.source_concept.name == "Bar"
             && e.kind == EdgeKind::DependsOn
-            && e.target == "Foo"));
+            && e.target.name == "Foo"));
     }
 
     #[test]
     fn enum_variant_field_emits_depends_on() {
         let edges = edges_of("pub struct Foo; pub enum E { V(Foo) }");
         let filtered = filter_by_known_concepts(edges, &nodes(&["Foo", "E"]));
-        assert!(filtered.iter().any(|e| e.source_concept == "E"
+        assert!(filtered.iter().any(|e| e.source_concept.name == "E"
             && e.kind == EdgeKind::DependsOn
-            && e.target == "Foo"));
+            && e.target.name == "Foo"));
     }
 
     #[test]
@@ -288,8 +289,8 @@ mod tests {
         let filtered = filter_by_known_concepts(edges, &nodes(&["Graph", "Violation", "Holder"]));
         let holder_deps: Vec<&str> = filtered
             .iter()
-            .filter(|e| e.source_concept == "Holder" && e.kind == EdgeKind::DependsOn)
-            .map(|e| e.target.as_str())
+            .filter(|e| e.source_concept.name == "Holder" && e.kind == EdgeKind::DependsOn)
+            .map(|e| e.target.name.as_str())
             .collect();
         assert!(holder_deps.contains(&"Graph"));
         assert!(holder_deps.contains(&"Violation"));
@@ -301,16 +302,16 @@ mod tests {
         let filtered = filter_by_known_concepts(edges, &nodes(&["Foo"]));
         assert!(filtered
             .iter()
-            .all(|e| e.kind != EdgeKind::DependsOn || e.target == "Foo"));
+            .all(|e| e.kind != EdgeKind::DependsOn || e.target.name == "Foo"));
     }
 
     #[test]
     fn inherent_impl_pub_fn_returns_emits_returns() {
         let edges = edges_of("pub struct Graph; impl Graph { pub fn empty() -> Graph { Graph } }");
         let filtered = filter_by_known_concepts(edges, &nodes(&["Graph"]));
-        assert!(filtered.iter().any(|e| e.source_concept == "Graph"
+        assert!(filtered.iter().any(|e| e.source_concept.name == "Graph"
             && e.kind == EdgeKind::Returns
-            && e.target == "Graph"));
+            && e.target.name == "Graph"));
     }
 
     #[test]
@@ -324,9 +325,9 @@ mod tests {
     fn trait_method_return_emits_returns() {
         let edges = edges_of("pub struct Graph; pub trait Reader { fn extract(&self) -> Graph; }");
         let filtered = filter_by_known_concepts(edges, &nodes(&["Graph", "Reader"]));
-        assert!(filtered.iter().any(|e| e.source_concept == "Reader"
+        assert!(filtered.iter().any(|e| e.source_concept.name == "Reader"
             && e.kind == EdgeKind::Returns
-            && e.target == "Graph"));
+            && e.target.name == "Graph"));
     }
 
     #[test]
@@ -335,9 +336,9 @@ mod tests {
             "pub struct Graph; pub trait Reader { fn consume(&self, g: Graph) -> Graph; }",
         );
         let filtered = filter_by_known_concepts(edges, &nodes(&["Graph", "Reader"]));
-        assert!(filtered.iter().any(|e| e.source_concept == "Reader"
+        assert!(filtered.iter().any(|e| e.source_concept.name == "Reader"
             && e.kind == EdgeKind::DependsOn
-            && e.target == "Graph"));
+            && e.target.name == "Graph"));
     }
 
     #[test]
@@ -348,12 +349,12 @@ mod tests {
         let filtered = filter_by_known_concepts(edges, &nodes(&["Graph", "Foo", "Reader"]));
         let foo_edges: Vec<_> = filtered
             .iter()
-            .filter(|e| e.source_concept == "Foo")
+            .filter(|e| e.source_concept.name == "Foo")
             .collect();
         assert!(foo_edges.iter().any(|e| e.kind == EdgeKind::Implements));
         assert!(foo_edges
             .iter()
-            .any(|e| e.kind == EdgeKind::Returns && e.target == "Graph"));
+            .any(|e| e.kind == EdgeKind::Returns && e.target.name == "Graph"));
     }
 
     #[test]
@@ -362,12 +363,12 @@ mod tests {
             "pub struct Graph; pub struct ReaderError; pub trait Reader { fn extract(&self) -> Result<Graph, ReaderError>; }",
         );
         let filtered = filter_by_known_concepts(edges, &nodes(&["Graph", "ReaderError", "Reader"]));
-        assert!(filtered.iter().any(|e| e.source_concept == "Reader"
+        assert!(filtered.iter().any(|e| e.source_concept.name == "Reader"
             && e.kind == EdgeKind::DependsOn
-            && e.target == "Graph"));
-        assert!(filtered.iter().any(|e| e.source_concept == "Reader"
+            && e.target.name == "Graph"));
+        assert!(filtered.iter().any(|e| e.source_concept.name == "Reader"
             && e.kind == EdgeKind::DependsOn
-            && e.target == "ReaderError"));
+            && e.target.name == "ReaderError"));
     }
 
     #[test]
@@ -376,9 +377,9 @@ mod tests {
             "pub struct Source; pub struct Node; impl Node { pub fn where_at(&self) -> &Source { unimplemented!() } }",
         );
         let filtered = filter_by_known_concepts(edges, &nodes(&["Source", "Node"]));
-        assert!(filtered.iter().any(|e| e.source_concept == "Node"
+        assert!(filtered.iter().any(|e| e.source_concept.name == "Node"
             && e.kind == EdgeKind::Returns
-            && e.target == "Source"));
+            && e.target.name == "Source"));
     }
 
     #[test]
@@ -389,7 +390,7 @@ mod tests {
             filtered.is_empty()
                 || filtered
                     .iter()
-                    .all(|e| e.source_concept == "Foo" && e.target == "Foo")
+                    .all(|e| e.source_concept.name == "Foo" && e.target.name == "Foo")
         );
     }
 
@@ -397,17 +398,17 @@ mod tests {
     fn non_public_struct_emits_no_edges() {
         let edges = edges_of("pub struct Target; struct Hidden { f: Target }");
         let filtered = filter_by_known_concepts(edges, &nodes(&["Target", "Hidden"]));
-        assert!(filtered.iter().all(|e| e.source_concept != "Hidden"));
+        assert!(filtered.iter().all(|e| e.source_concept.name != "Hidden"));
     }
 
     #[test]
     fn self_return_resolves_to_enclosing_impl_owner() {
         let edges = edges_of("pub struct Graph; impl Graph { pub fn empty() -> Self { Graph } }");
         let filtered = filter_by_known_concepts(edges, &nodes(&["Graph"]));
-        assert!(filtered.iter().any(|e| e.source_concept == "Graph"
+        assert!(filtered.iter().any(|e| e.source_concept.name == "Graph"
             && e.kind == EdgeKind::Returns
-            && e.target == "Graph"));
-        assert!(!filtered.iter().any(|e| e.target == "Self"));
+            && e.target.name == "Graph"));
+        assert!(!filtered.iter().any(|e| e.target.name == "Self"));
     }
 
     #[test]
@@ -416,9 +417,9 @@ mod tests {
             "pub struct Graph; impl Graph { pub fn merge(&self, other: Self) -> Self { other } }",
         );
         let filtered = filter_by_known_concepts(edges, &nodes(&["Graph"]));
-        assert!(filtered.iter().any(|e| e.source_concept == "Graph"
+        assert!(filtered.iter().any(|e| e.source_concept.name == "Graph"
             && e.kind == EdgeKind::DependsOn
-            && e.target == "Graph"));
-        assert!(!filtered.iter().any(|e| e.target == "Self"));
+            && e.target.name == "Graph"));
+        assert!(!filtered.iter().any(|e| e.target.name == "Self"));
     }
 }

@@ -1,4 +1,5 @@
 use super::violation_key;
+use crate::ConceptRef;
 use crate::{
     AnchorKind, AnchorTarget, CheckInput, CohesionViolation, ConceptAnchor, ConceptNode,
     ContextDecl, ContextViolation, Edge, EdgeKind, Graph, Marker, OwnedUnit, Polarity, Provenance,
@@ -82,9 +83,9 @@ fn spec_unparseable(name: &str, raw: &str, error: &str) -> ConceptNode {
 
 fn spec_edge(concept: &str, kind: EdgeKind, target: &str) -> Edge {
     Edge {
-        source_concept: concept.to_string(),
+        source_concept: ConceptRef::named(concept.to_string()),
         kind,
-        target: target.to_string(),
+        target: ConceptRef::named(target.to_string()),
         raw_target: target.to_string(),
         source: Source::Spec {
             path: spec_path(),
@@ -95,9 +96,9 @@ fn spec_edge(concept: &str, kind: EdgeKind, target: &str) -> Edge {
 }
 fn code_edge(concept: &str, kind: EdgeKind, target: &str) -> Edge {
     Edge {
-        source_concept: concept.to_string(),
+        source_concept: ConceptRef::named(concept.to_string()),
         kind,
-        target: target.to_string(),
+        target: ConceptRef::named(target.to_string()),
         raw_target: target.to_string(),
         source: Source::Code {
             path: code_path(),
@@ -631,9 +632,9 @@ fn pending_concepts_edge_bullets_impose_no_obligation() {
     let specs = Graph::new(
         vec![spec_marked("Widget"), spec("Gear")],
         vec![Edge {
-            source_concept: "Widget".to_string(),
+            source_concept: ConceptRef::named("Widget".to_string()),
             kind: EdgeKind::DependsOn,
-            target: "Gear".to_string(),
+            target: ConceptRef::named("Gear".to_string()),
             raw_target: "Gear".to_string(),
             source: Source::Spec {
                 path: spec_path(),
@@ -888,9 +889,9 @@ fn a_non_declared_concepts_edge_bullets_impose_no_obligation() {
         let specs = Graph::new(
             vec![spec_with_polarity("Member", polarity), spec("Gear")],
             vec![Edge {
-                source_concept: "Member".to_string(),
+                source_concept: ConceptRef::named("Member".to_string()),
                 kind: EdgeKind::DependsOn,
-                target: "Gear".to_string(),
+                target: ConceptRef::named("Gear".to_string()),
                 raw_target: "Gear".to_string(),
                 source: Source::Spec {
                     path: spec_path(),

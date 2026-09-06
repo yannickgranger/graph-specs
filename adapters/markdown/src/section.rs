@@ -2,6 +2,7 @@ use crate::bullets::{parse_bullet_edge, parse_impl_bullet, parse_verb_bullet};
 use crate::front_matter::blank_front_matter;
 use crate::grounding::{read, DialectHeading};
 use crate::markdown_utils::{compute_line_starts, line_of_offset};
+use domain::ConceptRef;
 use domain::{ConceptAnchor, ConceptNode, Edge, SignatureState, Source, VerbAnchor};
 use ports::ReaderError;
 use pulldown_cmark::{CodeBlockKind, Event, Parser, Tag, TagEnd};
@@ -88,9 +89,9 @@ fn absorb_bullet(
 ) {
     if let Some((kind, token, raw)) = parse_bullet_edge(text) {
         edges.push(Edge {
-            source_concept: heading.name.clone(),
+            source_concept: ConceptRef::named(heading.name.clone()),
             kind,
-            target: token,
+            target: ConceptRef::named(token),
             raw_target: raw,
             source: spec_source(path, line),
         });

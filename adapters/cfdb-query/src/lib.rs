@@ -57,7 +57,30 @@ impl CfdbQueryReader {
     }
 }
 
+impl CfdbQueryReader {
+    fn load(&self) -> Result<KeyspaceFile, ReaderError> {
+        let bytes = std::fs::read(&self.keyspace).map_err(|e| ReaderError::IoFailed {
+            path: self.keyspace.clone(),
+            cause: e.to_string(),
+        })?;
+        serde_json::from_slice(&bytes).map_err(|e| ReaderError::ParseFailed {
+            path: self.keyspace.clone(),
+            line: e.line(),
+            message: e.to_string(),
+        })
+    }
+}
+
 impl CodeFacts for CfdbQueryReader {
+    fn relationships(&self, _root: &Path) -> Result<Vec<domain::Edge>, ReaderError> {
+        let file = self.load()?;
+        if PhpEdgeTraversal::declares_php(&file.nodes) {
+            return PhpEdgeTraversal::new(self.surface.clone())
+                .relationships(&file.nodes, &file.edges);
+        }
+        Ok(Vec::new())
+    }
+
     fn concepts(&self, root: &Path) -> Result<Vec<ConceptNode>, ReaderError> {
         let bytes = std::fs::read(&self.keyspace).map_err(|e| ReaderError::IoFailed {
             path: self.keyspace.clone(),

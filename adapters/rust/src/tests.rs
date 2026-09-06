@@ -285,7 +285,7 @@ fn rust_backend_extract_returns_concepts_and_edges() {
         extraction
             .raw_edges
             .iter()
-            .any(|e| e.source_concept == "Foo" && e.target == "Bar"),
+            .any(|e| e.source_concept.name == "Foo" && e.target.name == "Bar"),
         "expected raw Foo→Bar dependency edge, got: {:?}",
         extraction.raw_edges
     );

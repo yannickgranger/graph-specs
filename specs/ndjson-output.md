@@ -203,6 +203,25 @@ A v0.3 edge crosses a context boundary, IS listed in the importing context's `Im
 
 Same field shape as `cross_context_edge_unauthorized`. The difference is the cause: `unauthorized` means "you didn't ask"; `undeclared` means "you asked but they don't publish that."
 
+### `cross_edge_off_surface` (v0.8)
+
+A relationship edge the code side carries whose far end is an item no declared prefix owns — it is on the graph, so the producer resolved it in-workspace, but it is outside the declared surface. graph-specs-011-php-ladder#4 invariant 3 rules that such an **item** binds no heading and demands none; it does not rule the **edge** whose far end is that item, and an edge dropped for that reason would be a crossing the tool saw and did not say.
+
+```json
+{"schema_version":"4","violation":"cross_edge_off_surface","concept":"Course","owning_context":"catalogue","edge_kind":"IMPLEMENTS","target":"Serializable","code_source":{"kind":"code","path":"App\\Catalogue","line":0,"module_path":"App\\Catalogue","unit":"App\\Catalogue"}}
+```
+
+| Extra field | Type | Meaning |
+|---|---|---|
+| `owning_context` | string or absent | the context owning the near end, absent when no declared prefix owns it either |
+| `edge_kind` | string | `IMPLEMENTS`, `DEPENDS_ON` or `RETURNS` |
+| `target` | string | the far end's concept name |
+| `code_source` | source object (kind=code) | the near end's site; for a keyspace fact `path` is a namespace, never a file path |
+
+**Remediation:** declare a prefix that owns the far end, or accept the crossing as a boundary of the declared surface and record it.
+
+**Schema evolution.** Additive — a new `violation` discriminator rides the current `schema_version` (see §Schema evolution).
+
 ### `implements_draft_concept` — **RETIRED at v4** (RFC-013 §3.4)
 
 This variant reported a `pub` code item whose name matched a heading in a `status: draft` spec. Under RFC-013 that condition is the normal, expected mid-arc state — the signal that a concept is **realized and ready to ratify** — not a failure. It is now a [`realized` marker record](#marker-records-v4-rfc-013), which does not affect the exit code.
@@ -460,6 +479,7 @@ Adding a **new top-level discriminator key** (as v4 did with `marker`) is on its
 Version history:
 - `"1"` — v0.1–v0.3 (concept / signature / edge variants).
 - `"2"` — v0.4 added the bounded-context variants (`context_membership_unknown`, `cross_context_edge_*`, `cross_verb_unauthorized`).
+- `"4"` — v0.8 added `cross_edge_off_surface` additively (no bump; the version is listed here because the variant arrived during `"4"`).
 - `"3"` — RFC-010 added the abstraction-ladder `Cohesion` variants (`context_without_cohesion_unit`, `sub_concept_orphan`, `concept_context_mismatch`). Consumers dispatch on `"3"`; the qbot-core `compare-spec-change` lockstep arm is tracked at #135. Like `ContextViolation`, `CohesionViolation` is `#[non_exhaustive]` — an unknown future cohesion variant emits `"violation":"unknown_cohesion_violation"` as a tripwire.
 
 ## Determinism

@@ -75,6 +75,10 @@ impl CodeFacts for RustReader {
     fn concepts(&self, root: &Path) -> Result<Vec<ConceptNode>, ReaderError> {
         Ok(Reader::extract(self, root)?.nodes)
     }
+
+    fn relationships(&self, root: &Path) -> Result<Vec<Edge>, ReaderError> {
+        Ok(Reader::extract(self, root)?.edges)
+    }
 }
 
 impl VerbReader for RustReader {
