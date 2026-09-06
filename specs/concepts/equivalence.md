@@ -330,8 +330,12 @@ in `ports`.
 
 The capability that reads the concept anchors of a spec set — the anchor
 bullet of graph-specs-012-non-pub-spec-anchor#3.2 — over a
-[SpecFileSet](#specfileset), answering [ConceptAnchor](#conceptanchor)
-values. Same shape, same implementor, no I/O. Lives in `ports`.
+[SpecFileSet](#specfileset), answering the [ConceptAnchor](#conceptanchor)
+values and, in the same read, the anchors it could not read as findings
+(graph-specs-012-non-pub-spec-anchor#3.5), so that the malformed-anchor read
+the markdown reader once exposed as an inherent method lives behind this
+port and no other entry. Same shape, same implementor, no I/O. Lives in
+`ports`.
 
 ### AnnotationReader
 

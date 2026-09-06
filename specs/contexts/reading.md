@@ -1,9 +1,13 @@
 # reading
 
-Adapter context: concrete readers that parse markdown specs and Rust
-source into the equivalence context's graph model. `MarkdownReader`
-parses both concept files and context declarations; `RustReader`
-parses source trees into concept nodes + declared edges.
+Adapter context: the loaders and readers that bring markdown specs, PHP
+attributes and Rust source into the equivalence context's graph model.
+`MarkdownReader` loads the spec tree once and reads concept files, context
+declarations, anchors, annotations and heading trees from the loaded set;
+`PhpAttributeReader` loads and reads the `#[Spec(...)]` attributes of a PHP
+tree; `RustLoader` loads the code tree once, the parse cache is built once
+per run, and `RustReader` and `RustBackend` read it. No capability walks or
+reads a filesystem; the loaders do, and only they can fail to.
 
 Reading is **Conformist** to the `SpecReader`, `CodeReader` and `ContextReader` port
 contracts — it does not negotiate the shape, it implements what
