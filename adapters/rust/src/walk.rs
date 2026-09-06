@@ -39,6 +39,14 @@ pub fn is_excluded_dir(entry: &DirEntry) -> bool {
     is_cache_dir(entry.path())
 }
 
+pub fn parse_text(source: &str, path: &std::path::Path) -> Result<File, ReaderError> {
+    syn::parse_file(source).map_err(|e| ReaderError::ParseFailed {
+        path: path.to_path_buf(),
+        line: e.span().start().line,
+        message: e.to_string(),
+    })
+}
+
 pub fn read_and_parse(path: PathBuf) -> Result<(File, PathBuf), ReaderError> {
     let source = match std::fs::read_to_string(&path) {
         Ok(s) => s,

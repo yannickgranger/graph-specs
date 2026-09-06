@@ -303,7 +303,6 @@ pub trait Reader {
 
 ## SpecReader
 
-- status: draft (per graph-specs-016-parse-once-reading-port#3.3)
 <!-- parent:rfc:graph-specs-016-parse-once-reading-port#3.3.1 anchor:"`Reader` splits into `SpecReader` and `CodeReader` and the shared name retires" -->
 
 The spec-side capability port: `extract` over a [SpecFileSet](#specfileset)
@@ -318,7 +317,6 @@ Implemented by [MarkdownReader](reading.md#markdownreader) and
 
 ### CodeReader
 
-- status: draft (per graph-specs-016-parse-once-reading-port#3.3)
 <!-- parent:spec:SpecReader -->
 
 The code-side twin: `extract` over a [CodeFileSet](#codefileset) answers the
@@ -330,7 +328,6 @@ instead of walking again.
 
 ## LoadedFile
 
-- status: draft (per graph-specs-016-parse-once-reading-port#3.1)
 <!-- parent:rfc:graph-specs-016-parse-once-reading-port#3.1 anchor:"a loaded artifact, path + text, no line, no side discriminant of its own" -->
 
 One file as the loader handed it on: its path and its text, nothing more. A
@@ -341,7 +338,6 @@ type enters `ports`. Lives in `ports`.
 
 ### SpecFileSet
 
-- status: draft (per graph-specs-016-parse-once-reading-port#3.1)
 <!-- parent:spec:LoadedFile -->
 
 The spec-side aggregate of loaded files — an aggregate, not a bag: its files
@@ -350,10 +346,10 @@ that order. The order is load-bearing; the byte-stability invariant of
 graph-specs-016-parse-once-reading-port#4 rests on it.
 
 - depends on: LoadedFile
+- returns: SpecFileSet
 
 ### CodeFileSet
 
-- status: draft (per graph-specs-016-parse-once-reading-port#3.1)
 <!-- parent:spec:LoadedFile -->
 
 The code-side aggregate of loaded files, of the same shape as
@@ -362,10 +358,10 @@ slice out. The nominal difference is what lets a capability trait take one
 side and never the other.
 
 - depends on: LoadedFile
+- returns: CodeFileSet
 
 ## SpecLoader
 
-- status: draft (per graph-specs-016-parse-once-reading-port#3.2)
 <!-- parent:rfc:graph-specs-016-parse-once-reading-port#3.2 anchor:"The loader owns the single walk" -->
 
 The port that owns the single walk over a spec tree: directory traversal, the
@@ -379,7 +375,6 @@ in `ports`.
 
 ### CodeLoader
 
-- status: draft (per graph-specs-016-parse-once-reading-port#3.2)
 <!-- parent:spec:SpecLoader -->
 
 The code-side twin: the same single walk over a code tree, ending in a

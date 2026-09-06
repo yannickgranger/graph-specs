@@ -1,7 +1,7 @@
 use domain::{
     ConceptNode, ConceptRef, Edge, EdgeKind, Graph, SignatureState, Source, SpecFormat, Violation,
 };
-use ports::{Reader, ReaderError};
+use ports::{ReaderError, SpecFileSet, SpecReader};
 use std::path::{Path, PathBuf};
 use tree_sitter::{Node, Parser};
 
@@ -107,11 +107,27 @@ fn tokens_of(node: Node, src: &[u8], out: &mut Vec<String>) {
     }
 }
 
-impl Reader for PhpAttributeReader {
-    fn extract(&self, root: &Path) -> Result<Graph, ReaderError> {
+impl ports::SpecLoader for PhpAttributeReader {
+    fn load(&self, root: &Path) -> Result<SpecFileSet, ReaderError> {
+        Ok(SpecFileSet::new(
+            walk(root)?
+                .into_iter()
+                .map(|(path, text)| ports::LoadedFile { path, text })
+                .collect(),
+        ))
+    }
+}
+
+impl SpecReader for PhpAttributeReader {
+    fn extract(&self, files: &SpecFileSet) -> Result<Graph, ReaderError> {
         let mut nodes = Vec::new();
         let mut edges = Vec::new();
-        for (path, source) in walk(root)? {
+        for (path, source) in files
+            .files()
+            .iter()
+            .filter(|f| f.path.extension().and_then(|e| e.to_str()) == Some("php"))
+            .map(|f| (f.path.clone(), f.text.clone()))
+        {
             for a in attributed(&source)? {
                 let site = Source::Spec {
                     path: path.clone(),

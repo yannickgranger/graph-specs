@@ -19,29 +19,35 @@ use domain::{
     ConceptAnchor, ConceptNode, ContextDecl, Edge, Graph, InvariantAnnotation, VerbAnchor,
     Violation,
 };
-use ports::{ContextReader, Reader, ReaderError, SignatureNormalizer};
+use ports::{
+    ContextReader, LoadedFile, ReaderError, SignatureNormalizer, SpecFileSet, SpecLoader,
+    SpecReader,
+};
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 #[derive(Debug, Default)]
 pub struct MarkdownReader;
 
-impl Reader for MarkdownReader {
-    fn extract(&self, root: &Path) -> Result<Graph, ReaderError> {
-        self.extract_with(root, &[])
+impl SpecReader for MarkdownReader {
+    fn extract(&self, files: &SpecFileSet) -> Result<Graph, ReaderError> {
+        self.extract_with(files, &[])
     }
 }
 
 impl MarkdownReader {
     pub fn extract_with(
         &self,
-        root: &Path,
+        files: &SpecFileSet,
         normalizers: &[&dyn SignatureNormalizer],
     ) -> Result<Graph, ReaderError> {
         let mut nodes = Vec::new();
         let mut edges = Vec::new();
 
-        for (path, source) in walk_concept_sources(root)? {
+        for (path, source) in concept_files(files)
+            .into_iter()
+            .map(|f| (f.path.clone(), f.text.clone()))
+        {
             let mut verb_anchors_scratch: Vec<VerbAnchor> = Vec::new();
             let mut malformed_scratch: Vec<Violation> = Vec::new();
             let mut concept_anchors_scratch: Vec<ConceptAnchor> = Vec::new();
@@ -166,6 +172,48 @@ impl MarkdownReader {
 
         Ok(result)
     }
+}
+
+impl SpecLoader for MarkdownReader {
+    fn load(&self, root: &Path) -> Result<SpecFileSet, ReaderError> {
+        let mut files = Vec::new();
+        for entry in WalkDir::new(root) {
+            let entry = entry.map_err(|e| ReaderError::WalkFailed {
+                root: root.to_path_buf(),
+                cause: e.to_string(),
+            })?;
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            if entry.path().extension().is_none_or(|ext| ext != "md") {
+                continue;
+            }
+            let path = entry.path();
+            let text = std::fs::read_to_string(path).map_err(|e| ReaderError::IoFailed {
+                path: path.to_path_buf(),
+                cause: e.to_string(),
+            })?;
+            files.push(LoadedFile {
+                path: path.to_path_buf(),
+                text,
+            });
+        }
+        Ok(SpecFileSet::new(files))
+    }
+}
+
+#[must_use]
+pub fn concept_files(files: &SpecFileSet) -> Vec<&LoadedFile> {
+    let scoped = files
+        .files()
+        .iter()
+        .any(|f| path_under_dir(&f.path, "concepts"));
+    files
+        .files()
+        .iter()
+        .filter(|f| !path_under_dir(&f.path, "contexts"))
+        .filter(|f| !scoped || path_under_dir(&f.path, "concepts"))
+        .collect()
 }
 
 fn walk_concept_sources(root: &Path) -> Result<Vec<(PathBuf, String)>, ReaderError> {
