@@ -29,6 +29,8 @@ on the node it emits. The `extract_draft_concepts` side-index walk that
 the previous design needed is retired.
 
 - implements: Reader
+- implements: SpecReader
+- implements: SpecLoader
 - implements: ContextReader
 - depends on: SignatureNormalizer
 - depends on: Graph
@@ -77,6 +79,7 @@ the cfdb-query [CfdbQueryReader](#cfdbqueryreader) ACL must match. Lives in
 `adapters/rust`.
 
 - implements: Reader
+- implements: CodeReader
 - implements: VerbReader
 - implements: CodeFacts
 - depends on: Graph
@@ -85,6 +88,19 @@ the cfdb-query [CfdbQueryReader](#cfdbqueryreader) ACL must match. Lives in
 - depends on: EdgeKind
 - depends on: ReaderError
 - depends on: PubFnDecl
+
+### RustLoader
+
+- status: draft (per graph-specs-016-parse-once-reading-port#3.2)
+<!-- parent:spec:RustReader -->
+
+The unit struct that implements [CodeLoader](equivalence.md#codeloader) for a
+Rust tree: the one walk — traversal, the `.rs` filter, the read — ending in
+the sorting constructor of [CodeFileSet](equivalence.md#codefileset).
+Constructible before any parse state exists, since the cache-holding readers
+are built after the load. Lives in `adapters/rust`.
+
+- implements: CodeLoader
 
 ### RustAnchorResolver
 
@@ -212,6 +228,8 @@ emits and declares as bullets only what the source walk answers, a type
 named by a signature.
 
 - implements: Reader
+- implements: SpecReader
+- implements: SpecLoader
 - depends on: Graph
 - depends on: ReaderError
 - depends on: Violation

@@ -21,6 +21,7 @@ equivalence publishes.
 
 - MarkdownReader (PublishedLanguage)
 - RustReader (PublishedLanguage)
+- RustLoader (PublishedLanguage)
 - RustBackend (PublishedLanguage)
 - CfdbQueryReader (PublishedLanguage)
 - PhpEdgeTraversal (PublishedLanguage)
@@ -34,6 +35,13 @@ equivalence publishes.
 
 - DeclaredSurface from equivalence (PublishedLanguage)
 - Reader from equivalence (Conformist)
+- SpecReader from equivalence (Conformist)
+- CodeReader from equivalence (Conformist)
+- SpecLoader from equivalence (Conformist)
+- CodeLoader from equivalence (Conformist)
+- LoadedFile from equivalence (PublishedLanguage)
+- SpecFileSet from equivalence (PublishedLanguage)
+- CodeFileSet from equivalence (PublishedLanguage)
 - CodeFacts from equivalence (Conformist)
 - ContextReader from equivalence (Conformist)
 - VerbReader from equivalence (Conformist)
