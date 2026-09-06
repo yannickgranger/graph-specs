@@ -1,4 +1,4 @@
-use crate::{ConceptNode, ContextDecl, Graph, Source};
+use crate::{ConceptNode, ContextDecl, DeclaredSurface, Graph, Source};
 
 #[must_use]
 pub fn context_for_concept<'a>(
@@ -34,9 +34,9 @@ pub fn context_for_code_node<'a>(
         Source::Spec { .. } => None,
     };
     let unit = node.unit().map(str::to_owned).or_else(derived)?;
-    contexts
-        .iter()
-        .find(|ctx| ctx.owned_units.iter().any(|u| u.0 == unit))
+    let surface = DeclaredSurface::from_contexts(contexts).ok()?;
+    let name = surface.context_of(&unit)?;
+    contexts.iter().find(|ctx| ctx.name == name)
 }
 
 #[must_use]

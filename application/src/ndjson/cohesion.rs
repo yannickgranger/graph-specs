@@ -21,14 +21,21 @@ pub(super) fn cohesion_violation_to_record(v: &CohesionViolation) -> Value {
             declared,
             code_context,
             spec_source,
-        } => json!({
-            "schema_version": SchemaVersion::CURRENT.as_str(),
-            "violation": "concept_context_mismatch",
-            "concept": concept,
-            "declared": declared,
-            "code_context": code_context,
-            "spec_source": source_to_json(spec_source),
-        }),
+            code_source,
+        } => {
+            let mut record = json!({
+                "schema_version": SchemaVersion::CURRENT.as_str(),
+                "violation": "concept_context_mismatch",
+                "concept": concept,
+                "declared": declared,
+                "code_context": code_context,
+                "spec_source": source_to_json(spec_source),
+            });
+            if let Some(code_source) = code_source {
+                record["code_source"] = source_to_json(code_source);
+            }
+            record
+        }
         _ => json!({
             "schema_version": SchemaVersion::CURRENT.as_str(),
             "violation": "unknown_cohesion_violation",
