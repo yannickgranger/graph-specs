@@ -11,6 +11,7 @@ fn context(units: &[&str]) -> ContextDecl {
         Source::Spec {
             path: PathBuf::from("specs/contexts/ctx.md"),
             line: 1,
+            context: None,
         },
     )
 }

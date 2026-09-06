@@ -33,6 +33,7 @@ fn surface(units: &[&str]) -> DeclaredSurface {
         Source::Spec {
             path: PathBuf::from("specs/contexts/catalogue.md"),
             line: 1,
+            context: None,
         },
     )])
 }
@@ -94,11 +95,8 @@ fn containment_is_read_by_edge_traversal_not_by_a_prop() {
         .iter()
         .find(|n| n.name == "Course")
         .expect("Course emitted");
-    assert_eq!(
-        course.module_path.as_deref(),
-        Some("App\\Catalogue\\Domain")
-    );
-    assert_eq!(course.unit.as_deref(), Some("App\\Catalogue"));
+    assert_eq!(course.module_path(), Some("App\\Catalogue\\Domain"));
+    assert_eq!(course.unit(), Some("App\\Catalogue"));
 }
 
 #[test]

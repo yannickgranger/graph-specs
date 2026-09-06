@@ -1,3 +1,4 @@
+mod code_index;
 mod cohesion;
 mod concept;
 mod context;
@@ -11,11 +12,25 @@ mod tests;
 
 use crate::context::context_for_code_node;
 use crate::{
-    anchor_violation, CheckInput, CheckOutcome, ConceptNode, ContextDecl, Graph, Polarity,
-    Provenance, Source, Violation,
+    anchor_violation, CheckInput, CheckOutcome, ConceptNode, ContextDecl, Graph, Polarity, Source,
+    Violation,
 };
+use code_index::CodeIndex;
 use concept::{concept_pass, AnchorResolutions, MarkerRecords};
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::HashSet;
+
+fn resolve_code_contexts(nodes: Vec<ConceptNode>, contexts: &[ContextDecl]) -> Vec<ConceptNode> {
+    nodes
+        .into_iter()
+        .map(|mut node| {
+            let resolved = context_for_code_node(&node, contexts).map(|c| c.name.clone());
+            if let Source::Code { provenance, .. } = &mut node.source {
+                provenance.context = resolved;
+            }
+            node
+        })
+        .collect()
+}
 
 fn snapshot_declared_contexts(
     spec_nodes: &[ConceptNode],
@@ -27,9 +42,8 @@ fn snapshot_declared_contexts(
     spec_nodes
         .iter()
         .filter_map(|n| {
-            n.context
-                .as_ref()
-                .map(|c| (n.name.clone(), c.clone(), n.source.clone()))
+            n.context()
+                .map(|c| (n.name.clone(), c.to_owned(), n.source.clone()))
         })
         .collect()
 }
@@ -65,12 +79,9 @@ pub fn diff(spec: CheckInput, code: Graph) -> CheckOutcome {
 
     let declared_contexts = snapshot_declared_contexts(&spec_nodes, &spec_contexts);
 
-    let provenance = provenance_index(&code_nodes, &spec_contexts);
+    let code_nodes = resolve_code_contexts(code_nodes, &spec_contexts);
 
-    let mut code_by_name: HashMap<String, ConceptNode> = code_nodes
-        .into_iter()
-        .map(|n| (n.name.clone(), n))
-        .collect();
+    let mut code_by_name = CodeIndex::new(code_nodes);
 
     let unobliged_concepts: HashSet<String> = spec_nodes
         .iter()
@@ -135,30 +146,28 @@ pub fn diff(spec: CheckInput, code: Graph) -> CheckOutcome {
         let (kb, db) = violation_key(b);
         ka.cmp(kb).then(da.cmp(&db))
     });
-    let mut outcome = CheckOutcome::new(
+    CheckOutcome::new(
         violations,
         records.pending,
         records.realized,
         records.retirement_incomplete,
         records.retirement_complete,
-    );
-    outcome.provenance = provenance;
-    outcome
+    )
 }
 
 fn snapshot_name_sets(
     spec_nodes: &[ConceptNode],
-    code_by_name: &HashMap<String, ConceptNode>,
+    code_by_name: &CodeIndex,
 ) -> (HashSet<String>, HashSet<String>) {
     let matched = spec_nodes
         .iter()
-        .filter(|n| n.polarity == Polarity::Declared && code_by_name.contains_key(&n.name))
+        .filter(|n| n.polarity == Polarity::Declared && code_by_name.contains(&n.name))
         .map(|n| n.name.clone())
         .collect();
     let known = spec_nodes
         .iter()
         .map(|n| n.name.as_str())
-        .chain(code_by_name.keys().map(String::as_str))
+        .chain(code_by_name.names())
         .map(str::to_owned)
         .collect();
     (matched, known)
@@ -167,44 +176,21 @@ fn snapshot_name_sets(
 fn run_anchor_pass(
     concept_anchors: Vec<crate::ResolvedAnchor>,
     spec_nodes: &[ConceptNode],
-    code_by_name: &HashMap<String, ConceptNode>,
+    code_by_name: &CodeIndex,
     non_declared: &HashSet<String>,
     violations: &mut Vec<Violation>,
 ) -> AnchorResolutions {
     let mut suppressed: HashSet<&str> = spec_nodes
         .iter()
-        .filter(|n| n.marker.is_marked() && !code_by_name.contains_key(&n.name))
+        .filter(|n| n.marker.is_marked() && !code_by_name.contains(&n.name))
         .map(|n| n.name.as_str())
         .collect();
     suppressed.extend(non_declared.iter().map(String::as_str));
     anchor_pass(concept_anchors, &suppressed, violations)
 }
 
-fn provenance_index(
-    code_nodes: &[ConceptNode],
-    contexts: &[ContextDecl],
-) -> BTreeMap<String, Provenance> {
-    code_nodes
-        .iter()
-        .filter_map(|n| {
-            let context = context_for_code_node(n, contexts).map(|c| c.name.clone());
-            if n.module_path.is_none() && n.unit.is_none() && context.is_none() {
-                return None;
-            }
-            Some((
-                n.name.clone(),
-                Provenance {
-                    module_path: n.module_path.clone(),
-                    unit: n.unit.clone(),
-                    context,
-                },
-            ))
-        })
-        .collect()
-}
-
-fn orphan_pass(code_by_name: HashMap<String, ConceptNode>, violations: &mut Vec<Violation>) {
-    for (_, code_node) in code_by_name {
+fn orphan_pass(code_by_name: CodeIndex, violations: &mut Vec<Violation>) {
+    for code_node in code_by_name.into_remaining() {
         violations.push(Violation::MissingInSpecs {
             name: code_node.name,
             code_source: code_node.source,

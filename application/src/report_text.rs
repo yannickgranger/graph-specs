@@ -27,7 +27,7 @@ fn emit_verb_coverage(out: &mut impl Write, records: &[VerbCoverageRecord]) -> i
 
     let mut prev_heading: Option<String> = None;
     for rec in &sorted {
-        let heading = rec.context.as_deref().unwrap_or("orphaned").to_owned();
+        let heading = rec.context.clone().unwrap_or_else(|| "orphaned".to_owned());
         if prev_heading.as_deref() != Some(heading.as_str()) {
             writeln!(out, "  [context: {heading}]")?;
             prev_heading = Some(heading);
@@ -60,7 +60,7 @@ fn emit_tier_histogram(out: &mut impl Write, records: &[TierHistogramRecord]) ->
 
     let mut prev_heading: Option<String> = None;
     for rec in &sorted {
-        let heading = rec.context.as_deref().unwrap_or("orphaned").to_owned();
+        let heading = rec.context.clone().unwrap_or_else(|| "orphaned".to_owned());
         if prev_heading.as_deref() != Some(heading.as_str()) {
             writeln!(out, "  [context: {heading}]")?;
             prev_heading = Some(heading);

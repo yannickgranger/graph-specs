@@ -114,6 +114,7 @@ fn try_parse_annotation(text: &str, path: &Path, line: usize) -> Option<Invarian
             source: Source::Spec {
                 path: path.to_path_buf(),
                 line,
+                context: None,
             },
         })
     } else {

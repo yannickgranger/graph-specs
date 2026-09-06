@@ -43,11 +43,17 @@ pub fn run_check(
         .iter()
         .flat_map(SpecTree::concept_declarations)
         .collect();
-    for node in &mut specs_graph.nodes {
-        if let Some(ctx) = declared.get(node.name.as_str()) {
-            node.context = Some((*ctx).to_owned());
-        }
-    }
+    specs_graph.nodes = specs_graph
+        .nodes
+        .into_iter()
+        .map(|node| {
+            let declared_context = declared.get(node.name.as_str()).map(|c| (*c).to_owned());
+            match declared_context {
+                None => node,
+                context => node.with_declared_context(context),
+            }
+        })
+        .collect();
     let spec_cohesion: Vec<CohesionViolation> = trees
         .iter()
         .flat_map(SpecTree::cohesion_violations)
@@ -130,6 +136,66 @@ mod tests {
     }
 
     #[test]
+    fn two_same_named_types_under_two_units_bind_once_and_report_once() {
+        let specs = TempDir::new().unwrap();
+        let code = TempDir::new().unwrap();
+        write(
+            specs.path(),
+            "contexts/enrolment.md",
+            "# enrolment\n\n## Owns\n\n- enrolment\n",
+        );
+        write(
+            specs.path(),
+            "contexts/privacy.md",
+            "# privacy\n\n## Owns\n\n- privacy\n",
+        );
+        write(
+            specs.path(),
+            "concepts/enrolment.md",
+            "# enrolment\n\n## Clock\n",
+        );
+        write(
+            code.path(),
+            "enrolment/Cargo.toml",
+            "[package]\nname = \"enrolment\"\n",
+        );
+        write(code.path(), "enrolment/src/lib.rs", "pub struct Clock;");
+        write(
+            code.path(),
+            "privacy/Cargo.toml",
+            "[package]\nname = \"privacy\"\n",
+        );
+        write(code.path(), "privacy/src/lib.rs", "pub struct Clock;");
+
+        let violations = run_check(specs.path(), code.path(), None)
+            .unwrap()
+            .violations;
+        let reported: Vec<&Violation> = violations
+            .iter()
+            .filter(|v| matches!(v, Violation::MissingInSpecs { name, .. } if name == "Clock"))
+            .collect();
+        assert_eq!(
+            reported.len(),
+            1,
+            "the unclaimed Clock is reported exactly once: {violations:?}"
+        );
+        let Violation::MissingInSpecs { code_source, .. } = reported[0] else {
+            unreachable!()
+        };
+        assert_eq!(
+            code_source.unit(),
+            Some("privacy"),
+            "the reported Clock is the one no heading claimed"
+        );
+        assert!(
+            !violations
+                .iter()
+                .any(|v| matches!(v, Violation::MissingInCode { name, .. } if name == "Clock")),
+            "the heading binds its own context's Clock: {violations:?}"
+        );
+    }
+
+    #[test]
     fn code_facts_without_keyspace_routes_to_source_walk() {
         let code = TempDir::new().unwrap();
         write(
@@ -142,6 +208,62 @@ mod tests {
         let via_adapter = RustReader.concepts(code.path()).unwrap();
         assert_eq!(via_router, via_adapter);
         assert!(via_router.iter().any(|c| c.name == "Foo"));
+    }
+
+    #[cfg(feature = "codefacts")]
+    #[test]
+    fn two_same_named_php_classes_under_two_prefixes_bind_once_and_report_once() {
+        let specs = TempDir::new().unwrap();
+        let dir = TempDir::new().unwrap();
+        write(
+            specs.path(),
+            "contexts/enrolment.md",
+            "# enrolment\n\n## Owns\n\n- App\\Enrolment\n",
+        );
+        write(
+            specs.path(),
+            "contexts/privacy.md",
+            "# privacy\n\n## Owns\n\n- App\\Privacy\n",
+        );
+        write(
+            specs.path(),
+            "concepts/enrolment.md",
+            "# enrolment\n\n## Clock\n",
+        );
+        let keyspace = dir.path().join("coreen.json");
+        std::fs::write(
+            &keyspace,
+            r#"{"schema_version":{"major":0,"minor":8,"patch":0},"nodes":[
+            {"id":"module:App\\Enrolment","label":"Module","props":{"name":"App\\Enrolment"}},
+            {"id":"module:App\\Privacy","label":"Module","props":{"name":"App\\Privacy"}},
+            {"id":"item:App\\Enrolment\\Clock","label":"Item","props":{"kind":"trait","line":3,
+             "name":"Clock","php_construct":"class_declaration","qname":"App\\Enrolment\\Clock"}},
+            {"id":"item:App\\Privacy\\Clock","label":"Item","props":{"kind":"trait","line":3,
+             "name":"Clock","php_construct":"class_declaration","qname":"App\\Privacy\\Clock"}}
+            ],"edges":[
+            {"src":"item:App\\Enrolment\\Clock","dst":"module:App\\Enrolment","label":"IN_MODULE"},
+            {"src":"item:App\\Privacy\\Clock","dst":"module:App\\Privacy","label":"IN_MODULE"}
+            ]}"#,
+        )
+        .unwrap();
+
+        let code = TempDir::new().unwrap();
+        let violations = run_check(specs.path(), code.path(), Some(&keyspace))
+            .unwrap()
+            .violations;
+        let reported: Vec<&Violation> = violations
+            .iter()
+            .filter(|v| matches!(v, Violation::MissingInSpecs { name, .. } if name == "Clock"))
+            .collect();
+        assert_eq!(
+            reported.len(),
+            1,
+            "one heading claims one Clock; the other is reported: {violations:?}"
+        );
+        let Violation::MissingInSpecs { code_source, .. } = reported[0] else {
+            unreachable!()
+        };
+        assert_eq!(code_source.unit(), Some("App\\Privacy"));
     }
 
     #[cfg(feature = "codefacts")]
@@ -167,7 +289,7 @@ mod tests {
         .unwrap();
         assert_eq!(facts.len(), 1);
         assert_eq!(facts[0].name, "Foo");
-        assert_eq!(facts[0].unit.as_deref(), Some("domain"));
+        assert_eq!(facts[0].unit(), Some("domain"));
     }
 
     #[test]

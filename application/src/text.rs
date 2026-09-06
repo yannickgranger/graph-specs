@@ -307,7 +307,9 @@ fn format_context_violation(v: &ContextViolation, out: &mut impl Write) -> std::
 
 pub(crate) fn source_pair(s: &Source) -> (&Path, usize) {
     match s {
-        Source::Spec { path, line } | Source::Code { path, line } => (path.as_path(), *line),
+        Source::Spec { path, line, .. } | Source::Code { path, line, .. } => {
+            (path.as_path(), *line)
+        }
     }
 }
 
@@ -327,6 +329,7 @@ mod tests {
         Source::Code {
             path: PathBuf::from("some-crate/src/lib.rs"),
             line: 3,
+            provenance: domain::Provenance::empty(),
         }
     }
 
@@ -334,6 +337,7 @@ mod tests {
         Source::Spec {
             path: PathBuf::from("specs/contexts/reading.md"),
             line: 12,
+            context: None,
         }
     }
 
@@ -459,6 +463,7 @@ mod tests {
             spec_source: Source::Spec {
                 path: PathBuf::from("specs/a.md"),
                 line: 1,
+                context: None,
             },
         };
         let out = render(&v);
@@ -474,6 +479,7 @@ mod tests {
             spec_source: Source::Spec {
                 path: PathBuf::from("specs/concepts/reading.md"),
                 line: 7,
+                context: None,
             },
         });
         let out = render(&v);
@@ -513,6 +519,7 @@ mod tests {
             spec_source: Source::Spec {
                 path: PathBuf::from("specs/concepts/intake_validation.md"),
                 line: 3,
+                context: None,
             },
         };
         let out = render(&v);

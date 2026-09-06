@@ -73,6 +73,7 @@ fn spec_source(path: &Path, line: usize) -> Source {
     Source::Spec {
         path: path.to_path_buf(),
         line,
+        context: None,
     }
 }
 

@@ -82,6 +82,7 @@ mod tests {
             source: Source::Spec {
                 path: std::path::PathBuf::from("specs/concepts/reader.md"),
                 line: 12,
+                context: None,
             },
         }];
         let ci = CheckInput::new(g, ctxs, VerbOwnership::default());

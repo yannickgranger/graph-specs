@@ -33,12 +33,16 @@ the v0.3 opt-in rules apply. Lives in `domain`.
 A single named concept located at a specific source site. Carries the
 concept's name, a [Source](#source) pointing back to where the reader
 found it, and an optional [SignatureState](#signaturestate) payload for
-v0.2 signature-level equivalence. Since v0.6 (graph-specs-010-abstraction-level-equivalence#3.3) it also
-carries the language-agnostic containment triple `module_path` / `unit` /
-`context` (each `Option<String>`), populated by a code-facts adapter and
-left `None` on the spec side. `new` is the no-provenance constructor;
-`with_provenance` is the builder that attaches the triple. Lives in
-`domain`.
+v0.2 signature-level equivalence. The language-agnostic containment
+triple `module_path` / `unit` / `context` is not a second copy on the
+node: the node reads it from its own [Source](#source), which is the one
+writer (graph-specs-010-abstraction-level-equivalence#4 invariant 9).
+`new` is the no-provenance constructor; `with_provenance` is the builder
+that writes the resolved triple into a code source, and
+`with_declared_context` the builder that writes the declared context
+into a spec source — one builder per side, neither reaching into the
+other's. `module_path`, `unit` and `context` read whichever the node's
+own source holds. Lives in `domain`.
 
 Since graph-specs-013-spec-state-marker#3.3 it also carries the spec-state [Marker](#marker),
 set by the markdown reader from the heading's own `- status:` bullet or
@@ -64,7 +68,11 @@ extension seams.
 - returns: ConceptNode
 - verb: ConceptNode::new
 - verb: ConceptNode::with_provenance
+- verb: ConceptNode::with_declared_context
 - verb: ConceptNode::with_polarity
+- verb: ConceptNode::module_path
+- verb: ConceptNode::unit
+- verb: ConceptNode::context
 
 ### SignatureState
 
@@ -559,7 +567,6 @@ would make the clean state unreachable.
 - depends on: RealizedRecord
 - depends on: RetirementIncompleteRecord
 - depends on: RetirementCompleteRecord
-- depends on: Provenance
 - returns: CheckOutcome
 - verb: diff
 - verb: CheckOutcome::new

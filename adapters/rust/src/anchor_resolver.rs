@@ -1,6 +1,7 @@
 use crate::cfg_gate::is_test_gated;
 use crate::pub_fns::root_ident_of_self_ty;
 use crate::walk::{is_excluded_dir, read_and_parse};
+use domain::Provenance;
 use domain::{AnchorKind, AnchorTarget, Source};
 use ports::{AnchorResolver, ReaderError};
 use std::collections::HashMap;
@@ -96,6 +97,7 @@ fn index_impl_methods(
             source: Source::Code {
                 path: path.to_path_buf(),
                 line,
+                provenance: Provenance::empty(),
             },
         });
     }
@@ -115,6 +117,7 @@ fn insert(
             source: Source::Code {
                 path: path.to_path_buf(),
                 line,
+                provenance: Provenance::empty(),
             },
         });
 }

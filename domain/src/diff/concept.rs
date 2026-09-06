@@ -1,3 +1,4 @@
+use super::code_index::CodeIndex;
 use super::signature;
 use crate::{
     ConceptNode, Marker, PendingRecord, Polarity, RealizedRecord, RetirementCompleteRecord,
@@ -55,7 +56,7 @@ impl MarkerRecords {
 
 pub(super) fn concept_pass(
     spec_nodes: Vec<ConceptNode>,
-    code_by_name: &mut HashMap<String, ConceptNode>,
+    code_by_name: &mut CodeIndex,
     anchored: &AnchorResolutions,
     violations: &mut Vec<Violation>,
     sinks: &mut MarkerRecords,
@@ -65,7 +66,7 @@ pub(super) fn concept_pass(
             continue;
         };
         let marker = spec_node.marker;
-        if let Some(code_node) = code_by_name.remove(&spec_node.name) {
+        if let Some(code_node) = code_by_name.take_for(&spec_node) {
             sinks.push_backed(marker, &spec_node.name, &spec_node.source);
             signature::compare_signatures(spec_node, code_node, violations);
         } else if let Some(&resolved) = anchored.get(&spec_node.name) {
@@ -83,13 +84,13 @@ pub(super) fn concept_pass(
 
 fn polarity_guard(
     spec_node: ConceptNode,
-    code_by_name: &mut HashMap<String, ConceptNode>,
+    code_by_name: &mut CodeIndex,
     violations: &mut Vec<Violation>,
 ) -> Option<ConceptNode> {
     match spec_node.polarity {
         Polarity::Declared => Some(spec_node),
         Polarity::Forbidden => {
-            if let Some(code_node) = code_by_name.remove(&spec_node.name) {
+            if let Some(code_node) = code_by_name.take_for(&spec_node) {
                 violations.push(Violation::ForbiddenConceptReintroduced {
                     name: spec_node.name,
                     spec_source: spec_node.source,

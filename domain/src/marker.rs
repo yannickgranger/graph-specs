@@ -1,5 +1,4 @@
-use crate::{Provenance, Source, Violation};
-use std::collections::BTreeMap;
+use crate::{Source, Violation};
 use std::path::Path;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -48,7 +47,6 @@ pub struct CheckOutcome {
     pub realized: Vec<RealizedRecord>,
     pub retirement_incomplete: Vec<RetirementIncompleteRecord>,
     pub retirement_complete: Vec<RetirementCompleteRecord>,
-    pub provenance: BTreeMap<String, Provenance>,
 }
 
 impl CheckOutcome {
@@ -70,7 +68,6 @@ impl CheckOutcome {
             realized,
             retirement_incomplete,
             retirement_complete,
-            provenance: BTreeMap::new(),
         }
     }
 
@@ -82,7 +79,6 @@ impl CheckOutcome {
             realized: Vec::new(),
             retirement_incomplete: Vec::new(),
             retirement_complete: Vec::new(),
-            provenance: BTreeMap::new(),
         }
     }
 
@@ -119,7 +115,7 @@ fn sort_records<T: MarkerRecord>(records: &mut [T]) {
 
 fn record_key<'a>(concept: &'a str, source: &'a Source) -> (&'a str, &'a Path, usize) {
     match source {
-        Source::Spec { path, line } | Source::Code { path, line } => {
+        Source::Spec { path, line, .. } | Source::Code { path, line, .. } => {
             (concept, path.as_path(), *line)
         }
     }
@@ -134,6 +130,7 @@ mod tests {
         Source::Spec {
             path: PathBuf::from(path),
             line,
+            context: None,
         }
     }
 

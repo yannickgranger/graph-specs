@@ -30,6 +30,7 @@ fn missing_in_code_record() {
         spec_source: Source::Spec {
             path: PathBuf::from("specs/a.md"),
             line: 12,
+            context: None,
         },
     };
     let out = render_one(v);
@@ -50,6 +51,7 @@ fn missing_in_specs_record() {
         code_source: Source::Code {
             path: PathBuf::from("src/lib.rs"),
             line: 3,
+            provenance: Provenance::empty(),
         },
     };
     let r = record(&render_one(v));
@@ -69,10 +71,12 @@ fn signature_drift_record() {
         spec_source: Source::Spec {
             path: PathBuf::from("specs/core.md"),
             line: 44,
+            context: None,
         },
         code_source: Source::Code {
             path: PathBuf::from("ports/src/lib.rs"),
             line: 15,
+            provenance: Provenance::empty(),
         },
     };
     let r = record(&render_one(v));
@@ -94,6 +98,7 @@ fn signature_missing_in_spec_record() {
         code_source: Source::Code {
             path: PathBuf::from("ports/src/lib.rs"),
             line: 15,
+            provenance: Provenance::empty(),
         },
     };
     let r = record(&render_one(v));
@@ -112,6 +117,7 @@ fn signature_unparseable_record() {
         source: Source::Spec {
             path: PathBuf::from("specs/broken.md"),
             line: 9,
+            context: None,
         },
     };
     let r = record(&render_one(v));
@@ -131,6 +137,7 @@ fn edge_missing_in_code_record() {
         spec_source: Source::Spec {
             path: PathBuf::from("specs/core.md"),
             line: 7,
+            context: None,
         },
     };
     let r = record(&render_one(v));
@@ -150,6 +157,7 @@ fn edge_missing_in_spec_record() {
         code_source: Source::Code {
             path: PathBuf::from("adapters/markdown/src/lib.rs"),
             line: 42,
+            provenance: Provenance::empty(),
         },
     };
     let r = record(&render_one(v));
@@ -168,6 +176,7 @@ fn edge_target_unknown_record() {
         spec_source: Source::Spec {
             path: PathBuf::from("specs/core.md"),
             line: 50,
+            context: None,
         },
     };
     let r = record(&render_one(v));
@@ -191,6 +200,7 @@ fn multiple_violations_are_newline_delimited() {
         spec_source: Source::Spec {
             path: PathBuf::from("a.md"),
             line: 1,
+            context: None,
         },
     };
     let v2 = Violation::MissingInSpecs {
@@ -198,6 +208,7 @@ fn multiple_violations_are_newline_delimited() {
         code_source: Source::Code {
             path: PathBuf::from("b.rs"),
             line: 2,
+            provenance: Provenance::empty(),
         },
     };
     let mut buf = Vec::new();
@@ -229,6 +240,7 @@ fn each_record_has_schema_version_four() {
         spec_source: Source::Spec {
             path: PathBuf::from("x.md"),
             line: 1,
+            context: None,
         },
     };
     let r = record(&render_one(v));
@@ -243,6 +255,7 @@ fn context_membership_unknown_record() {
         code_source: Source::Code {
             path: PathBuf::from("stray-crate/src/lib.rs"),
             line: 3,
+            provenance: Provenance::empty(),
         },
     });
     let r = record(&render_one(v));
@@ -264,6 +277,7 @@ fn cross_context_edge_unauthorized_record() {
         spec_source: Source::Spec {
             path: PathBuf::from("specs/contexts/reading.md"),
             line: 12,
+            context: None,
         },
     });
     let r = record(&render_one(v));
@@ -284,6 +298,7 @@ fn verb_missing_in_code_record() {
         spec_source: Source::Spec {
             path: PathBuf::from("specs/concepts/core.md"),
             line: 10,
+            context: None,
         },
     };
     let r = record(&render_one(v));
@@ -301,6 +316,7 @@ fn verb_missing_in_spec_record() {
         code_source: Source::Code {
             path: PathBuf::from("domain/src/lib.rs"),
             line: 42,
+            provenance: Provenance::empty(),
         },
     };
     let r = record(&render_one(v));
@@ -317,6 +333,7 @@ fn verb_target_unknown_record() {
         spec_source: Source::Spec {
             path: PathBuf::from("specs/concepts/core.md"),
             line: 5,
+            context: None,
         },
     };
     let r = record(&render_one(v));
@@ -335,6 +352,7 @@ fn cross_verb_unauthorized_record() {
         spec_source: Source::Spec {
             path: PathBuf::from("specs/concepts/core.md"),
             line: 15,
+            context: None,
         },
     });
     let r = record(&render_one(v));
@@ -357,6 +375,7 @@ fn cross_context_edge_undeclared_record() {
         spec_source: Source::Spec {
             path: PathBuf::from("specs/contexts/reading.md"),
             line: 12,
+            context: None,
         },
     });
     let r = record(&render_one(v));
@@ -375,6 +394,7 @@ fn concept_context_mismatch_record() {
         spec_source: Source::Spec {
             path: PathBuf::from("specs/concepts/reading.md"),
             line: 7,
+            context: None,
         },
     });
     let r = record(&render_one(v));
@@ -415,6 +435,7 @@ fn dangling_anchor_record_is_additive_v3() {
         spec_source: Source::Spec {
             path: PathBuf::from("specs/concepts/intake_validation.md"),
             line: 3,
+            context: None,
         },
     };
     let r = record(&render_one(v));
@@ -431,6 +452,7 @@ fn spec_at(path: &str, line: usize) -> Source {
     Source::Spec {
         path: PathBuf::from(path),
         line,
+        context: None,
     }
 }
 
@@ -506,6 +528,7 @@ fn code_at(path: &str, line: usize) -> Source {
     Source::Code {
         path: PathBuf::from(path),
         line,
+        provenance: Provenance::empty(),
     }
 }
 
@@ -517,13 +540,12 @@ fn prov_full() -> Provenance {
     }
 }
 
-fn render_with_prov(v: Violation, concept: &str, p: Provenance) -> Value {
-    let mut outcome = CheckOutcome {
-        violations: vec![v],
-        ..CheckOutcome::empty()
-    };
-    outcome.provenance.insert(concept.to_owned(), p);
-    record(&render(&outcome))
+fn code_prov(path: &str, line: usize, provenance: Provenance) -> Source {
+    Source::Code {
+        path: PathBuf::from(path),
+        line,
+        provenance,
+    }
 }
 
 fn assert_triple(source: &Value) {
@@ -536,9 +558,9 @@ fn assert_triple(source: &Value) {
 fn missing_in_specs_source_carries_provenance_triple() {
     let v = Violation::MissingInSpecs {
         name: "Bar".into(),
-        code_source: code_at("domain/src/lib.rs", 3),
+        code_source: code_prov("domain/src/lib.rs", 3, prov_full()),
     };
-    let r = render_with_prov(v, "Bar", prov_full());
+    let r = record(&render_one(v));
     assert_eq!(r["source"]["kind"], "code");
     assert_triple(&r["source"]);
 }
@@ -550,9 +572,9 @@ fn signature_drift_triple_lands_on_code_source_only() {
         spec_sig: "fn extract(&self)".into(),
         code_sig: "fn extract(&self, root: &Path)".into(),
         spec_source: spec_at("specs/core.md", 44),
-        code_source: code_at("ports/src/lib.rs", 15),
+        code_source: code_prov("ports/src/lib.rs", 15, prov_full()),
     };
-    let r = render_with_prov(v, "Reader", prov_full());
+    let r = record(&render_one(v));
     assert_triple(&r["code_source"]);
     assert!(r["spec_source"]["module_path"].is_null());
     assert!(r["spec_source"]["unit"].is_null());
@@ -564,9 +586,9 @@ fn signature_missing_in_spec_source_carries_provenance_triple() {
     let v = Violation::SignatureMissingInSpec {
         name: "Reader".into(),
         code_sig: "fn extract(&self, root: &Path)".into(),
-        code_source: code_at("ports/src/lib.rs", 15),
+        code_source: code_prov("ports/src/lib.rs", 15, prov_full()),
     };
-    let r = render_with_prov(v, "Reader", prov_full());
+    let r = record(&render_one(v));
     assert_triple(&r["code_source"]);
 }
 
@@ -576,9 +598,9 @@ fn edge_missing_in_spec_source_carries_provenance_triple() {
         concept: "MarkdownReader".into(),
         edge_kind: EdgeKind::DependsOn,
         target: "Graph".into(),
-        code_source: code_at("adapters/markdown/src/lib.rs", 42),
+        code_source: code_prov("adapters/markdown/src/lib.rs", 42, prov_full()),
     };
-    let r = render_with_prov(v, "MarkdownReader", prov_full());
+    let r = record(&render_one(v));
     assert_triple(&r["code_source"]);
 }
 
@@ -587,9 +609,9 @@ fn context_membership_unknown_source_carries_provenance_triple() {
     let v = Violation::Context(ContextViolation::MembershipUnknown {
         concept: "Stray".into(),
         owned_unit: OwnedUnit("straycrate".into()),
-        code_source: code_at("straycrate/src/lib.rs", 1),
+        code_source: code_prov("straycrate/src/lib.rs", 1, prov_full()),
     });
-    let r = render_with_prov(v, "Stray", prov_full());
+    let r = record(&render_one(v));
     assert_eq!(r["violation"], "context_membership_unknown");
     assert_triple(&r["source"]);
 }
@@ -599,9 +621,9 @@ fn forbidden_concept_reintroduced_code_source_carries_provenance_triple() {
     let v = Violation::ForbiddenConceptReintroduced {
         name: "LegacyThing".into(),
         spec_source: spec_at("specs/core.md", 9),
-        code_source: code_at("domain/src/lib.rs", 80),
+        code_source: code_prov("domain/src/lib.rs", 80, prov_full()),
     };
-    let r = render_with_prov(v, "LegacyThing", prov_full());
+    let r = record(&render_one(v));
     assert_triple(&r["code_source"]);
     assert!(r["spec_source"]["module_path"].is_null());
 }
@@ -610,14 +632,17 @@ fn forbidden_concept_reintroduced_code_source_carries_provenance_triple() {
 fn partial_triple_renders_only_present_fields() {
     let v = Violation::MissingInSpecs {
         name: "Bar".into(),
-        code_source: code_at("domain/src/lib.rs", 3),
+        code_source: code_prov(
+            "domain/src/lib.rs",
+            3,
+            Provenance {
+                module_path: None,
+                unit: Some("domain".to_owned()),
+                context: None,
+            },
+        ),
     };
-    let p = Provenance {
-        module_path: None,
-        unit: Some("domain".to_owned()),
-        context: None,
-    };
-    let r = render_with_prov(v, "Bar", p);
+    let r = record(&render_one(v));
     assert_eq!(r["source"]["unit"], "domain");
     let source = r["source"].as_object().expect("source object");
     assert!(!source.contains_key("module_path"));
@@ -641,7 +666,7 @@ fn spec_kind_source_never_carries_the_triple() {
         name: "Foo".into(),
         spec_source: spec_at("specs/a.md", 12),
     };
-    let r = render_with_prov(v, "Foo", prov_full());
+    let r = record(&render_one(v));
     let source = r["source"].as_object().expect("source object");
     assert_eq!(source.len(), 3, "kind/path/line only: {source:?}");
 }

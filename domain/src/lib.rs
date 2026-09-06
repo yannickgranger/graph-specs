@@ -87,9 +87,6 @@ pub struct ConceptNode {
     pub name: String,
     pub source: Source,
     pub signature: SignatureState,
-    pub module_path: Option<String>,
-    pub unit: Option<String>,
-    pub context: Option<String>,
     pub marker: Marker,
     pub polarity: Polarity,
 }
@@ -101,9 +98,6 @@ impl ConceptNode {
             name,
             source,
             signature,
-            module_path: None,
-            unit: None,
-            context: None,
             marker: Marker::Unmarked,
             polarity: Polarity::Declared,
         }
@@ -122,10 +116,37 @@ impl ConceptNode {
         unit: Option<String>,
         context: Option<String>,
     ) -> Self {
-        self.module_path = module_path;
-        self.unit = unit;
-        self.context = context;
+        if let Source::Code { provenance, .. } = &mut self.source {
+            *provenance = Provenance {
+                module_path,
+                unit,
+                context,
+            };
+        }
         self
+    }
+
+    #[must_use]
+    pub fn with_declared_context(mut self, context: Option<String>) -> Self {
+        if let Source::Spec { context: slot, .. } = &mut self.source {
+            *slot = context;
+        }
+        self
+    }
+
+    #[must_use]
+    pub fn module_path(&self) -> Option<&str> {
+        self.source.module_path()
+    }
+
+    #[must_use]
+    pub fn unit(&self) -> Option<&str> {
+        self.source.unit()
+    }
+
+    #[must_use]
+    pub fn context(&self) -> Option<&str> {
+        self.source.context()
     }
 }
 
@@ -175,8 +196,49 @@ impl std::fmt::Display for EdgeKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Source {
-    Spec { path: PathBuf, line: usize },
-    Code { path: PathBuf, line: usize },
+    Spec {
+        path: PathBuf,
+        line: usize,
+        context: Option<String>,
+    },
+    Code {
+        path: PathBuf,
+        line: usize,
+        provenance: Provenance,
+    },
+}
+
+impl Source {
+    #[must_use]
+    pub fn path(&self) -> &std::path::Path {
+        match self {
+            Self::Spec { path, .. } | Self::Code { path, .. } => path.as_path(),
+        }
+    }
+
+    #[must_use]
+    pub fn module_path(&self) -> Option<&str> {
+        match self {
+            Self::Spec { .. } => None,
+            Self::Code { provenance, .. } => provenance.module_path.as_deref(),
+        }
+    }
+
+    #[must_use]
+    pub fn unit(&self) -> Option<&str> {
+        match self {
+            Self::Spec { .. } => None,
+            Self::Code { provenance, .. } => provenance.unit.as_deref(),
+        }
+    }
+
+    #[must_use]
+    pub fn context(&self) -> Option<&str> {
+        match self {
+            Self::Spec { context, .. } => context.as_deref(),
+            Self::Code { provenance, .. } => provenance.context.as_deref(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -308,6 +370,7 @@ mod tests {
         Source::Code {
             path: PathBuf::from("domain/src/lib.rs"),
             line: 101,
+            provenance: Provenance::empty(),
         }
     }
 
@@ -315,9 +378,9 @@ mod tests {
     fn new_leaves_provenance_unset() {
         let n = ConceptNode::new("ConceptNode".to_owned(), code_src(), SignatureState::Absent);
         assert_eq!(n.name, "ConceptNode");
-        assert_eq!(n.module_path, None);
-        assert_eq!(n.unit, None);
-        assert_eq!(n.context, None);
+        assert_eq!(n.module_path(), None);
+        assert_eq!(n.unit(), None);
+        assert_eq!(n.context(), None);
     }
 
     #[test]
@@ -328,9 +391,9 @@ mod tests {
                 Some("domain".to_owned()),
                 Some("equivalence".to_owned()),
             );
-        assert_eq!(n.module_path.as_deref(), Some("domain"));
-        assert_eq!(n.unit.as_deref(), Some("domain"));
-        assert_eq!(n.context.as_deref(), Some("equivalence"));
+        assert_eq!(n.module_path(), Some("domain"));
+        assert_eq!(n.unit(), Some("domain"));
+        assert_eq!(n.context(), Some("equivalence"));
         assert_eq!(n.name, "Graph");
         assert_eq!(n.signature, SignatureState::Absent);
     }
@@ -339,7 +402,7 @@ mod tests {
     fn with_provenance_accepts_partial_facts() {
         let n = ConceptNode::new("X".to_owned(), code_src(), SignatureState::Absent)
             .with_provenance(None, None, Some("equivalence".to_owned()));
-        assert_eq!(n.module_path, None);
-        assert_eq!(n.context.as_deref(), Some("equivalence"));
+        assert_eq!(n.module_path(), None);
+        assert_eq!(n.context(), Some("equivalence"));
     }
 }

@@ -1,12 +1,8 @@
 use super::source::{code_source_to_json, source_to_json};
-use super::ProvenanceIndex;
 use domain::{ContextViolation, SchemaVersion};
 use serde_json::{json, Value};
 
-pub(super) fn context_violation_to_record(
-    v: &ContextViolation,
-    provenance: &ProvenanceIndex,
-) -> Value {
+pub(super) fn context_violation_to_record(v: &ContextViolation) -> Value {
     match v {
         ContextViolation::MembershipUnknown {
             concept,
@@ -17,7 +13,7 @@ pub(super) fn context_violation_to_record(
             "violation": "context_membership_unknown",
             "concept": concept,
             "owned_unit": owned_unit.0,
-            "source": code_source_to_json(code_source, provenance.get(concept)),
+            "source": code_source_to_json(code_source),
         }),
         ContextViolation::CrossEdgeUnauthorized {
             concept,

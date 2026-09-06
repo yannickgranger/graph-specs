@@ -27,6 +27,7 @@ fn spec(name: &str) -> ConceptNode {
         Source::Spec {
             path: spec_path(),
             line: 1,
+            context: None,
         },
         SignatureState::Absent,
     )
@@ -37,6 +38,7 @@ fn code(name: &str) -> ConceptNode {
         Source::Code {
             path: code_path(),
             line: 1,
+            provenance: Provenance::empty(),
         },
         SignatureState::Absent,
     )
@@ -47,6 +49,7 @@ fn spec_with_sig(name: &str, sig: &str) -> ConceptNode {
         Source::Spec {
             path: spec_path(),
             line: 1,
+            context: None,
         },
         SignatureState::Normalized(sig.to_string()),
     )
@@ -57,6 +60,7 @@ fn code_with_sig(name: &str, sig: &str) -> ConceptNode {
         Source::Code {
             path: code_path(),
             line: 1,
+            provenance: Provenance::empty(),
         },
         SignatureState::Normalized(sig.to_string()),
     )
@@ -67,6 +71,7 @@ fn spec_unparseable(name: &str, raw: &str, error: &str) -> ConceptNode {
         Source::Spec {
             path: spec_path(),
             line: 1,
+            context: None,
         },
         SignatureState::Unparseable {
             raw: raw.to_string(),
@@ -84,6 +89,7 @@ fn spec_edge(concept: &str, kind: EdgeKind, target: &str) -> Edge {
         source: Source::Spec {
             path: spec_path(),
             line: 10,
+            context: None,
         },
     }
 }
@@ -96,6 +102,7 @@ fn code_edge(concept: &str, kind: EdgeKind, target: &str) -> Edge {
         source: Source::Code {
             path: code_path(),
             line: 10,
+            provenance: Provenance::empty(),
         },
     }
 }
@@ -438,6 +445,7 @@ fn context_violation(name: &str) -> Violation {
         code_source: Source::Code {
             path: code_path(),
             line: 1,
+            provenance: Provenance::empty(),
         },
     })
 }
@@ -459,6 +467,7 @@ fn violation_key_context_sorts_after_edge_target_unknown() {
         spec_source: Source::Spec {
             path: spec_path(),
             line: 1,
+            context: None,
         },
     };
     let b = context_violation("Foo");
@@ -488,6 +497,7 @@ fn violation_key_cohesion_uses_each_variant_key() {
         spec_source: Source::Spec {
             path: spec_path(),
             line: 1,
+            context: None,
         },
     });
     let (key, rank) = violation_key(&mismatch);
@@ -503,6 +513,7 @@ fn violation_key_dangling_anchor_returns_rank_14() {
         spec_source: Source::Spec {
             path: spec_path(),
             line: 3,
+            context: None,
         },
     };
     let (key, rank) = violation_key(&v);
@@ -522,6 +533,7 @@ fn retired_slot_13_leaves_a_gap_between_cohesion_and_dangling_anchor() {
         spec_source: Source::Spec {
             path: spec_path(),
             line: 2,
+            context: None,
         },
     };
     let (ka, da) = violation_key(&cohesion);
@@ -626,6 +638,7 @@ fn pending_concepts_edge_bullets_impose_no_obligation() {
             source: Source::Spec {
                 path: spec_path(),
                 line: 9,
+                context: None,
             },
         }],
     );
@@ -662,6 +675,7 @@ fn resolved_anchor(concept: &str, target: &str, resolves: bool) -> ResolvedAncho
             source: Source::Spec {
                 path: spec_path(),
                 line: 3,
+                context: None,
             },
         },
         target: resolves.then(|| AnchorTarget {
@@ -669,6 +683,7 @@ fn resolved_anchor(concept: &str, target: &str, resolves: bool) -> ResolvedAncho
             source: Source::Code {
                 path: code_path(),
                 line: 7,
+                provenance: Provenance::empty(),
             },
         }),
     }
@@ -880,6 +895,7 @@ fn a_non_declared_concepts_edge_bullets_impose_no_obligation() {
                 source: Source::Spec {
                     path: spec_path(),
                     line: 9,
+                    context: None,
                 },
             }],
         );
@@ -936,10 +952,12 @@ fn violation_key_forbidden_reintroduced_returns_rank_15() {
         spec_source: Source::Spec {
             path: spec_path(),
             line: 5,
+            context: None,
         },
         code_source: Source::Code {
             path: code_path(),
             line: 12,
+            provenance: Provenance::empty(),
         },
     };
     let (key, rank) = violation_key(&v);
@@ -970,23 +988,34 @@ fn outcome_provenance_snapshots_the_code_triple_with_resolved_context() {
         Source::Spec {
             path: spec_path(),
             line: 1,
+            context: None,
         },
     )];
     let outcome = super::diff(
-        CheckInput::new(
-            nodes(vec![spec("Widget")]),
-            contexts,
-            VerbOwnership::default(),
-        ),
+        CheckInput::new(Graph::default(), contexts, VerbOwnership::default()),
         nodes(vec![widget]),
     );
-    assert_eq!(
-        outcome.provenance.get("Widget"),
-        Some(&Provenance {
-            module_path: Some("domain".to_owned()),
-            unit: Some("domain".to_owned()),
-            context: Some("equivalence".to_owned()),
+    let code_source = outcome
+        .violations
+        .iter()
+        .find_map(|v| match v {
+            Violation::MissingInSpecs { name, code_source } if name == "Widget" => {
+                Some(code_source.clone())
+            }
+            _ => None,
         })
+        .expect("Widget unmatched by any heading");
+    assert_eq!(
+        code_source,
+        Source::Code {
+            path: PathBuf::from("domain/src/lib.rs"),
+            line: 1,
+            provenance: Provenance {
+                module_path: Some("domain".to_owned()),
+                unit: Some("domain".to_owned()),
+                context: Some("equivalence".to_owned()),
+            },
+        }
     );
 }
 
@@ -996,11 +1025,17 @@ fn outcome_provenance_skips_nodes_with_no_facts() {
         CheckInput::new(Graph::default(), Vec::new(), VerbOwnership::default()),
         nodes(vec![code("Bare")]),
     );
-    assert!(
-        outcome.provenance.is_empty(),
-        "no facts must index nothing: {:?}",
-        outcome.provenance
-    );
+    let code_source = outcome
+        .violations
+        .iter()
+        .find_map(|v| match v {
+            Violation::MissingInSpecs { code_source, .. } => Some(code_source.clone()),
+            _ => None,
+        })
+        .expect("Bare unmatched by any heading");
+    assert_eq!(code_source.module_path(), None);
+    assert_eq!(code_source.unit(), None);
+    assert_eq!(code_source.context(), None);
 }
 
 fn spec_retired(name: &str) -> ConceptNode {
@@ -1171,6 +1206,7 @@ fn row_8_verb_anchors_impose_no_obligation() {
         Source::Spec {
             path: spec_path(),
             line: 1,
+            context: None,
         },
     );
     let anchor = VerbAnchor {
@@ -1180,6 +1216,7 @@ fn row_8_verb_anchors_impose_no_obligation() {
         source: Source::Spec {
             path: spec_path(),
             line: 3,
+            context: None,
         },
     };
     let neighbour_code = ConceptNode::new(
@@ -1187,6 +1224,7 @@ fn row_8_verb_anchors_impose_no_obligation() {
         Source::Code {
             path: PathBuf::from("domain/src/lib.rs"),
             line: 7,
+            provenance: Provenance::empty(),
         },
         SignatureState::Absent,
     );
@@ -1415,6 +1453,7 @@ fn the_source_side_per_name_conversion_stays_permissive() {
         Source::Spec {
             path: spec_path(),
             line: 1,
+            context: None,
         },
     );
     let anchor = VerbAnchor {
@@ -1424,6 +1463,7 @@ fn the_source_side_per_name_conversion_stays_permissive() {
         source: Source::Spec {
             path: spec_path(),
             line: 3,
+            context: None,
         },
     };
     let specs = Graph::new(
@@ -1445,6 +1485,7 @@ fn the_source_side_per_name_conversion_stays_permissive() {
                 Source::Code {
                     path: PathBuf::from("domain/src/lib.rs"),
                     line: 7,
+                    provenance: Provenance::empty(),
                 },
                 SignatureState::Absent,
             )],

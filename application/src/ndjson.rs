@@ -6,19 +6,14 @@ mod tests;
 
 use cohesion::cohesion_violation_to_record;
 use context::context_violation_to_record;
-use domain::{
-    CheckOutcome, PendingRecord, Provenance, RealizedRecord, SchemaVersion, Source, Violation,
-};
+use domain::{CheckOutcome, PendingRecord, RealizedRecord, SchemaVersion, Source, Violation};
 use serde_json::{json, Value};
 use source::{code_source_to_json, source_to_json};
-use std::collections::BTreeMap;
 use std::io::Write;
-
-type ProvenanceIndex = BTreeMap<String, Provenance>;
 
 pub fn write_ndjson(outcome: &CheckOutcome, out: &mut impl Write) -> std::io::Result<()> {
     for v in &outcome.violations {
-        write_record(&violation_to_record(v, &outcome.provenance), out)?;
+        write_record(&violation_to_record(v), out)?;
     }
     for p in &outcome.pending {
         write_record(&pending_to_record(p), out)?;
@@ -74,7 +69,7 @@ fn realized_to_record(r: &RealizedRecord) -> Value {
 }
 
 #[allow(clippy::too_many_lines)]
-fn violation_to_record(v: &Violation, provenance: &ProvenanceIndex) -> Value {
+fn violation_to_record(v: &Violation) -> Value {
     match v {
         Violation::MissingInCode { name, spec_source } => json!({
             "schema_version": SchemaVersion::CURRENT.as_str(),
@@ -86,7 +81,7 @@ fn violation_to_record(v: &Violation, provenance: &ProvenanceIndex) -> Value {
             "schema_version": SchemaVersion::CURRENT.as_str(),
             "violation": "missing_in_specs",
             "concept": name,
-            "source": code_source_to_json(code_source, provenance.get(name)),
+            "source": code_source_to_json(code_source),
         }),
         Violation::SignatureDrift {
             name,
@@ -101,7 +96,7 @@ fn violation_to_record(v: &Violation, provenance: &ProvenanceIndex) -> Value {
             "spec_sig": spec_sig,
             "code_sig": code_sig,
             "spec_source": source_to_json(spec_source),
-            "code_source": code_source_to_json(code_source, provenance.get(name)),
+            "code_source": code_source_to_json(code_source),
         }),
         Violation::SignatureMissingInSpec {
             name,
@@ -112,7 +107,7 @@ fn violation_to_record(v: &Violation, provenance: &ProvenanceIndex) -> Value {
             "violation": "signature_missing_in_spec",
             "concept": name,
             "code_sig": code_sig,
-            "code_source": code_source_to_json(code_source, provenance.get(name)),
+            "code_source": code_source_to_json(code_source),
         }),
         Violation::SignatureUnparseable {
             name,
@@ -151,7 +146,7 @@ fn violation_to_record(v: &Violation, provenance: &ProvenanceIndex) -> Value {
             "concept": concept,
             "edge_kind": edge_kind.as_label(),
             "target": target,
-            "code_source": code_source_to_json(code_source, provenance.get(concept)),
+            "code_source": code_source_to_json(code_source),
         }),
         Violation::EdgeTargetUnknown {
             concept,
@@ -166,7 +161,7 @@ fn violation_to_record(v: &Violation, provenance: &ProvenanceIndex) -> Value {
             "target": target,
             "spec_source": source_to_json(spec_source),
         }),
-        Violation::Context(ctx) => context_violation_to_record(ctx, provenance),
+        Violation::Context(ctx) => context_violation_to_record(ctx),
         Violation::VerbMissingInCode {
             concept,
             qname,
@@ -182,7 +177,7 @@ fn violation_to_record(v: &Violation, provenance: &ProvenanceIndex) -> Value {
             "schema_version": SchemaVersion::CURRENT.as_str(),
             "violation": "verb_missing_in_spec",
             "qname": qname,
-            "code_source": code_source_to_json(code_source, provenance.get(qname)),
+            "code_source": code_source_to_json(code_source),
         }),
         Violation::VerbTargetUnknown {
             concept,
@@ -204,7 +199,7 @@ fn violation_to_record(v: &Violation, provenance: &ProvenanceIndex) -> Value {
             "violation": "forbidden_concept_reintroduced",
             "concept": name,
             "spec_source": source_to_json(spec_source),
-            "code_source": code_source_to_json(code_source, provenance.get(name)),
+            "code_source": code_source_to_json(code_source),
         }),
         Violation::Cohesion(c) => cohesion_violation_to_record(c),
         Violation::DanglingAnchor {
