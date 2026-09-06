@@ -1,6 +1,10 @@
 use adapter_php::PhpAttributeReader;
 use domain::{EdgeKind, SignatureState, SpecFormat};
-use ports::Reader;
+use ports::{SpecLoader, SpecReader};
+
+fn graph_at(dir: &std::path::Path) -> Result<domain::Graph, ports::ReaderError> {
+    PhpAttributeReader.extract(&PhpAttributeReader.load(dir)?)
+}
 
 fn tree(files: &[(&str, &str)]) -> tempfile::TempDir {
     let dir = tempfile::TempDir::new().unwrap();
@@ -18,7 +22,7 @@ fn an_attribute_yields_a_spec_fact_carrying_the_inline_attribute_format() {
         "Course.php",
         "<?php\nnamespace App\\Catalogue;\n\n#[Spec(implements: \"Enrolable\", signature: \"public function place(Order $o): Receipt\")]\nfinal class Course implements Enrolable {}\n",
     )]);
-    let graph = PhpAttributeReader.extract(dir.path()).unwrap();
+    let graph = graph_at(dir.path()).unwrap();
 
     assert_eq!(graph.nodes.len(), 1, "{:?}", graph.nodes);
     let node = &graph.nodes[0];
@@ -50,7 +54,7 @@ fn an_extends_key_is_read_without_a_finding_and_yields_no_edge() {
         "Course.php",
         "<?php\n\n#[Spec(extends: \"Base\", implements: \"Enrolable\")]\nclass Course extends Base implements Enrolable {}\n",
     )]);
-    let graph = PhpAttributeReader.extract(dir.path()).unwrap();
+    let graph = graph_at(dir.path()).unwrap();
     let findings = PhpAttributeReader.extract_findings(dir.path()).unwrap();
 
     assert!(
@@ -87,7 +91,7 @@ fn an_unknown_key_is_a_finding_naming_the_key() {
 #[test]
 fn a_php_file_without_the_attribute_yields_nothing() {
     let dir = tree(&[("Plain.php", "<?php\n\nclass Plain {}\n")]);
-    let graph = PhpAttributeReader.extract(dir.path()).unwrap();
+    let graph = graph_at(dir.path()).unwrap();
     assert!(
         graph.nodes.is_empty() && graph.edges.is_empty(),
         "{graph:?}"

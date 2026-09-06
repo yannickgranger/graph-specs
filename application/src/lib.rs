@@ -1,12 +1,15 @@
 use adapter_markdown::{assemble_spec_trees, MarkdownReader, SpecTree};
 use adapter_php::PhpAttributeReader;
-use adapter_rust::{RustAnchorResolver, RustReader};
+use adapter_rust::{RustAnchorResolver, RustLoader, RustReader};
 use domain::{
     diff, CheckInput, CheckOutcome, CohesionViolation, ConceptNode, ContextViolation,
     DeclaredSurface, DiffSide, EdgeKind, Graph, OwnershipAmbiguity, ResolvedAnchor, SignatureState,
     SourceWithSig, VerbDecl, VerbOwnership, Violation,
 };
-use ports::{AnchorResolver, CodeFacts, ContextReader, Reader, ReaderError, VerbReader};
+use ports::{
+    AnchorResolver, CodeFacts, CodeLoader, CodeReader, ContextReader, ReaderError, SpecLoader,
+    SpecReader, VerbReader,
+};
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -59,8 +62,11 @@ pub fn run_check(
     code_dir: &Path,
     keyspace: Option<&Path>,
 ) -> Result<CheckOutcome, ReaderError> {
-    let mut specs_graph = MarkdownReader.extract_with(specs_dir, SIGNATURE_NORMALIZERS)?;
-    let attribute_graph = PhpAttributeReader::new().extract(code_dir)?;
+    let spec_set = MarkdownReader.load(specs_dir)?;
+    let code_set = RustLoader.load(code_dir)?;
+    let mut specs_graph = MarkdownReader.extract_with(&spec_set, SIGNATURE_NORMALIZERS)?;
+    let attribute_graph =
+        PhpAttributeReader::new().extract(&PhpAttributeReader::new().load(code_dir)?)?;
     let mut within_side = union_spec_graphs(&mut specs_graph, attribute_graph);
     let spec_contexts = MarkdownReader.extract_contexts(specs_dir)?;
     let verb_anchors = MarkdownReader.extract_verb_anchors(specs_dir)?;
@@ -70,7 +76,7 @@ pub fn run_check(
             .map_err(|a| ambiguous_ownership(keyspace, &a))?,
     };
     let code_graph = match keyspace {
-        None => RustReader.extract(code_dir)?,
+        None => RustReader::new(code_dir).extract(&code_set)?,
         Some(keyspace) => {
             let facts = code_facts(code_dir, Some(keyspace), &surface)?;
             if facts.is_empty() {
@@ -101,7 +107,7 @@ pub fn run_check(
         }
     };
     let pub_fn_decls = match keyspace {
-        None => RustReader.extract_pub_fns(code_dir)?,
+        None => RustReader::new(code_dir).extract_pub_fns(code_dir)?,
         Some(keyspace) => keyspace_pub_fns(code_dir, keyspace, &surface)?,
     };
     let concept_anchors = MarkdownReader.extract_concept_anchors(specs_dir)?;
@@ -247,7 +253,7 @@ pub fn code_facts(
     surface: &DeclaredSurface,
 ) -> Result<Vec<ConceptNode>, ReaderError> {
     keyspace.map_or_else(
-        || RustReader.concepts(code_dir),
+        || RustReader::new(code_dir).concepts(code_dir),
         |keyspace| keyspace_facts(code_dir, keyspace, surface),
     )
 }
@@ -472,7 +478,7 @@ mod tests {
         );
         write(code.path(), "mycrate/src/lib.rs", "pub struct Foo;");
         let via_router = code_facts(code.path(), None, &DeclaredSurface::default()).unwrap();
-        let via_adapter = RustReader.concepts(code.path()).unwrap();
+        let via_adapter = RustReader::new(code.path()).concepts(code.path()).unwrap();
         assert_eq!(via_router, via_adapter);
         assert!(via_router.iter().any(|c| c.name == "Foo"));
     }

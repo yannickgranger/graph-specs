@@ -40,6 +40,7 @@ the previous design needed is retired.
 - depends on: VerbAnchor
 - depends on: ConceptAnchor
 - depends on: Violation
+- depends on: SpecFileSet
 
 ### RustBackend
 
@@ -88,10 +89,11 @@ the cfdb-query [CfdbQueryReader](#cfdbqueryreader) ACL must match. Lives in
 - depends on: EdgeKind
 - depends on: ReaderError
 - depends on: PubFnDecl
+- depends on: CodeFileSet
+- returns: RustReader
 
 ### RustLoader
 
-- status: draft (per graph-specs-016-parse-once-reading-port#3.2)
 <!-- parent:spec:RustReader -->
 
 The unit struct that implements [CodeLoader](equivalence.md#codeloader) for a
@@ -101,6 +103,8 @@ Constructible before any parse state exists, since the cache-holding readers
 are built after the load. Lives in `adapters/rust`.
 
 - implements: CodeLoader
+- depends on: CodeFileSet
+- depends on: ReaderError
 
 ### RustAnchorResolver
 
@@ -234,6 +238,7 @@ named by a signature.
 - depends on: ReaderError
 - depends on: Violation
 - returns: PhpAttributeReader
+- depends on: SpecFileSet
 
 ### RustSignatures
 
