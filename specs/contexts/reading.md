@@ -14,6 +14,7 @@ equivalence publishes.
 - adapters/markdown
 - adapters/rust
 - adapters/cfdb-query
+- adapters/php
 
 ## Exports (Published Language)
 
@@ -21,11 +22,14 @@ equivalence publishes.
 - RustReader (PublishedLanguage)
 - RustBackend (PublishedLanguage)
 - CfdbQueryReader (PublishedLanguage)
+- PhpEdgeTraversal (PublishedLanguage)
+- PhpAttributeReader (PublishedLanguage)
 - RustAnchorResolver (PublishedLanguage)
 - CfdbAnchorResolver (PublishedLanguage)
 
 ## Imports
 
+- DeclaredSurface from equivalence (PublishedLanguage)
 - Reader from equivalence (Conformist)
 - CodeFacts from equivalence (Conformist)
 - ContextReader from equivalence (Conformist)

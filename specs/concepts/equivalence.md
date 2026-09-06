@@ -338,6 +338,30 @@ relationship is classified, and the concept being referenced. Lives in
 
 - depends on: ContextPattern
 
+## DeclaredSurface
+
+- status: draft (per graph-specs-011-php-ladder#3.2)
+<!-- parent:rfc:graph-specs-011-php-ladder#3.2 anchor:"whose qualified name begins with a declared" -->
+
+The concept surface of a code tree whose language affords no per-item
+visibility. Rust's surface test is `pub`, a property of each item; PHP has
+none, and every-class-under-the-autoload-root is refused as the relaxed
+filter graph-specs-012-non-pub-spec-anchor#3.1 already rejects. The
+surface is declared, never derived: the set of [OwnedUnit](#ownedunit)
+prefixes the repository's `specs/contexts/` declares, read by a
+[CodeFacts](#codefacts) adapter as the admission test on a qualified
+name — an item is on the surface exactly when its qualified name begins
+with a declared prefix, and an item outside every prefix binds no heading
+and demands none. The owned-unit string stays opaque and language-agnostic
+(graph-specs-004-multi-language-adapter-contract#2, invariant 6): a PHP
+repository writes a namespace prefix where a Rust repository writes a
+crate name, and no marked form distinguishes the two — that question is
+RFC-007's (graph-specs-011-php-ladder#6 item 2). Pure value, no IO. Lives
+in `domain`.
+
+- depends on: OwnedUnit
+- verb: DeclaredSurface::admits
+
 ## ContextPattern
 
 <!-- parent:rfc:graph-specs-001-bounded-context-equivalence#2 anchor:"Four DDD patterns" -->
