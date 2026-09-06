@@ -19,7 +19,7 @@ pub use anchor::{
 pub use cohesion::CohesionViolation;
 pub use context::{
     context_for_concept, detect_import_cycle, resolve_declared_context, CheckInput, ContextDecl,
-    ContextExport, ContextImport, ContextPattern, ContextViolation, OwnedUnit,
+    ContextExport, ContextImport, ContextPattern, ContextViolation, DeclaredSurface, OwnedUnit,
 };
 pub use diff::diff;
 pub use marker::{

@@ -35,6 +35,11 @@ enum Command {
         code: PathBuf,
         #[arg(
             long,
+            help = "cfdb keyspace JSON read as the code input instead of walking Rust source"
+        )]
+        keyspace: Option<PathBuf>,
+        #[arg(
+            long,
             value_enum,
             default_value_t = Format::Text,
             help = "Output format. Defaults to `text`"
@@ -68,8 +73,9 @@ fn main() -> ExitCode {
         Command::Check {
             specs,
             code,
+            keyspace,
             format,
-        } => run_check_command(&specs, &code, format),
+        } => run_check_command(&specs, &code, keyspace.as_deref(), format),
         Command::Report {
             verb_coverage,
             specs,
@@ -93,8 +99,20 @@ fn main() -> ExitCode {
     }
 }
 
-fn run_check_command(specs: &std::path::Path, code: &std::path::Path, format: Format) -> ExitCode {
-    match application::run_check(specs, code) {
+fn run_check_command(
+    specs: &std::path::Path,
+    code: &std::path::Path,
+    keyspace: Option<&std::path::Path>,
+    format: Format,
+) -> ExitCode {
+    eprintln!(
+        "graph-specs: code input read as {}",
+        keyspace.map_or_else(
+            || format!("source-walk — {}", code.display()),
+            |k| format!("keyspace — {}", k.display())
+        )
+    );
+    match application::run_check(specs, code, keyspace) {
         Ok(outcome) => emit(&outcome, format),
         Err(e) => {
             eprintln!("reader error: {e}");

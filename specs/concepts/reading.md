@@ -124,11 +124,10 @@ Lives in `adapters/cfdb-query`.
 - implements: CodeFacts
 - depends on: ConceptNode
 - depends on: ReaderError
+- depends on: DeclaredSurface
 - returns: CfdbQueryReader
 
 ### PhpEdgeTraversal
-
-- status: draft (per graph-specs-011-php-ladder#3.1)
 <!-- parent:spec:CfdbQueryReader -->
 
 The PHP fact-extraction path of the [CfdbQueryReader](#cfdbqueryreader)
@@ -149,6 +148,8 @@ is not emitted. Lives in `adapters/cfdb-query`.
 - depends on: ConceptNode
 - depends on: DeclaredSurface
 - depends on: ReaderError
+- depends on: Edge
+- returns: PhpEdgeTraversal
 
 ## CfdbAnchorResolver
 

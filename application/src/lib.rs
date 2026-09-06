@@ -1,8 +1,8 @@
 use adapter_markdown::{assemble_spec_trees, MarkdownReader, SpecTree};
 use adapter_rust::{RustAnchorResolver, RustReader};
 use domain::{
-    diff, CheckInput, CheckOutcome, CohesionViolation, ConceptNode, ResolvedAnchor, VerbDecl,
-    VerbOwnership,
+    diff, CheckInput, CheckOutcome, CohesionViolation, ConceptNode, DeclaredSurface, Graph,
+    ResolvedAnchor, VerbDecl, VerbOwnership,
 };
 use ports::{AnchorResolver, CodeFacts, ContextReader, Reader, ReaderError, VerbReader};
 use std::collections::HashMap;
@@ -16,11 +16,25 @@ mod report_ndjson;
 mod report_text;
 pub mod text;
 
-pub fn run_check(specs_dir: &Path, code_dir: &Path) -> Result<CheckOutcome, ReaderError> {
+pub fn run_check(
+    specs_dir: &Path,
+    code_dir: &Path,
+    keyspace: Option<&Path>,
+) -> Result<CheckOutcome, ReaderError> {
     let mut specs_graph = MarkdownReader.extract(specs_dir)?;
     let spec_contexts = MarkdownReader.extract_contexts(specs_dir)?;
     let verb_anchors = MarkdownReader.extract_verb_anchors(specs_dir)?;
-    let code_graph = RustReader.extract(code_dir)?;
+    let code_graph = match keyspace {
+        None => RustReader.extract(code_dir)?,
+        Some(keyspace) => Graph::new(
+            code_facts(
+                code_dir,
+                Some(keyspace),
+                &DeclaredSurface::from_contexts(&spec_contexts),
+            )?,
+            Vec::new(),
+        ),
+    };
     let pub_fn_decls = RustReader.extract_pub_fns(code_dir)?;
     let concept_anchors = MarkdownReader.extract_concept_anchors(specs_dir)?;
 
@@ -68,20 +82,31 @@ pub fn run_check(specs_dir: &Path, code_dir: &Path) -> Result<CheckOutcome, Read
 pub fn code_facts(
     code_dir: &Path,
     keyspace: Option<&Path>,
+    surface: &DeclaredSurface,
 ) -> Result<Vec<ConceptNode>, ReaderError> {
     keyspace.map_or_else(
         || RustReader.concepts(code_dir),
-        |keyspace| keyspace_facts(code_dir, keyspace),
+        |keyspace| keyspace_facts(code_dir, keyspace, surface),
     )
 }
 
 #[cfg(feature = "codefacts")]
-fn keyspace_facts(code_dir: &Path, keyspace: &Path) -> Result<Vec<ConceptNode>, ReaderError> {
-    adapter_cfdb_query::CfdbQueryReader::new(keyspace).concepts(code_dir)
+fn keyspace_facts(
+    code_dir: &Path,
+    keyspace: &Path,
+    surface: &DeclaredSurface,
+) -> Result<Vec<ConceptNode>, ReaderError> {
+    adapter_cfdb_query::CfdbQueryReader::new(keyspace)
+        .with_surface(surface.clone())
+        .concepts(code_dir)
 }
 
 #[cfg(not(feature = "codefacts"))]
-fn keyspace_facts(code_dir: &Path, _keyspace: &Path) -> Result<Vec<ConceptNode>, ReaderError> {
+fn keyspace_facts(
+    code_dir: &Path,
+    _keyspace: &Path,
+    _surface: &DeclaredSurface,
+) -> Result<Vec<ConceptNode>, ReaderError> {
     Err(ReaderError::WalkFailed {
         root: code_dir.to_path_buf(),
         cause: "cfdb-query keyspace routing requires the `codefacts` feature".to_owned(),
@@ -113,7 +138,7 @@ mod tests {
             "[package]\nname = \"mycrate\"\n",
         );
         write(code.path(), "mycrate/src/lib.rs", "pub struct Foo;");
-        let via_router = code_facts(code.path(), None).unwrap();
+        let via_router = code_facts(code.path(), None, &DeclaredSurface::default()).unwrap();
         let via_adapter = RustReader.concepts(code.path()).unwrap();
         assert_eq!(via_router, via_adapter);
         assert!(via_router.iter().any(|c| c.name == "Foo"));
@@ -134,7 +159,12 @@ mod tests {
                     "is_test":false,"line":1}}],"edges":[]}"#,
         )
         .unwrap();
-        let facts = code_facts(Path::new("/ws"), Some(&keyspace)).unwrap();
+        let facts = code_facts(
+            Path::new("/ws"),
+            Some(&keyspace),
+            &DeclaredSurface::default(),
+        )
+        .unwrap();
         assert_eq!(facts.len(), 1);
         assert_eq!(facts[0].name, "Foo");
         assert_eq!(facts[0].unit.as_deref(), Some("domain"));
@@ -144,7 +174,9 @@ mod tests {
     fn empty_trees_yield_no_violations() {
         let specs = TempDir::new().unwrap();
         let code = TempDir::new().unwrap();
-        assert!(run_check(specs.path(), code.path()).unwrap().is_clean());
+        assert!(run_check(specs.path(), code.path(), None)
+            .unwrap()
+            .is_clean());
     }
 
     #[test]
@@ -161,7 +193,9 @@ mod tests {
             "src/lib.rs",
             "pub(crate) fn validate_intake() {}",
         );
-        let v = run_check(specs.path(), code.path()).unwrap().violations;
+        let v = run_check(specs.path(), code.path(), None)
+            .unwrap()
+            .violations;
         assert!(
             v.is_empty(),
             "anchored pub(crate) concept must resolve: {v:?}"
@@ -178,7 +212,9 @@ mod tests {
             "## ValidateIntakeFull\n\n- impl: nonexistent_fn\n",
         );
         write(code.path(), "src/lib.rs", "pub fn other() {}");
-        let v = run_check(specs.path(), code.path()).unwrap().violations;
+        let v = run_check(specs.path(), code.path(), None)
+            .unwrap()
+            .violations;
         assert!(
             v.iter().any(|x| matches!(
                 x,
@@ -203,7 +239,9 @@ mod tests {
             "src/lib.rs",
             "pub struct Foo; pub enum Bar { X }",
         );
-        assert!(run_check(specs.path(), code.path()).unwrap().is_clean());
+        assert!(run_check(specs.path(), code.path(), None)
+            .unwrap()
+            .is_clean());
     }
 
     #[test]
@@ -221,6 +259,6 @@ mod tests {
             "fixture/src/lib.rs",
             "pub struct Foo; pub enum Bar { X }",
         );
-        assert!(run_check(specs.path(), code.path()).is_ok());
+        assert!(run_check(specs.path(), code.path(), None).is_ok());
     }
 }
