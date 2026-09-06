@@ -6,6 +6,11 @@ use domain::{AnchorTarget, ConceptNode, ContextDecl, Edge, EdgeKind, Graph, PubF
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
+pub trait SignatureNormalizer {
+    fn fence_tag(&self) -> &'static str;
+    fn normalize(&self, block: &str) -> Result<String, String>;
+}
+
 pub trait Reader {
     fn extract(&self, root: &Path) -> Result<Graph, ReaderError>;
 }

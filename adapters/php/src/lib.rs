@@ -36,6 +36,77 @@ struct Attributed {
     keys: Vec<(String, String, usize)>,
 }
 
+pub struct PhpSignatures;
+
+impl ports::SignatureNormalizer for PhpSignatures {
+    fn fence_tag(&self) -> &'static str {
+        "php"
+    }
+
+    fn normalize(&self, block: &str) -> Result<String, String> {
+        let mut parser = parser().map_err(|e| e.to_string())?;
+        let tagged = if block.trim_start().starts_with("<?php") {
+            block.to_owned()
+        } else {
+            format!("<?php\n{block}")
+        };
+        let tree = parser
+            .parse(&tagged, None)
+            .ok_or_else(|| "the php grammar returned no tree".to_string())?;
+        let root = tree.root_node();
+        if root.has_error() {
+            return Err("the php grammar could not parse the block".to_string());
+        }
+        let src = tagged.as_bytes();
+        let mut declarations = Vec::new();
+        collect_declarations(root, src, &mut declarations);
+        match declarations.as_slice() {
+            [] => Err("the block declares nothing the php grammar recognises".to_string()),
+            [only] => Ok(only.clone()),
+            many => Err(format!(
+                "the block declares {} constructs; a signature block declares one",
+                many.len()
+            )),
+        }
+    }
+}
+
+fn collect_declarations(node: Node, src: &[u8], out: &mut Vec<String>) {
+    if CONCEPT_CONSTRUCTS.contains(&node.kind()) || node.kind() == "method_declaration" {
+        out.push(reprinted(node, src));
+        return;
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        collect_declarations(child, src, out);
+    }
+}
+
+fn reprinted(node: Node, src: &[u8]) -> String {
+    let mut tokens = Vec::new();
+    tokens_of(node, src, &mut tokens);
+    tokens.join(" ")
+}
+
+fn tokens_of(node: Node, src: &[u8], out: &mut Vec<String>) {
+    let kind = node.kind();
+    if kind == "comment" || kind == "attribute_list" || kind == "declaration_list" {
+        return;
+    }
+    if node.child_count() == 0 {
+        if let Ok(text) = node.utf8_text(src) {
+            if !text.trim().is_empty() {
+                out.push(text.to_owned());
+            }
+        }
+        return;
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        tokens_of(child, src, out);
+    }
+}
+
 impl Reader for PhpAttributeReader {
     fn extract(&self, root: &Path) -> Result<Graph, ReaderError> {
         let mut nodes = Vec::new();

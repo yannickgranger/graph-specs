@@ -4,18 +4,20 @@ use crate::grounding::{read, DialectHeading};
 use crate::markdown_utils::{compute_line_starts, line_of_offset};
 use domain::{ConceptNode, Edge, SignatureState, Source};
 use domain::{ConceptRef, Violation};
-use ports::ReaderError;
+use ports::{ReaderError, SignatureNormalizer};
 use pulldown_cmark::{CodeBlockKind, Event, Parser, Tag, TagEnd};
 use std::path::Path;
 
 #[derive(Default)]
 struct Collected {
     rust_blocks: Vec<(usize, String)>,
+    fenced: Vec<(usize, String, String)>,
     bullets: Vec<(usize, String)>,
 }
 
 struct CollectorState {
     line_starts: Vec<usize>,
+    in_fence: Option<(usize, String)>,
     in_rust_block_at: Option<usize>,
     block_buf: String,
     in_bullet_at: Option<usize>,
@@ -27,6 +29,7 @@ pub fn extract_from_source(
     source: &str,
     path: &Path,
     sink: &mut crate::BulletSink<'_>,
+    normalizers: &[&dyn SignatureNormalizer],
 ) -> Result<(), ReaderError> {
     let dialect = read(path, source)?;
     let cleaned = blank_front_matter(source);
@@ -36,16 +39,17 @@ pub fn extract_from_source(
         let (start, end) = dialect.extent(heading);
         let owned = |line: usize| line > start && line < end;
 
-        let blocks: Vec<&str> = collected
-            .rust_blocks
+        let blocks: Vec<(&str, &str)> = collected
+            .fenced
             .iter()
-            .filter(|(line, _)| owned(*line))
-            .map(|(_, block)| block.as_str())
+            .filter(|(line, _, _)| owned(*line))
+            .filter(|(_, tag, _)| normalizers.iter().any(|n| n.fence_tag() == tag))
+            .map(|(_, tag, block)| (tag.as_str(), block.as_str()))
             .collect();
         let mut node = ConceptNode::new(
             heading.name.clone(),
             spec_source(path, heading.line),
-            signature_from_blocks(&blocks),
+            signature_from_fences(&blocks, normalizers),
         )
         .with_polarity(heading.polarity);
         node.marker = heading.marker;
@@ -106,6 +110,7 @@ fn absorb_bullet(
 fn collect(source: &str) -> Collected {
     let mut st = CollectorState {
         line_starts: compute_line_starts(source),
+        in_fence: None,
         in_rust_block_at: None,
         block_buf: String::new(),
         in_bullet_at: None,
@@ -120,15 +125,21 @@ fn collect(source: &str) -> Collected {
 
 fn handle_event(st: &mut CollectorState, event: &Event, range: std::ops::Range<usize>) {
     match event {
-        Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(lang))) if lang.as_ref() == "rust" => {
-            st.in_rust_block_at = Some(line_of_offset(&st.line_starts, range.start));
+        Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(lang))) => {
+            let line = line_of_offset(&st.line_starts, range.start);
+            st.in_fence = Some((line, lang.as_ref().to_string()));
+            if lang.as_ref() == "rust" {
+                st.in_rust_block_at = Some(line);
+            }
             st.block_buf.clear();
         }
         Event::End(TagEnd::CodeBlock) => {
+            let block = std::mem::take(&mut st.block_buf);
             if let Some(line) = st.in_rust_block_at.take() {
-                st.collected
-                    .rust_blocks
-                    .push((line, std::mem::take(&mut st.block_buf)));
+                st.collected.rust_blocks.push((line, block.clone()));
+            }
+            if let Some((line, tag)) = st.in_fence.take() {
+                st.collected.fenced.push((line, tag, block));
             }
         }
         Event::Start(Tag::Item) => {
@@ -148,35 +159,45 @@ fn handle_event(st: &mut CollectorState, event: &Event, range: std::ops::Range<u
 }
 
 fn absorb_text(st: &mut CollectorState, s: &str) {
-    if st.in_rust_block_at.is_some() {
+    if st.in_fence.is_some() {
         st.block_buf.push_str(s);
     } else if st.in_bullet_at.is_some() {
         st.bullet_buf.push_str(s);
     }
 }
 
-fn signature_from_blocks(blocks: &[&str]) -> SignatureState {
-    match blocks {
+fn signature_from_fences(
+    fences: &[(&str, &str)],
+    normalizers: &[&dyn SignatureNormalizer],
+) -> SignatureState {
+    match fences {
         [] => SignatureState::Absent,
-        [only] => parse_single_block(only),
+        [(tag, only)] => {
+            normalizers
+                .iter()
+                .find(|n| n.fence_tag() == *tag)
+                .map_or(SignatureState::Absent, |n| match n.normalize(only) {
+                    Ok(target) => SignatureState::Normalized(target),
+                    Err(error) => SignatureState::Unparseable {
+                        raw: (*only).to_string(),
+                        error: format!("{tag}: {error}"),
+                    },
+                })
+        }
         many => {
             let count = many.len();
+            let tags: Vec<&str> = many.iter().map(|(tag, _)| *tag).collect();
             SignatureState::Unparseable {
-                raw: many.join("\n---\n"),
+                raw: many
+                    .iter()
+                    .map(|(_, block)| *block)
+                    .collect::<Vec<_>>()
+                    .join("\n---\n"),
                 error: format!(
-                    "concept section contains {count} fenced rust blocks; at most one is allowed"
+                    "concept section contains {count} normalizable fenced blocks ({}); at most one is allowed",
+                    tags.join(", ")
                 ),
             }
         }
-    }
-}
-
-fn parse_single_block(raw: &str) -> SignatureState {
-    match syn::parse_str::<syn::Item>(raw) {
-        Ok(item) => SignatureState::Normalized(signature_norm::normalize(&item)),
-        Err(e) => SignatureState::Unparseable {
-            raw: raw.to_string(),
-            error: e.to_string(),
-        },
     }
 }

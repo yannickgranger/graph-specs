@@ -1,4 +1,6 @@
 use super::*;
+
+const RUST: &[&dyn ports::SignatureNormalizer] = &[&signature_norm::RustSignatures];
 use crate::bullets::parse_anchor_qname;
 use domain::{EdgeKind, Marker, Polarity, SignatureState, Source};
 use std::io::Write;
@@ -14,14 +16,14 @@ fn write(dir: &Path, rel: &str, content: &str) {
 }
 
 fn extract(dir: &Path) -> Vec<String> {
-    let g = MarkdownReader.extract(dir).expect("test");
+    let g = MarkdownReader.extract_with(dir, RUST).expect("test");
     let mut names: Vec<String> = g.nodes.into_iter().map(|n| n.name).collect();
     names.sort();
     names
 }
 
 fn extract_graph(dir: &Path) -> Graph {
-    MarkdownReader.extract(dir).expect("test")
+    MarkdownReader.extract_with(dir, RUST).expect("test")
 }
 
 #[test]
@@ -87,7 +89,7 @@ fn handles_inline_backticks_in_heading() {
 fn records_correct_line_number() {
     let d = TempDir::new().expect("test");
     write(d.path(), "a.md", "# Title\n\n## OnLine3\n");
-    let g = MarkdownReader.extract(d.path()).expect("test");
+    let g = MarkdownReader.extract_with(d.path(), RUST).expect("test");
     match &g.nodes[0].source {
         Source::Spec { line, .. } => assert_eq!(*line, 3),
         Source::Code { .. } => panic!("expected Spec source"),
@@ -103,7 +105,7 @@ fn non_md_files_are_ignored() {
 }
 
 fn extract_sig(dir: &Path, concept: &str) -> SignatureState {
-    let g = MarkdownReader.extract(dir).expect("test");
+    let g = MarkdownReader.extract_with(dir, RUST).expect("test");
     g.nodes
         .into_iter()
         .find(|n| n.name == concept)
@@ -202,7 +204,7 @@ fn rust_block_before_first_heading_is_ignored() {
         "a.md",
         "```rust\npub struct Orphan;\n```\n\n## Foo\n",
     );
-    let g = MarkdownReader.extract(d.path()).expect("test");
+    let g = MarkdownReader.extract_with(d.path(), RUST).expect("test");
     let names: Vec<&str> = g.nodes.iter().map(|n| n.name.as_str()).collect();
     assert_eq!(names, vec!["Foo"]);
     assert_eq!(g.nodes[0].signature, SignatureState::Absent);
@@ -569,7 +571,7 @@ fn verb_bullet_does_not_yield_edge_in_graph() {
         "a.md",
         "## Concept\n\n- verb: some_fn\n- implements: Reader\n",
     );
-    let g = MarkdownReader.extract(d.path()).expect("test");
+    let g = MarkdownReader.extract_with(d.path(), RUST).expect("test");
     let edges = find_edges_for(&g.edges, "Concept");
     assert_eq!(edges.len(), 1, "verb bullet must not become an edge");
     assert_eq!(edges[0].kind, EdgeKind::Implements);
@@ -671,7 +673,7 @@ fn marker_of(dir: &Path, concept: &str) -> Marker {
 }
 
 fn marks(dir: &Path) -> Vec<(String, bool)> {
-    let g = MarkdownReader.extract(dir).expect("test");
+    let g = MarkdownReader.extract_with(dir, RUST).expect("test");
     let mut out: Vec<(String, bool)> = g
         .nodes
         .into_iter()
@@ -802,7 +804,7 @@ fn front_matter_refusal(front_matter: &str) -> String {
         "a.md",
         &format!("{front_matter}\n# widgets\n\n## Foo\n"),
     );
-    match MarkdownReader.extract(d.path()) {
+    match MarkdownReader.extract_with(d.path(), RUST) {
         Err(ports::ReaderError::ParseFailed { message, .. }) => message,
         other => panic!("expected a refusal, got {other:?}"),
     }
@@ -1072,7 +1074,7 @@ fn has_behavioral_substance_rejects_non_substance() {
 }
 
 fn polarities(dir: &Path) -> Vec<(String, Polarity)> {
-    let g = MarkdownReader.extract(dir).expect("test");
+    let g = MarkdownReader.extract_with(dir, RUST).expect("test");
     let mut out: Vec<(String, Polarity)> =
         g.nodes.into_iter().map(|n| (n.name, n.polarity)).collect();
     out.sort_by(|a, b| a.0.cmp(&b.0));
@@ -1191,7 +1193,7 @@ fn a_misplaced_retired_marker_is_inert_and_the_heading_reads_unmarked() {
 }
 
 fn marker_values(dir: &Path) -> Vec<(String, Marker)> {
-    let g = MarkdownReader.extract(dir).expect("test");
+    let g = MarkdownReader.extract_with(dir, RUST).expect("test");
     let mut out: Vec<(String, Marker)> = g.nodes.into_iter().map(|n| (n.name, n.marker)).collect();
     out.sort_by(|a, b| a.0.cmp(&b.0));
     out

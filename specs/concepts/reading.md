@@ -219,7 +219,6 @@ named by a signature.
 
 ### RustSignatures
 
-- status: draft (per graph-specs-004-multi-language-adapter-contract#3.6)
 <!-- parent:spec:SignatureNormalizer -->
 
 The [SignatureNormalizer](equivalence.md#signaturenormalizer) implementation
@@ -234,7 +233,6 @@ root supplies it for `rust` and for no other tag.
 
 ### PhpSignatures
 
-- status: draft (per graph-specs-004-multi-language-adapter-contract#3.6)
 <!-- parent:spec:SignatureNormalizer -->
 
 The [SignatureNormalizer](equivalence.md#signaturenormalizer) implementation

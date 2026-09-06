@@ -19,7 +19,7 @@ use domain::{
     ConceptAnchor, ConceptNode, ContextDecl, Edge, Graph, InvariantAnnotation, VerbAnchor,
     Violation,
 };
-use ports::{ContextReader, Reader, ReaderError};
+use ports::{ContextReader, Reader, ReaderError, SignatureNormalizer};
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
@@ -28,6 +28,16 @@ pub struct MarkdownReader;
 
 impl Reader for MarkdownReader {
     fn extract(&self, root: &Path) -> Result<Graph, ReaderError> {
+        self.extract_with(root, &[])
+    }
+}
+
+impl MarkdownReader {
+    pub fn extract_with(
+        &self,
+        root: &Path,
+        normalizers: &[&dyn SignatureNormalizer],
+    ) -> Result<Graph, ReaderError> {
         let mut nodes = Vec::new();
         let mut edges = Vec::new();
 
@@ -45,6 +55,7 @@ impl Reader for MarkdownReader {
                     concept_anchors: &mut concept_anchors_scratch,
                     malformed: &mut malformed_scratch,
                 },
+                normalizers,
             )?;
         }
 
@@ -85,6 +96,7 @@ impl MarkdownReader {
                     concept_anchors: &mut concept_anchors_scratch,
                     malformed: &mut malformed,
                 },
+                &[],
             )?;
         }
 
@@ -109,6 +121,7 @@ impl MarkdownReader {
                     concept_anchors: &mut concept_anchors_scratch,
                     malformed: &mut malformed_scratch,
                 },
+                &[],
             )?;
         }
 
@@ -133,6 +146,7 @@ impl MarkdownReader {
                     concept_anchors: &mut concept_anchors,
                     malformed: &mut malformed_scratch,
                 },
+                &[],
             )?;
         }
 

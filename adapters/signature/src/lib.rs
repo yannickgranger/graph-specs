@@ -1,5 +1,19 @@
 use syn::{Attribute, Fields, Item, TraitItem, Visibility};
 
+pub struct RustSignatures;
+
+impl ports::SignatureNormalizer for RustSignatures {
+    fn fence_tag(&self) -> &'static str {
+        "rust"
+    }
+
+    fn normalize(&self, block: &str) -> Result<String, String> {
+        syn::parse_str::<Item>(block)
+            .map(|item| normalize(&item))
+            .map_err(|e| e.to_string())
+    }
+}
+
 #[must_use]
 pub fn normalize(item: &Item) -> String {
     let mut item = item.clone();
