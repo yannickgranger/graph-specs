@@ -589,12 +589,21 @@ crate name, and no marked form distinguishes the two — that question is
 RFC-007's (graph-specs-011-php-ladder#6 item 2). Pure value, no IO. Lives
 in `domain`.
 
+The surface also answers which context declared the prefix covering a
+qualified name: the longest declared prefix that covers it names its unit
+and its context together, so a code fact's context resolves through the
+declaration that admitted it and never through the first item of its
+name in graph order (graph-specs-010-abstraction-level-equivalence#4
+invariant 9; graph-specs-011-php-ladder#3.2: prefix matching over the
+qualified name is the discriminator, and the whole of it).
+
 - depends on: ContextDecl
 - depends on: DeclaredSurface
 - depends on: OwnershipAmbiguity
 - verb: DeclaredSurface::from_contexts
 - verb: DeclaredSurface::admits
 - verb: DeclaredSurface::unit_of
+- verb: DeclaredSurface::context_of
 - verb: DeclaredSurface::is_empty
 
 ### OwnershipAmbiguity
@@ -1074,6 +1083,17 @@ H2) fire spec-side with zero code facts; `ConceptContextMismatch` (the
 spec-side declared owning context disagrees with the code-resolved one)
 is code-fact-gated and carries a [Source](#source) so its rendering
 shows `path:line` like every other violation. Marked `#[non_exhaustive]`.
+`ConceptContextMismatch` is read per item, never per name
+(graph-specs-010-abstraction-level-equivalence#4 invariant 9): a heading
+whose name resolves to an item under its own declared context binds that
+item and reports no mismatch, whatever same-named items stand under other
+units; a heading with no such item is compared with each same-named item
+outside its context, one record per item, `code_context` naming that
+item's own resolved context — never the first of the name in graph order,
+never the nearest prefix (graph-specs-011-php-ladder#3.2 refuses a
+resolution by proximity across contexts). Two such items under two units
+of one context are two records, told apart as the code [Source](#source)
+tells facts apart, by name and unit.
 The *detection* logic that emits these lands in R10-3; this entry covers
 the type. Lives in `domain`.
 
