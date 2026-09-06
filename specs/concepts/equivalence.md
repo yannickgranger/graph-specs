@@ -203,7 +203,6 @@ plus the raw textual form preserved for display in drift messages.
 
 ### ConceptRef
 
-- status: draft (per graph-specs-010-abstraction-level-equivalence#4)
 <!-- parent:spec:Edge -->
 
 A concept-rung endpoint of an [Edge](#edge), carrying three facts: the
