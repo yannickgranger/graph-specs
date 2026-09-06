@@ -141,9 +141,12 @@ The PHP fact-extraction path of the [CfdbQueryReader](#cfdbqueryreader)
 ACL (graph-specs-010-abstraction-level-equivalence#11.5: PHP `:Item` is
 prop-less, so containment is read by traversing `IN_MODULE` / `IN_CRATE`
 edges, never by prop reads). It yields a [ConceptNode](equivalence.md#conceptnode)
-for every concept-rung PHP `:Item` — `class_declaration` and
-`interface_declaration` alike, both emitted as `kind: "trait"` and told
-apart by the `php_construct` property
+for every concept-rung PHP `:Item` — `class_declaration`,
+`interface_declaration` and `enum_declaration` alike, told apart by the
+`php_construct` property, the producer emitting `kind: "trait"` for a
+class or an interface and `kind: "enum"` for an enum, a kind already
+inside `cfdb-041-language-backend-trait#4`'s closed set, so no kind is
+widened
 (graph-specs-011-php-ladder#3.1; cfdb-045-polyglot-relationship-edges#3.2) —
 and for nothing below that rung: a method `:Item` binds no heading and is
 reached only through an anchor. The `unit` of the agnostic triple is the

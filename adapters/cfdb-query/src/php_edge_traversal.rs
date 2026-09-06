@@ -10,11 +10,16 @@ use domain::{
 };
 use ports::ReaderError;
 
-const CONCEPT_RUNG: &[&str] = &["class_declaration", "interface_declaration"];
+const CONCEPT_RUNG: &[&str] = &[
+    "class_declaration",
+    "interface_declaration",
+    "enum_declaration",
+];
 
 const KNOWN_CONSTRUCTS: &[&str] = &[
     "class_declaration",
     "interface_declaration",
+    "enum_declaration",
     "trait_declaration",
     "method_declaration",
     "function_definition",
