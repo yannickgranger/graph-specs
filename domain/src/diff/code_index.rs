@@ -3,10 +3,11 @@ use std::collections::HashMap;
 
 pub(super) struct CodeIndex {
     by_name: HashMap<String, Vec<ConceptNode>>,
+    contexts_declared: bool,
 }
 
 impl CodeIndex {
-    pub(super) fn new(nodes: Vec<ConceptNode>) -> Self {
+    pub(super) fn new(nodes: Vec<ConceptNode>, contexts_declared: bool) -> Self {
         let mut by_name: HashMap<String, Vec<ConceptNode>> = HashMap::new();
         for node in nodes {
             by_name.entry(node.name.clone()).or_default().push(node);
@@ -14,7 +15,10 @@ impl CodeIndex {
         for items in by_name.values_mut() {
             items.sort_by(|a, b| a.unit().cmp(&b.unit()));
         }
-        Self { by_name }
+        Self {
+            by_name,
+            contexts_declared,
+        }
     }
 
     pub(super) fn contains(&self, name: &str) -> bool {
@@ -30,7 +34,7 @@ impl CodeIndex {
         if items.is_empty() {
             return None;
         }
-        let index = match spec_node.context() {
+        let index = match spec_node.context().filter(|_| self.contexts_declared) {
             Some(ctx) => items.iter().position(|item| item.context() == Some(ctx))?,
             None => 0,
         };

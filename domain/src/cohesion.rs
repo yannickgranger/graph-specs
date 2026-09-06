@@ -17,7 +17,7 @@ pub enum CohesionViolation {
         declared: String,
         code_context: String,
         spec_source: Source,
-        code_source: Option<Source>,
+        code_source: Option<Box<Source>>,
     },
 }
 

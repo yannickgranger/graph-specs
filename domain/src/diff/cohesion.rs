@@ -52,7 +52,7 @@ pub(super) fn cohesion_pass(
                     code_context: code_ctx.to_owned(),
                     concept: concept.clone(),
                     spec_source: spec_source.clone(),
-                    code_source: Some(code_source.clone()),
+                    code_source: Some(Box::new(code_source.clone())),
                 },
             ));
         }

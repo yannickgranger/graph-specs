@@ -82,7 +82,7 @@ pub fn diff(spec: CheckInput, code: Graph, answerable: Option<&[crate::EdgeKind]
 
     let declared_contexts = snapshot_declared_contexts(&spec_nodes, &spec_contexts);
 
-    let mut code_by_name = CodeIndex::new(code_nodes);
+    let mut code_by_name = CodeIndex::new(code_nodes, !spec_contexts.is_empty());
 
     let unobliged_concepts: HashSet<String> = spec_nodes
         .iter()

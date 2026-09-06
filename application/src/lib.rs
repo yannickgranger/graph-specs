@@ -65,6 +65,32 @@ fn code_inputs(
     Ok((set, cache))
 }
 
+fn declared_contexts_per_document(
+    nodes: Vec<domain::ConceptNode>,
+    trees: &[SpecTree],
+) -> Vec<domain::ConceptNode> {
+    let declared: HashMap<(&Path, &str), &str> = trees
+        .iter()
+        .flat_map(|tree| {
+            tree.concept_declarations()
+                .into_iter()
+                .map(move |(name, context)| ((tree.file.as_path(), name), context))
+        })
+        .collect();
+    nodes
+        .into_iter()
+        .map(|node| {
+            let declared_context = declared
+                .get(&(node.source.path(), node.name.as_str()))
+                .map(|c| (*c).to_owned());
+            match declared_context {
+                None => node,
+                context => node.with_declared_context(context),
+            }
+        })
+        .collect()
+}
+
 pub fn run_check(
     specs_dir: &Path,
     code_dir: &Path,
@@ -124,21 +150,7 @@ pub fn run_check(
     spec_findings.append(&mut within_side);
 
     let trees = reader.extract_spec_trees(&spec_set)?;
-    let declared: HashMap<&str, &str> = trees
-        .iter()
-        .flat_map(SpecTree::concept_declarations)
-        .collect();
-    specs_graph.nodes = specs_graph
-        .nodes
-        .into_iter()
-        .map(|node| {
-            let declared_context = declared.get(node.name.as_str()).map(|c| (*c).to_owned());
-            match declared_context {
-                None => node,
-                context => node.with_declared_context(context),
-            }
-        })
-        .collect();
+    specs_graph.nodes = declared_contexts_per_document(specs_graph.nodes, &trees);
     let spec_cohesion: Vec<CohesionViolation> = trees
         .iter()
         .flat_map(SpecTree::cohesion_violations)
