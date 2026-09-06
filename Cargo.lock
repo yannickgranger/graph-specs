@@ -19,12 +19,12 @@ dependencies = [
 name = "adapter-markdown"
 version = "0.7.0"
 dependencies = [
- "adapter-rust",
  "cascade",
  "domain",
  "ports",
  "pulldown-cmark",
  "regex",
+ "signature-norm",
  "syn 2.0.117",
  "tempfile",
  "tracing",
@@ -50,6 +50,7 @@ dependencies = [
  "ports",
  "proc-macro2",
  "quote",
+ "signature-norm",
  "syn 2.0.117",
  "tempfile",
  "walkdir",
@@ -624,6 +625,15 @@ name = "shlex"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
+
+[[package]]
+name = "signature-norm"
+version = "0.7.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+]
 
 [[package]]
 name = "strsim"

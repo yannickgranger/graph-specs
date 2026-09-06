@@ -173,7 +173,7 @@ fn signature_from_blocks(blocks: &[&str]) -> SignatureState {
 
 fn parse_single_block(raw: &str) -> SignatureState {
     match syn::parse_str::<syn::Item>(raw) {
-        Ok(item) => SignatureState::Normalized(adapter_rust::normalize(&item)),
+        Ok(item) => SignatureState::Normalized(signature_norm::normalize(&item)),
         Err(e) => SignatureState::Unparseable {
             raw: raw.to_string(),
             error: e.to_string(),
