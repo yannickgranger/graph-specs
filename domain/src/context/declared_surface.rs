@@ -2,7 +2,7 @@ use super::decl::{ContextDecl, OwnedUnit};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DeclaredSurface {
-    prefixes: Vec<String>,
+    units: Vec<(String, String)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -28,9 +28,12 @@ impl DeclaredSurface {
         if let Some(ambiguity) = nested_across_contexts(&declared) {
             return Err(ambiguity);
         }
-        let mut prefixes: Vec<String> = declared.into_iter().map(|(unit, _)| unit).collect();
-        prefixes.dedup();
-        Ok(Self { prefixes })
+        let mut units: Vec<(String, String)> = declared
+            .into_iter()
+            .map(|(unit, context)| (unit, context.to_owned()))
+            .collect();
+        units.dedup();
+        Ok(Self { units })
     }
 
     #[must_use]
@@ -40,17 +43,26 @@ impl DeclaredSurface {
 
     #[must_use]
     pub fn unit_of(&self, qname: &str) -> Option<&str> {
+        self.longest_covering(qname).map(|(unit, _)| unit.as_str())
+    }
+
+    #[must_use]
+    pub fn context_of(&self, qname: &str) -> Option<&str> {
+        self.longest_covering(qname)
+            .map(|(_, context)| context.as_str())
+    }
+
+    fn longest_covering(&self, qname: &str) -> Option<&(String, String)> {
         let qname = normalize(qname);
-        self.prefixes
+        self.units
             .iter()
-            .filter(|prefix| covers(prefix, &qname))
-            .max_by_key(|prefix| prefix.len())
-            .map(String::as_str)
+            .filter(|(unit, _)| covers(unit, &qname))
+            .max_by_key(|(unit, _)| unit.len())
     }
 
     #[must_use]
     pub const fn is_empty(&self) -> bool {
-        self.prefixes.is_empty()
+        self.units.is_empty()
     }
 }
 

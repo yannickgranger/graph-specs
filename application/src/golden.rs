@@ -147,6 +147,7 @@ fn wrapped_violations() -> Vec<Violation> {
             declared: "reading".into(),
             code_context: "equivalence".into(),
             spec_source: spec(19),
+            code_source: None,
         }),
         Violation::DanglingAnchor {
             concept: "Omega".into(),

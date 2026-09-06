@@ -17,6 +17,7 @@ pub enum CohesionViolation {
         declared: String,
         code_context: String,
         spec_source: Source,
+        code_source: Option<Source>,
     },
 }
 
@@ -69,6 +70,7 @@ mod tests {
             declared: "reading".to_owned(),
             code_context: "equivalence".to_owned(),
             spec_source: spec_src(),
+            code_source: None,
         };
         assert_eq!(v.key(), "MarkdownReader");
     }

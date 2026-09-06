@@ -1,4 +1,4 @@
-use crate::context::context_for_concept;
+use crate::context::context_for_code_node;
 use crate::{resolve_declared_context, CohesionViolation, ContextDecl, Graph, Source, Violation};
 
 pub(super) fn cohesion_pass(
@@ -22,17 +22,37 @@ pub(super) fn cohesion_pass(
         else {
             continue;
         };
-        let Some(code_ctx) = context_for_concept(code, contexts, &concept).map(|c| c.name.as_str())
-        else {
+
+        let items: Vec<(&Source, Option<&str>)> = code
+            .nodes
+            .iter()
+            .filter(|n| n.name == concept)
+            .map(|n| {
+                (
+                    &n.source,
+                    context_for_code_node(n, contexts).map(|c| c.name.as_str()),
+                )
+            })
+            .collect();
+
+        if items
+            .iter()
+            .any(|(_, code_ctx)| *code_ctx == Some(declared_ctx))
+        {
             continue;
-        };
-        if declared_ctx != code_ctx {
+        }
+
+        for (code_source, code_ctx) in items {
+            let Some(code_ctx) = code_ctx else {
+                continue;
+            };
             violations.push(Violation::Cohesion(
                 CohesionViolation::ConceptContextMismatch {
                     declared: declared_ctx.to_owned(),
                     code_context: code_ctx.to_owned(),
-                    concept,
-                    spec_source,
+                    concept: concept.clone(),
+                    spec_source: spec_source.clone(),
+                    code_source: Some(code_source.clone()),
                 },
             ));
         }

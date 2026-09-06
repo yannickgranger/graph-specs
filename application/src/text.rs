@@ -254,11 +254,16 @@ fn format_cohesion_violation(v: &CohesionViolation, out: &mut impl Write) -> std
             declared,
             code_context,
             spec_source,
+            code_source,
         } => {
             let at = located(spec_source);
+            let item = code_source
+                .as_ref()
+                .map(|s| format!(", item at {}", located(s)))
+                .unwrap_or_default();
             writeln!(
                 out,
-                "concept context mismatch: {concept} declared in `{declared}` but code resolves to `{code_context}` ({at})"
+                "concept context mismatch: {concept} declared in `{declared}` but code resolves to `{code_context}` ({at}{item})"
             )
         }
         _ => writeln!(out, "unknown cohesion violation"),
@@ -540,6 +545,7 @@ mod tests {
                 line: 7,
                 context: None,
             },
+            code_source: None,
         });
         let out = render(&v);
         assert!(out.contains("concept context mismatch: Widget"));

@@ -413,3 +413,171 @@ fn context_violations_sort_after_edge_variants() {
     let v = diff(ci(Graph::default(), contexts), code);
     assert!(!v.is_empty());
 }
+
+fn code_node_with_provenance(name: &str, unit: &str) -> ConceptNode {
+    code_node(name, unit).with_provenance(Some(unit.to_owned()), Some(unit.to_owned()), None)
+}
+
+fn spec_node_in(name: &str, context: &str) -> ConceptNode {
+    ConceptNode::new(
+        name.to_string(),
+        Source::Spec {
+            format: crate::SpecFormat::Markdown,
+            path: PathBuf::from(format!("specs/concepts/{context}.md")),
+            line: 1,
+            context: Some(context.to_string()),
+        },
+        SignatureState::Absent,
+    )
+}
+
+fn mismatches(violations: &[Violation]) -> Vec<(String, String, Option<String>)> {
+    violations
+        .iter()
+        .filter_map(|v| match v {
+            Violation::Cohesion(crate::CohesionViolation::ConceptContextMismatch {
+                concept,
+                code_context,
+                code_source,
+                ..
+            }) => Some((
+                concept.clone(),
+                code_context.clone(),
+                code_source
+                    .as_ref()
+                    .and_then(|s| s.unit().map(str::to_owned)),
+            )),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn same_named_items_under_two_units_each_bind_their_own_heading() {
+    let spec = Graph::new(
+        vec![
+            spec_node_in("Clock", "scheduling"),
+            spec_node_in("Clock", "privacy"),
+        ],
+        vec![],
+    );
+    let code = Graph::new(
+        vec![
+            code_node("Clock", "scheduling"),
+            code_node("Clock", "privacy"),
+        ],
+        vec![],
+    );
+    let contexts = vec![
+        ctx("scheduling", &["scheduling"], vec![], vec![]),
+        ctx("privacy", &["privacy"], vec![], vec![]),
+    ];
+
+    let violations = diff(ci(spec, contexts), code);
+
+    assert_eq!(
+        mismatches(&violations),
+        Vec::new(),
+        "each heading binds the item of its own unit, so neither reports a mismatch"
+    );
+    assert!(
+        !violations
+            .iter()
+            .any(|v| matches!(v, Violation::MissingInCode { .. })),
+        "both headings bind: {violations:?}"
+    );
+}
+
+#[test]
+fn a_heading_in_a_context_owning_no_item_of_its_name_reads_missing() {
+    let spec = Graph::new(
+        vec![
+            spec_node_in("Clock", "scheduling"),
+            spec_node_in("Clock", "reading"),
+        ],
+        vec![],
+    );
+    let code = Graph::new(
+        vec![code_node_with_provenance("Clock", "scheduling")],
+        vec![],
+    );
+    let contexts = vec![
+        ctx("scheduling", &["scheduling"], vec![], vec![]),
+        ctx("reading", &["reading"], vec![], vec![]),
+    ];
+
+    let violations = diff(ci(spec, contexts), code);
+
+    assert!(
+        violations
+            .iter()
+            .any(|v| matches!(v, Violation::MissingInCode { name, .. } if name == "Clock")),
+        "the heading whose context owns no Clock binds nothing: {violations:?}"
+    );
+    assert_eq!(
+        mismatches(&violations),
+        vec![(
+            "Clock".to_string(),
+            "scheduling".to_string(),
+            Some("scheduling".to_string())
+        )],
+        "and is compared with the one same-named item outside its context"
+    );
+}
+
+#[test]
+fn two_foreign_items_of_one_name_are_two_records_told_apart_by_unit() {
+    let spec = Graph::new(vec![spec_node_in("Clock", "reading")], vec![]);
+    let code = Graph::new(
+        vec![
+            code_node_with_provenance("Clock", "domain/enrolment"),
+            code_node_with_provenance("Clock", "domain/privacy"),
+        ],
+        vec![],
+    );
+    let contexts = vec![
+        ctx("reading", &["reading"], vec![], vec![]),
+        ctx(
+            "modelling",
+            &["domain/enrolment", "domain/privacy"],
+            vec![],
+            vec![],
+        ),
+    ];
+
+    let mut found = mismatches(&diff(ci(spec, contexts), code));
+    found.sort();
+
+    assert_eq!(
+        found,
+        vec![
+            (
+                "Clock".to_string(),
+                "modelling".to_string(),
+                Some("domain/enrolment".to_string())
+            ),
+            (
+                "Clock".to_string(),
+                "modelling".to_string(),
+                Some("domain/privacy".to_string())
+            ),
+        ],
+        "two items under two units of one foreign context are two records, told apart by unit"
+    );
+}
+
+#[test]
+fn a_unit_below_a_declared_prefix_still_resolves_to_its_context() {
+    let spec = Graph::new(vec![spec_node_in("Clock", "modelling")], vec![]);
+    let code = Graph::new(vec![code_node("Clock", "domain/enrolment/deep")], vec![]);
+    let contexts = vec![ctx("modelling", &["domain"], vec![], vec![])];
+
+    let violations = diff(ci(spec, contexts), code);
+
+    assert_eq!(
+        mismatches(&violations),
+        Vec::new(),
+        "the Owns prefix `domain` covers the unit `domain/enrolment/deep`, so the item resolves \
+         to modelling and the heading binds it: {violations:?}"
+    );
+}

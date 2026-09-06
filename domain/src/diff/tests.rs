@@ -516,6 +516,7 @@ fn violation_key_cohesion_uses_each_variant_key() {
             line: 1,
             context: None,
         },
+        code_source: None,
     });
     let (key, rank) = violation_key(&mismatch);
     assert_eq!(key, "MarkdownReader");

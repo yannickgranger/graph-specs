@@ -30,10 +30,10 @@ impl CodeIndex {
         if items.is_empty() {
             return None;
         }
-        let index = spec_node
-            .context()
-            .and_then(|ctx| items.iter().position(|item| item.context() == Some(ctx)))
-            .unwrap_or(0);
+        let index = match spec_node.context() {
+            Some(ctx) => items.iter().position(|item| item.context() == Some(ctx))?,
+            None => 0,
+        };
         let taken = items.remove(index);
         if items.is_empty() {
             self.by_name.remove(spec_node.name.as_str());

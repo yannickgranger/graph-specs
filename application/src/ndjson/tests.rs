@@ -424,6 +424,7 @@ fn concept_context_mismatch_record() {
             line: 7,
             context: None,
         },
+        code_source: None,
     });
     let r = record(&render_one(v));
     assert_eq!(r["violation"], "concept_context_mismatch");
