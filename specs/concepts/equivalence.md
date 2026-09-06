@@ -370,7 +370,7 @@ port boundary.
 
 ## LanguageBackend
 
-<!-- parent:rfc:graph-specs-016-parse-once-reading-port#3.3 anchor:"recorded here as an RFC-004 amendment" -->
+<!-- parent:rfc:graph-specs-016-parse-once-reading-port#3.3.1 anchor:"recorded here as an RFC-004 amendment" -->
 
 Lower-level code-side port: walks a source root in one pass and emits an
 [Extraction](#extraction) of flat [ConceptNode](#conceptnode) values plus

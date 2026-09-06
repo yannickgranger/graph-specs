@@ -74,6 +74,8 @@ Two monomorphic traits, not one generic `Loader<T>`: each has exactly one implem
 
 The existing traits keep their one-capability-per-trait shape (RFC-001 §3.6 / RFC-005 §3.2 precedent — this RFC extends that discipline, it does not replace it), and their methods change input: `&SpecFileSet` / `&CodeFileSet` instead of `&Path`. One trait cannot keep its name: `Reader` is the only trait implemented on both sides (`MarkdownReader` and `RustReader`), and two nominal input types cannot share one non-generic method signature (E0053), so `Reader` splits into `SpecReader` and `CodeReader` and the shared name retires — the same monomorphic-traits ruling as §3.2, applied to the one place revision 2 missed it. The value of a trait with one production implementor here is testability plus machine-enforced policy (the port-bypass ban family in `.cfdb/queries/`), not hypothetical substitutability. The four unported capabilities gain sibling traits of the same shape:
 
+#### §3.3.1 — The port table
+
 | Capability today | Port after this RFC |
 |---|---|
 | `Reader::extract(&Path)` — one trait, implemented by both adapters | splits: `SpecReader::extract(&SpecFileSet)` on `MarkdownReader`; `CodeReader::extract(&CodeFileSet)` on `RustReader`; the shared `Reader` name retires |
@@ -88,6 +90,10 @@ The existing traits keep their one-capability-per-trait shape (RFC-001 §3.6 / R
 | `RustAnchorResolver::index(&Path)` (inherent constructor) | `RustAnchorResolver::index(&CodeFileSet, &ParseCache)` — the `AnchorResolver` port trait itself (`resolve(&self, qname)`) is unchanged; only the constructor re-anchors |
 
 Error-contract honesty: after re-anchoring, capability trait methods can structurally return only `ReaderError::ParseFailed`; `IoFailed` and `WalkFailed` become the exclusive province of the loader traits in §3.2, and each capability trait's contract documentation says so.
+
+**Amendment 2026-09-06.** The table above predates `SignatureNormalizer` and its implementers `RustSignatures` and `PhpSignatures` (graph-specs-004-multi-language-adapter-contract#3.6; landed by graph-specs #263, #265 and #267): a normalizer takes a fenced block of text handed to it and never a file set, so no row of the table applies to it and slice S1 of §7 leaves the three untouched.
+
+#### §3.3.2 — `SpecTree` relocates to `domain`
 
 `SpecTree` relocates to `domain` — the struct, its field type `HeadingNode` (`SpecTree.nodes: Vec<HeadingNode>` makes the pair inseparable), and its four inherent methods (`context_id`, `concept_declarations`, `cohesion_violations`, `has_cohesion_unit`). Rust forbids an inherent `impl` on a type defined outside the current crate (E0116), and the methods touch only domain types today (`AbstractionLevel`, `CohesionViolation`, `behavioral_exemption_applies`), so the move is both compilable and consistent with existing precedent. Only assembly — the pulldown-cmark event walk and `ReaderError` production — stays adapter-side behind `SpecTreeReader`.
 
@@ -113,12 +119,12 @@ Both `adapter-rust` and `adapter-markdown` depend on it; `adapter-markdown`'s `a
 
 ## §4 Invariants
 
-- NDJSON schema v4 is byte-stable: `check` and `report --verb-coverage` NDJSON and text outputs on this repo's own tree are byte-identical before and after every slice (baseline sha256 recorded at `6fd46418`: report NDJSON `eb538512…`, report text `508e250b…`, check output empty at zero violations).
+- NDJSON schema v5 (`graph-specs-004-multi-language-adapter-contract#3.5` as amended) is byte-stable: `check` and `report --verb-coverage` NDJSON and text outputs on this repo's own tree are byte-identical before and after every slice, with the one exception this RFC's own order creates — a slice that relocates a file (§3.5 moves `normalize`) changes the `path` and `line` fields of the records the moved lines carry and nothing else, so for such a slice the invariant reads on the record set with `path` and `line` held out, and the baseline is re-recorded at the slice's merge (amendment of 2026-09-06, measured on graph-specs #264 by its blind seat). A baseline is comparable only under the command that recorded it, invoked from inside the tree — `graph-specs <verb> --specs specs/concepts --code .`, `--format ndjson` for the NDJSON values — because the outputs carry the paths they were given and the same binary on the same tree hashes differently from another working directory. Baseline at `24a2f91` (the tree of the §3.5 merge `03cd714`): check NDJSON `054106275d32108e…` and text `7a97df8972134e69…`, both unchanged from the base `a14c87e`; report NDJSON `2129630ba89f5a20…` and text `8d8b32002fa51dca…`, against `cd85796aef9bcc97…` and `1b2b9f104316b7d3…` at the base — 138 records on both sides, equal once `path` and `line` are held out: one path, `normalize` from `adapters/rust/src/normalize.rs` to `adapters/signature/src/lib.rs`, and seven line numbers in `adapters/rust/src/lib.rs` each shifted by one for the deleted `mod normalize;`. Earlier baseline at `6fd46418`, schema v4: report NDJSON `eb538512…`, report text `508e250b…`, check output empty at zero violations.
 - `SpecFileSet` / `CodeFileSet` iteration order is sorted-by-path and load-bearing for that byte-stability; the aggregates enforce it at construction (§3.1) and S1's loader-determinism unit test is the regression fence.
 - Whole-tree-in-memory is the accepted resource model: a file set holds every matching file's text for the duration of one run. Accepted bound — source trees at qbot-core scale are tens of megabytes; the previous model re-read the same bytes three to five times.
 - Exit codes unchanged. Self-dogfood stays 0 violations. Cross-dogfood on cfdb at its pinned SHA stays exit 0.
 - `cfdb` ban rules stay 0 across all six rules, including `arch-context-no-syn-in-domain` (unaffected: file sets are text-level) and `arch-ban-multiple-walk-pub-fns-callers`.
-- Own-gate (keel L2) ungrounded count does not increase beyond the pre-existing worklist (57 headings at baseline); new port concepts land with spec headings transcribed from this RFC in the same PR, with paired `Exports`/`Imports` context entries.
+- Own-gate: the tree declares L3 in `keel.json` and the corpus-wide ungrounded count is zero and stays zero, every heading grounded at the pin (amendment 2026-09-06 — the L2 worklist of 57 headings at the 2026-08 baseline is drained, so the former "does not increase" bound is met vacuously and the invariant is the stricter one the gate already enforces); new port concepts land with spec headings transcribed from this RFC in the same PR, with paired `Exports`/`Imports` context entries.
 - Existing test corpus passes; the emitter golden tripwire (landed 2026-08-19) stays green.
 
 ## §5 Architect lenses

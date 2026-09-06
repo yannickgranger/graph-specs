@@ -11,7 +11,7 @@ document occupies the reservation and no other number is admissible for
 this subject.
 
 Citations below are in the full identifier-and-clause form throughout,
-because `keel-dialect` §6.5 rules that "A bare number (`RFC-005`) is not
+because `keel-dialect#6.5` rules that "A bare number (`RFC-005`) is not
 an id and resolves to nothing" and admits no alias into the index or
 into any reader. Where the harness or the dialect is named, a bare
 section is used, because neither is ever an ancestor of anything here.
@@ -119,7 +119,7 @@ to a typed abstraction level and §11 aligns the rungs with cfdb's
 vocabulary, `H2 Concept ↔ :Item`. A port and its adapter are two
 concepts at the concept rung and are written as two headings; where an
 author wants one, the sub-concept rung and the chain declaration of
-`keel-dialect` §3.3 express it.
+`keel-dialect#3.3` express it.
 
 Method facts do not bind a concept heading. cfdb's PHP producer emits
 method `:Item`s — `cfdb-045-polyglot-relationship-edges#2` records that
