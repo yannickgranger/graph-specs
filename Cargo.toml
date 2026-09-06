@@ -6,6 +6,7 @@ members = [
     "adapters/markdown",
     "adapters/rust",
     "adapters/cfdb-query",
+    "adapters/php",
     "application",
 ]
 
@@ -35,6 +36,7 @@ domain = { path = "domain" }
 ports = { path = "ports" }
 adapter-markdown = { path = "adapters/markdown" }
 adapter-rust = { path = "adapters/rust" }
+adapter-php = { path = "adapters/php" }
 adapter-cfdb-query = { path = "adapters/cfdb-query" }
 application = { path = "application" }
 

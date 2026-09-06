@@ -149,12 +149,10 @@ drift, distinct from `signature_drift`, which is spec-versus-code.
 reported for human resolution and neither auto-wins; the inline attribute is
 the downstream conformist (RFC-004 §4 invariant 7).
 
-**No reader emits this variant yet.** It takes two readers on one side, and
-this tool ships one spec reader. The first producer is `PhpAttributeReader`
-(graph-specs-011 §3.3), whose unit lands after this one and deletes this
-paragraph. Until then the variant is the wire contract's, not the checker's:
-the schema describes the record a consumer must be ready to parse, and says
-plainly that nothing writes it.
+**The producer is the PHP attribute channel.** `PhpAttributeReader`
+(graph-specs-011 §3.3) reads `#[Spec(...)]` attributes out of `.php` sources
+as spec-side facts, and `check` unions them with the markdown spec graph;
+where the two give one concept two signatures, this record is what says so.
 
 ### `signature_missing_in_spec`
 
@@ -280,6 +278,37 @@ A spec heading declares a `- depends on:` or `- returns:` bullet, and the code i
 On a PHP keyspace the answerable set is `IMPLEMENTS` alone: cfdb's PHP producer emits no field-type or return-type edge, so `DEPENDS_ON` and `RETURNS` bullets are unanswerable there. On the source walk every kind is answerable and this record never appears.
 
 **Remediation:** none available in the specs — the fact does not exist in the input. Either check the repository against an input whose producer emits that relationship, or accept the bullet as undecidable for this input.
+
+**Schema evolution.** Additive — a new `violation` discriminator rides the current `schema_version` (see §Schema evolution).
+
+### `unknown_attribute_key` (v0.8)
+
+A `#[Spec(...)]` attribute carries a key the channel does not define. The
+accepted set is exactly `implements`, `extends` and `signature`
+(graph-specs-004 §3.5, derived from graph-specs-003 §9); anything else is a
+finding of the reader and never a silent skip.
+
+```json
+{"schema_version":"5","violation":"unknown_attribute_key","concept":"Course","key":"inherits","spec_source":{"kind":"spec","path":"src/Catalogue/Course.php","line":3,"format":"inline_attribute"}}
+```
+
+| Extra field | Type | Meaning |
+|---|---|---|
+| `key` | string | the key the attribute carried |
+| `spec_source` | source object (kind=spec, format=inline_attribute) | the argument's own site |
+
+**`extends` is accepted and unanswerable.** It is in the key set, so it is
+never this finding — but it yields no edge, because the ecosystem has no
+inheritance label to yield one into: `cfdb-045-polyglot-relationship-edges`
+§3.3 defers `extends` edges as ratified, with no existing edge label, and
+`graph-specs-011` §5 non-goal 6 holds the same line. The claim is unanswered,
+not unmet — the same distinction `edge_unanswerable` draws one rung over. The
+day an inheritance label is ratified, the edge is that unit's work; nothing
+here pre-builds a kind for it.
+
+**Remediation:** use one of the three accepted keys, or move the claim to the
+markdown spec, which is the canonical upstream of every attribute
+(graph-specs-004 §4 invariant 7).
 
 **Schema evolution.** Additive — a new `violation` discriminator rides the current `schema_version` (see §Schema evolution).
 

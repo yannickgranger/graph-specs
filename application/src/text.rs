@@ -206,6 +206,17 @@ pub fn format_violation(v: &Violation, out: &mut impl Write) -> std::io::Result<
                 "dangling anchor: {concept} anchors `{target}` but no such code item exists ({at})"
             )
         }
+        Violation::UnknownAttributeKey {
+            concept,
+            key,
+            spec_source,
+        } => {
+            let at = located(spec_source);
+            writeln!(
+                out,
+                "unknown attribute key: {concept} carries `{key}`, which the `#[Spec(...)]` channel does not define ({at})"
+            )
+        }
         Violation::SignatureDriftWithinSide {
             name,
             side,

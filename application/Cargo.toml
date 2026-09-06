@@ -9,6 +9,7 @@ clap = { workspace = true }
 domain = { workspace = true }
 ports = { workspace = true }
 adapter-markdown = { workspace = true }
+adapter-php = { workspace = true }
 adapter-rust = { workspace = true }
 serde_json = { workspace = true }
 # RFC-010 §3.3 / Invariant 3: cfdb-query is an OPT-IN leaf behind the

@@ -240,6 +240,7 @@ const fn violation_key(v: &Violation) -> (&str, u8) {
         Violation::VerbTargetUnknown { concept, .. } => (concept.as_str(), 11),
         Violation::Cohesion(c) => (c.key(), 12),
         Violation::SignatureDriftWithinSide { name, .. } => (name.as_str(), 13),
+        Violation::UnknownAttributeKey { concept, .. } => (concept.as_str(), 18),
         Violation::DanglingAnchor { concept, .. } => (concept.as_str(), 14),
         Violation::ForbiddenConceptReintroduced { name, .. } => (name.as_str(), 15),
     }

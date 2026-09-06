@@ -1,0 +1,15 @@
+[package]
+name = "adapter-php"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+domain = { path = "../../domain" }
+ports = { path = "../../ports" }
+tree-sitter = "0.23"
+tree-sitter-php = "0.23"
+
+[dev-dependencies]
+tempfile = "3"
