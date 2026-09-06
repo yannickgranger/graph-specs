@@ -164,7 +164,7 @@ scope with the same whole-file semantics.
 - `retired` declares **code owed to be gone**. Written **while the
   backing item is still present**, and **never deleted**.
   **Superseded in part (operator ruling 2026-08-20, recorded as
-  `agentry-spec-state-marker` §12):** "never deleted" is scoped to a clean
+  `agentry-spec-state-marker#12`):** "never deleted" is scoped to a clean
   cascade. Until the operator calls stability, a record whose backing item
   is absent is removed. The marker's carrier, its two records and the
   obligation rule are untouched.

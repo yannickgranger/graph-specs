@@ -267,7 +267,7 @@ Adapters do NOT carry a `language()` method on the `Reader` trait (per the §3.2
 
 R4-5's negative dogfood test: with graph-specs' all-rust-code + all-markdown-spec tree, `--lang rust` MUST produce the same violation set as no flag. An empty `active_code_readers` after filtering is a bug, not an expected state.
 
-### §3.5 — NDJSON schema v3 (revised in r2)
+### §3.5 — NDJSON schema v5 (revised in r2; v3 and v4 spent — amendment of 2026-09-06, the R4-6 row and the schema tripwire already read v5)
 
 `schema_version` bumps to `"3"`. The bump is driven by the new typed payload on every source object — that is a breaking shape change per `specs/ndjson-output.md` §"Schema evolution".
 
