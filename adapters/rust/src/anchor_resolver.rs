@@ -1,6 +1,7 @@
 use crate::cfg_gate::is_test_gated;
 use crate::pub_fns::root_ident_of_self_ty;
 use crate::walk::{is_excluded_dir, read_and_parse};
+use domain::LocationKind;
 use domain::Provenance;
 use domain::{AnchorKind, AnchorTarget, Source};
 use ports::{AnchorResolver, ReaderError};
@@ -98,6 +99,7 @@ fn index_impl_methods(
                 path: path.to_path_buf(),
                 line,
                 provenance: Provenance::empty(),
+                location: LocationKind::Path,
             },
         });
     }
@@ -118,6 +120,7 @@ fn insert(
                 path: path.to_path_buf(),
                 line,
                 provenance: Provenance::empty(),
+                location: LocationKind::Path,
             },
         });
 }

@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use cfdb_core::fact::{Edge, Node, PropValue};
 use cfdb_core::schema::{Label, SchemaVersion};
+use domain::LocationKind;
 use domain::Provenance;
 use domain::{ConceptNode, DeclaredSurface, SignatureState, Source};
 use ports::{CodeFacts, ReaderError};
@@ -68,6 +69,16 @@ impl CfdbQueryReader {
             line: e.line(),
             message: e.to_string(),
         })
+    }
+}
+
+impl CfdbQueryReader {
+    pub fn concept_rung_items(&self) -> Result<usize, ReaderError> {
+        let file = self.load()?;
+        if !PhpEdgeTraversal::declares_php(&file.nodes) {
+            return Ok(0);
+        }
+        Ok(PhpEdgeTraversal::concept_rung_items(&file.nodes))
     }
 }
 
@@ -155,6 +166,7 @@ fn item_to_concept(node: &Node, root: &Path) -> Option<ConceptNode> {
                 path: PathBuf::from(file),
                 line,
                 provenance: Provenance::empty(),
+                location: LocationKind::Path,
             },
             SignatureState::Absent,
         )

@@ -66,6 +66,8 @@ pub fn diff(spec: CheckInput, code: Graph) -> CheckOutcome {
         edges: code_edges,
     } = code;
 
+    let code_nodes = resolve_code_contexts(code_nodes, &spec_contexts);
+
     let code_for_context = if spec_contexts.is_empty() {
         Graph::default()
     } else {
@@ -78,8 +80,6 @@ pub fn diff(spec: CheckInput, code: Graph) -> CheckOutcome {
     };
 
     let declared_contexts = snapshot_declared_contexts(&spec_nodes, &spec_contexts);
-
-    let code_nodes = resolve_code_contexts(code_nodes, &spec_contexts);
 
     let mut code_by_name = CodeIndex::new(code_nodes);
 

@@ -60,6 +60,7 @@ mod tests {
                 path: PathBuf::from(format!("{unit}/src/lib.rs")),
                 line: 1,
                 provenance: crate::Provenance::empty(),
+                location: crate::LocationKind::Path,
             },
             SignatureState::Absent,
         )

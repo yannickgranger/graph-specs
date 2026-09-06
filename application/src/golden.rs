@@ -2,6 +2,7 @@ use crate::ndjson::write_ndjson;
 use crate::report_ndjson::emit_ndjson;
 use crate::report_text::emit_text;
 use crate::text::format_violation;
+use domain::LocationKind;
 use domain::Provenance;
 use domain::{
     CheckOutcome, CohesionViolation, ContextPattern, ContextViolation, EdgeKind, HomonymAppearance,
@@ -23,6 +24,7 @@ fn code(line: usize) -> Source {
         path: PathBuf::from("domain/src/lib.rs"),
         line,
         provenance: Provenance::empty(),
+        location: LocationKind::Path,
     }
 }
 
@@ -157,6 +159,7 @@ pub fn code_src() -> Source {
         path: PathBuf::from("application/src/lib.rs"),
         line: 33,
         provenance: Provenance::empty(),
+        location: LocationKind::Path,
     }
 }
 

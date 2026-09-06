@@ -41,18 +41,23 @@ impl DeclaredSurface {
 }
 
 fn normalize(raw: &str) -> String {
-    raw.trim().trim_start_matches('\\').to_string()
+    let trimmed = raw.trim();
+    let head = trimmed.strip_prefix('\\').unwrap_or(trimmed);
+    head.strip_suffix('\\').unwrap_or(head).to_string()
 }
 
 fn covers(prefix: &str, qname: &str) -> bool {
-    if qname == prefix {
-        return true;
+    if qname.len() < prefix.len() {
+        return false;
     }
-    qname.strip_prefix(prefix).is_some_and(|rest| {
-        rest.chars()
-            .next()
-            .is_some_and(|c| !c.is_alphanumeric() && c != '_')
-    })
+    let (head, rest) = qname.split_at(prefix.len());
+    if !head.eq_ignore_ascii_case(prefix) {
+        return false;
+    }
+    !rest
+        .chars()
+        .next()
+        .is_some_and(|c| c.is_alphanumeric() || c == '_')
 }
 
 #[cfg(test)]

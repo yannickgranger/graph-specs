@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use cfdb_core::fact::{Edge, Node, PropValue};
 use cfdb_core::schema::{EdgeLabel, Label};
+use domain::LocationKind;
 use domain::{
     ConceptNode, ConceptRef, DeclaredSurface, EdgeKind, OwnedUnit, Provenance, SignatureState,
     Source,
@@ -38,6 +39,15 @@ impl PhpEdgeTraversal {
         nodes
             .iter()
             .any(|node| prop(node, "php_construct").is_some())
+    }
+
+    #[must_use]
+    pub fn concept_rung_items(nodes: &[Node]) -> usize {
+        nodes
+            .iter()
+            .filter(|node| node.label.as_str() == Label::ITEM)
+            .filter(|node| prop(node, "php_construct").is_some_and(|c| CONCEPT_RUNG.contains(&c)))
+            .count()
     }
 
     pub fn concepts(
@@ -80,6 +90,7 @@ impl PhpEdgeTraversal {
                         path: PathBuf::from(&module),
                         line,
                         provenance: Provenance::empty(),
+                        location: LocationKind::Namespace,
                     },
                     SignatureState::Absent,
                 )
@@ -150,6 +161,7 @@ impl PhpEdgeTraversal {
                         unit: Some(src_unit.to_owned()),
                         context: None,
                     },
+                    location: LocationKind::Namespace,
                 },
             });
         }

@@ -1,4 +1,5 @@
 use crate::ConceptRef;
+use crate::LocationKind;
 use crate::Provenance;
 use crate::{
     detect_import_cycle, CheckInput, ConceptNode, ContextDecl, ContextExport, ContextImport,
@@ -18,6 +19,7 @@ fn code_node(name: &str, unit: &str) -> ConceptNode {
             path: PathBuf::from(format!("./{unit}/src/lib.rs")),
             line: 1,
             provenance: Provenance::empty(),
+            location: LocationKind::Path,
         },
         SignatureState::Absent,
     )
@@ -33,6 +35,7 @@ fn code_edge(src: &str, kind: EdgeKind, target: &str) -> Edge {
             path: PathBuf::from("./x/src/lib.rs"),
             line: 10,
             provenance: Provenance::empty(),
+            location: LocationKind::Path,
         },
     }
 }

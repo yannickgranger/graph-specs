@@ -232,10 +232,36 @@ pub enum Source {
         path: PathBuf,
         line: usize,
         provenance: Provenance,
+        location: LocationKind,
     },
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum LocationKind {
+    #[default]
+    Path,
+    Namespace,
+}
+
+impl LocationKind {
+    #[must_use]
+    pub const fn as_label(self) -> &'static str {
+        match self {
+            Self::Path => "path",
+            Self::Namespace => "namespace",
+        }
+    }
+}
+
 impl Source {
+    #[must_use]
+    pub const fn location_kind(&self) -> LocationKind {
+        match self {
+            Self::Spec { .. } => LocationKind::Path,
+            Self::Code { location, .. } => *location,
+        }
+    }
+
     #[must_use]
     pub fn path(&self) -> &std::path::Path {
         match self {
@@ -398,6 +424,7 @@ mod tests {
             path: PathBuf::from("domain/src/lib.rs"),
             line: 101,
             provenance: Provenance::empty(),
+            location: LocationKind::Path,
         }
     }
 

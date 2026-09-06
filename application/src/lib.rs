@@ -1,8 +1,8 @@
 use adapter_markdown::{assemble_spec_trees, MarkdownReader, SpecTree};
 use adapter_rust::{RustAnchorResolver, RustReader};
 use domain::{
-    diff, CheckInput, CheckOutcome, CohesionViolation, ConceptNode, DeclaredSurface, Graph,
-    ResolvedAnchor, VerbDecl, VerbOwnership,
+    diff, CheckInput, CheckOutcome, CohesionViolation, ConceptNode, ContextViolation,
+    DeclaredSurface, Graph, ResolvedAnchor, VerbDecl, VerbOwnership, Violation,
 };
 use ports::{AnchorResolver, CodeFacts, ContextReader, Reader, ReaderError, VerbReader};
 use std::collections::HashMap;
@@ -28,10 +28,27 @@ pub fn run_check(
         None => RustReader.extract(code_dir)?,
         Some(keyspace) => {
             let surface = DeclaredSurface::from_contexts(&spec_contexts);
-            Graph::new(
-                code_facts(code_dir, Some(keyspace), &surface)?,
-                code_relationships(code_dir, keyspace, &surface)?,
-            )
+            let facts = code_facts(code_dir, Some(keyspace), &surface)?;
+            if facts.is_empty() {
+                let concept_rung_items = concept_rung_items(code_dir, keyspace)?;
+                if concept_rung_items > 0 {
+                    return Ok(CheckOutcome::new(
+                        vec![Violation::Context(ContextViolation::SurfaceAdmitsNothing {
+                            declared_prefixes: spec_contexts
+                                .iter()
+                                .flat_map(|c| c.owned_units.iter().cloned())
+                                .collect(),
+                            concept_rung_items,
+                            keyspace: keyspace.to_path_buf(),
+                        })],
+                        Vec::new(),
+                        Vec::new(),
+                        Vec::new(),
+                        Vec::new(),
+                    ));
+                }
+            }
+            Graph::new(facts, code_relationships(code_dir, keyspace, &surface)?)
         }
     };
     let pub_fn_decls = RustReader.extract_pub_fns(code_dir)?;
@@ -93,6 +110,19 @@ pub fn code_facts(
         || RustReader.concepts(code_dir),
         |keyspace| keyspace_facts(code_dir, keyspace, surface),
     )
+}
+
+#[cfg(feature = "codefacts")]
+fn concept_rung_items(_code_dir: &Path, keyspace: &Path) -> Result<usize, ReaderError> {
+    adapter_cfdb_query::CfdbQueryReader::new(keyspace).concept_rung_items()
+}
+
+#[cfg(not(feature = "codefacts"))]
+fn concept_rung_items(code_dir: &Path, _keyspace: &Path) -> Result<usize, ReaderError> {
+    Err(ReaderError::WalkFailed {
+        root: code_dir.to_path_buf(),
+        cause: "cfdb-query keyspace routing requires the `codefacts` feature".to_owned(),
+    })
 }
 
 #[cfg(feature = "codefacts")]
@@ -230,6 +260,126 @@ mod tests {
         let via_adapter = RustReader.concepts(code.path()).unwrap();
         assert_eq!(via_router, via_adapter);
         assert!(via_router.iter().any(|c| c.name == "Foo"));
+    }
+
+    #[cfg(feature = "codefacts")]
+    #[test]
+    fn a_surface_that_admits_nothing_says_so_instead_of_wearing_the_missing_in_code_costume() {
+        let specs = TempDir::new().unwrap();
+        let dir = TempDir::new().unwrap();
+        let code = TempDir::new().unwrap();
+        write(
+            specs.path(),
+            "contexts/enrolment.md",
+            "# enrolment\n\n## Owns\n\n- App\\Enrolment\n",
+        );
+        write(
+            specs.path(),
+            "concepts/enrolment.md",
+            "# enrolment\n\n## Course\n\n## Teachable\n",
+        );
+        let keyspace = dir.path().join("coreen.json");
+        std::fs::write(
+            &keyspace,
+            r#"{"schema_version":{"major":0,"minor":8,"patch":0},"nodes":[
+            {"id":"item:Other\\Course","label":"Item","props":{"kind":"trait","line":3,
+             "name":"Course","php_construct":"class_declaration","qname":"Other\\Course"}},
+            {"id":"item:Other\\Teachable","label":"Item","props":{"kind":"trait","line":3,
+             "name":"Teachable","php_construct":"interface_declaration","qname":"Other\\Teachable"}}
+            ],"edges":[]}"#,
+        )
+        .unwrap();
+
+        let violations = run_check(specs.path(), code.path(), Some(&keyspace))
+            .unwrap()
+            .violations;
+        assert_eq!(
+            violations.len(),
+            1,
+            "one line about the surface, not one per heading: {violations:?}"
+        );
+        let Violation::Context(ContextViolation::SurfaceAdmitsNothing {
+            declared_prefixes,
+            concept_rung_items,
+            ..
+        }) = &violations[0]
+        else {
+            panic!("expected SurfaceAdmitsNothing, got {:?}", violations[0])
+        };
+        assert_eq!(*concept_rung_items, 2, "the keyspace holds N and says N");
+        assert_eq!(
+            declared_prefixes
+                .iter()
+                .map(|u| u.0.as_str())
+                .collect::<Vec<_>>(),
+            vec!["App\\Enrolment"]
+        );
+        assert!(
+            !violations
+                .iter()
+                .any(|v| matches!(v, Violation::MissingInCode { .. })),
+            "no heading is blamed for a surface that admitted nothing"
+        );
+    }
+
+    #[cfg(feature = "codefacts")]
+    #[test]
+    fn membership_and_binding_report_one_context_not_the_adapters_guess() {
+        let specs = TempDir::new().unwrap();
+        let dir = TempDir::new().unwrap();
+        let code = TempDir::new().unwrap();
+        write(
+            specs.path(),
+            "contexts/equivalence.md",
+            "# equivalence\n\n## Owns\n\n- domain\n",
+        );
+        write(specs.path(), "concepts/equivalence.md", "# equivalence\n");
+        let keyspace = dir.path().join("ks.json");
+        std::fs::write(
+            &keyspace,
+            r#"{"schema_version":{"major":0,"minor":5,"patch":0},"nodes":[
+            {"id":"item:marketing::Flyer","label":"Item","props":{"kind":"struct","name":"Flyer",
+             "visibility":"pub","is_test":false,"line":1,"file":"/ws/marketing/src/lib.rs",
+             "module_qpath":"marketing","bounded_context":"marketing"}}
+            ],"edges":[]}"#,
+        )
+        .unwrap();
+
+        let violations = run_check(specs.path(), code.path(), Some(&keyspace))
+            .unwrap()
+            .violations;
+        let membership: Vec<&Violation> = violations
+            .iter()
+            .filter(|v| {
+                matches!(
+                    v,
+                    Violation::Context(domain::ContextViolation::MembershipUnknown { .. })
+                )
+            })
+            .collect();
+        assert_eq!(membership.len(), 1, "{violations:?}");
+        let Violation::Context(domain::ContextViolation::MembershipUnknown { code_source, .. }) =
+            membership[0]
+        else {
+            unreachable!()
+        };
+        assert_eq!(
+            code_source.context(),
+            None,
+            "no declared context owns `marketing`; the adapter's bounded_context is not an answer to that question"
+        );
+        let orphan = violations
+            .iter()
+            .find_map(|v| match v {
+                Violation::MissingInSpecs { code_source, .. } => Some(code_source),
+                _ => None,
+            })
+            .expect("Flyer is undescribed");
+        assert_eq!(
+            orphan.context(),
+            code_source.context(),
+            "membership and binding read the same source"
+        );
     }
 
     #[cfg(feature = "codefacts")]

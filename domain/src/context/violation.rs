@@ -24,6 +24,11 @@ pub enum ContextViolation {
         target_context: String,
         spec_source: Source,
     },
+    SurfaceAdmitsNothing {
+        declared_prefixes: Vec<OwnedUnit>,
+        concept_rung_items: usize,
+        keyspace: std::path::PathBuf,
+    },
     CrossEdgeOffSurface {
         concept: String,
         owning_context: Option<String>,
@@ -44,6 +49,7 @@ impl ContextViolation {
     #[must_use]
     pub const fn concept(&self) -> &str {
         match self {
+            Self::SurfaceAdmitsNothing { .. } => "",
             Self::MembershipUnknown { concept, .. }
             | Self::CrossEdgeUnauthorized { concept, .. }
             | Self::CrossEdgeUndeclared { concept, .. }
@@ -63,6 +69,7 @@ mod tests {
             path: PathBuf::from("some-crate/src/lib.rs"),
             line: 3,
             provenance: crate::Provenance::empty(),
+            location: crate::LocationKind::Path,
         }
     }
 
