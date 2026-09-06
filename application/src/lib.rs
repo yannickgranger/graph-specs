@@ -485,7 +485,50 @@ mod tests {
 
     #[cfg(feature = "codefacts")]
     #[test]
-    fn an_implements_bullet_on_a_rust_keyspace_is_unanswerable_not_missing_in_code() {
+    fn an_implements_bullet_on_a_rust_keyspace_is_answered_now_not_excused() {
+        let specs = TempDir::new().unwrap();
+        let dir = TempDir::new().unwrap();
+        let code = TempDir::new().unwrap();
+        write(
+            specs.path(),
+            "concepts/equivalence.md",
+            "# equivalence\n\n## Walker\n\n- implements: Reader\n\n## Reader\n",
+        );
+        let keyspace = dir.path().join("rust.json");
+        std::fs::write(
+            &keyspace,
+            r#"{"schema_version":{"major":0,"minor":5,"patch":0},"nodes":[
+            {"id":"item:domain::Reader","label":"Item","props":{"kind":"trait","name":"Reader",
+             "qname":"domain::Reader","visibility":"pub","is_test":false,"line":1,
+             "file":"/ws/domain/src/lib.rs","module_qpath":"domain","crate":"domain",
+             "bounded_context":"equivalence"}},
+            {"id":"item:domain::Walker","label":"Item","props":{"kind":"struct","name":"Walker",
+             "qname":"domain::Walker","visibility":"pub","is_test":false,"line":9,
+             "file":"/ws/domain/src/lib.rs","module_qpath":"domain","crate":"domain",
+             "bounded_context":"equivalence"}},
+            {"id":"item:domain::Walker::impl_Reader","label":"Item","props":{"kind":"impl_block",
+             "name":"impl","qname":"domain::Walker::impl_Reader","visibility":"pub","is_test":false,
+             "line":12,"file":"/ws/domain/src/lib.rs","module_qpath":"domain","crate":"domain",
+             "bounded_context":"equivalence"}}
+            ],"edges":[
+            {"src":"item:domain::Walker::impl_Reader","dst":"item:domain::Walker","label":"IMPLEMENTS_FOR"},
+            {"src":"item:domain::Walker::impl_Reader","dst":"item:domain::Reader","label":"IMPLEMENTS"}
+            ]}"#,
+        )
+        .unwrap();
+
+        let violations = run_check(specs.path(), code.path(), Some(&keyspace))
+            .unwrap()
+            .violations;
+        assert!(
+            violations.is_empty(),
+            "the impl-block join answers the bullet; nothing is excused and nothing is unmet: {violations:?}"
+        );
+    }
+
+    #[cfg(feature = "codefacts")]
+    #[test]
+    fn an_implements_bullet_the_keyspace_contradicts_is_reported_not_excused() {
         let specs = TempDir::new().unwrap();
         let dir = TempDir::new().unwrap();
         let code = TempDir::new().unwrap();
@@ -500,18 +543,16 @@ mod tests {
             .unwrap()
             .violations;
         assert!(
-            violations.iter().any(|v| matches!(
-                v,
-                Violation::EdgeUnanswerable { concept, edge_kind, .. }
-                    if concept == "Walker" && *edge_kind == EdgeKind::Implements
-            )),
-            "the cfdb-query reader answers no relationship at all on a Rust keyspace: {violations:?}"
+            violations
+                .iter()
+                .any(|v| matches!(v, Violation::EdgeMissingInCode { concept, .. } if concept == "Walker")),
+            "a keyspace that carries no such impl gives the bullet its ordinary verdict: {violations:?}"
         );
         assert!(
-            !violations.iter().any(
-                |v| matches!(v, Violation::EdgeMissingInCode { concept, .. } if concept == "Walker")
-            ),
-            "never charged to the specs as unmet: {violations:?}"
+            !violations
+                .iter()
+                .any(|v| matches!(v, Violation::EdgeUnanswerable { .. })),
+            "and nothing is unanswerable, because the reader answers IMPLEMENTS now: {violations:?}"
         );
     }
 
