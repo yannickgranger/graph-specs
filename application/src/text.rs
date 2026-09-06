@@ -287,6 +287,21 @@ fn format_context_violation(v: &ContextViolation, out: &mut impl Write) -> std::
                 path.display()
             )
         }
+        ContextViolation::CrossEdgeOffSurface {
+            concept,
+            owning_context,
+            edge_kind,
+            target,
+            code_source,
+        } => {
+            let (path, line) = source_pair(code_source);
+            let owner = owning_context.as_deref().unwrap_or("no declared context");
+            writeln!(
+                out,
+                "crossing out of the declared surface: {concept} ({owner}) --{edge_kind}--> {target}, which no declared prefix owns, at namespace {}:{line}",
+                path.display()
+            )
+        }
         ContextViolation::CrossVerbUnauthorized {
             concept,
             qname,

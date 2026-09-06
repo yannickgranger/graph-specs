@@ -227,6 +227,9 @@ crossing out of the declared surface, never dropped
 Pure value. Lives in `domain`.
 
 - depends on: OwnedUnit
+- returns: ConceptRef
+- verb: ConceptRef::named
+- verb: ConceptRef::resolved
 
 ## EdgeKind
 
@@ -267,9 +270,17 @@ the cfdb-query `CfdbQueryReader` ACL for one-per-crate repos (agentry). Both
 emit the agnostic triple, never cfdb's Rust-specific prop names, so the diff
 engine stays language-neutral. Lives in `ports`.
 
+The port answers the relationship facts of the tree beside its concepts —
+`IMPLEMENTS` today — because edges are cfdb's facts like items are
+(graph-specs-011-php-ladder#4 invariant 6;
+cfdb-045-polyglot-relationship-edges#3.2). The source-walking adapter
+answers from its own edge walk, the cfdb-query ACL from the keyspace's
+`IMPLEMENTS` edges, both endpoints a [ConceptRef](#conceptref).
+
 ```rust
 pub trait CodeFacts {
     fn concepts(&self, root: &Path) -> Result<Vec<ConceptNode>, ReaderError>;
+    fn relationships(&self, root: &Path) -> Result<Vec<Edge>, ReaderError>;
 }
 ```
 

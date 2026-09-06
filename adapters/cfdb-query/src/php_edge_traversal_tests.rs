@@ -163,3 +163,62 @@ fn a_construct_ratified_as_below_the_rung_is_not_refused() {
         .expect("read keyspace");
     assert_eq!(names(&nodes), vec!["Told"]);
 }
+
+const IMPLEMENTS_KEYSPACE: &str = r#"{"schema_version":{"major":0,"minor":8,"patch":0},"nodes":[
+{"id":"module:App\\Catalogue","label":"Module","props":{"name":"App\\Catalogue"}},
+{"id":"item:App\\Catalogue\\Course","label":"Item","props":{"kind":"trait","line":3,
+ "name":"Course","php_construct":"class_declaration","qname":"App\\Catalogue\\Course"}},
+{"id":"item:App\\Catalogue\\Teachable","label":"Item","props":{"kind":"trait","line":3,
+ "name":"Teachable","php_construct":"interface_declaration","qname":"App\\Catalogue\\Teachable"}},
+{"id":"item:Vendor\\Serializable","label":"Item","props":{"kind":"trait","line":3,
+ "name":"Serializable","php_construct":"interface_declaration","qname":"Vendor\\Serializable"}}
+],"edges":[
+{"src":"item:App\\Catalogue\\Course","dst":"module:App\\Catalogue","label":"IN_MODULE"},
+{"src":"item:App\\Catalogue\\Course","dst":"item:App\\Catalogue\\Teachable","label":"IMPLEMENTS"},
+{"src":"item:App\\Catalogue\\Course","dst":"item:Vendor\\Serializable","label":"IMPLEMENTS"}
+]}"#;
+
+fn relationships(units: &[&str]) -> Vec<domain::Edge> {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("keyspace.json");
+    std::fs::write(&path, IMPLEMENTS_KEYSPACE).expect("write keyspace");
+    CfdbQueryReader::new(&path)
+        .with_surface(surface(units))
+        .relationships(Path::new("/ws"))
+        .expect("read keyspace")
+}
+
+#[test]
+fn an_implements_edge_between_two_surface_items_becomes_a_graph_edge() {
+    let edges = relationships(&["App\\Catalogue"]);
+    let landed: Vec<&domain::Edge> = edges
+        .iter()
+        .filter(|e| e.target.name == "Teachable")
+        .collect();
+    assert_eq!(landed.len(), 1, "{edges:?}");
+    assert_eq!(landed[0].kind, EdgeKind::Implements);
+    assert_eq!(landed[0].source_concept.name, "Course");
+    assert_eq!(
+        landed[0].source_concept.unit.as_ref().map(|u| u.0.as_str()),
+        Some("App\\Catalogue")
+    );
+    assert_eq!(
+        landed[0].target.unit.as_ref().map(|u| u.0.as_str()),
+        Some("App\\Catalogue")
+    );
+}
+
+#[test]
+fn an_implements_edge_whose_far_end_is_off_surface_is_emitted_not_dropped() {
+    let edges = relationships(&["App\\Catalogue"]);
+    let off: Vec<&domain::Edge> = edges
+        .iter()
+        .filter(|e| e.target.name == "Serializable")
+        .collect();
+    assert_eq!(
+        off.len(),
+        1,
+        "the off-surface far end is carried so the diff can report it: {edges:?}"
+    );
+    assert_eq!(off[0].target.unit, None);
+}

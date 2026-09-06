@@ -79,6 +79,7 @@ the cfdb-query [CfdbQueryReader](#cfdbqueryreader) ACL must match. Lives in
 - implements: CodeFacts
 - depends on: Graph
 - depends on: ConceptNode
+- depends on: Edge
 - depends on: ReaderError
 - depends on: PubFnDecl
 
@@ -125,6 +126,7 @@ Lives in `adapters/cfdb-query`.
 - depends on: ConceptNode
 - depends on: ReaderError
 - depends on: DeclaredSurface
+- depends on: Edge
 - returns: CfdbQueryReader
 
 ### PhpEdgeTraversal

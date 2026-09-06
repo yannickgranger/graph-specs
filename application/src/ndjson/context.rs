@@ -49,6 +49,21 @@ pub(super) fn context_violation_to_record(v: &ContextViolation) -> Value {
             "target_context": target_context,
             "spec_source": source_to_json(spec_source),
         }),
+        ContextViolation::CrossEdgeOffSurface {
+            concept,
+            owning_context,
+            edge_kind,
+            target,
+            code_source,
+        } => json!({
+            "schema_version": SchemaVersion::CURRENT.as_str(),
+            "violation": "cross_edge_off_surface",
+            "concept": concept,
+            "owning_context": owning_context,
+            "edge_kind": edge_kind.as_label(),
+            "target": target,
+            "code_source": code_source_to_json(code_source),
+        }),
         ContextViolation::CrossVerbUnauthorized {
             concept,
             qname,

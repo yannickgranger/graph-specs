@@ -2,9 +2,11 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use cfdb_core::fact::{Edge, Node, PropValue};
-use cfdb_core::schema::Label;
-use domain::Provenance;
-use domain::{ConceptNode, DeclaredSurface, SignatureState, Source};
+use cfdb_core::schema::{EdgeLabel, Label};
+use domain::{
+    ConceptNode, ConceptRef, DeclaredSurface, EdgeKind, OwnedUnit, Provenance, SignatureState,
+    Source,
+};
 use ports::ReaderError;
 
 const CONCEPT_RUNG: &[&str] = &["class_declaration", "interface_declaration"];
@@ -83,6 +85,73 @@ impl PhpEdgeTraversal {
                 )
                 .with_provenance(Some(module), Some(unit.to_owned()), None),
             );
+        }
+        Ok(out)
+    }
+}
+
+impl PhpEdgeTraversal {
+    pub fn relationships(
+        &self,
+        nodes: &[Node],
+        edges: &[Edge],
+    ) -> Result<Vec<domain::Edge>, ReaderError> {
+        let containers = containers(nodes, edges);
+        let mut by_id: HashMap<&str, (&str, Option<&str>)> = HashMap::new();
+        for node in nodes {
+            if node.label.as_str() != Label::ITEM {
+                continue;
+            }
+            let Some(construct) = prop(node, "php_construct") else {
+                return Err(unknown_rung(node, None));
+            };
+            if !CONCEPT_RUNG.contains(&construct) {
+                continue;
+            }
+            let (Some(name), Some(qname)) = (prop(node, "name"), prop(node, "qname")) else {
+                continue;
+            };
+            by_id.insert(node.id.as_str(), (name, self.surface.unit_of(qname)));
+        }
+
+        let mut out = Vec::new();
+        for edge in edges {
+            if edge.label.as_str() != EdgeLabel::IMPLEMENTS {
+                continue;
+            }
+            let (Some((src_name, Some(src_unit))), Some((dst_name, dst_unit))) = (
+                by_id.get(edge.src.as_str()).copied(),
+                by_id.get(edge.dst.as_str()).copied(),
+            ) else {
+                continue;
+            };
+            let module = containers
+                .get(edge.src.as_str())
+                .map_or(src_unit, |m| *m)
+                .to_owned();
+            out.push(domain::Edge {
+                source_concept: ConceptRef::resolved(
+                    src_name.to_owned(),
+                    None,
+                    Some(OwnedUnit(src_unit.to_owned())),
+                ),
+                kind: EdgeKind::Implements,
+                target: ConceptRef::resolved(
+                    dst_name.to_owned(),
+                    None,
+                    dst_unit.map(|u| OwnedUnit(u.to_owned())),
+                ),
+                raw_target: dst_name.to_owned(),
+                source: Source::Code {
+                    path: PathBuf::from(&module),
+                    line: 0,
+                    provenance: Provenance {
+                        module_path: Some(module.clone()),
+                        unit: Some(src_unit.to_owned()),
+                        context: None,
+                    },
+                },
+            });
         }
         Ok(out)
     }

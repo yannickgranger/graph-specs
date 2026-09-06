@@ -5,13 +5,14 @@ use std::collections::{HashMap, HashSet};
 
 type ImportKey = (String, String, String);
 type ExportKey = (String, String);
+type NodeIndex = HashMap<String, (Option<String>, Option<String>)>;
 
 pub(super) fn context_pass(spec_contexts: Vec<ContextDecl>, code: Graph, out: &mut Vec<Violation>) {
     if spec_contexts.is_empty() {
         return;
     }
     let unit_to_context = build_unit_index(&spec_contexts);
-    let concept_to_context = build_concept_index(&code.nodes, &unit_to_context);
+    let node_index = build_node_index(&code.nodes, &unit_to_context);
     let (imports, exports, context_sources) = index_contexts(spec_contexts);
 
     let Graph {
@@ -22,7 +23,7 @@ pub(super) fn context_pass(spec_contexts: Vec<ContextDecl>, code: Graph, out: &m
     emit_membership_unknown(code_nodes, &unit_to_context, out);
     emit_cross_context_edge_violations(
         code_edges,
-        &concept_to_context,
+        &node_index,
         &imports,
         &exports,
         &context_sources,
@@ -42,18 +43,22 @@ fn build_unit_index(contexts: &[ContextDecl]) -> HashMap<String, String> {
         .collect()
 }
 
-fn build_concept_index(
-    nodes: &[ConceptNode],
-    unit_to_context: &HashMap<String, String>,
-) -> HashMap<String, String> {
+fn build_node_index(nodes: &[ConceptNode], unit_to_context: &HashMap<String, String>) -> NodeIndex {
     nodes
         .iter()
-        .filter_map(|node| {
-            let unit_str = owning_unit_str(&node.source)?;
-            let ctx_name = unit_to_context.get(&unit_str)?;
-            Some((node.name.clone(), ctx_name.to_owned()))
+        .map(|node| {
+            let unit = owning_unit_str(&node.source);
+            let context = unit.as_ref().and_then(|u| unit_to_context.get(u)).cloned();
+            (node.name.clone(), (context, unit))
         })
         .collect()
+}
+
+fn resolve_endpoint(reference: &mut crate::ConceptRef, index: &NodeIndex) {
+    if let Some((context, unit)) = index.get(reference.name.as_str()) {
+        reference.context.clone_from(context);
+        reference.unit = unit.clone().map(OwnedUnit);
+    }
 }
 
 fn index_contexts(
@@ -116,28 +121,48 @@ fn emit_membership_unknown(
 
 fn emit_cross_context_edge_violations(
     code_edges: Vec<Edge>,
-    concept_to_context: &HashMap<String, String>,
+    node_index: &NodeIndex,
     imports: &HashSet<ImportKey>,
     exports: &HashSet<ExportKey>,
     context_sources: &HashMap<String, Source>,
     out: &mut Vec<Violation>,
 ) {
-    for edge in code_edges {
-        let Some(source_ctx) = concept_to_context.get(&edge.source_concept) else {
+    for mut edge in code_edges {
+        resolve_endpoint(&mut edge.source_concept, node_index);
+        resolve_endpoint(&mut edge.target, node_index);
+        if !node_index.contains_key(edge.source_concept.name.as_str()) {
             continue;
-        };
-        let Some(target_ctx) = concept_to_context.get(&edge.target) else {
+        }
+        if !node_index.contains_key(edge.target.name.as_str()) {
+            out.push(Violation::Context(ContextViolation::CrossEdgeOffSurface {
+                concept: edge.source_concept.name.clone(),
+                owning_context: edge.source_concept.context.clone(),
+                edge_kind: edge.kind,
+                target: edge.target.name.clone(),
+                code_source: edge.source.clone(),
+            }));
+            continue;
+        }
+        let (Some(source_ctx), Some(target_ctx)) = (
+            edge.source_concept.context.clone(),
+            edge.target.context.clone(),
+        ) else {
             continue;
         };
         if source_ctx == target_ctx {
             continue;
         }
-        let Some(spec_source) = context_sources.get(source_ctx) else {
+        let Some(spec_source) = context_sources.get(&source_ctx) else {
             continue;
         };
-        if let Some(v) =
-            classify_cross_edge(&edge, source_ctx, target_ctx, imports, exports, spec_source)
-        {
+        if let Some(v) = classify_cross_edge(
+            &edge,
+            &source_ctx,
+            &target_ctx,
+            imports,
+            exports,
+            spec_source,
+        ) {
             out.push(v);
         }
     }
@@ -154,27 +179,27 @@ fn classify_cross_edge(
     let import_key = (
         source_ctx.to_string(),
         target_ctx.to_string(),
-        edge.target.clone(),
+        edge.target.name.clone(),
     );
     if !imports.contains(&import_key) {
         return Some(Violation::Context(
             ContextViolation::CrossEdgeUnauthorized {
-                concept: edge.source_concept.clone(),
+                concept: edge.source_concept.name.clone(),
                 owning_context: source_ctx.to_string(),
                 edge_kind: edge.kind,
-                target: edge.target.clone(),
+                target: edge.target.name.clone(),
                 target_context: target_ctx.to_string(),
                 spec_source: spec_source.clone(),
             },
         ));
     }
-    let export_key = (target_ctx.to_string(), edge.target.clone());
+    let export_key = (target_ctx.to_string(), edge.target.name.clone());
     if !exports.contains(&export_key) {
         return Some(Violation::Context(ContextViolation::CrossEdgeUndeclared {
-            concept: edge.source_concept.clone(),
+            concept: edge.source_concept.name.clone(),
             owning_context: source_ctx.to_string(),
             edge_kind: edge.kind,
-            target: edge.target.clone(),
+            target: edge.target.name.clone(),
             target_context: target_ctx.to_string(),
             spec_source: spec_source.clone(),
         }));
@@ -183,6 +208,9 @@ fn classify_cross_edge(
 }
 
 fn owning_unit_str(source: &Source) -> Option<String> {
+    if let Some(unit) = source.unit() {
+        return Some(unit.to_owned());
+    }
     let path = match source {
         Source::Code { path, .. } => path,
         Source::Spec { .. } => return None,

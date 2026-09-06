@@ -24,6 +24,13 @@ pub enum ContextViolation {
         target_context: String,
         spec_source: Source,
     },
+    CrossEdgeOffSurface {
+        concept: String,
+        owning_context: Option<String>,
+        edge_kind: EdgeKind,
+        target: String,
+        code_source: Source,
+    },
     CrossVerbUnauthorized {
         concept: String,
         qname: String,
@@ -40,6 +47,7 @@ impl ContextViolation {
             Self::MembershipUnknown { concept, .. }
             | Self::CrossEdgeUnauthorized { concept, .. }
             | Self::CrossEdgeUndeclared { concept, .. }
+            | Self::CrossEdgeOffSurface { concept, .. }
             | Self::CrossVerbUnauthorized { concept, .. } => concept.as_str(),
         }
     }

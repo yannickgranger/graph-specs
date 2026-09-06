@@ -1,3 +1,4 @@
+use crate::ConceptRef;
 use crate::Provenance;
 use crate::{
     detect_import_cycle, CheckInput, ConceptNode, ContextDecl, ContextExport, ContextImport,
@@ -24,9 +25,9 @@ fn code_node(name: &str, unit: &str) -> ConceptNode {
 
 fn code_edge(src: &str, kind: EdgeKind, target: &str) -> Edge {
     Edge {
-        source_concept: src.to_string(),
+        source_concept: ConceptRef::named(src.to_string()),
         kind,
-        target: target.to_string(),
+        target: ConceptRef::named(target.to_string()),
         raw_target: target.to_string(),
         source: Source::Code {
             path: PathBuf::from("./x/src/lib.rs"),

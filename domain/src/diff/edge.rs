@@ -30,9 +30,11 @@ fn group_by_matched_concept(
 ) -> HashMap<String, Vec<Edge>> {
     edges
         .into_iter()
-        .filter(|e| matched_concepts.contains(&e.source_concept))
+        .filter(|e| matched_concepts.contains(e.source_concept.name.as_str()))
         .fold(HashMap::new(), |mut acc, e| {
-            acc.entry(e.source_concept.clone()).or_default().push(e);
+            acc.entry(e.source_concept.name.clone())
+                .or_default()
+                .push(e);
             acc
         })
 }
@@ -48,33 +50,33 @@ fn compare_edges(
         .iter()
         .map(|s| {
             code.iter()
-                .any(|c| c.kind == s.kind && c.target == s.target)
+                .any(|c| c.kind == s.kind && c.target.name == s.target.name)
         })
         .collect();
     let code_matched: Vec<bool> = code
         .iter()
         .map(|c| {
             spec.iter()
-                .any(|s| s.kind == c.kind && s.target == c.target)
+                .any(|s| s.kind == c.kind && s.target.name == c.target.name)
         })
         .collect();
 
     for (spec_edge, matched) in spec.into_iter().zip(spec_matched) {
-        if unpointable.contains(&spec_edge.target) {
+        if unpointable.contains(spec_edge.target.name.as_str()) {
             continue;
         }
-        if !known_concepts.contains(&spec_edge.target) {
+        if !known_concepts.contains(spec_edge.target.name.as_str()) {
             out.push(Violation::EdgeTargetUnknown {
-                concept: spec_edge.source_concept,
+                concept: spec_edge.source_concept.name,
                 edge_kind: spec_edge.kind,
-                target: spec_edge.target,
+                target: spec_edge.target.name,
                 spec_source: spec_edge.source,
             });
         } else if !matched {
             out.push(Violation::EdgeMissingInCode {
-                concept: spec_edge.source_concept,
+                concept: spec_edge.source_concept.name,
                 edge_kind: spec_edge.kind,
-                target: spec_edge.target,
+                target: spec_edge.target.name,
                 spec_source: spec_edge.source,
             });
         }
@@ -83,9 +85,9 @@ fn compare_edges(
     for (code_edge, matched) in code.into_iter().zip(code_matched) {
         if !matched {
             out.push(Violation::EdgeMissingInSpec {
-                concept: code_edge.source_concept,
+                concept: code_edge.source_concept.name,
                 edge_kind: code_edge.kind,
-                target: code_edge.target,
+                target: code_edge.target.name,
                 code_source: code_edge.source,
             });
         }

@@ -26,14 +26,13 @@ pub fn run_check(
     let verb_anchors = MarkdownReader.extract_verb_anchors(specs_dir)?;
     let code_graph = match keyspace {
         None => RustReader.extract(code_dir)?,
-        Some(keyspace) => Graph::new(
-            code_facts(
-                code_dir,
-                Some(keyspace),
-                &DeclaredSurface::from_contexts(&spec_contexts),
-            )?,
-            Vec::new(),
-        ),
+        Some(keyspace) => {
+            let surface = DeclaredSurface::from_contexts(&spec_contexts);
+            Graph::new(
+                code_facts(code_dir, Some(keyspace), &surface)?,
+                code_relationships(code_dir, keyspace, &surface)?,
+            )
+        }
     };
     let pub_fn_decls = RustReader.extract_pub_fns(code_dir)?;
     let concept_anchors = MarkdownReader.extract_concept_anchors(specs_dir)?;
@@ -94,6 +93,29 @@ pub fn code_facts(
         || RustReader.concepts(code_dir),
         |keyspace| keyspace_facts(code_dir, keyspace, surface),
     )
+}
+
+#[cfg(feature = "codefacts")]
+fn code_relationships(
+    code_dir: &Path,
+    keyspace: &Path,
+    surface: &DeclaredSurface,
+) -> Result<Vec<domain::Edge>, ReaderError> {
+    adapter_cfdb_query::CfdbQueryReader::new(keyspace)
+        .with_surface(surface.clone())
+        .relationships(code_dir)
+}
+
+#[cfg(not(feature = "codefacts"))]
+fn code_relationships(
+    code_dir: &Path,
+    _keyspace: &Path,
+    _surface: &DeclaredSurface,
+) -> Result<Vec<domain::Edge>, ReaderError> {
+    Err(ReaderError::WalkFailed {
+        root: code_dir.to_path_buf(),
+        cause: "cfdb-query keyspace routing requires the `codefacts` feature".to_owned(),
+    })
 }
 
 #[cfg(feature = "codefacts")]
@@ -208,6 +230,143 @@ mod tests {
         let via_adapter = RustReader.concepts(code.path()).unwrap();
         assert_eq!(via_router, via_adapter);
         assert!(via_router.iter().any(|c| c.name == "Foo"));
+    }
+
+    #[cfg(feature = "codefacts")]
+    #[test]
+    fn an_implements_edge_across_two_contexts_is_classified_by_name_and_context() {
+        let specs = TempDir::new().unwrap();
+        let dir = TempDir::new().unwrap();
+        let code = TempDir::new().unwrap();
+        write(
+            specs.path(),
+            "contexts/enrolment.md",
+            "# enrolment\n\n## Owns\n\n- App\\Enrolment\n",
+        );
+        write(
+            specs.path(),
+            "contexts/privacy.md",
+            "# privacy\n\n## Owns\n\n- App\\Privacy\n",
+        );
+        write(
+            specs.path(),
+            "concepts/enrolment.md",
+            "# enrolment\n\n## Enrolling\n",
+        );
+        write(
+            specs.path(),
+            "concepts/privacy.md",
+            "# privacy\n\n## Erasable\n",
+        );
+        let keyspace = dir.path().join("coreen.json");
+        std::fs::write(
+            &keyspace,
+            r#"{"schema_version":{"major":0,"minor":8,"patch":0},"nodes":[
+            {"id":"module:App\\Enrolment","label":"Module","props":{"name":"App\\Enrolment"}},
+            {"id":"module:App\\Privacy","label":"Module","props":{"name":"App\\Privacy"}},
+            {"id":"item:App\\Enrolment\\Enrolling","label":"Item","props":{"kind":"trait","line":3,
+             "name":"Enrolling","php_construct":"class_declaration","qname":"App\\Enrolment\\Enrolling"}},
+            {"id":"item:App\\Privacy\\Erasable","label":"Item","props":{"kind":"trait","line":3,
+             "name":"Erasable","php_construct":"interface_declaration","qname":"App\\Privacy\\Erasable"}}
+            ],"edges":[
+            {"src":"item:App\\Enrolment\\Enrolling","dst":"module:App\\Enrolment","label":"IN_MODULE"},
+            {"src":"item:App\\Privacy\\Erasable","dst":"module:App\\Privacy","label":"IN_MODULE"},
+            {"src":"item:App\\Enrolment\\Enrolling","dst":"item:App\\Privacy\\Erasable","label":"IMPLEMENTS"}
+            ]}"#,
+        )
+        .unwrap();
+
+        let violations = run_check(specs.path(), code.path(), Some(&keyspace))
+            .unwrap()
+            .violations;
+        let crossing: Vec<&Violation> = violations
+            .iter()
+            .filter(|v| {
+                matches!(
+                    v,
+                    Violation::Context(domain::ContextViolation::CrossEdgeUnauthorized { .. })
+                )
+            })
+            .collect();
+        assert_eq!(
+            crossing.len(),
+            1,
+            "an undeclared crossing between two contexts is reported: {violations:?}"
+        );
+        let Violation::Context(domain::ContextViolation::CrossEdgeUnauthorized {
+            owning_context,
+            target_context,
+            ..
+        }) = crossing[0]
+        else {
+            unreachable!()
+        };
+        assert_eq!(owning_context, "enrolment");
+        assert_eq!(target_context, "privacy");
+    }
+
+    #[cfg(feature = "codefacts")]
+    #[test]
+    fn an_implements_edge_off_the_declared_surface_is_reported_as_a_crossing() {
+        let specs = TempDir::new().unwrap();
+        let dir = TempDir::new().unwrap();
+        let code = TempDir::new().unwrap();
+        write(
+            specs.path(),
+            "contexts/catalogue.md",
+            "# catalogue\n\n## Owns\n\n- App\\Catalogue\n",
+        );
+        write(
+            specs.path(),
+            "concepts/catalogue.md",
+            "# catalogue\n\n## Course\n\n## Teachable\n",
+        );
+        let keyspace = dir.path().join("coreen.json");
+        std::fs::write(
+            &keyspace,
+            r#"{"schema_version":{"major":0,"minor":8,"patch":0},"nodes":[
+            {"id":"module:App\\Catalogue","label":"Module","props":{"name":"App\\Catalogue"}},
+            {"id":"item:App\\Catalogue\\Course","label":"Item","props":{"kind":"trait","line":3,
+             "name":"Course","php_construct":"class_declaration","qname":"App\\Catalogue\\Course"}},
+            {"id":"item:App\\Catalogue\\Teachable","label":"Item","props":{"kind":"trait","line":3,
+             "name":"Teachable","php_construct":"interface_declaration","qname":"App\\Catalogue\\Teachable"}},
+            {"id":"item:Vendor\\Serializable","label":"Item","props":{"kind":"trait","line":3,
+             "name":"Serializable","php_construct":"interface_declaration","qname":"Vendor\\Serializable"}}
+            ],"edges":[
+            {"src":"item:App\\Catalogue\\Course","dst":"module:App\\Catalogue","label":"IN_MODULE"},
+            {"src":"item:App\\Catalogue\\Course","dst":"item:App\\Catalogue\\Teachable","label":"IMPLEMENTS"},
+            {"src":"item:App\\Catalogue\\Course","dst":"item:Vendor\\Serializable","label":"IMPLEMENTS"}
+            ]}"#,
+        )
+        .unwrap();
+
+        let violations = run_check(specs.path(), code.path(), Some(&keyspace))
+            .unwrap()
+            .violations;
+        let off: Vec<&Violation> = violations
+            .iter()
+            .filter(|v| {
+                matches!(
+                    v,
+                    Violation::Context(domain::ContextViolation::CrossEdgeOffSurface { .. })
+                )
+            })
+            .collect();
+        assert_eq!(
+            off.len(),
+            1,
+            "the crossing out of the declared surface is reported once: {violations:?}"
+        );
+        let Violation::Context(domain::ContextViolation::CrossEdgeOffSurface {
+            concept,
+            target,
+            ..
+        }) = off[0]
+        else {
+            unreachable!()
+        };
+        assert_eq!(concept, "Course");
+        assert_eq!(target, "Serializable");
     }
 
     #[cfg(feature = "codefacts")]

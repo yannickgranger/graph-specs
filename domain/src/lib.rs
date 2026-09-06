@@ -161,11 +161,38 @@ pub enum SignatureState {
     },
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ConceptRef {
+    pub name: String,
+    pub context: Option<String>,
+    pub unit: Option<OwnedUnit>,
+}
+
+impl ConceptRef {
+    #[must_use]
+    pub const fn named(name: String) -> Self {
+        Self {
+            name,
+            context: None,
+            unit: None,
+        }
+    }
+
+    #[must_use]
+    pub const fn resolved(name: String, context: Option<String>, unit: Option<OwnedUnit>) -> Self {
+        Self {
+            name,
+            context,
+            unit,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Edge {
-    pub source_concept: String,
+    pub source_concept: ConceptRef,
     pub kind: EdgeKind,
-    pub target: String,
+    pub target: ConceptRef,
     pub raw_target: String,
     pub source: Source,
 }
