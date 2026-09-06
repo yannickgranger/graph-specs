@@ -511,7 +511,7 @@ fn ndjson_missing_in_code_emits_one_record_exit_one() {
     assert_eq!(out.status.code(), Some(1));
     let records = parse_ndjson(&out.stdout);
     assert_eq!(records.len(), 1);
-    assert_eq!(records[0]["schema_version"], "4");
+    assert_eq!(records[0]["schema_version"], "5");
     assert_eq!(records[0]["violation"], "missing_in_code");
     assert_eq!(records[0]["concept"], "OnlySpec");
     assert_eq!(records[0]["source"]["kind"], "spec");
@@ -1087,7 +1087,7 @@ fn ndjson_marker_records_carry_the_marker_discriminator() {
     assert_eq!(out.status.code(), Some(0));
     let records = parse_ndjson(&out.stdout);
     assert_eq!(records.len(), 1);
-    assert_eq!(records[0]["schema_version"], "4");
+    assert_eq!(records[0]["schema_version"], "5");
     assert_eq!(records[0]["marker"], "pending");
     assert_eq!(records[0]["concept"], "Digest");
     assert!(

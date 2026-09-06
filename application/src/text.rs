@@ -206,6 +206,22 @@ pub fn format_violation(v: &Violation, out: &mut impl Write) -> std::io::Result<
                 "dangling anchor: {concept} anchors `{target}` but no such code item exists ({at})"
             )
         }
+        Violation::SignatureDriftWithinSide {
+            name,
+            side,
+            sources,
+        } => {
+            let at = sources
+                .iter()
+                .map(|s| format!("{} `{}`", located(&s.source), s.sig))
+                .collect::<Vec<_>>()
+                .join(" vs ");
+            writeln!(
+                out,
+                "signature drift within the {} side: {name} is given two signatures — {at}",
+                side.as_label()
+            )
+        }
         _ => writeln!(out, "unknown violation"),
     }
 }
@@ -354,6 +370,7 @@ mod tests {
 
     fn code_src() -> Source {
         Source::Code {
+            language: domain::CodeLanguage::Rust,
             path: PathBuf::from("some-crate/src/lib.rs"),
             line: 3,
             provenance: domain::Provenance::empty(),
@@ -363,6 +380,7 @@ mod tests {
 
     fn spec_src() -> Source {
         Source::Spec {
+            format: domain::SpecFormat::Markdown,
             path: PathBuf::from("specs/contexts/reading.md"),
             line: 12,
             context: None,
@@ -489,6 +507,7 @@ mod tests {
         let v = Violation::MissingInCode {
             name: "Foo".into(),
             spec_source: Source::Spec {
+                format: domain::SpecFormat::Markdown,
                 path: PathBuf::from("specs/a.md"),
                 line: 1,
                 context: None,
@@ -505,6 +524,7 @@ mod tests {
             declared: "reading".into(),
             code_context: "equivalence".into(),
             spec_source: Source::Spec {
+                format: domain::SpecFormat::Markdown,
                 path: PathBuf::from("specs/concepts/reading.md"),
                 line: 7,
                 context: None,
@@ -545,6 +565,7 @@ mod tests {
             concept: "ValidateIntakeFull".into(),
             target: "validate_intake".into(),
             spec_source: Source::Spec {
+                format: domain::SpecFormat::Markdown,
                 path: PathBuf::from("specs/concepts/intake_validation.md"),
                 line: 3,
                 context: None,
@@ -566,6 +587,7 @@ mod location_kind_tests {
 
     fn code(path: &str, location: LocationKind) -> Source {
         Source::Code {
+            language: domain::CodeLanguage::Rust,
             path: PathBuf::from(path),
             line: 3,
             provenance: Provenance::empty(),

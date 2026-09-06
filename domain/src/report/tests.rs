@@ -9,6 +9,7 @@ use std::path::PathBuf;
 
 fn code_src(line: usize) -> Source {
     Source::Code {
+        language: crate::CodeLanguage::Rust,
         path: PathBuf::from("some-crate/src/lib.rs"),
         line,
         provenance: Provenance::empty(),
@@ -18,6 +19,7 @@ fn code_src(line: usize) -> Source {
 
 fn spec_src(line: usize) -> Source {
     Source::Spec {
+        format: crate::SpecFormat::Markdown,
         path: PathBuf::from("specs/concepts/core.md"),
         line,
         context: None,

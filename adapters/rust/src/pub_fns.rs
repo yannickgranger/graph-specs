@@ -22,6 +22,7 @@ pub fn visit_top_level_fn(
         out.push(PubFnDecl {
             name: f.sig.ident.to_string(),
             source: Source::Code {
+                language: domain::CodeLanguage::Rust,
                 path: path.to_path_buf(),
                 line,
                 provenance: Provenance::empty(),
@@ -64,6 +65,7 @@ pub fn visit_impl_block(
         out.push(PubFnDecl {
             name: format!("{type_root}::{method_ident}"),
             source: Source::Code {
+                language: domain::CodeLanguage::Rust,
                 path: path.to_path_buf(),
                 line,
                 provenance: Provenance::empty(),

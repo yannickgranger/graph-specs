@@ -96,6 +96,7 @@ fn index_impl_methods(
         index.entry(qname).or_insert_with(|| AnchorTarget {
             kind: AnchorKind::Fn,
             source: Source::Code {
+                language: domain::CodeLanguage::Rust,
                 path: path.to_path_buf(),
                 line,
                 provenance: Provenance::empty(),
@@ -117,6 +118,7 @@ fn insert(
         .or_insert_with(|| AnchorTarget {
             kind,
             source: Source::Code {
+                language: domain::CodeLanguage::Rust,
                 path: path.to_path_buf(),
                 line,
                 provenance: Provenance::empty(),

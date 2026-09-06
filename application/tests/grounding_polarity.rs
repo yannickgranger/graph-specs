@@ -139,8 +139,9 @@ fn ndjson_carries_the_additive_variant_at_the_unchanged_schema_version() {
     assert_eq!(r["violation"], "forbidden_concept_reintroduced");
     assert_eq!(r["concept"], "Member");
     assert_eq!(
-        r["schema_version"], "4",
-        "additive variant — no schema bump (§3.5)"
+        r["schema_version"],
+        domain::SchemaVersion::CURRENT.as_str(),
+        "additive variant — it rides the current schema version and bumps nothing of its own (§3.5)"
     );
     assert_eq!(r["spec_source"]["kind"], "spec");
     assert_eq!(r["code_source"]["kind"], "code");

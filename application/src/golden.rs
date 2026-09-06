@@ -13,6 +13,7 @@ use std::path::PathBuf;
 
 fn spec(line: usize) -> Source {
     Source::Spec {
+        format: domain::SpecFormat::Markdown,
         path: PathBuf::from("specs/concepts/core.md"),
         line,
         context: None,
@@ -21,6 +22,7 @@ fn spec(line: usize) -> Source {
 
 fn code(line: usize) -> Source {
     Source::Code {
+        language: domain::CodeLanguage::Rust,
         path: PathBuf::from("domain/src/lib.rs"),
         line,
         provenance: Provenance::empty(),
@@ -156,6 +158,7 @@ fn wrapped_violations() -> Vec<Violation> {
 
 pub fn code_src() -> Source {
     Source::Code {
+        language: domain::CodeLanguage::Rust,
         path: PathBuf::from("application/src/lib.rs"),
         line: 33,
         provenance: Provenance::empty(),

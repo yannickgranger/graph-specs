@@ -92,6 +92,7 @@ impl PhpEdgeTraversal {
                 ConceptNode::new(
                     name.to_owned(),
                     Source::Code {
+                        language: crate::node_language(node),
                         path: PathBuf::from(&module),
                         line,
                         provenance: Provenance::empty(),
@@ -159,6 +160,7 @@ impl PhpEdgeTraversal {
                 ),
                 raw_target: dst_name.to_owned(),
                 source: Source::Code {
+                    language: domain::CodeLanguage::Php,
                     path: PathBuf::from(&module),
                     line: 0,
                     provenance: Provenance {

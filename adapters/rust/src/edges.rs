@@ -210,6 +210,7 @@ fn collect_type_path_heads(ty: &Type, out: &mut Vec<(String, String)>) {
 
 fn code_source(path: &Path, span: Span) -> Source {
     Source::Code {
+        language: domain::CodeLanguage::Rust,
         path: path.to_path_buf(),
         line: span.start().line,
         provenance: Provenance::empty(),
@@ -239,6 +240,7 @@ mod tests {
                 ConceptNode::new(
                     (*n).to_string(),
                     Source::Code {
+                        language: domain::CodeLanguage::Rust,
                         path: PathBuf::from("test.rs"),
                         line: 1,
                         provenance: Provenance::empty(),

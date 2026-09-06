@@ -47,6 +47,7 @@ pub fn parse_verb_bullet(text: &str) -> Option<VerbAnchor> {
         qname: qname.to_owned(),
         raw_target: trimmed.to_owned(),
         source: Source::Spec {
+            format: domain::SpecFormat::Markdown,
             path: std::path::PathBuf::new(),
             line: 0,
             context: None,
@@ -63,6 +64,7 @@ pub fn parse_impl_bullet(text: &str) -> Option<ConceptAnchor> {
         concept: String::new(),
         target: qname.to_owned(),
         source: Source::Spec {
+            format: domain::SpecFormat::Markdown,
             path: std::path::PathBuf::new(),
             line: 0,
             context: None,

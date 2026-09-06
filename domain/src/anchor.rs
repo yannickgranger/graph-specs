@@ -54,6 +54,7 @@ mod tests {
 
     fn spec_src(line: usize) -> Source {
         Source::Spec {
+            format: crate::SpecFormat::Markdown,
             path: PathBuf::from("specs/concepts/intake_validation.md"),
             line,
             context: None,
@@ -62,6 +63,7 @@ mod tests {
 
     fn code_src() -> Source {
         Source::Code {
+            language: crate::CodeLanguage::Rust,
             path: PathBuf::from("domain/src/intake.rs"),
             line: 7,
             provenance: crate::Provenance::empty(),

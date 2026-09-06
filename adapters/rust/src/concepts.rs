@@ -97,6 +97,7 @@ fn emit(
         ConceptNode::new(
             ident.to_string(),
             Source::Code {
+                language: domain::CodeLanguage::Rust,
                 path: path.to_path_buf(),
                 line,
                 provenance: Provenance::empty(),

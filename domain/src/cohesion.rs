@@ -37,6 +37,7 @@ mod tests {
 
     fn spec_src() -> Source {
         Source::Spec {
+            format: crate::SpecFormat::Markdown,
             path: PathBuf::from("specs/concepts/equivalence.md"),
             line: 42,
             context: None,

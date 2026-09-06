@@ -128,6 +128,7 @@ mod tests {
 
     fn spec_at(path: &str, line: usize) -> Source {
         Source::Spec {
+            format: crate::SpecFormat::Markdown,
             path: PathBuf::from(path),
             line,
             context: None,

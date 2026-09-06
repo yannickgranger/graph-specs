@@ -112,6 +112,7 @@ fn try_parse_annotation(text: &str, path: &Path, line: usize) -> Option<Invarian
             retire_when,
             prose_only_why,
             source: Source::Spec {
+                format: domain::SpecFormat::Markdown,
                 path: path.to_path_buf(),
                 line,
                 context: None,
