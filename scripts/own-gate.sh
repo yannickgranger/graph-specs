@@ -24,8 +24,9 @@ git -C "$DOXA_DIR" fetch -q origin || true
 git -C "$DOXA_DIR" checkout -q "$DOXA_REV" || { echo "FATAL: doxa rev $DOXA_REV not in the clone — the corpus is unreadable at its pin, unavailable, never a pass (keel-harness §3.1; keel-dialect §3.3)" >&2; exit 1; }
 [ -f "$DOXA_DIR/index.json" ] || { echo "FATAL: doxa checkout carries no index.json — unreadable at its pin, unavailable (keel-harness §3.1)" >&2; exit 1; }
 
-echo "==> mirror: docs/rfc/*.md is a byte-identical mirror of the doxa corpus at $DOXA_REV — read-only, the corpus is the one source"
-python3 scripts/doxa-mirror-check.py --doxa "$DOXA_DIR" --repo yg/graph-specs-rust --mirror 'docs/rfc/*.md' || exit 1
+echo "==> mirror: docs/rfc/*.md is the corpus' own graph-specs-* set at $DOXA_REV, byte-identical — read-only, the corpus is the one source"
+python3 scripts/doxa-mirror-check.py --self-test || { echo "FATAL: the mirror check's own positive control does not fire — the check proves nothing, never a pass" >&2; exit 1; }
+python3 scripts/doxa-mirror-check.py --doxa "$DOXA_DIR" --prefix graph-specs --path-template 'docs/rfc/{tail}.md' --mirror 'docs/rfc/*.md' || exit 1
 
 echo "==> own gate: keel level --repo . --declaration keel.json --corpus $DOXA_DIR@$DOXA_REV (cascade at $(tr -d '[:space:]' < cascade.rev))"
 level_json=$($KEEL level --repo . --declaration keel.json --corpus "$DOXA_DIR" --json 2>/dev/null) && level_rc=0 || level_rc=$?
