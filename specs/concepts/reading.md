@@ -38,7 +38,7 @@ the previous design needed is retired.
 - depends on: ConceptAnchor
 - depends on: Violation
 
-## RustBackend
+### RustBackend
 
 <!-- parent:spec:LanguageBackend -->
 
@@ -85,7 +85,7 @@ the cfdb-query [CfdbQueryReader](#cfdbqueryreader) ACL must match. Lives in
 - depends on: ReaderError
 - depends on: PubFnDecl
 
-## RustAnchorResolver
+### RustAnchorResolver
 
 <!-- parent:spec:AnchorResolver -->
 
@@ -108,7 +108,7 @@ variants are deferred to the cfdb-query path. Returns an
 - depends on: ReaderError
 - depends on: RustAnchorResolver
 
-## CfdbQueryReader
+### CfdbQueryReader
 
 <!-- parent:spec:CodeFacts -->
 
@@ -161,7 +161,7 @@ is not emitted. Lives in `adapters/cfdb-query`.
 - depends on: Edge
 - returns: PhpEdgeTraversal
 
-## CfdbAnchorResolver
+### CfdbAnchorResolver
 
 <!-- parent:spec:AnchorResolver -->
 
