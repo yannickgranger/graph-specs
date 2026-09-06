@@ -444,6 +444,22 @@ in `domain`.
 - verb: DeclaredSurface::unit_of
 - verb: DeclaredSurface::is_empty
 
+### OwnershipAmbiguity
+
+- status: draft (per graph-specs-011-php-ladder#3.2)
+<!-- parent:spec:DeclaredSurface -->
+
+Two contexts whose declarations both own one item — an outer prefix and
+its context, an inner prefix and its context. A value the declared
+surface returns instead of a surface when two contexts nest their
+prefixes; the composition root turns it into a could-not-run naming both
+prefixes and both contexts, never a resolution by length across contexts
+(graph-specs-011-php-ladder#3.2: one declared surface per context;
+graph-specs-010-abstraction-level-equivalence#11.6: a shape the reader
+cannot decide says so). Within one context's own Owns block the longest
+declared prefix wins and no ambiguity arises, because no question of
+which context owns the item exists there.
+
 ## ContextPattern
 
 <!-- parent:rfc:graph-specs-001-bounded-context-equivalence#2 anchor:"Four DDD patterns" -->
