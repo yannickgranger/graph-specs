@@ -5,7 +5,7 @@ source into the equivalence context's graph model. `MarkdownReader`
 parses both concept files and context declarations; `RustReader`
 parses source trees into concept nodes + declared edges.
 
-Reading is **Conformist** to the `Reader` and `ContextReader` port
+Reading is **Conformist** to the `SpecReader`, `CodeReader` and `ContextReader` port
 contracts — it does not negotiate the shape, it implements what
 equivalence publishes.
 
@@ -34,7 +34,6 @@ equivalence publishes.
 ## Imports
 
 - DeclaredSurface from equivalence (PublishedLanguage)
-- Reader from equivalence (Conformist)
 - SpecReader from equivalence (Conformist)
 - CodeReader from equivalence (Conformist)
 - VerbAnchorReader from equivalence (Conformist)
