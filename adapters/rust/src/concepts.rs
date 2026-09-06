@@ -1,5 +1,4 @@
 use crate::cfg_gate::is_test_gated;
-use crate::provenance::{find_owned_unit, module_path_of};
 use crate::{edges, normalize};
 use domain::LocationKind;
 use domain::Provenance;
@@ -7,17 +6,16 @@ use domain::{ConceptNode, Edge, SignatureState, Source};
 use std::path::Path;
 use syn::{Attribute, File, Visibility};
 
-pub fn extract_from_file(
-    file: &File,
+pub fn extract_from_entry(
+    parsed: &File,
+    unit: Option<&str>,
+    module_path: Option<&str>,
     path: &Path,
-    root: &Path,
     out: &mut Vec<ConceptNode>,
     edges_out: &mut Vec<Edge>,
 ) {
-    let unit = find_owned_unit(path, root);
-    let module_path = module_path_of(path, root, unit.as_deref());
-    for item in &file.items {
-        visit_top_level_item(item, path, module_path.as_deref(), unit.as_deref(), out);
+    for item in &parsed.items {
+        visit_top_level_item(item, path, module_path, unit, out);
         edges::emit_for_item(item, path, edges_out);
     }
 }

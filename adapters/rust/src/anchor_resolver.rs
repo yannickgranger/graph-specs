@@ -1,40 +1,25 @@
+use crate::cache::ParseCache;
 use crate::cfg_gate::is_test_gated;
 use crate::pub_fns::root_ident_of_self_ty;
-use crate::walk::{is_excluded_dir, read_and_parse};
 use domain::LocationKind;
 use domain::Provenance;
 use domain::{AnchorKind, AnchorTarget, Source};
-use ports::{AnchorResolver, ReaderError};
+use ports::{AnchorResolver, CodeFileSet, ReaderError};
 use std::collections::HashMap;
 use std::path::Path;
-use walkdir::WalkDir;
 
 pub struct RustAnchorResolver {
     index: HashMap<String, AnchorTarget>,
 }
 
 impl RustAnchorResolver {
-    pub fn index(root: &Path) -> Result<Self, ReaderError> {
+    pub fn index(_files: &CodeFileSet, cache: &ParseCache) -> Result<Self, ReaderError> {
         let mut index = HashMap::new();
-        let walker = WalkDir::new(root)
-            .into_iter()
-            .filter_entry(|e| !is_excluded_dir(e));
-        for entry in walker {
-            let entry = entry.map_err(|e| ReaderError::WalkFailed {
-                root: root.to_path_buf(),
-                cause: e.to_string(),
-            })?;
-            if !entry.file_type().is_file() {
-                continue;
-            }
-            if entry.path().extension().is_none_or(|ext| ext != "rs") {
-                continue;
-            }
-            let (parsed, path) = read_and_parse(entry.path().to_path_buf())?;
+        cache.for_each(|path, parsed, _unit, _module_path| {
             for item in &parsed.items {
-                index_item(item, &path, &mut index);
+                index_item(item, path, &mut index);
             }
-        }
+        });
         Ok(Self { index })
     }
 }
@@ -140,7 +125,9 @@ mod tests {
             .expect("create")
             .write_all(src.as_bytes())
             .expect("write");
-        RustAnchorResolver::index(d.path()).expect("index")
+        let set = ports::CodeLoader::load(&crate::RustLoader, d.path()).expect("load");
+        let cache = crate::parse(d.path(), &set).expect("parse");
+        RustAnchorResolver::index(&set, &cache).expect("index")
     }
 
     #[test]

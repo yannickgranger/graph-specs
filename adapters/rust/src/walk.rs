@@ -1,6 +1,6 @@
 use ports::ReaderError;
 use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use syn::File;
 use walkdir::DirEntry;
 
@@ -45,24 +45,4 @@ pub fn parse_text(source: &str, path: &std::path::Path) -> Result<File, ReaderEr
         line: e.span().start().line,
         message: e.to_string(),
     })
-}
-
-pub fn read_and_parse(path: PathBuf) -> Result<(File, PathBuf), ReaderError> {
-    let source = match std::fs::read_to_string(&path) {
-        Ok(s) => s,
-        Err(e) => {
-            return Err(ReaderError::IoFailed {
-                path,
-                cause: e.to_string(),
-            });
-        }
-    };
-    match syn::parse_file(&source) {
-        Ok(f) => Ok((f, path)),
-        Err(e) => Err(ReaderError::ParseFailed {
-            path,
-            line: e.span().start().line,
-            message: e.to_string(),
-        }),
-    }
 }
