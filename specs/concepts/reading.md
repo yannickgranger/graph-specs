@@ -208,6 +208,23 @@ variants are **not** resolvable because cfdb (v0.5.0) emits no `variant`
 - depends on: ReaderError
 - depends on: CfdbAnchorResolver
 
+## ParseCache
+
+- status: draft (per graph-specs-016-parse-once-reading-port#3.4)
+<!-- parent:rfc:graph-specs-016-parse-once-reading-port#3.4 anchor:"built once per run by" -->
+
+The Rust adapter's parse cache: a handle over the parsed files of one
+[CodeFileSet](equivalence.md#codefileset), built once per run from the root
+and the loaded set, each entry bundling the parsed file with its
+pre-computed containment provenance so that no consumer needs the root
+after construction. It is the adapter's and never crosses `ports` — `syn`
+stays behind it, its inner field is private, and it is a cloneable owned
+handle to one shared table, never a process-global: every run constructs
+its own. [RustReader](#rustreader), [RustBackend](#rustbackend) and
+[RustAnchorResolver](#rustanchorresolver) take it at construction, at the
+composition root, and the three code walks collapse to the one the loader
+makes. Lives in `adapters/rust`.
+
 ## PhpAttributeReader
 
 <!-- parent:rfc:graph-specs-011-php-ladder#3.3 anchor:"it reads attributes" -->
