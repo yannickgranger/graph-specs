@@ -206,12 +206,24 @@ plus the raw textual form preserved for display in drift messages.
 - status: draft (per graph-specs-010-abstraction-level-equivalence#4)
 <!-- parent:spec:Edge -->
 
-A concept-rung endpoint of an [Edge](#edge): the concept's name and its
-owning unit, together — the identity graph-specs-010-abstraction-level-equivalence#4
-invariant 9 fixes for the binding pass. An endpoint carrying a name
-alone cannot say which of two same-named concepts under two units it
-means, so a cross-context crossing is attributed to whichever won the
-name; carrying the unit makes the edge say which `Clock` it means.
+A concept-rung endpoint of an [Edge](#edge), carrying three facts: the
+concept's name; its context, always — the spec side resolves it through
+the document that authored the edge (its own concept, or a concept the
+document's Imports block sanctions from a named supplier; a name that is
+neither is unresolved and reported), the code side through the unit
+index (graph-specs-010-abstraction-level-equivalence#3.4, both
+questions); and its owning unit where the side resolves one — the code
+side, whose identity is `(name, unit)` under
+graph-specs-010-abstraction-level-equivalence#4 invariant 9; the spec
+side declares a context and never a unit, so an absent unit there is
+that side's truth. Two endpoints compare by `(name, context)` at the
+crossing rung. An endpoint carrying a name alone cannot say which of two
+same-named concepts under two units it means, so a crossing is attributed
+to whichever won the name; carrying the context and, where known, the
+unit makes the edge say which `Clock` it means. A relationship edge whose
+far end is an item outside every declared prefix is reported as a
+crossing out of the declared surface, never dropped
+(graph-specs-011-php-ladder#4 invariant 3 rules the item, not the edge).
 Pure value. Lives in `domain`.
 
 - depends on: OwnedUnit
