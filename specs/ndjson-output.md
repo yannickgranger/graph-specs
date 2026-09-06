@@ -470,8 +470,10 @@ An `H3` sub-concept with no enclosing `H2` concept (a depth skip).
 
 A concept's spec-side declared owning context (its `concepts/` H1, with `specs/contexts/` export precedence) disagrees with the context the code resolves it to (the `specs/contexts/` Owns block owning the crate the `pub` type lives in).
 
+Read per item, never per name (RFC-010 §4 invariant 9): a heading whose name resolves to an item under its own declared context binds it and emits nothing; a heading with no such item emits one record per same-named item outside its context, `code_context` naming that item's own resolved context, and `code_source` naming the item — two items under two units of one context are two records.
+
 ```json
-{"schema_version":"5","violation":"concept_context_mismatch","concept":"Widget","declared":"reading","code_context":"equivalence","spec_source":{"kind":"spec","path":"specs/concepts/reading.md","line":7,"format":"markdown"}}
+{"schema_version":"5","violation":"concept_context_mismatch","concept":"Widget","declared":"reading","code_context":"equivalence","spec_source":{"kind":"spec","path":"specs/concepts/reading.md","line":7,"format":"markdown"},"code_source":{"kind":"code","path":"domain/src/widget.rs","line":3,"language":"rust","module_path":"domain::widget","unit":"domain","context":"equivalence"}}
 ```
 
 | Field | Type | Meaning |
@@ -480,6 +482,7 @@ A concept's spec-side declared owning context (its `concepts/` H1, with `specs/c
 | `declared` | string | the spec-side declared owning context |
 | `code_context` | string | the context the code resolves the concept to |
 | `spec_source` | source object (kind=spec) | where the concept is documented |
+| `code_source` | source object (kind=code), optional additive | the item this record names — its provenance triple carries the unit, so two same-named items under two units are two records (RFC-010 §4 invariant 9) |
 
 > **Shipped (#136):** code-kind source objects carry the agnostic provenance triple (`module_path` / `unit` / `context`) when resolved — see §Source location object. Optional additive fields (see §Schema evolution); they did NOT bump `schema_version`.
 
