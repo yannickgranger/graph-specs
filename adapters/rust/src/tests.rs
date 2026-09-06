@@ -1,8 +1,79 @@
 use super::*;
 
+#[test]
+fn provenance_from_the_cache_equals_the_walk_derived_values() {
+    let d = TempDir::new().expect("create temp dir");
+    write(d.path(), "Cargo.toml", "[workspace]\nmembers = [\"a\"]\n");
+    write(d.path(), "a/Cargo.toml", "[package]\nname = \"a\"\n");
+    write(d.path(), "a/src/lib.rs", "pub struct Held;\n");
+    write(d.path(), "a/src/deep/mod.rs", "pub struct Deep;\n");
+
+    let set = ports::CodeLoader::load(&RustLoader, d.path()).expect("load");
+    let cache = crate::parse(d.path(), &set).expect("parse");
+
+    cache.for_each(|path, _parsed, unit, module_path| {
+        let walked_unit = crate::provenance::find_owned_unit(path, d.path());
+        let walked_module =
+            crate::provenance::module_path_of(path, d.path(), walked_unit.as_deref());
+        assert_eq!(unit, walked_unit.as_deref(), "unit at {}", path.display());
+        assert_eq!(
+            module_path,
+            walked_module.as_deref(),
+            "module_path at {}",
+            path.display()
+        );
+    });
+}
+
+#[test]
+fn one_parsed_unit_per_file_across_sequential_capability_calls() {
+    let d = TempDir::new().expect("create temp dir");
+    write(d.path(), "Cargo.toml", "[package]\nname = \"x\"\n");
+    write(
+        d.path(),
+        "src/lib.rs",
+        "pub struct Alpha;\npub fn beta() {}\n",
+    );
+    write(d.path(), "src/other.rs", "pub struct Gamma;\n");
+
+    let set = ports::CodeLoader::load(&RustLoader, d.path()).expect("load");
+    let cache = crate::parse(d.path(), &set).expect("parse");
+    assert_eq!(cache.paths().len(), 2, "one entry per file");
+
+    let reader = RustReader::new(cache.clone());
+    let graph = ports::CodeReader::extract(&reader, &set).expect("extract");
+    let fns = ports::VerbReader::extract_pub_fns(&reader, d.path()).expect("pub fns");
+
+    let mut first = Vec::new();
+    cache.for_each(|path, parsed, _, _| {
+        first.push((path.to_path_buf(), std::ptr::from_ref(parsed)));
+    });
+    let mut second = Vec::new();
+    cache.for_each(|path, parsed, _, _| {
+        second.push((path.to_path_buf(), std::ptr::from_ref(parsed)));
+    });
+    assert_eq!(first.len(), 2);
+    for ((p1, a), (p2, b)) in first.iter().zip(second.iter()) {
+        assert_eq!(p1, p2);
+        assert!(
+            std::ptr::eq(*a, *b),
+            "two reads answer one parsed unit, not two: {}",
+            p1.display()
+        );
+    }
+    assert!(graph.nodes.iter().any(|n| n.name == "Alpha"));
+    assert!(graph.nodes.iter().any(|n| n.name == "Gamma"));
+    assert!(fns.iter().any(|f| f.name.contains("beta")));
+}
+
+fn cache_at(root: &std::path::Path) -> crate::ParseCache {
+    let set = ports::CodeLoader::load(&RustLoader, root).expect("load");
+    crate::parse(root, &set).expect("parse")
+}
+
 fn extract_at(root: &std::path::Path) -> Result<domain::Graph, ports::ReaderError> {
     ports::CodeReader::extract(
-        &RustReader::new(root),
+        &RustReader::new(cache_at(root)),
         &ports::CodeLoader::load(&RustLoader, root)?,
     )
 }
@@ -145,9 +216,15 @@ fn line_numbers_are_recorded() {
 #[test]
 fn rust_backend_detects_cargo_toml() {
     let d = TempDir::new().expect("create temp dir");
-    assert!(!RustBackend.detect(d.path()), "no marker → false");
+    assert!(
+        !RustBackend::new(cache_at(d.path())).detect(d.path()),
+        "no marker → false"
+    );
     write(d.path(), "Cargo.toml", "[package]\nname = \"x\"\n");
-    assert!(RustBackend.detect(d.path()), "Cargo.toml present → true");
+    assert!(
+        RustBackend::new(cache_at(d.path())).detect(d.path()),
+        "Cargo.toml present → true"
+    );
 }
 
 fn node_named<'a>(g: &'a Graph, name: &str) -> &'a ConceptNode {
@@ -218,7 +295,7 @@ fn extract_pub_fns_self_dogfood_application_includes_run_check() {
     if !app_dir.exists() {
         return;
     }
-    let fns = RustReader::new(&app_dir)
+    let fns = RustReader::new(cache_at(&app_dir))
         .extract_pub_fns(&app_dir)
         .expect("dogfood");
     assert!(
@@ -241,7 +318,7 @@ fn extract_pub_fns_finds_pub_fns() {
         "src/lib.rs",
         "pub fn alpha() {} pub fn beta() {} fn private() {}",
     );
-    let fns = RustReader::new(d.path())
+    let fns = RustReader::new(cache_at(d.path()))
         .extract_pub_fns(d.path())
         .expect("extract_pub_fns must succeed");
     let mut names: Vec<&str> = fns.iter().map(|f| f.name.as_str()).collect();
@@ -257,7 +334,7 @@ fn extract_pub_fns_skips_test_gated() {
         "src/lib.rs",
         "#[cfg(test)] pub fn skip_me() {} pub fn keep_me() {}",
     );
-    let fns = RustReader::new(d.path())
+    let fns = RustReader::new(cache_at(d.path()))
         .extract_pub_fns(d.path())
         .expect("extract_pub_fns must succeed");
     assert_eq!(fns.len(), 1);
@@ -269,7 +346,7 @@ fn extract_pub_fns_excludes_target_dir() {
     let d = TempDir::new().expect("create temp dir");
     write(d.path(), "src/lib.rs", "pub fn real_fn() {}");
     write(d.path(), "target/gen.rs", "pub fn generated() {}");
-    let fns = RustReader::new(d.path())
+    let fns = RustReader::new(cache_at(d.path()))
         .extract_pub_fns(d.path())
         .expect("extract_pub_fns must succeed");
     assert_eq!(fns.len(), 1);
@@ -284,7 +361,9 @@ fn rust_backend_extract_returns_concepts_and_edges() {
         "src/lib.rs",
         "pub struct Foo { bar: Bar } pub struct Bar;",
     );
-    let extraction = RustBackend.extract(d.path()).expect("extract must succeed");
+    let extraction = RustBackend::new(cache_at(d.path()))
+        .extract(d.path())
+        .expect("extract must succeed");
     let mut names: Vec<String> = extraction.concepts.iter().map(|n| n.name.clone()).collect();
     names.sort();
     assert_eq!(names, vec!["Bar", "Foo"]);
@@ -306,7 +385,7 @@ fn impl_inherent_pub_method_extracted_as_type_method_qname() {
         "src/lib.rs",
         "struct Foo; impl Foo { pub fn bar() {} }",
     );
-    let fns = RustReader::new(d.path())
+    let fns = RustReader::new(cache_at(d.path()))
         .extract_pub_fns(d.path())
         .expect("extract_pub_fns must succeed");
     assert_eq!(fns.len(), 1);
@@ -321,7 +400,7 @@ fn impl_inherent_private_method_skipped() {
         "src/lib.rs",
         "struct Foo; impl Foo { fn bar() {} }",
     );
-    let fns = RustReader::new(d.path())
+    let fns = RustReader::new(cache_at(d.path()))
         .extract_pub_fns(d.path())
         .expect("extract_pub_fns must succeed");
     assert!(fns.is_empty(), "private method must not be extracted");
@@ -335,7 +414,7 @@ fn impl_trait_method_extracted_without_pub() {
         "src/lib.rs",
         "trait Trait { fn bar(); } struct Foo; impl Trait for Foo { fn bar() {} }",
     );
-    let fns = RustReader::new(d.path())
+    let fns = RustReader::new(cache_at(d.path()))
         .extract_pub_fns(d.path())
         .expect("extract_pub_fns must succeed");
     assert_eq!(
@@ -354,7 +433,7 @@ fn impl_generic_type_stripped() {
         "src/lib.rs",
         "struct Foo<T>(T); impl<T> Foo<T> { pub fn bar() {} }",
     );
-    let fns = RustReader::new(d.path())
+    let fns = RustReader::new(cache_at(d.path()))
         .extract_pub_fns(d.path())
         .expect("extract_pub_fns must succeed");
     assert_eq!(fns.len(), 1);
@@ -372,7 +451,7 @@ fn impl_cfg_test_gated_skipped() {
         "src/lib.rs",
         "#[cfg(test)] impl Foo { pub fn bar() {} }",
     );
-    let fns = RustReader::new(d.path())
+    let fns = RustReader::new(cache_at(d.path()))
         .extract_pub_fns(d.path())
         .expect("extract_pub_fns must succeed");
     assert!(fns.is_empty(), "cfg(test)-gated impl block must be skipped");
@@ -388,7 +467,7 @@ fn impl_qualified_self_skipped() {
          trait Trait { fn bar(); } \
          impl Trait for <i32 as Other>::Item { fn bar() {} }",
     );
-    let fns = RustReader::new(d.path())
+    let fns = RustReader::new(cache_at(d.path()))
         .extract_pub_fns(d.path())
         .expect("extract_pub_fns must succeed");
     assert!(
@@ -405,7 +484,7 @@ fn impl_non_path_self_skipped() {
         "src/lib.rs",
         "trait Trait { fn bar(); } impl Trait for [u8] { fn bar() {} }",
     );
-    let fns = RustReader::new(d.path())
+    let fns = RustReader::new(cache_at(d.path()))
         .extract_pub_fns(d.path())
         .expect("extract_pub_fns must succeed");
     assert!(fns.is_empty(), "non-Path self type must produce no decl");

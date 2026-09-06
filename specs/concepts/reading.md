@@ -76,6 +76,8 @@ the [CodeReader](equivalence.md#codereader) port. Lives in `adapters/rust`.
 - implements: LanguageBackend
 - depends on: Extraction
 - depends on: ReaderError
+- depends on: ParseCache
+- returns: RustBackend
 
 ## RustReader
 
@@ -114,6 +116,7 @@ the source-walk parity reference the cfdb-query
 - depends on: PubFnDecl
 - depends on: CodeFileSet
 - returns: RustReader
+- depends on: ParseCache
 
 ### RustLoader
 
@@ -151,6 +154,8 @@ variants are deferred to the cfdb-query path. Returns an
 - depends on: AnchorTarget
 - depends on: ReaderError
 - depends on: RustAnchorResolver
+- depends on: ParseCache
+- depends on: CodeFileSet
 
 ### CfdbQueryReader
 
@@ -228,7 +233,6 @@ variants are **not** resolvable because cfdb (v0.5.0) emits no `variant`
 
 ## ParseCache
 
-- status: draft (per graph-specs-016-parse-once-reading-port#3.4)
 <!-- parent:rfc:graph-specs-016-parse-once-reading-port#3.4 anchor:"built once per run by" -->
 
 The Rust adapter's parse cache: a handle over the parsed files of one

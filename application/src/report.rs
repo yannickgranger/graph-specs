@@ -1,8 +1,8 @@
 use crate::SIGNATURE_NORMALIZERS;
 use adapter_markdown::MarkdownReader;
-use adapter_rust::RustReader;
+use adapter_rust::{RustLoader, RustReader};
 use domain::{report_verb_coverage, CheckInput, VerbOwnership};
-use ports::{AnnotationReader, ContextReader, ReaderError, SpecLoader, VerbReader};
+use ports::{AnnotationReader, CodeLoader, ContextReader, ReaderError, SpecLoader, VerbReader};
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -14,7 +14,8 @@ pub enum ReportFormat {
 
 pub fn run_report(specs: &Path, code: &Path, format: ReportFormat) -> Result<u8, ReaderError> {
     let spec_set = MarkdownReader.load(specs)?;
-    let pub_fns = RustReader::new(code).extract_pub_fns(code)?;
+    let cache = adapter_rust::parse(code, &RustLoader.load(code)?)?;
+    let pub_fns = RustReader::new(cache).extract_pub_fns(code)?;
     let annotations = MarkdownReader.extract_annotations(&spec_set)?;
     let specs_graph = MarkdownReader.extract_with(&spec_set, SIGNATURE_NORMALIZERS)?;
     let spec_contexts = MarkdownReader.extract_contexts(&spec_set)?;

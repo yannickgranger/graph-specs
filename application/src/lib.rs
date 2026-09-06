@@ -57,13 +57,21 @@ fn union_spec_graphs(markdown: &mut Graph, attribute: Graph) -> Vec<Violation> {
     drift
 }
 
+fn code_inputs(
+    code_dir: &Path,
+) -> Result<(ports::CodeFileSet, adapter_rust::ParseCache), ReaderError> {
+    let set = RustLoader.load(code_dir)?;
+    let cache = adapter_rust::parse(code_dir, &set)?;
+    Ok((set, cache))
+}
+
 pub fn run_check(
     specs_dir: &Path,
     code_dir: &Path,
     keyspace: Option<&Path>,
 ) -> Result<CheckOutcome, ReaderError> {
     let spec_set = MarkdownReader.load(specs_dir)?;
-    let code_set = RustLoader.load(code_dir)?;
+    let (code_set, cache) = code_inputs(code_dir)?;
     let mut specs_graph = MarkdownReader.extract_with(&spec_set, SIGNATURE_NORMALIZERS)?;
     let attribute_graph =
         PhpAttributeReader::new().extract(&PhpAttributeReader::new().load(code_dir)?)?;
@@ -76,7 +84,7 @@ pub fn run_check(
             .map_err(|a| ambiguous_ownership(keyspace, &a))?,
     };
     let code_graph = match keyspace {
-        None => RustReader::new(code_dir).extract(&code_set)?,
+        None => RustReader::new(cache.clone()).extract(&code_set)?,
         Some(keyspace) => {
             let facts = code_facts(code_dir, Some(keyspace), &surface)?;
             if facts.is_empty() {
@@ -107,7 +115,7 @@ pub fn run_check(
         }
     };
     let pub_fn_decls = match keyspace {
-        None => RustReader::new(code_dir).extract_pub_fns(code_dir)?,
+        None => RustReader::new(cache.clone()).extract_pub_fns(code_dir)?,
         Some(keyspace) => keyspace_pub_fns(code_dir, keyspace, &surface)?,
     };
     let concept_anchors = MarkdownReader.extract_concept_anchors(&spec_set)?;
@@ -144,7 +152,7 @@ pub fn run_check(
     let resolved_anchors: Vec<ResolvedAnchor> = if concept_anchors.is_empty() {
         Vec::new()
     } else {
-        let resolve = anchor_resolver(code_dir, keyspace)?;
+        let resolve = anchor_resolver(code_dir, keyspace, &code_set, &cache)?;
         concept_anchors
             .into_iter()
             .map(|anchor| {
@@ -197,10 +205,15 @@ fn ambiguous_ownership(keyspace: &Path, ambiguity: &OwnershipAmbiguity) -> Reade
 
 type AnchorLookup = Box<dyn Fn(&str) -> Option<domain::AnchorTarget>>;
 
-fn anchor_resolver(code_dir: &Path, keyspace: Option<&Path>) -> Result<AnchorLookup, ReaderError> {
+fn anchor_resolver(
+    code_dir: &Path,
+    keyspace: Option<&Path>,
+    code_set: &ports::CodeFileSet,
+    cache: &adapter_rust::ParseCache,
+) -> Result<AnchorLookup, ReaderError> {
     match keyspace {
         None => {
-            let resolver = RustAnchorResolver::index(code_dir)?;
+            let resolver = RustAnchorResolver::index(code_set, cache)?;
             Ok(Box::new(move |qname: &str| resolver.resolve(qname)))
         }
         Some(keyspace) => keyspace_anchor_resolver(code_dir, keyspace),
@@ -253,7 +266,10 @@ pub fn code_facts(
     surface: &DeclaredSurface,
 ) -> Result<Vec<ConceptNode>, ReaderError> {
     keyspace.map_or_else(
-        || RustReader::new(code_dir).concepts(code_dir),
+        || {
+            let (_set, cache) = code_inputs(code_dir)?;
+            RustReader::new(cache).concepts(code_dir)
+        },
         |keyspace| keyspace_facts(code_dir, keyspace, surface),
     )
 }
@@ -478,7 +494,9 @@ mod tests {
         );
         write(code.path(), "mycrate/src/lib.rs", "pub struct Foo;");
         let via_router = code_facts(code.path(), None, &DeclaredSurface::default()).unwrap();
-        let via_adapter = RustReader::new(code.path()).concepts(code.path()).unwrap();
+        let set = ports::CodeLoader::load(&RustLoader, code.path()).unwrap();
+        let cache = adapter_rust::parse(code.path(), &set).unwrap();
+        let via_adapter = RustReader::new(cache).concepts(code.path()).unwrap();
         assert_eq!(via_router, via_adapter);
         assert!(via_router.iter().any(|c| c.name == "Foo"));
     }

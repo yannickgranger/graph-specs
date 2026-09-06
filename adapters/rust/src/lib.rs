@@ -1,5 +1,7 @@
 mod anchor_resolver;
+mod cache;
 mod cfg_gate;
+pub use cache::{parse, ParseCache};
 mod concepts;
 mod edges;
 mod provenance;
@@ -17,40 +19,39 @@ use ports::{
     CodeFacts, CodeFileSet, CodeLoader, CodeReader, Extraction, LanguageBackend, LoadedFile,
     ReaderError, VerbReader,
 };
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use walkdir::WalkDir;
 
-#[derive(Debug, Default)]
-pub struct RustBackend;
+pub struct RustBackend {
+    cache: ParseCache,
+}
+
+impl RustBackend {
+    #[must_use]
+    pub const fn new(cache: ParseCache) -> Self {
+        Self { cache }
+    }
+}
 
 impl LanguageBackend for RustBackend {
     fn detect(&self, code_root: &Path) -> bool {
         code_root.join("Cargo.toml").exists()
     }
 
-    fn extract(&self, code_root: &Path) -> Result<Extraction, ReaderError> {
+    fn extract(&self, _code_root: &Path) -> Result<Extraction, ReaderError> {
         let mut concepts = Vec::new();
         let mut raw_edges: Vec<Edge> = Vec::new();
 
-        let walker = WalkDir::new(code_root)
-            .into_iter()
-            .filter_entry(|e| !walk::is_excluded_dir(e));
-
-        for entry in walker {
-            let entry = entry.map_err(|e| ReaderError::WalkFailed {
-                root: code_root.to_path_buf(),
-                cause: e.to_string(),
-            })?;
-            if !entry.file_type().is_file() {
-                continue;
-            }
-            if entry.path().extension().is_none_or(|ext| ext != "rs") {
-                continue;
-            }
-
-            let (parsed, path) = walk::read_and_parse(entry.path().to_path_buf())?;
-            concepts::extract_from_file(&parsed, &path, code_root, &mut concepts, &mut raw_edges);
-        }
+        self.cache.for_each(|path, parsed, unit, module_path| {
+            concepts::extract_from_entry(
+                parsed,
+                unit,
+                module_path,
+                path,
+                &mut concepts,
+                &mut raw_edges,
+            );
+        });
 
         Ok(Extraction {
             concepts,
@@ -94,32 +95,30 @@ impl CodeLoader for RustLoader {
 }
 
 pub struct RustReader {
-    root: PathBuf,
+    cache: ParseCache,
 }
 
 impl RustReader {
     #[must_use]
-    pub fn new(root: &Path) -> Self {
-        Self {
-            root: root.to_path_buf(),
-        }
+    pub const fn new(cache: ParseCache) -> Self {
+        Self { cache }
     }
 }
 
 impl CodeReader for RustReader {
-    fn extract(&self, files: &CodeFileSet) -> Result<Graph, ReaderError> {
+    fn extract(&self, _files: &CodeFileSet) -> Result<Graph, ReaderError> {
         let mut concepts = Vec::new();
         let mut raw_edges: Vec<Edge> = Vec::new();
-        for file in files.files() {
-            let parsed = walk::parse_text(&file.text, &file.path)?;
-            concepts::extract_from_file(
-                &parsed,
-                &file.path,
-                &self.root,
+        self.cache.for_each(|path, parsed, unit, module_path| {
+            concepts::extract_from_entry(
+                parsed,
+                unit,
+                module_path,
+                path,
                 &mut concepts,
                 &mut raw_edges,
             );
-        }
+        });
         let edges = edges::filter_by_known_concepts(raw_edges, &concepts);
         Ok(Graph::new(concepts, edges))
     }
@@ -144,34 +143,14 @@ impl CodeFacts for RustReader {
 }
 
 impl VerbReader for RustReader {
-    fn extract_pub_fns(&self, root: &Path) -> Result<Vec<PubFnDecl>, ReaderError> {
+    fn extract_pub_fns(&self, _root: &Path) -> Result<Vec<PubFnDecl>, ReaderError> {
         let mut pub_fns = Vec::new();
-
-        let walker = WalkDir::new(root)
-            .into_iter()
-            .filter_entry(|e| !walk::is_excluded_dir(e));
-
-        for entry in walker {
-            let entry = entry.map_err(|e| ReaderError::WalkFailed {
-                root: root.to_path_buf(),
-                cause: e.to_string(),
-            })?;
-            if !entry.file_type().is_file() {
-                continue;
-            }
-            if entry.path().extension().is_none_or(|ext| ext != "rs") {
-                continue;
-            }
-
-            let owned_unit = provenance::find_owned_unit(entry.path(), root);
-            let (parsed, path) = walk::read_and_parse(entry.path().to_path_buf())?;
-
+        self.cache.for_each(|path, parsed, unit, _module_path| {
             for item in &parsed.items {
-                pub_fns::visit_top_level_fn(item, &path, owned_unit.as_deref(), &mut pub_fns);
-                pub_fns::visit_impl_block(item, &path, owned_unit.as_deref(), &mut pub_fns);
+                pub_fns::visit_top_level_fn(item, path, unit, &mut pub_fns);
+                pub_fns::visit_impl_block(item, path, unit, &mut pub_fns);
             }
-        }
-
+        });
         Ok(pub_fns)
     }
 }

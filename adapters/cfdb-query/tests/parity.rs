@@ -27,7 +27,9 @@ fn cfdb_query_matches_source_walk_on_module_path_and_unit() {
     };
     let root = Path::new(&root);
 
-    let source_walk = RustReader::new(root)
+    let set = ports::CodeLoader::load(&adapter_rust::RustLoader, root).expect("load");
+    let cache = adapter_rust::parse(root, &set).expect("parse");
+    let source_walk = RustReader::new(cache)
         .concepts(root)
         .expect("source-walk concepts");
     let acl = CfdbQueryReader::new(&keyspace)
