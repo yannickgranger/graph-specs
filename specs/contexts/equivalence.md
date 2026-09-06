@@ -33,7 +33,6 @@ here. No IO, no parser state — just values, traits, and the three-pass
 - DeclaredSurface (PublishedLanguage)
 - CheckInput (PublishedLanguage)
 - SchemaVersion (PublishedLanguage)
-- Reader (PublishedLanguage)
 - SpecReader (PublishedLanguage)
 - CodeReader (PublishedLanguage)
 - VerbAnchorReader (PublishedLanguage)

@@ -286,21 +286,6 @@ future dialect growth adds variants here.
 - verb: EdgeKind::as_label
 - verb: EdgeKind::fmt
 
-## Reader
-
-- status: retired (per graph-specs-016-parse-once-reading-port#3.3)
-<!-- parent:rfc:graph-specs-004-multi-language-adapter-contract#3.2 anchor:"The `Reader` trait (`ports/src/lib.rs:15`) stays" -->
-
-The language-neutral port trait. Concrete readers (markdown specs,
-Rust code, later PHP / TypeScript) implement it and produce graphs with
-identical shape. Lives in `ports`.
-
-```rust
-pub trait Reader {
-    fn extract(&self, root: &Path) -> Result<Graph, ReaderError>;
-}
-```
-
 ## SpecReader
 
 <!-- parent:rfc:graph-specs-016-parse-once-reading-port#3.3.1 anchor:"`Reader` splits into `SpecReader` and `CodeReader` and the shared name retires" -->
@@ -309,7 +294,7 @@ The spec-side capability port: `extract` over a [SpecFileSet](#specfileset)
 answers the [Graph](#graph) of concept nodes and declared edges, or a
 [ReaderError](#readererror) — structurally `ParseFailed` alone, the walk's
 `IoFailed` and `WalkFailed` being the loader's province. It takes the name
-[Reader](#reader) could not keep: two nominal input types cannot share one
+`Reader` could not keep: two nominal input types cannot share one
 non-generic method signature, so the shared trait splits by side and the
 shared name retires. One capability per trait, as every port here.
 Implemented by [MarkdownReader](reading.md#markdownreader) and
@@ -428,7 +413,7 @@ because no polymorphic call site exists. Its one implementor is
 
 <!-- parent:rfc:graph-specs-010-abstraction-level-equivalence#3.3.1 anchor:"fn concepts(&self, root: &Path) -> Result<Vec<ConceptNode>, ReaderError>" -->
 
-The code-side containment port (graph-specs-010-abstraction-level-equivalence#3.3). Where [Reader](#reader)
+The code-side containment port (graph-specs-010-abstraction-level-equivalence#3.3). Where [CodeReader](#codereader)
 produces a full type-equivalence [Graph](#graph), `CodeFacts` answers the
 narrower question of which concepts the code contains and each one's
 language-agnostic containment provenance — the `module_path` / `unit` /
@@ -466,9 +451,9 @@ pub trait CodeFacts {
 
 <!-- parent:rfc:graph-specs-001-bounded-context-equivalence#3.6 anchor:"A new port, `ContextReader`" -->
 
-The v0.4 bounded-context port trait. Separate from [Reader](#reader)
+The v0.4 bounded-context port trait. Separate from [SpecReader](#specreader)
 because not every adapter parses context files — the rust adapter
-implements only [Reader](#reader); the markdown adapter implements
+implements only [CodeReader](#codereader); the markdown adapter implements
 both. Returns a list of [ContextDecl](#contextdecl) values or a
 [ReaderError](#readererror) on malformed input. An empty list is a
 valid result on v0.3 spec trees. Lives in `ports`.
@@ -485,9 +470,9 @@ pub trait ContextReader {
 
 ### ReaderError
 
-<!-- parent:spec:Reader -->
+<!-- parent:spec:SpecReader -->
 
-Failure modes of a [Reader](#reader) implementation. Describes
+Failure modes of a reader or loader implementation. Describes
 *reading operations* (I/O, parse, walk) rather than domain concerns,
 which is why this type lives in the port layer rather than in `domain`.
 Adapters map their language-specific failures onto `ReaderError` at the
@@ -524,7 +509,7 @@ pub trait LanguageBackend {
 Bundle returned by [LanguageBackend::extract](#languagebackend) — a flat
 [ConceptNode](#conceptnode) vector and a flat [Edge](#edge) vector, the
 latter unfiltered. Graph assembly (filtering raw edges against the
-known-concept set) is performed by the calling [Reader](#reader)
+known-concept set) is performed by the calling reader
 adapter, in language-neutral code. Lives in `ports`.
 
 - depends on: ConceptNode
@@ -900,7 +885,7 @@ ratification decision.
 
 <!-- parent:rfc:graph-specs-005-verb-coverage-report#3.2.1 anchor:"Sibling trait to `ContextReader`" -->
 
-The v0.5 verb-extraction port trait. Sibling to [Reader](#reader) and
+The v0.5 verb-extraction port trait. Sibling to [SpecReader](#specreader), [CodeReader](#codereader) and
 [ContextReader](#contextreader) — separate per graph-specs-005-verb-coverage-report#3.2 clean-arch
 lens. Not every adapter extracts verbs (markdown has no code items);
 returning an empty `Vec` is the correct implementation for adapters that

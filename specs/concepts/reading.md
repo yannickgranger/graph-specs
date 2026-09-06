@@ -11,7 +11,7 @@ encouraged — it is ignored by the reader.
 
 <!-- parent:rfc:graph-specs-005-verb-coverage-report#3.2.3 anchor:"the markdown reader is the only adapter that parses markdown" -->
 
-Concrete [Reader](#reader) and [ContextReader](#contextreader)
+Concrete [SpecReader](equivalence.md#specreader), [SpecLoader](equivalence.md#specloader) and [ContextReader](#contextreader)
 implementation for markdown spec files. Uses `pulldown-cmark`. Emits a
 [ConceptNode](#conceptnode) for every `##` or `###` heading it encounters,
 collects fenced `rust` blocks for signature-level comparison, and
@@ -28,7 +28,6 @@ parsed like any other spec, and every concept heading in one is marked
 on the node it emits. The `extract_draft_concepts` side-index walk that
 the previous design needed is retired.
 
-- implements: Reader
 - implements: SpecReader
 - implements: SpecLoader
 - implements: ContextReader
@@ -57,7 +56,7 @@ source files. Uses `syn`. Walks the source tree once (skipping `target/`,
 `examples/` and `node_modules/`), parses each `*.rs` file, and emits
 flat [ConceptNode](#conceptnode) + raw [Edge](#edge) into an
 [Extraction](#extraction). Detects via `Cargo.toml` at the root.
-[RustReader](#rustreader) wraps it for the [Reader](#reader) port.
+[RustReader](#rustreader) wraps it for the [CodeReader](equivalence.md#codereader) port.
 Lives in `adapters/rust`.
 
 - implements: LanguageBackend
@@ -68,7 +67,7 @@ Lives in `adapters/rust`.
 
 <!-- parent:rfc:graph-specs-005-verb-coverage-report#3.2.2 anchor:"the doubled parse pays no cost" -->
 
-Concrete [Reader](#reader) and [VerbReader](#verbreader) implementation
+Concrete [CodeReader](equivalence.md#codereader) and [VerbReader](#verbreader) implementation
 for Rust source files. Thin adapter over [RustBackend](#rustbackend):
 pulls the [Extraction](#extraction), filters raw edges against the
 discovered [ConceptNode](#conceptnode) set, and assembles a
@@ -84,7 +83,6 @@ graph's [ConceptNode](#conceptnode)s as the source-walk parity reference
 the cfdb-query [CfdbQueryReader](#cfdbqueryreader) ACL must match. Lives in
 `adapters/rust`.
 
-- implements: Reader
 - implements: CodeReader
 - implements: VerbReader
 - implements: CodeFacts
@@ -236,7 +234,6 @@ a skip; the reader carries the inline-attribute format on every fact it
 emits and declares as bullets only what the source walk answers, a type
 named by a signature.
 
-- implements: Reader
 - implements: SpecReader
 - implements: SpecLoader
 - depends on: Graph
