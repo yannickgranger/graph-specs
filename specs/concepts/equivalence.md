@@ -165,6 +165,8 @@ name — the only coordinate the graph affords
 (graph-specs-011-php-ladder#3.2; cfdb-045-polyglot-relationship-edges#3.4)
 — and every message that prints it labels it a namespace, never a path.
 
+The code variant also carries the kind of its location — a path, or a namespace — set by the reader that produced the fact: the keyspace reader sets namespace for a fact whose graph carries no file node, every other reader sets path; a message that prints the location labels it by that kind, and never infers the kind from the value or from the run (graph-specs-010-abstraction-level-equivalence#3.4: the code-side resolution answers with its own facts).
+
 ## Violation
 
 <!-- parent:rfc:graph-specs-012-non-pub-spec-anchor#3.5 anchor:"an anchor naming a nonexistent item" -->
