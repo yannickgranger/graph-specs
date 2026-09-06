@@ -85,8 +85,6 @@ struct BulletSink<'a> {
     malformed: &'a mut Vec<Violation>,
 }
 
-impl MarkdownReader {}
-
 impl VerbAnchorReader for MarkdownReader {
     fn extract_verb_anchors(&self, files: &SpecFileSet) -> Result<Vec<VerbAnchor>, ReaderError> {
         let mut verb_anchors: Vec<VerbAnchor> = Vec::new();

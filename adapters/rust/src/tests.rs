@@ -1,28 +1,55 @@
 use super::*;
 
 #[test]
-fn provenance_from_the_cache_equals_the_walk_derived_values() {
+fn provenance_from_the_cache_matches_a_declared_table() {
     let d = TempDir::new().expect("create temp dir");
-    write(d.path(), "Cargo.toml", "[workspace]\nmembers = [\"a\"]\n");
-    write(d.path(), "a/Cargo.toml", "[package]\nname = \"a\"\n");
-    write(d.path(), "a/src/lib.rs", "pub struct Held;\n");
-    write(d.path(), "a/src/deep/mod.rs", "pub struct Deep;\n");
+    write(
+        d.path(),
+        "Cargo.toml",
+        "[workspace]\nmembers = [\"crates/a\"]\n",
+    );
+    write(d.path(), "crates/a/Cargo.toml", "[package]\nname = \"a\"\n");
+    write(d.path(), "crates/a/src/lib.rs", "pub struct Held;\n");
+    write(d.path(), "crates/a/src/deep/mod.rs", "pub struct Deep;\n");
+
+    let expected = [
+        ("crates/a/src/lib.rs", Some("crates/a"), Some("crates/a")),
+        (
+            "crates/a/src/deep/mod.rs",
+            Some("crates/a"),
+            Some("crates/a::deep"),
+        ),
+    ];
 
     let set = ports::CodeLoader::load(&RustLoader, d.path()).expect("load");
     let cache = crate::parse(d.path(), &set).expect("parse");
 
+    let mut seen = Vec::new();
     cache.for_each(|path, _parsed, unit, module_path| {
-        let walked_unit = crate::provenance::find_owned_unit(path, d.path());
-        let walked_module =
-            crate::provenance::module_path_of(path, d.path(), walked_unit.as_deref());
-        assert_eq!(unit, walked_unit.as_deref(), "unit at {}", path.display());
-        assert_eq!(
-            module_path,
-            walked_module.as_deref(),
-            "module_path at {}",
-            path.display()
-        );
+        let rel = path
+            .strip_prefix(d.path())
+            .expect("under root")
+            .to_string_lossy()
+            .replace('\\', "/");
+        seen.push((rel, unit.map(str::to_owned), module_path.map(str::to_owned)));
     });
+    seen.sort();
+
+    assert_eq!(
+        seen.len(),
+        expected.len(),
+        "the cache visited {} files, the table declares {}",
+        seen.len(),
+        expected.len()
+    );
+    for (rel, unit, module_path) in &expected {
+        let found = seen
+            .iter()
+            .find(|(r, _, _)| r == rel)
+            .unwrap_or_else(|| panic!("no cache entry for {rel}"));
+        assert_eq!(found.1.as_deref(), *unit, "unit at {rel}");
+        assert_eq!(found.2.as_deref(), *module_path, "module_path at {rel}");
+    }
 }
 
 #[test]
@@ -40,14 +67,14 @@ fn one_parsed_unit_per_file_across_sequential_capability_calls() {
     let cache = crate::parse(d.path(), &set).expect("parse");
     assert_eq!(cache.paths().len(), 2, "one entry per file");
 
-    let reader = RustReader::new(cache.clone());
-    let graph = ports::CodeReader::extract(&reader, &set).expect("extract");
-    let fns = ports::VerbReader::extract_pub_fns(&reader, d.path()).expect("pub fns");
-
     let mut first = Vec::new();
     cache.for_each(|path, parsed, _, _| {
         first.push((path.to_path_buf(), std::ptr::from_ref(parsed)));
     });
+
+    let reader = RustReader::new(cache.clone());
+    let graph = ports::CodeReader::extract(&reader, &set).expect("extract");
+    let fns = ports::VerbReader::extract_pub_fns(&reader, d.path()).expect("pub fns");
     let mut second = Vec::new();
     cache.for_each(|path, parsed, _, _| {
         second.push((path.to_path_buf(), std::ptr::from_ref(parsed)));
