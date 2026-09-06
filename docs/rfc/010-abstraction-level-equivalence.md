@@ -1,6 +1,6 @@
 # RFC-010 — Abstraction-level equivalence (the heading ladder)
 
-- **Status:** FINAL — operator-ratified §13-A (cohesion fact-source routing: **(b)-MVP → (c)-clean**). Body §1–§11 integrates all binding dry-run resolutions; §12 is the condensed hardening trail. Ready to file §7 issues.
+- **Status:** FINAL — operator-ratified §13-A (cohesion fact-source routing: **(b)-MVP → (c)-clean**). Body §1–§11 integrates all binding dry-run resolutions; §12 is the condensed hardening trail. Ready to file §7 issues. Amendment 2026-09-06: §4 invariant 9, the binding pass's concept identity.
 - **Date:** 2026-06-05
 - **Authors:** Claude (session 2026-06-05, operator-prompted).
 - **Companion:** yg/cfdb — the code-facts **database** and a co-evolving peer. graph-specs queries it as a first-class fact source through an **Anti-Corruption Layer** adapter (§3.3); the convergence step (c) is a small *paired cfdb RFC* (§8 OQ-8, §11) — cfdb already models multi-crate contexts (`.cfdb/concepts/*.toml`), so (c) needs **no cfdb schema change**.
@@ -147,6 +147,7 @@ The cfdb-query ACL is the proper exploitation of cfdb-the-database (don't re-wal
 6. **Depth is authoritative; deviation is drift** — the tool enforces depth→level, never infers a heading's "real" level.
 7. **Adapter routing has zero divergence** — each repo uses the adapter whose context model matches (§3.3); cfdb-query cohesion on multi-crate repos awaits (c)/OQ-8.
 8. **NDJSON v2 → v3 is a hard break gated by `schema_version`** — no silent mis-parse.
+9. **Concept identity in the binding pass is `(name, unit)`** — Amendment 2026-09-06: a surface item is bound or reported by its own name and its owning unit, never collapsed onto another item of the same name under another unit; a heading binds the item of its own context (§3.4, H1 = context), and a same-named item under another unit is a second concept — bound by a second heading in that context's document, or reported as undescribed. This is what §3.5's `ConceptContextMismatch` already presupposes (a mismatch is per item, not per name) and what `cascade-gate` §3.2 and §4 `TypeRealizedTwice` rule for the sibling instrument; the cascade ⟷ graph-specs listing equivalence a host fences holds only if both count the same items. Found 2026-09-06 on cours-coreen: `Clock`, `SubjectId`, `SystemClock` each realized under two declared prefixes and each reported once.
 
 ## §5 — Council review & hardening
 
@@ -192,6 +193,7 @@ The ladder maps onto cfdb's vocabulary (`H1 Context↔:Context`, `H2 Concept↔:
 - **§11.3 agentry ← model:** **AGE-1** promote H4 pub-type declarations to H2 (6 files); **AGE-3** H1 → context identifier; agentry's per-crate keyspace already serves cfdb-query cohesion today (it *is* the one-per-crate case).
 - **§11.4 cross-project invariant:** a code item's bounded context is true in **one** place and flows one direction — `cfdb/specs-contexts → context fact → ACL/source-walk → ConceptNode.context → cohesion vs H1`. No project re-derives another's knowledge.
 - **§11.5 PHP (RFC-011):** *not* "nearly free" — PHP `:Item` is prop-less (edge-only containment), so the ACL needs a PHP-specific **edge-traversal** path. The ladder logic is reused; the fact-extraction path differs.
+- **§11.6 the keyspace path says what it cannot read (keel-harness R1, §3.2; transcribed 2026-09-06):** on the keyspace input, a pass whose assumed shape is absent is a could-not-run naming the pass and the shape — never a clean empty, and never a finding that charges the specs with the reader's shortfall. The concept channel with no producer mark refuses (cascade-gate §10 aa, the same reading); the relationship channel reports the edge count it read, so zero edges is a stated zero; verb and impl anchors resolve through the cfdb-backed resolver, never a Rust source walk; a `- depends on:` or `- returns:` bullet on a heading whose producer emits no fact of that kind is unanswerable and says so, never `EdgeMissingInCode`; the run names the input it read and runs that input's passes only.
 
 ## §12 — Hardening trail (condensed)
 Full detail in `council/rfc-010/` and this file's git history.
