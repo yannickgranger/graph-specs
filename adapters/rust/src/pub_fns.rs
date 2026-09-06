@@ -1,4 +1,5 @@
 use crate::cfg_gate::is_test_gated;
+use domain::LocationKind;
 use domain::Provenance;
 use domain::{PubFnDecl, Source};
 use std::path::Path;
@@ -24,6 +25,7 @@ pub fn visit_top_level_fn(
                 path: path.to_path_buf(),
                 line,
                 provenance: Provenance::empty(),
+                location: LocationKind::Path,
             },
             owned_unit: owned_unit.map(str::to_owned),
         });
@@ -65,6 +67,7 @@ pub fn visit_impl_block(
                 path: path.to_path_buf(),
                 line,
                 provenance: Provenance::empty(),
+                location: LocationKind::Path,
             },
             owned_unit: owned_unit.map(str::to_owned),
         });

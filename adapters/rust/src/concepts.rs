@@ -1,6 +1,7 @@
 use crate::cfg_gate::is_test_gated;
 use crate::provenance::{find_owned_unit, module_path_of};
 use crate::{edges, normalize};
+use domain::LocationKind;
 use domain::Provenance;
 use domain::{ConceptNode, Edge, SignatureState, Source};
 use std::path::Path;
@@ -99,6 +100,7 @@ fn emit(
                 path: path.to_path_buf(),
                 line,
                 provenance: Provenance::empty(),
+                location: LocationKind::Path,
             },
             SignatureState::Normalized(normalize(item)),
         )

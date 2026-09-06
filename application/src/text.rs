@@ -1,3 +1,4 @@
+use domain::LocationKind;
 use domain::{
     CheckOutcome, CohesionViolation, ContextViolation, PendingRecord, RealizedRecord,
     RetirementCompleteRecord, RetirementIncompleteRecord, Source, Violation,
@@ -6,44 +7,29 @@ use std::io::Write;
 use std::path::Path;
 
 pub fn format_pending(r: &PendingRecord, out: &mut impl Write) -> std::io::Result<()> {
-    let (path, line) = source_pair(&r.spec_source);
-    writeln!(out, "pending: {} ({}:{line})", r.concept, path.display())
+    let at = located(&r.spec_source);
+    writeln!(out, "pending: {} ({at})", r.concept)
 }
 
 pub fn format_realized(r: &RealizedRecord, out: &mut impl Write) -> std::io::Result<()> {
-    let (path, line) = source_pair(&r.spec_source);
-    writeln!(
-        out,
-        "realized — ratify: {} ({}:{line})",
-        r.concept,
-        path.display()
-    )
+    let at = located(&r.spec_source);
+    writeln!(out, "realized — ratify: {} ({at})", r.concept)
 }
 
 pub fn format_retirement_incomplete(
     r: &RetirementIncompleteRecord,
     out: &mut impl Write,
 ) -> std::io::Result<()> {
-    let (path, line) = source_pair(&r.spec_source);
-    writeln!(
-        out,
-        "retirement incomplete: {} ({}:{line})",
-        r.concept,
-        path.display()
-    )
+    let at = located(&r.spec_source);
+    writeln!(out, "retirement incomplete: {} ({at})", r.concept)
 }
 
 pub fn format_retirement_complete(
     r: &RetirementCompleteRecord,
     out: &mut impl Write,
 ) -> std::io::Result<()> {
-    let (path, line) = source_pair(&r.spec_source);
-    writeln!(
-        out,
-        "retirement complete: {} ({}:{line})",
-        r.concept,
-        path.display()
-    )
+    let at = located(&r.spec_source);
+    writeln!(out, "retirement complete: {} ({at})", r.concept)
 }
 
 pub fn format_summary(outcome: &CheckOutcome, out: &mut impl Write) -> std::io::Result<()> {
@@ -62,12 +48,12 @@ pub fn format_summary(outcome: &CheckOutcome, out: &mut impl Write) -> std::io::
 pub fn format_violation(v: &Violation, out: &mut impl Write) -> std::io::Result<()> {
     match v {
         Violation::MissingInCode { name, spec_source } => {
-            let (path, line) = source_pair(spec_source);
-            writeln!(out, "missing in code: {name} ({}:{line})", path.display())
+            let at = located(spec_source);
+            writeln!(out, "missing in code: {name} ({at})")
         }
         Violation::MissingInSpecs { name, code_source } => {
-            let (path, line) = source_pair(code_source);
-            writeln!(out, "missing in specs: {name} ({}:{line})", path.display())
+            let at = located(code_source);
+            writeln!(out, "missing in specs: {name} ({at})")
         }
         Violation::SignatureDrift {
             name,
@@ -76,13 +62,11 @@ pub fn format_violation(v: &Violation, out: &mut impl Write) -> std::io::Result<
             spec_source,
             code_source,
         } => {
-            let (spec_path, spec_line) = source_pair(spec_source);
-            let (code_path, code_line) = source_pair(code_source);
+            let spec_at = located(spec_source);
+            let code_at = located(code_source);
             writeln!(
                 out,
-                "signature drift: {name}\n  spec ({}:{spec_line}): {spec_sig}\n  code ({}:{code_line}): {code_sig}",
-                spec_path.display(),
-                code_path.display()
+                "signature drift: {name}\n  spec ({spec_at}): {spec_sig}\n  code ({code_at}): {code_sig}"
             )
         }
         Violation::SignatureMissingInSpec {
@@ -90,11 +74,10 @@ pub fn format_violation(v: &Violation, out: &mut impl Write) -> std::io::Result<
             code_sig,
             code_source,
         } => {
-            let (path, line) = source_pair(code_source);
+            let at = located(code_source);
             writeln!(
                 out,
-                "signature missing in spec: {name} ({}:{line})\n  code: {code_sig}",
-                path.display()
+                "signature missing in spec: {name} ({at})\n  code: {code_sig}"
             )
         }
         Violation::SignatureUnparseable {
@@ -103,11 +86,10 @@ pub fn format_violation(v: &Violation, out: &mut impl Write) -> std::io::Result<
             error,
             source,
         } => {
-            let (path, line) = source_pair(source);
+            let at = located(source);
             writeln!(
                 out,
-                "signature unparseable: {name} ({}:{line})\n  raw: {raw}\n  error: {error}",
-                path.display()
+                "signature unparseable: {name} ({at})\n  raw: {raw}\n  error: {error}"
             )
         }
         Violation::EdgeMissingInCode {
@@ -116,11 +98,10 @@ pub fn format_violation(v: &Violation, out: &mut impl Write) -> std::io::Result<
             target,
             spec_source,
         } => {
-            let (path, line) = source_pair(spec_source);
+            let at = located(spec_source);
             writeln!(
                 out,
-                "edge missing in code: {concept} --{edge_kind}--> {target} ({}:{line})",
-                path.display()
+                "edge missing in code: {concept} --{edge_kind}--> {target} ({at})"
             )
         }
         Violation::EdgeMissingInSpec {
@@ -129,11 +110,10 @@ pub fn format_violation(v: &Violation, out: &mut impl Write) -> std::io::Result<
             target,
             code_source,
         } => {
-            let (path, line) = source_pair(code_source);
+            let at = located(code_source);
             writeln!(
                 out,
-                "edge missing in spec: {concept} --{edge_kind}--> {target} ({}:{line})",
-                path.display()
+                "edge missing in spec: {concept} --{edge_kind}--> {target} ({at})"
             )
         }
         Violation::EdgeTargetUnknown {
@@ -142,11 +122,10 @@ pub fn format_violation(v: &Violation, out: &mut impl Write) -> std::io::Result<
             target,
             spec_source,
         } => {
-            let (path, line) = source_pair(spec_source);
+            let at = located(spec_source);
             writeln!(
                 out,
-                "edge target unknown: {concept} --{edge_kind}--> {target} (not a concept in either graph) ({}:{line})",
-                path.display()
+                "edge target unknown: {concept} --{edge_kind}--> {target} (not a concept in either graph) ({at})"
             )
         }
         Violation::Context(ctx) => format_context_violation(ctx, out),
@@ -155,19 +134,17 @@ pub fn format_violation(v: &Violation, out: &mut impl Write) -> std::io::Result<
             qname,
             spec_source,
         } => {
-            let (path, line) = source_pair(spec_source);
+            let at = located(spec_source);
             writeln!(
                 out,
-                "verb missing in code: {concept} claims `{qname}` but no pub fn found ({}:{line})",
-                path.display()
+                "verb missing in code: {concept} claims `{qname}` but no pub fn found ({at})"
             )
         }
         Violation::VerbMissingInSpec { qname, code_source } => {
-            let (path, line) = source_pair(code_source);
+            let at = located(code_source);
             writeln!(
                 out,
-                "verb missing in spec: `{qname}` is unclaimed in its context ({}:{line})",
-                path.display()
+                "verb missing in spec: `{qname}` is unclaimed in its context ({at})"
             )
         }
         Violation::VerbTargetUnknown {
@@ -175,11 +152,10 @@ pub fn format_violation(v: &Violation, out: &mut impl Write) -> std::io::Result<
             qname,
             spec_source,
         } => {
-            let (path, line) = source_pair(spec_source);
+            let at = located(spec_source);
             writeln!(
                 out,
-                "verb target unknown: {concept} claims `{qname}` but fn belongs to no context ({}:{line})",
-                path.display()
+                "verb target unknown: {concept} claims `{qname}` but fn belongs to no context ({at})"
             )
         }
         Violation::ForbiddenConceptReintroduced {
@@ -187,13 +163,11 @@ pub fn format_violation(v: &Violation, out: &mut impl Write) -> std::io::Result<
             spec_source,
             code_source,
         } => {
-            let (spec_path, spec_line) = source_pair(spec_source);
-            let (code_path, code_line) = source_pair(code_source);
+            let spec_at = located(spec_source);
+            let code_at = located(code_source);
             writeln!(
                 out,
-                "forbidden concept reintroduced: {name}\n  expelled by ({}:{spec_line})\n  reintroduced at ({}:{code_line})",
-                spec_path.display(),
-                code_path.display()
+                "forbidden concept reintroduced: {name}\n  expelled by ({spec_at})\n  reintroduced at ({code_at})"
             )
         }
         Violation::Cohesion(c) => format_cohesion_violation(c, out),
@@ -202,11 +176,10 @@ pub fn format_violation(v: &Violation, out: &mut impl Write) -> std::io::Result<
             target,
             spec_source,
         } => {
-            let (path, line) = source_pair(spec_source);
+            let at = located(spec_source);
             writeln!(
                 out,
-                "dangling anchor: {concept} anchors `{target}` but no such code item exists ({}:{line})",
-                path.display()
+                "dangling anchor: {concept} anchors `{target}` but no such code item exists ({at})"
             )
         }
         _ => writeln!(out, "unknown violation"),
@@ -231,11 +204,10 @@ fn format_cohesion_violation(v: &CohesionViolation, out: &mut impl Write) -> std
             code_context,
             spec_source,
         } => {
-            let (path, line) = source_pair(spec_source);
+            let at = located(spec_source);
             writeln!(
                 out,
-                "concept context mismatch: {concept} declared in `{declared}` but code resolves to `{code_context}` ({}:{line})",
-                path.display()
+                "concept context mismatch: {concept} declared in `{declared}` but code resolves to `{code_context}` ({at})"
             )
         }
         _ => writeln!(out, "unknown cohesion violation"),
@@ -249,12 +221,11 @@ fn format_context_violation(v: &ContextViolation, out: &mut impl Write) -> std::
             owned_unit,
             code_source,
         } => {
-            let (path, line) = source_pair(code_source);
+            let at = located(code_source);
             writeln!(
                 out,
-                "context membership unknown: {concept} in `{}` ({}:{line})",
-                owned_unit.0,
-                path.display()
+                "context membership unknown: {concept} in `{}` ({at})",
+                owned_unit.0
             )
         }
         ContextViolation::CrossEdgeUnauthorized {
@@ -265,11 +236,10 @@ fn format_context_violation(v: &ContextViolation, out: &mut impl Write) -> std::
             target_context,
             spec_source,
         } => {
-            let (path, line) = source_pair(spec_source);
+            let at = located(spec_source);
             writeln!(
                 out,
-                "cross-context edge unauthorized: {concept} ({owning_context}) --{edge_kind}--> {target} ({target_context}) at {}:{line}",
-                path.display()
+                "cross-context edge unauthorized: {concept} ({owning_context}) --{edge_kind}--> {target} ({target_context}) at {at}"
             )
         }
         ContextViolation::CrossEdgeUndeclared {
@@ -280,11 +250,23 @@ fn format_context_violation(v: &ContextViolation, out: &mut impl Write) -> std::
             target_context,
             spec_source,
         } => {
-            let (path, line) = source_pair(spec_source);
+            let at = located(spec_source);
             writeln!(
                 out,
-                "cross-context edge undeclared: {concept} ({owning_context}) --{edge_kind}--> {target} ({target_context}) at {}:{line}",
-                path.display()
+                "cross-context edge undeclared: {concept} ({owning_context}) --{edge_kind}--> {target} ({target_context}) at {at}"
+            )
+        }
+        ContextViolation::SurfaceAdmitsNothing {
+            declared_prefixes,
+            concept_rung_items,
+            keyspace,
+        } => {
+            let prefixes: Vec<&str> = declared_prefixes.iter().map(|u| u.0.as_str()).collect();
+            writeln!(
+                out,
+                "declared surface admits nothing: {concept_rung_items} concept-rung item(s) in {} and not one is owned by a declared prefix ({})",
+                keyspace.display(),
+                prefixes.join(", ")
             )
         }
         ContextViolation::CrossEdgeOffSurface {
@@ -294,12 +276,11 @@ fn format_context_violation(v: &ContextViolation, out: &mut impl Write) -> std::
             target,
             code_source,
         } => {
-            let (path, line) = source_pair(code_source);
+            let at = located(code_source);
             let owner = owning_context.as_deref().unwrap_or("no declared context");
             writeln!(
                 out,
-                "crossing out of the declared surface: {concept} ({owner}) --{edge_kind}--> {target}, which no declared prefix owns, at namespace {}:{line}",
-                path.display()
+                "crossing out of the declared surface: {concept} ({owner}) --{edge_kind}--> {target}, which no declared prefix owns, at {at}"
             )
         }
         ContextViolation::CrossVerbUnauthorized {
@@ -309,14 +290,21 @@ fn format_context_violation(v: &ContextViolation, out: &mut impl Write) -> std::
             target_context,
             spec_source,
         } => {
-            let (path, line) = source_pair(spec_source);
+            let at = located(spec_source);
             writeln!(
                 out,
-                "cross-context verb unauthorized: {concept} ({owning_context}) claims `{qname}` which belongs to {target_context} ({}:{line})",
-                path.display()
+                "cross-context verb unauthorized: {concept} ({owning_context}) claims `{qname}` which belongs to {target_context} ({at})"
             )
         }
         _ => writeln!(out, "unknown context violation for {}", v.concept()),
+    }
+}
+
+pub(crate) fn located(s: &Source) -> String {
+    let (path, line) = source_pair(s);
+    match s.location_kind() {
+        LocationKind::Path => format!("{}:{line}", path.display()),
+        LocationKind::Namespace => format!("namespace {}:{line}", path.display()),
     }
 }
 
@@ -345,6 +333,7 @@ mod tests {
             path: PathBuf::from("some-crate/src/lib.rs"),
             line: 3,
             provenance: domain::Provenance::empty(),
+            location: LocationKind::Path,
         }
     }
 
@@ -542,5 +531,51 @@ mod tests {
         assert!(out.contains("anchors `validate_intake`"));
         assert!(out.contains("specs/concepts/intake_validation.md:3"));
         assert!(!out.contains("unknown violation"));
+    }
+}
+
+#[cfg(test)]
+mod location_kind_tests {
+    use super::*;
+    use domain::Provenance;
+    use std::path::PathBuf;
+
+    fn code(path: &str, location: LocationKind) -> Source {
+        Source::Code {
+            path: PathBuf::from(path),
+            line: 3,
+            provenance: Provenance::empty(),
+            location,
+        }
+    }
+
+    #[test]
+    fn a_namespace_location_is_labelled_a_namespace() {
+        assert_eq!(
+            located(&code("App\\Catalogue", LocationKind::Namespace)),
+            "namespace App\\Catalogue:3"
+        );
+    }
+
+    #[test]
+    fn a_path_location_is_printed_as_it_always_was() {
+        assert_eq!(
+            located(&code("domain/src/lib.rs", LocationKind::Path)),
+            "domain/src/lib.rs:3"
+        );
+    }
+
+    #[test]
+    fn the_kind_comes_from_the_fact_not_from_the_value() {
+        assert_eq!(
+            located(&code("App\\Catalogue", LocationKind::Path)),
+            "App\\Catalogue:3",
+            "a backslashed value is still a path when the reader said so"
+        );
+        assert_eq!(
+            located(&code("domain/src/lib.rs", LocationKind::Namespace)),
+            "namespace domain/src/lib.rs:3",
+            "a slashed value is still a namespace when the reader said so"
+        );
     }
 }

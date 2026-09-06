@@ -65,6 +65,7 @@ mod tests {
             path: PathBuf::from("domain/src/intake.rs"),
             line: 7,
             provenance: crate::Provenance::empty(),
+            location: crate::LocationKind::Path,
         }
     }
 

@@ -49,6 +49,17 @@ pub(super) fn context_violation_to_record(v: &ContextViolation) -> Value {
             "target_context": target_context,
             "spec_source": source_to_json(spec_source),
         }),
+        ContextViolation::SurfaceAdmitsNothing {
+            declared_prefixes,
+            concept_rung_items,
+            keyspace,
+        } => json!({
+            "schema_version": SchemaVersion::CURRENT.as_str(),
+            "violation": "surface_admits_nothing",
+            "concept_rung_items": concept_rung_items,
+            "declared_prefixes": declared_prefixes.iter().map(|u| u.0.as_str()).collect::<Vec<_>>(),
+            "keyspace": keyspace.to_string_lossy(),
+        }),
         ContextViolation::CrossEdgeOffSurface {
             concept,
             owning_context,

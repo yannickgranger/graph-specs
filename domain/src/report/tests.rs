@@ -1,4 +1,5 @@
 use super::*;
+use crate::LocationKind;
 use crate::Provenance;
 use crate::{
     CheckInput, ContextDecl, ContextExport, ContextImport, ContextPattern, Graph, OwnedUnit,
@@ -11,6 +12,7 @@ fn code_src(line: usize) -> Source {
         path: PathBuf::from("some-crate/src/lib.rs"),
         line,
         provenance: Provenance::empty(),
+        location: LocationKind::Path,
     }
 }
 

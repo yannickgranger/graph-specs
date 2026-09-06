@@ -76,3 +76,31 @@ fn a_repository_declaring_no_context_has_an_empty_surface() {
     assert!(surface.is_empty());
     assert!(!surface.admits("App\\Catalogue\\Course"));
 }
+
+#[test]
+fn one_trailing_backslash_on_the_declaration_is_immaterial() {
+    let surface = DeclaredSurface::from_contexts(&[context(&["App\\Catalogue\\"])]);
+    assert!(surface.admits("App\\Catalogue\\Domain\\Course"));
+    assert_eq!(
+        surface.unit_of("App\\Catalogue\\Domain\\Course"),
+        Some("App\\Catalogue")
+    );
+}
+
+#[test]
+fn a_prefix_matches_case_insensitively_because_php_namespaces_do() {
+    let surface = DeclaredSurface::from_contexts(&[context(&["App\\Catalogue"])]);
+    assert!(surface.admits("app\\catalogue\\Domain\\Course"));
+    assert!(surface.admits("APP\\CATALOGUE\\Course"));
+    assert_eq!(
+        surface.unit_of("app\\catalogue\\Course"),
+        Some("App\\Catalogue"),
+        "the declared spelling is what the unit reports, not the call site's"
+    );
+}
+
+#[test]
+fn case_insensitivity_does_not_cross_a_separator_boundary() {
+    let surface = DeclaredSurface::from_contexts(&[context(&["App\\Catalog"])]);
+    assert!(!surface.admits("app\\catalogue\\Course"));
+}

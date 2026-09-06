@@ -1,4 +1,5 @@
 use super::write_ndjson;
+use domain::LocationKind;
 use domain::{
     CheckOutcome, CohesionViolation, ContextViolation, EdgeKind, OwnedUnit, PendingRecord,
     Provenance, RealizedRecord, Source, Violation,
@@ -52,6 +53,7 @@ fn missing_in_specs_record() {
             path: PathBuf::from("src/lib.rs"),
             line: 3,
             provenance: Provenance::empty(),
+            location: LocationKind::Path,
         },
     };
     let r = record(&render_one(v));
@@ -77,6 +79,7 @@ fn signature_drift_record() {
             path: PathBuf::from("ports/src/lib.rs"),
             line: 15,
             provenance: Provenance::empty(),
+            location: LocationKind::Path,
         },
     };
     let r = record(&render_one(v));
@@ -99,6 +102,7 @@ fn signature_missing_in_spec_record() {
             path: PathBuf::from("ports/src/lib.rs"),
             line: 15,
             provenance: Provenance::empty(),
+            location: LocationKind::Path,
         },
     };
     let r = record(&render_one(v));
@@ -158,6 +162,7 @@ fn edge_missing_in_spec_record() {
             path: PathBuf::from("adapters/markdown/src/lib.rs"),
             line: 42,
             provenance: Provenance::empty(),
+            location: LocationKind::Path,
         },
     };
     let r = record(&render_one(v));
@@ -209,6 +214,7 @@ fn multiple_violations_are_newline_delimited() {
             path: PathBuf::from("b.rs"),
             line: 2,
             provenance: Provenance::empty(),
+            location: LocationKind::Path,
         },
     };
     let mut buf = Vec::new();
@@ -256,6 +262,7 @@ fn context_membership_unknown_record() {
             path: PathBuf::from("stray-crate/src/lib.rs"),
             line: 3,
             provenance: Provenance::empty(),
+            location: LocationKind::Path,
         },
     });
     let r = record(&render_one(v));
@@ -317,6 +324,7 @@ fn verb_missing_in_spec_record() {
             path: PathBuf::from("domain/src/lib.rs"),
             line: 42,
             provenance: Provenance::empty(),
+            location: LocationKind::Path,
         },
     };
     let r = record(&render_one(v));
@@ -529,6 +537,7 @@ fn code_at(path: &str, line: usize) -> Source {
         path: PathBuf::from(path),
         line,
         provenance: Provenance::empty(),
+        location: LocationKind::Path,
     }
 }
 
@@ -545,6 +554,7 @@ fn code_prov(path: &str, line: usize, provenance: Provenance) -> Source {
         path: PathBuf::from(path),
         line,
         provenance,
+        location: LocationKind::Path,
     }
 }
 

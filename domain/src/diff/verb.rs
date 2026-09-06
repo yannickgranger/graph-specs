@@ -180,6 +180,7 @@ mod tests {
             path: PathBuf::from(path),
             line: 1,
             provenance: crate::Provenance::empty(),
+            location: crate::LocationKind::Path,
         }
     }
 

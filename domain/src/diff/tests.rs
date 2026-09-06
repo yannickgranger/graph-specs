@@ -1,5 +1,6 @@
 use super::violation_key;
 use crate::ConceptRef;
+use crate::LocationKind;
 use crate::{
     AnchorKind, AnchorTarget, CheckInput, CohesionViolation, ConceptAnchor, ConceptNode,
     ContextDecl, ContextViolation, Edge, EdgeKind, Graph, Marker, OwnedUnit, Polarity, Provenance,
@@ -40,6 +41,7 @@ fn code(name: &str) -> ConceptNode {
             path: code_path(),
             line: 1,
             provenance: Provenance::empty(),
+            location: LocationKind::Path,
         },
         SignatureState::Absent,
     )
@@ -62,6 +64,7 @@ fn code_with_sig(name: &str, sig: &str) -> ConceptNode {
             path: code_path(),
             line: 1,
             provenance: Provenance::empty(),
+            location: LocationKind::Path,
         },
         SignatureState::Normalized(sig.to_string()),
     )
@@ -104,6 +107,7 @@ fn code_edge(concept: &str, kind: EdgeKind, target: &str) -> Edge {
             path: code_path(),
             line: 10,
             provenance: Provenance::empty(),
+            location: LocationKind::Path,
         },
     }
 }
@@ -447,6 +451,7 @@ fn context_violation(name: &str) -> Violation {
             path: code_path(),
             line: 1,
             provenance: Provenance::empty(),
+            location: LocationKind::Path,
         },
     })
 }
@@ -685,6 +690,7 @@ fn resolved_anchor(concept: &str, target: &str, resolves: bool) -> ResolvedAncho
                 path: code_path(),
                 line: 7,
                 provenance: Provenance::empty(),
+                location: LocationKind::Path,
             },
         }),
     }
@@ -959,6 +965,7 @@ fn violation_key_forbidden_reintroduced_returns_rank_15() {
             path: code_path(),
             line: 12,
             provenance: Provenance::empty(),
+            location: LocationKind::Path,
         },
     };
     let (key, rank) = violation_key(&v);
@@ -1016,6 +1023,7 @@ fn outcome_provenance_snapshots_the_code_triple_with_resolved_context() {
                 unit: Some("domain".to_owned()),
                 context: Some("equivalence".to_owned()),
             },
+            location: LocationKind::Path,
         }
     );
 }
@@ -1226,6 +1234,7 @@ fn row_8_verb_anchors_impose_no_obligation() {
             path: PathBuf::from("domain/src/lib.rs"),
             line: 7,
             provenance: Provenance::empty(),
+            location: LocationKind::Path,
         },
         SignatureState::Absent,
     );
@@ -1487,6 +1496,7 @@ fn the_source_side_per_name_conversion_stays_permissive() {
                     path: PathBuf::from("domain/src/lib.rs"),
                     line: 7,
                     provenance: Provenance::empty(),
+                    location: LocationKind::Path,
                 },
                 SignatureState::Absent,
             )],

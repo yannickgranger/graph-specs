@@ -1,6 +1,7 @@
 use crate::{prop, relativize, KeyspaceFile, EXCLUDED_DIRS};
 use cfdb_core::fact::{Node, PropValue};
 use cfdb_core::schema::Label;
+use domain::LocationKind;
 use domain::Provenance;
 use domain::{AnchorKind, AnchorTarget, Source};
 use ports::{AnchorResolver, ReaderError};
@@ -83,6 +84,7 @@ fn index_entry(node: &Node, root: &Path) -> Option<(String, AnchorTarget)> {
                 path: PathBuf::from(file),
                 line,
                 provenance: Provenance::empty(),
+                location: LocationKind::Path,
             },
         },
     ))

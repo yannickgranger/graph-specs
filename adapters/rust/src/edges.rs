@@ -1,4 +1,5 @@
 use domain::ConceptRef;
+use domain::LocationKind;
 use domain::{tokenise_target, ConceptNode, Edge, EdgeKind, Provenance, Source};
 use proc_macro2::Span;
 use std::collections::HashSet;
@@ -212,6 +213,7 @@ fn code_source(path: &Path, span: Span) -> Source {
         path: path.to_path_buf(),
         line: span.start().line,
         provenance: Provenance::empty(),
+        location: LocationKind::Path,
     }
 }
 
@@ -240,6 +242,7 @@ mod tests {
                         path: PathBuf::from("test.rs"),
                         line: 1,
                         provenance: Provenance::empty(),
+                        location: LocationKind::Path,
                     },
                     domain::SignatureState::Absent,
                 )
