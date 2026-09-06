@@ -177,6 +177,7 @@ mod tests {
 
     fn code_src(path: &str) -> Source {
         Source::Code {
+            language: crate::CodeLanguage::Rust,
             path: PathBuf::from(path),
             line: 1,
             provenance: crate::Provenance::empty(),
@@ -186,6 +187,7 @@ mod tests {
 
     fn spec_src() -> Source {
         Source::Spec {
+            format: crate::SpecFormat::Markdown,
             path: PathBuf::from("specs/concepts/core.md"),
             line: 10,
             context: None,

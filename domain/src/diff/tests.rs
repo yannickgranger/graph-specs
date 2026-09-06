@@ -28,6 +28,7 @@ fn spec(name: &str) -> ConceptNode {
     ConceptNode::new(
         name.to_string(),
         Source::Spec {
+            format: crate::SpecFormat::Markdown,
             path: spec_path(),
             line: 1,
             context: None,
@@ -39,6 +40,7 @@ fn code(name: &str) -> ConceptNode {
     ConceptNode::new(
         name.to_string(),
         Source::Code {
+            language: crate::CodeLanguage::Rust,
             path: code_path(),
             line: 1,
             provenance: Provenance::empty(),
@@ -51,6 +53,7 @@ fn spec_with_sig(name: &str, sig: &str) -> ConceptNode {
     ConceptNode::new(
         name.to_string(),
         Source::Spec {
+            format: crate::SpecFormat::Markdown,
             path: spec_path(),
             line: 1,
             context: None,
@@ -62,6 +65,7 @@ fn code_with_sig(name: &str, sig: &str) -> ConceptNode {
     ConceptNode::new(
         name.to_string(),
         Source::Code {
+            language: crate::CodeLanguage::Rust,
             path: code_path(),
             line: 1,
             provenance: Provenance::empty(),
@@ -74,6 +78,7 @@ fn spec_unparseable(name: &str, raw: &str, error: &str) -> ConceptNode {
     ConceptNode::new(
         name.to_string(),
         Source::Spec {
+            format: crate::SpecFormat::Markdown,
             path: spec_path(),
             line: 1,
             context: None,
@@ -92,6 +97,7 @@ fn spec_edge(concept: &str, kind: EdgeKind, target: &str) -> Edge {
         target: ConceptRef::named(target.to_string()),
         raw_target: target.to_string(),
         source: Source::Spec {
+            format: crate::SpecFormat::Markdown,
             path: spec_path(),
             line: 10,
             context: None,
@@ -105,6 +111,7 @@ fn code_edge(concept: &str, kind: EdgeKind, target: &str) -> Edge {
         target: ConceptRef::named(target.to_string()),
         raw_target: target.to_string(),
         source: Source::Code {
+            language: crate::CodeLanguage::Rust,
             path: code_path(),
             line: 10,
             provenance: Provenance::empty(),
@@ -449,6 +456,7 @@ fn context_violation(name: &str) -> Violation {
         concept: name.to_string(),
         owned_unit: OwnedUnit("some-crate".to_string()),
         code_source: Source::Code {
+            language: crate::CodeLanguage::Rust,
             path: code_path(),
             line: 1,
             provenance: Provenance::empty(),
@@ -472,6 +480,7 @@ fn violation_key_context_sorts_after_edge_target_unknown() {
         edge_kind: EdgeKind::Implements,
         target: "X".to_string(),
         spec_source: Source::Spec {
+            format: crate::SpecFormat::Markdown,
             path: spec_path(),
             line: 1,
             context: None,
@@ -502,6 +511,7 @@ fn violation_key_cohesion_uses_each_variant_key() {
         declared: "reading".to_string(),
         code_context: "equivalence".to_string(),
         spec_source: Source::Spec {
+            format: crate::SpecFormat::Markdown,
             path: spec_path(),
             line: 1,
             context: None,
@@ -518,6 +528,7 @@ fn violation_key_dangling_anchor_returns_rank_14() {
         concept: "ValidateIntakeFull".to_string(),
         target: "validate_intake".to_string(),
         spec_source: Source::Spec {
+            format: crate::SpecFormat::Markdown,
             path: spec_path(),
             line: 3,
             context: None,
@@ -538,6 +549,7 @@ fn retired_slot_13_leaves_a_gap_between_cohesion_and_dangling_anchor() {
         concept: "Foo".to_string(),
         target: "foo_impl".to_string(),
         spec_source: Source::Spec {
+            format: crate::SpecFormat::Markdown,
             path: spec_path(),
             line: 2,
             context: None,
@@ -644,6 +656,7 @@ fn pending_concepts_edge_bullets_impose_no_obligation() {
             target: ConceptRef::named("Gear".to_string()),
             raw_target: "Gear".to_string(),
             source: Source::Spec {
+                format: crate::SpecFormat::Markdown,
                 path: spec_path(),
                 line: 9,
                 context: None,
@@ -681,6 +694,7 @@ fn resolved_anchor(concept: &str, target: &str, resolves: bool) -> ResolvedAncho
             concept: concept.to_string(),
             target: target.to_string(),
             source: Source::Spec {
+                format: crate::SpecFormat::Markdown,
                 path: spec_path(),
                 line: 3,
                 context: None,
@@ -689,6 +703,7 @@ fn resolved_anchor(concept: &str, target: &str, resolves: bool) -> ResolvedAncho
         target: resolves.then(|| AnchorTarget {
             kind: AnchorKind::Fn,
             source: Source::Code {
+                language: crate::CodeLanguage::Rust,
                 path: code_path(),
                 line: 7,
                 provenance: Provenance::empty(),
@@ -910,6 +925,7 @@ fn a_non_declared_concepts_edge_bullets_impose_no_obligation() {
                 target: ConceptRef::named("Gear".to_string()),
                 raw_target: "Gear".to_string(),
                 source: Source::Spec {
+                    format: crate::SpecFormat::Markdown,
                     path: spec_path(),
                     line: 9,
                     context: None,
@@ -970,11 +986,13 @@ fn violation_key_forbidden_reintroduced_returns_rank_15() {
     let v = Violation::ForbiddenConceptReintroduced {
         name: "Member".to_string(),
         spec_source: Source::Spec {
+            format: crate::SpecFormat::Markdown,
             path: spec_path(),
             line: 5,
             context: None,
         },
         code_source: Source::Code {
+            language: crate::CodeLanguage::Rust,
             path: code_path(),
             line: 12,
             provenance: Provenance::empty(),
@@ -1008,6 +1026,7 @@ fn outcome_provenance_snapshots_the_code_triple_with_resolved_context() {
         Vec::new(),
         Vec::new(),
         Source::Spec {
+            format: crate::SpecFormat::Markdown,
             path: spec_path(),
             line: 1,
             context: None,
@@ -1031,6 +1050,7 @@ fn outcome_provenance_snapshots_the_code_triple_with_resolved_context() {
     assert_eq!(
         code_source,
         Source::Code {
+            language: crate::CodeLanguage::Rust,
             path: PathBuf::from("domain/src/lib.rs"),
             line: 1,
             provenance: Provenance {
@@ -1231,6 +1251,7 @@ fn row_8_verb_anchors_impose_no_obligation() {
         vec![],
         vec![],
         Source::Spec {
+            format: crate::SpecFormat::Markdown,
             path: spec_path(),
             line: 1,
             context: None,
@@ -1241,6 +1262,7 @@ fn row_8_verb_anchors_impose_no_obligation() {
         qname: "build_widget".to_owned(),
         raw_target: "verb: build_widget".to_owned(),
         source: Source::Spec {
+            format: crate::SpecFormat::Markdown,
             path: spec_path(),
             line: 3,
             context: None,
@@ -1249,6 +1271,7 @@ fn row_8_verb_anchors_impose_no_obligation() {
     let neighbour_code = ConceptNode::new(
         "Anchorage".to_owned(),
         Source::Code {
+            language: crate::CodeLanguage::Rust,
             path: PathBuf::from("domain/src/lib.rs"),
             line: 7,
             provenance: Provenance::empty(),
@@ -1484,6 +1507,7 @@ fn the_source_side_per_name_conversion_stays_permissive() {
         vec![],
         vec![],
         Source::Spec {
+            format: crate::SpecFormat::Markdown,
             path: spec_path(),
             line: 1,
             context: None,
@@ -1494,6 +1518,7 @@ fn the_source_side_per_name_conversion_stays_permissive() {
         qname: "build_t".to_owned(),
         raw_target: "verb: build_t".to_owned(),
         source: Source::Spec {
+            format: crate::SpecFormat::Markdown,
             path: spec_path(),
             line: 3,
             context: None,
@@ -1516,6 +1541,7 @@ fn the_source_side_per_name_conversion_stays_permissive() {
             vec![ConceptNode::new(
                 "T".to_owned(),
                 Source::Code {
+                    language: crate::CodeLanguage::Rust,
                     path: PathBuf::from("domain/src/lib.rs"),
                     line: 7,
                     provenance: Provenance::empty(),

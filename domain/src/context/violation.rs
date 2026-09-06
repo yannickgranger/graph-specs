@@ -66,6 +66,7 @@ mod tests {
 
     fn src() -> Source {
         Source::Code {
+            language: crate::CodeLanguage::Rust,
             path: PathBuf::from("some-crate/src/lib.rs"),
             line: 3,
             provenance: crate::Provenance::empty(),
@@ -75,6 +76,7 @@ mod tests {
 
     fn spec_src() -> Source {
         Source::Spec {
+            format: crate::SpecFormat::Markdown,
             path: PathBuf::from("specs/concepts/reader.md"),
             line: 12,
             context: None,

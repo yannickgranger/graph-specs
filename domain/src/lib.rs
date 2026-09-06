@@ -42,10 +42,11 @@ pub enum SchemaVersion {
     V2,
     V3,
     V4,
+    V5,
 }
 
 impl SchemaVersion {
-    pub const CURRENT: Self = Self::V4;
+    pub const CURRENT: Self = Self::V5;
 
     #[must_use]
     pub const fn as_str(self) -> &'static str {
@@ -54,6 +55,7 @@ impl SchemaVersion {
             Self::V2 => "2",
             Self::V3 => "3",
             Self::V4 => "4",
+            Self::V5 => "5",
         }
     }
 }
@@ -222,18 +224,79 @@ impl std::fmt::Display for EdgeKind {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum DiffSide {
+    Spec,
+    Code,
+}
+
+impl DiffSide {
+    #[must_use]
+    pub const fn as_label(self) -> &'static str {
+        match self {
+            Self::Spec => "spec",
+            Self::Code => "code",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceWithSig {
+    pub source: Source,
+    pub sig: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum SpecFormat {
+    Markdown,
+    InlineAttribute,
+}
+
+impl SpecFormat {
+    #[must_use]
+    pub const fn as_label(self) -> &'static str {
+        match self {
+            Self::Markdown => "markdown",
+            Self::InlineAttribute => "inline_attribute",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum CodeLanguage {
+    Rust,
+    Php,
+    TypeScript,
+}
+
+impl CodeLanguage {
+    #[must_use]
+    pub const fn as_label(self) -> &'static str {
+        match self {
+            Self::Rust => "rust",
+            Self::Php => "php",
+            Self::TypeScript => "typescript",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Source {
     Spec {
         path: PathBuf,
         line: usize,
         context: Option<String>,
+        format: SpecFormat,
     },
     Code {
         path: PathBuf,
         line: usize,
         provenance: Provenance,
         location: LocationKind,
+        language: CodeLanguage,
     },
 }
 
@@ -342,6 +405,11 @@ pub enum Violation {
         spec_source: Source,
         code_source: Source,
     },
+    SignatureDriftWithinSide {
+        name: String,
+        side: DiffSide,
+        sources: Vec<SourceWithSig>,
+    },
     SignatureDrift {
         name: String,
         spec_sig: String,
@@ -418,9 +486,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn schema_version_current_is_v4() {
-        assert_eq!(SchemaVersion::CURRENT, SchemaVersion::V4);
-        assert_eq!(SchemaVersion::CURRENT.as_str(), "4");
+    fn schema_version_current_is_v5() {
+        assert_eq!(SchemaVersion::CURRENT, SchemaVersion::V5);
+        assert_eq!(SchemaVersion::CURRENT.as_str(), "5");
     }
 
     #[test]
@@ -434,6 +502,7 @@ mod tests {
 
     fn code_src() -> Source {
         Source::Code {
+            language: crate::CodeLanguage::Rust,
             path: PathBuf::from("domain/src/lib.rs"),
             line: 101,
             provenance: Provenance::empty(),

@@ -93,6 +93,7 @@ fn index_entry(node: &Node, root: &Path) -> Option<(String, AnchorTarget)> {
         AnchorTarget {
             kind: anchor_kind,
             source: Source::Code {
+                language: crate::node_language(node),
                 path,
                 line,
                 provenance: Provenance::empty(),

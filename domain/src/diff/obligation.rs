@@ -81,6 +81,7 @@ mod tests {
         let mut n = ConceptNode::new(
             "T".to_owned(),
             Source::Spec {
+                format: crate::SpecFormat::Markdown,
                 path: PathBuf::from("specs/concepts/a.md"),
                 line: 1,
                 context: None,

@@ -47,6 +47,7 @@ mod tests {
 
     fn spec_src(line: usize) -> Source {
         Source::Spec {
+            format: crate::SpecFormat::Markdown,
             path: PathBuf::from("specs/concepts/reading.md"),
             line,
             context: None,
@@ -57,6 +58,7 @@ mod tests {
         ConceptNode::new(
             name.to_owned(),
             Source::Code {
+                language: crate::CodeLanguage::Rust,
                 path: PathBuf::from(format!("{unit}/src/lib.rs")),
                 line: 1,
                 provenance: crate::Provenance::empty(),

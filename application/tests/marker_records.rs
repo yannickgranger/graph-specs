@@ -110,7 +110,7 @@ fn mixed_fixture_yields_one_pending_one_realized_and_exits_zero() {
     assert_eq!(markers[0]["marker"], "pending");
     assert_eq!(markers[0]["concept"], "Digest");
     assert_eq!(markers[2]["marker"], "realized");
-    assert_eq!(markers[2]["schema_version"], "4");
+    assert_eq!(markers[2]["schema_version"], "5");
 }
 
 #[test]
@@ -269,7 +269,7 @@ fn both_retirement_records_emit_end_to_end_and_the_tree_exits_clean() {
 }
 
 #[test]
-fn retirement_records_carry_the_v4_schema_version_on_the_wire() {
+fn retirement_records_carry_the_current_schema_version_on_the_wire() {
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
 
@@ -292,8 +292,11 @@ fn retirement_records_carry_the_v4_schema_version_on_the_wire() {
             .find(|l| l.contains(&format!("\"marker\":\"{marker}\"")))
             .unwrap_or_else(|| panic!("no {marker} record in:\n{out}"));
         assert!(
-            line.contains("\"schema_version\":\"4\""),
-            "{marker} must not bump the schema: {line}"
+            line.contains(&format!(
+                "\"schema_version\":\"{}\"",
+                domain::SchemaVersion::CURRENT.as_str()
+            )),
+            "{marker} rides the current schema version and carries none of its own: {line}"
         );
         assert!(
             !line.contains("\"violation\""),

@@ -133,6 +133,7 @@ mod tests {
             }],
             imports: vec![],
             source: Source::Spec {
+                format: crate::SpecFormat::Markdown,
                 path: std::path::PathBuf::from("specs/concepts/reader.md"),
                 line: 12,
                 context: None,

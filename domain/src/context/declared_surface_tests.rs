@@ -9,6 +9,7 @@ fn context(units: &[&str]) -> ContextDecl {
         Vec::new(),
         Vec::new(),
         Source::Spec {
+            format: crate::SpecFormat::Markdown,
             path: PathBuf::from("specs/contexts/ctx.md"),
             line: 1,
             context: None,
@@ -123,6 +124,7 @@ fn named_context(name: &str, units: &[&str]) -> ContextDecl {
         Vec::new(),
         Vec::new(),
         Source::Spec {
+            format: crate::SpecFormat::Markdown,
             path: PathBuf::from("specs/contexts/x.md"),
             line: 1,
             context: None,

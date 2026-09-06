@@ -79,6 +79,7 @@ pub fn parse_context_file(path: &Path, source: &str) -> Result<ContextDecl, Read
         st.exports,
         st.imports,
         Source::Spec {
+            format: domain::SpecFormat::Markdown,
             path: path.to_path_buf(),
             line: h1_line,
             context: None,

@@ -119,7 +119,6 @@ site in the diff, matching upstream, whose own `Polarity` has zero methods.
 
 ## CodeLanguage
 
-- status: draft
 <!-- parent:rfc:graph-specs-004-multi-language-adapter-contract#3.1.1 anchor:"The runtime / toolchain that owns a code fact" -->
 
 The runtime or toolchain that owns a code fact, carried on the code
@@ -129,7 +128,6 @@ added here, and the diff engine never branches on the value.
 
 ## SpecFormat
 
-- status: draft
 <!-- parent:rfc:graph-specs-004-multi-language-adapter-contract#3.1.2 anchor:"The authoring format of a spec fact" -->
 
 The authoring format of a spec fact, carried on the spec variant of
@@ -181,6 +179,29 @@ namespace and a path that happens to contain a backslash is still a
 path. Pure value, `Path` by default. Lives in `domain`.
 
 - verb: LocationKind::as_label
+
+### SourceWithSig
+
+<!-- parent:spec:Source -->
+
+One reader's answer about a concept's signature, paired with the
+[Source](#source) it read it from. Carried in the `sources` list of the
+intra-side drift [Violation](#violation), which reports every disagreeing
+reader rather than choosing between them: the pair is what makes the report
+actionable, since a signature without the site it came from names no file to
+open. Pure value. Lives in `domain`.
+
+### DiffSide
+
+<!-- parent:spec:Violation -->
+
+Which side of the diff a [Violation](#violation) is about — the spec side or
+the code side. Used only by the intra-side drift variant, where the
+disagreement is among readers of one side and the side is the thing that must
+be said; every other variant names its sides by carrying a `spec_source` and a
+`code_source`, and needs no value for it. Pure value. Lives in `domain`.
+
+- verb: DiffSide::as_label
 
 ## Violation
 

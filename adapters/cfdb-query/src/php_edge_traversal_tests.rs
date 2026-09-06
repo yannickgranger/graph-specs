@@ -31,6 +31,7 @@ fn surface(units: &[&str]) -> DeclaredSurface {
         Vec::new(),
         Vec::new(),
         Source::Spec {
+            format: domain::SpecFormat::Markdown,
             path: PathBuf::from("specs/contexts/catalogue.md"),
             line: 1,
             context: None,

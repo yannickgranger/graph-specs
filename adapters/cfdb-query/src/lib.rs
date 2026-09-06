@@ -100,6 +100,13 @@ impl Producer {
     }
 }
 
+pub(crate) fn node_language(node: &Node) -> domain::CodeLanguage {
+    match mark_of(node) {
+        Some(Producer::Php) => domain::CodeLanguage::Php,
+        Some(Producer::Rust) | None => domain::CodeLanguage::Rust,
+    }
+}
+
 fn mark_of(node: &Node) -> Option<Producer> {
     if prop(node, "php_construct").is_some() {
         return Some(Producer::Php);
@@ -322,6 +329,7 @@ fn item_source(node: &Node) -> Option<Source> {
         .and_then(|n| usize::try_from(n).ok())
         .unwrap_or(0);
     Some(Source::Code {
+        language: node_language(node),
         path: PathBuf::from(file),
         line,
         provenance: Provenance::empty(),
@@ -361,6 +369,7 @@ impl VerbReader for CfdbQueryReader {
             out.push(PubFnDecl {
                 name: anchor_key(qname, construct),
                 source: Source::Code {
+                    language: node_language(node),
                     path: PathBuf::from(namespace_of(qname)),
                     line,
                     provenance: Provenance::empty(),
@@ -489,6 +498,7 @@ fn item_to_concept(node: &Node, root: &Path) -> Option<ConceptNode> {
         ConceptNode::new(
             prop(node, "name")?.to_string(),
             Source::Code {
+                language: node_language(node),
                 path: PathBuf::from(file),
                 line,
                 provenance: Provenance::empty(),

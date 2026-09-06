@@ -8,7 +8,7 @@ use cohesion::cohesion_violation_to_record;
 use context::context_violation_to_record;
 use domain::{CheckOutcome, PendingRecord, RealizedRecord, SchemaVersion, Source, Violation};
 use serde_json::{json, Value};
-use source::{code_source_to_json, source_to_json};
+use source::{code_source_to_json, source_to_json, source_with_sig_to_json};
 use std::io::Write;
 
 pub fn write_ndjson(outcome: &CheckOutcome, out: &mut impl Write) -> std::io::Result<()> {
@@ -238,6 +238,17 @@ fn violation_to_record(v: &Violation) -> Value {
             "concept": concept,
             "target": target,
             "source": source_to_json(spec_source),
+        }),
+        Violation::SignatureDriftWithinSide {
+            name,
+            side,
+            sources,
+        } => json!({
+            "schema_version": SchemaVersion::CURRENT.as_str(),
+            "violation": "signature_drift_within_side",
+            "concept": name,
+            "side": side.as_label(),
+            "sources": sources.iter().map(source_with_sig_to_json).collect::<Vec<_>>(),
         }),
         _ => json!({
             "schema_version": SchemaVersion::CURRENT.as_str(),

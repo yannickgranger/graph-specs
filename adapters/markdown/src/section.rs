@@ -61,6 +61,7 @@ pub fn extract_from_source(
 
 fn spec_source(path: &Path, line: usize) -> Source {
     Source::Spec {
+        format: domain::SpecFormat::Markdown,
         path: path.to_path_buf(),
         line,
         context: None,

@@ -29,6 +29,7 @@ fn missing_in_code_record() {
     let v = Violation::MissingInCode {
         name: "Foo".into(),
         spec_source: Source::Spec {
+            format: domain::SpecFormat::Markdown,
             path: PathBuf::from("specs/a.md"),
             line: 12,
             context: None,
@@ -37,7 +38,7 @@ fn missing_in_code_record() {
     let out = render_one(v);
     assert!(out.ends_with('\n'));
     let r = record(&out);
-    assert_eq!(r["schema_version"], "4");
+    assert_eq!(r["schema_version"], "5");
     assert_eq!(r["violation"], "missing_in_code");
     assert_eq!(r["concept"], "Foo");
     assert_eq!(r["source"]["kind"], "spec");
@@ -50,6 +51,7 @@ fn missing_in_specs_record() {
     let v = Violation::MissingInSpecs {
         name: "Bar".into(),
         code_source: Source::Code {
+            language: domain::CodeLanguage::Rust,
             path: PathBuf::from("src/lib.rs"),
             line: 3,
             provenance: Provenance::empty(),
@@ -71,11 +73,13 @@ fn signature_drift_record() {
         spec_sig: "fn extract(&self)".into(),
         code_sig: "fn extract(&self, root: &Path)".into(),
         spec_source: Source::Spec {
+            format: domain::SpecFormat::Markdown,
             path: PathBuf::from("specs/core.md"),
             line: 44,
             context: None,
         },
         code_source: Source::Code {
+            language: domain::CodeLanguage::Rust,
             path: PathBuf::from("ports/src/lib.rs"),
             line: 15,
             provenance: Provenance::empty(),
@@ -99,6 +103,7 @@ fn signature_missing_in_spec_record() {
         name: "Reader".into(),
         code_sig: "fn extract(&self, root: &Path)".into(),
         code_source: Source::Code {
+            language: domain::CodeLanguage::Rust,
             path: PathBuf::from("ports/src/lib.rs"),
             line: 15,
             provenance: Provenance::empty(),
@@ -119,6 +124,7 @@ fn signature_unparseable_record() {
         raw: "fn foo(".into(),
         error: "expected `)`".into(),
         source: Source::Spec {
+            format: domain::SpecFormat::Markdown,
             path: PathBuf::from("specs/broken.md"),
             line: 9,
             context: None,
@@ -139,6 +145,7 @@ fn edge_missing_in_code_record() {
         edge_kind: EdgeKind::Implements,
         target: "Reader".into(),
         spec_source: Source::Spec {
+            format: domain::SpecFormat::Markdown,
             path: PathBuf::from("specs/core.md"),
             line: 7,
             context: None,
@@ -159,6 +166,7 @@ fn edge_missing_in_spec_record() {
         edge_kind: EdgeKind::DependsOn,
         target: "Graph".into(),
         code_source: Source::Code {
+            language: domain::CodeLanguage::Rust,
             path: PathBuf::from("adapters/markdown/src/lib.rs"),
             line: 42,
             provenance: Provenance::empty(),
@@ -179,6 +187,7 @@ fn edge_target_unknown_record() {
         edge_kind: EdgeKind::Returns,
         target: "Frobnicator".into(),
         spec_source: Source::Spec {
+            format: domain::SpecFormat::Markdown,
             path: PathBuf::from("specs/core.md"),
             line: 50,
             context: None,
@@ -203,6 +212,7 @@ fn multiple_violations_are_newline_delimited() {
     let v1 = Violation::MissingInCode {
         name: "Foo".into(),
         spec_source: Source::Spec {
+            format: domain::SpecFormat::Markdown,
             path: PathBuf::from("a.md"),
             line: 1,
             context: None,
@@ -211,6 +221,7 @@ fn multiple_violations_are_newline_delimited() {
     let v2 = Violation::MissingInSpecs {
         name: "Bar".into(),
         code_source: Source::Code {
+            language: domain::CodeLanguage::Rust,
             path: PathBuf::from("b.rs"),
             line: 2,
             provenance: Provenance::empty(),
@@ -240,17 +251,18 @@ fn multiple_violations_are_newline_delimited() {
 }
 
 #[test]
-fn each_record_has_schema_version_four() {
+fn each_record_has_schema_version_five() {
     let v = Violation::MissingInCode {
         name: "X".into(),
         spec_source: Source::Spec {
+            format: domain::SpecFormat::Markdown,
             path: PathBuf::from("x.md"),
             line: 1,
             context: None,
         },
     };
     let r = record(&render_one(v));
-    assert_eq!(r["schema_version"], "4");
+    assert_eq!(r["schema_version"], "5");
 }
 
 #[test]
@@ -259,6 +271,7 @@ fn context_membership_unknown_record() {
         concept: "Orphan".into(),
         owned_unit: OwnedUnit("stray-crate".into()),
         code_source: Source::Code {
+            language: domain::CodeLanguage::Rust,
             path: PathBuf::from("stray-crate/src/lib.rs"),
             line: 3,
             provenance: Provenance::empty(),
@@ -266,7 +279,7 @@ fn context_membership_unknown_record() {
         },
     });
     let r = record(&render_one(v));
-    assert_eq!(r["schema_version"], "4");
+    assert_eq!(r["schema_version"], "5");
     assert_eq!(r["violation"], "context_membership_unknown");
     assert_eq!(r["concept"], "Orphan");
     assert_eq!(r["owned_unit"], "stray-crate");
@@ -282,6 +295,7 @@ fn cross_context_edge_unauthorized_record() {
         target: "TradingPort".into(),
         target_context: "trading".into(),
         spec_source: Source::Spec {
+            format: domain::SpecFormat::Markdown,
             path: PathBuf::from("specs/contexts/reading.md"),
             line: 12,
             context: None,
@@ -303,13 +317,14 @@ fn verb_missing_in_code_record() {
         concept: "Graph".into(),
         qname: "diff".into(),
         spec_source: Source::Spec {
+            format: domain::SpecFormat::Markdown,
             path: PathBuf::from("specs/concepts/core.md"),
             line: 10,
             context: None,
         },
     };
     let r = record(&render_one(v));
-    assert_eq!(r["schema_version"], "4");
+    assert_eq!(r["schema_version"], "5");
     assert_eq!(r["violation"], "verb_missing_in_code");
     assert_eq!(r["concept"], "Graph");
     assert_eq!(r["qname"], "diff");
@@ -321,6 +336,7 @@ fn verb_missing_in_spec_record() {
     let v = Violation::VerbMissingInSpec {
         qname: "orphan_fn".into(),
         code_source: Source::Code {
+            language: domain::CodeLanguage::Rust,
             path: PathBuf::from("domain/src/lib.rs"),
             line: 42,
             provenance: Provenance::empty(),
@@ -339,6 +355,7 @@ fn verb_target_unknown_record() {
         concept: "Graph".into(),
         qname: "ghost_fn".into(),
         spec_source: Source::Spec {
+            format: domain::SpecFormat::Markdown,
             path: PathBuf::from("specs/concepts/core.md"),
             line: 5,
             context: None,
@@ -358,6 +375,7 @@ fn cross_verb_unauthorized_record() {
         owning_context: "equivalence".into(),
         target_context: "reading".into(),
         spec_source: Source::Spec {
+            format: domain::SpecFormat::Markdown,
             path: PathBuf::from("specs/concepts/core.md"),
             line: 15,
             context: None,
@@ -381,6 +399,7 @@ fn cross_context_edge_undeclared_record() {
         target: "Reader".into(),
         target_context: "equivalence".into(),
         spec_source: Source::Spec {
+            format: domain::SpecFormat::Markdown,
             path: PathBuf::from("specs/contexts/reading.md"),
             line: 12,
             context: None,
@@ -400,6 +419,7 @@ fn concept_context_mismatch_record() {
         declared: "reading".into(),
         code_context: "equivalence".into(),
         spec_source: Source::Spec {
+            format: domain::SpecFormat::Markdown,
             path: PathBuf::from("specs/concepts/reading.md"),
             line: 7,
             context: None,
@@ -441,13 +461,14 @@ fn dangling_anchor_record_is_additive_v3() {
         concept: "ValidateIntakeFull".into(),
         target: "validate_intake".into(),
         spec_source: Source::Spec {
+            format: domain::SpecFormat::Markdown,
             path: PathBuf::from("specs/concepts/intake_validation.md"),
             line: 3,
             context: None,
         },
     };
     let r = record(&render_one(v));
-    assert_eq!(r["schema_version"], "4");
+    assert_eq!(r["schema_version"], "5");
     assert_eq!(r["violation"], "dangling_anchor");
     assert_eq!(r["concept"], "ValidateIntakeFull");
     assert_eq!(r["target"], "validate_intake");
@@ -458,6 +479,7 @@ fn dangling_anchor_record_is_additive_v3() {
 
 fn spec_at(path: &str, line: usize) -> Source {
     Source::Spec {
+        format: domain::SpecFormat::Markdown,
         path: PathBuf::from(path),
         line,
         context: None,
@@ -474,7 +496,7 @@ fn pending_marker_record() {
         ..CheckOutcome::empty()
     });
     let r = record(&out);
-    assert_eq!(r["schema_version"], "4");
+    assert_eq!(r["schema_version"], "5");
     assert_eq!(r["marker"], "pending");
     assert_eq!(r["concept"], "Digest");
     assert_eq!(r["source"]["kind"], "spec");
@@ -534,6 +556,7 @@ fn violations_precede_markers_in_the_stream() {
 
 fn code_at(path: &str, line: usize) -> Source {
     Source::Code {
+        language: domain::CodeLanguage::Rust,
         path: PathBuf::from(path),
         line,
         provenance: Provenance::empty(),
@@ -551,6 +574,7 @@ fn prov_full() -> Provenance {
 
 fn code_prov(path: &str, line: usize, provenance: Provenance) -> Source {
     Source::Code {
+        language: domain::CodeLanguage::Rust,
         path: PathBuf::from(path),
         line,
         provenance,
@@ -659,6 +683,104 @@ fn partial_triple_renders_only_present_fields() {
     assert!(!source.contains_key("context"));
 }
 
+fn documented_record(discriminator: &str) -> Value {
+    let contract = std::fs::read_to_string("../specs/ndjson-output.md")
+        .expect("the wire contract is beside the code it contracts");
+    let line = contract
+        .lines()
+        .find(|l| l.contains(discriminator))
+        .unwrap_or_else(|| panic!("the contract carries no example of {discriminator}"));
+    serde_json::from_str(line).expect("the example is a record")
+}
+
+#[test]
+fn a_rust_code_source_serializes_to_the_record_the_contract_documents() {
+    let want = documented_record("\"violation\":\"missing_in_specs\"");
+    let v = Violation::MissingInSpecs {
+        name: "Bar".into(),
+        code_source: Source::Code {
+            language: domain::CodeLanguage::Rust,
+            path: PathBuf::from("domain/src/lib.rs"),
+            line: 3,
+            location: domain::LocationKind::Path,
+            provenance: domain::Provenance {
+                module_path: Some("domain".into()),
+                unit: Some("domain".into()),
+                context: Some("equivalence".into()),
+            },
+        },
+    };
+    let got = record(&render_one(v));
+    assert_eq!(got["source"]["language"], "rust");
+    assert_eq!(got, want, "a rust code source and the contract's example");
+}
+
+#[test]
+fn a_php_code_source_serializes_to_the_record_the_contract_documents() {
+    let want = documented_record("\"violation\":\"cross_edge_off_surface\"");
+    let v = Violation::Context(domain::ContextViolation::CrossEdgeOffSurface {
+        concept: "Course".into(),
+        owning_context: Some("catalogue".into()),
+        edge_kind: domain::EdgeKind::Implements,
+        target: "Serializable".into(),
+        code_source: Source::Code {
+            language: domain::CodeLanguage::Php,
+            path: PathBuf::from("App\\Catalogue"),
+            line: 0,
+            location: domain::LocationKind::Namespace,
+            provenance: domain::Provenance {
+                module_path: Some("App\\Catalogue".into()),
+                unit: Some("App\\Catalogue".into()),
+                context: None,
+            },
+        },
+    });
+    let got = record(&render_one(v));
+    assert_eq!(got["code_source"]["language"], "php");
+    assert_eq!(got, want, "a php code source and the contract's example");
+}
+
+#[test]
+fn signature_drift_within_side_serializes_to_the_record_the_contract_documents() {
+    let documented = std::fs::read_to_string("../specs/ndjson-output.md")
+        .expect("the wire contract is beside the code it contracts");
+    let example = documented
+        .lines()
+        .find(|l| l.contains("\"violation\":\"signature_drift_within_side\""))
+        .expect("the contract carries an example of the variant");
+    let want: Value = serde_json::from_str(example).expect("the example is a record");
+
+    let v = Violation::SignatureDriftWithinSide {
+        name: "OrderService".into(),
+        side: domain::DiffSide::Spec,
+        sources: vec![
+            domain::SourceWithSig {
+                source: Source::Spec {
+                    format: domain::SpecFormat::Markdown,
+                    path: PathBuf::from("specs/php/orders.md"),
+                    line: 10,
+                    context: None,
+                },
+                sig: "public function place(): void".into(),
+            },
+            domain::SourceWithSig {
+                source: Source::Spec {
+                    format: domain::SpecFormat::InlineAttribute,
+                    path: PathBuf::from("src/Orders/OrderService.php"),
+                    line: 42,
+                    context: None,
+                },
+                sig: "public function place(Order $o): Receipt".into(),
+            },
+        ],
+    };
+    let got = record(&render_one(v));
+    assert_eq!(
+        got, want,
+        "the variant's wire record and the contract's example"
+    );
+}
+
 #[test]
 fn unknown_concept_renders_plain_source_object() {
     let v = Violation::MissingInSpecs {
@@ -667,7 +789,9 @@ fn unknown_concept_renders_plain_source_object() {
     };
     let r = record(&render_one(v));
     let source = r["source"].as_object().expect("source object");
-    assert_eq!(source.len(), 3, "kind/path/line only: {source:?}");
+    let keys: Vec<&str> = source.keys().map(String::as_str).collect();
+    assert_eq!(keys, ["kind", "language", "line", "path"], "{source:?}");
+    assert_eq!(source["language"], "rust");
 }
 
 #[test]
@@ -678,5 +802,7 @@ fn spec_kind_source_never_carries_the_triple() {
     };
     let r = record(&render_one(v));
     let source = r["source"].as_object().expect("source object");
-    assert_eq!(source.len(), 3, "kind/path/line only: {source:?}");
+    let keys: Vec<&str> = source.keys().map(String::as_str).collect();
+    assert_eq!(keys, ["format", "kind", "line", "path"], "{source:?}");
+    assert_eq!(source["format"], "markdown");
 }

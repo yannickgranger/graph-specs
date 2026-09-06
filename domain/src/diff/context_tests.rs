@@ -16,6 +16,7 @@ fn code_node(name: &str, unit: &str) -> ConceptNode {
     ConceptNode::new(
         name.to_string(),
         Source::Code {
+            language: crate::CodeLanguage::Rust,
             path: PathBuf::from(format!("./{unit}/src/lib.rs")),
             line: 1,
             provenance: Provenance::empty(),
@@ -32,6 +33,7 @@ fn code_edge(src: &str, kind: EdgeKind, target: &str) -> Edge {
         target: ConceptRef::named(target.to_string()),
         raw_target: target.to_string(),
         source: Source::Code {
+            language: crate::CodeLanguage::Rust,
             path: PathBuf::from("./x/src/lib.rs"),
             line: 10,
             provenance: Provenance::empty(),
@@ -42,6 +44,7 @@ fn code_edge(src: &str, kind: EdgeKind, target: &str) -> Edge {
 
 fn spec_src() -> Source {
     Source::Spec {
+        format: crate::SpecFormat::Markdown,
         path: PathBuf::from("specs/contexts/x.md"),
         line: 1,
         context: None,
@@ -98,6 +101,7 @@ fn v03_regression_preserved_when_contexts_empty() {
     let spec_node = ConceptNode::new(
         "SpecOnly".into(),
         Source::Spec {
+            format: crate::SpecFormat::Markdown,
             path: PathBuf::from("x.md"),
             line: 1,
             context: None,

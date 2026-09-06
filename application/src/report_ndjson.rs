@@ -1,4 +1,4 @@
-use crate::ndjson::source::source_to_json;
+use crate::ndjson::source::report_source_to_json;
 use crate::report::context_key;
 use domain::{
     ContextPattern, HomonymRecord, ReportOutput, TierHistogramRecord, TierKind, VerbCoverageRecord,
@@ -30,7 +30,7 @@ fn emit_verb_coverage_records(
             "context": rec.context,
             "pub_fn": {
                 "name": rec.pub_fn.name,
-                "source": source_to_json(&rec.pub_fn.source),
+                "source": report_source_to_json(&rec.pub_fn.source),
             },
             "cited": rec.cited,
         });
