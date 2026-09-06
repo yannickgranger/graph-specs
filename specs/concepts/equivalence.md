@@ -329,7 +329,7 @@ pub trait ContextReader {
 - depends on: ContextDecl
 - depends on: ReaderError
 
-## ReaderError
+### ReaderError
 
 <!-- parent:spec:Reader -->
 
@@ -363,7 +363,7 @@ pub trait LanguageBackend {
 - depends on: Extraction
 - depends on: ReaderError
 
-## Extraction
+### Extraction
 
 <!-- parent:spec:LanguageBackend -->
 
