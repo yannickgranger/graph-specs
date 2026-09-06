@@ -10,23 +10,35 @@ encouraged — it is ignored by the reader.
 ## MarkdownReader
 
 <!-- parent:rfc:graph-specs-005-verb-coverage-report#3.2.3 anchor:"the markdown reader is the only adapter that parses markdown" -->
+Concrete [SpecLoader](equivalence.md#specloader), [SpecReader](equivalence.md#specreader)
+and [ContextReader](equivalence.md#contextreader) implementation for markdown
+spec files, and the implementor of the four sibling capabilities —
+[VerbAnchorReader](equivalence.md#verbanchorreader),
+[ConceptAnchorReader](equivalence.md#conceptanchorreader),
+[AnnotationReader](equivalence.md#annotationreader),
+[SpecTreeReader](equivalence.md#spectreereader). Uses `pulldown-cmark`.
 
-Concrete [SpecReader](equivalence.md#specreader), [SpecLoader](equivalence.md#specloader) and [ContextReader](#contextreader)
-implementation for markdown spec files. Uses `pulldown-cmark`. Emits a
-[ConceptNode](#conceptnode) for every `##` or `###` heading it encounters,
-collects fenced `rust` blocks for signature-level comparison, and
-recognises the v0.3 bullet prefixes (`- implements:`, `- depends on:`,
-`- returns:`) as declared edges. Also implements
-[ContextReader](#contextreader) for v0.4 — parses
-`specs/contexts/<name>.md` files into [ContextDecl](#contextdecl) values.
-Exposes `extract_invariant_annotations` (inherent method) for graph-specs-005-verb-coverage-report#3.2
-— extracts `[enforced-by:]` / `[prose-only:]` annotations from
-`#### Operational invariants` spec sections. Lives in `adapters/markdown`.
+It loads once and extracts many times (graph-specs-016-parse-once-reading-port#3.6):
+`load` is the one walk over the spec tree — traversal, the `.md` filter, the
+read — answering a [SpecFileSet](equivalence.md#specfileset) sorted by
+path; every capability reads the set it is handed and performs no I/O, so
+the only failure a capability can produce is a parse failure, the walk's
+failures being the loader's alone (graph-specs-016-parse-once-reading-port#3.3.1).
+The `concepts/` and `contexts/` partition is an in-memory predicate over
+the loaded set, the one owner of that rule. From the set it emits a
+[ConceptNode](equivalence.md#conceptnode) for every `##` or `###` heading,
+collects fenced signature blocks and normalizes them through the
+[SignatureNormalizer](equivalence.md#signaturenormalizer) port supplied per
+fence tag, recognises the bullet prefixes (`- implements:`, `- depends on:`,
+`- returns:`) as declared edges, parses `specs/contexts/<name>.md` into
+[ContextDecl](equivalence.md#contextdecl) values, reads the verb anchors,
+the concept anchors and the `[enforced-by:]` / `[prose-only:]` annotations,
+and assembles one [SpecTree](equivalence.md#spectree) per file. Lives in
+`adapters/markdown`.
 
-Per graph-specs-013-spec-state-marker#3.3 it no longer skips `status: draft` files: they are
-parsed like any other spec, and every concept heading in one is marked
-on the node it emits. The `extract_draft_concepts` side-index walk that
-the previous design needed is retired.
+Per graph-specs-013-spec-state-marker#3.3 it does not skip `status: draft`
+files: they are read like any other spec, and every concept heading in one
+is marked on the node it emits.
 
 - implements: SpecReader
 - implements: SpecLoader
@@ -49,15 +61,17 @@ the previous design needed is retired.
 ### RustBackend
 
 <!-- parent:spec:LanguageBackend -->
-
-Concrete [LanguageBackend](#languagebackend) implementation for Rust
-source files. Uses `syn`. Walks the source tree once (skipping `target/`,
-`.git/`, `.claude/`, `.proofs/`, per-crate `tests/` / `benches/` /
-`examples/` and `node_modules/`), parses each `*.rs` file, and emits
-flat [ConceptNode](#conceptnode) + raw [Edge](#edge) into an
-[Extraction](#extraction). Detects via `Cargo.toml` at the root.
-[RustReader](#rustreader) wraps it for the [CodeReader](equivalence.md#codereader) port.
-Lives in `adapters/rust`.
+Concrete [LanguageBackend](equivalence.md#languagebackend) implementation for
+Rust source, cache-holding since graph-specs-016-parse-once-reading-port#3.4:
+constructed with the [ParseCache](#parsecache) of the run, it reads every
+parsed file from it and emits flat [ConceptNode](equivalence.md#conceptnode)
+plus raw [Edge](equivalence.md#edge) values into an
+[Extraction](equivalence.md#extraction), BEFORE the language-neutral
+known-concept edge filter runs. The walk it once owned — skipping
+`target/`, `.git/`, `.claude/`, `.proofs/`, per-crate `tests/` /
+`benches/` / `examples/` and `node_modules/` — is [RustLoader](#rustloader)'s.
+Detects via `Cargo.toml` at the root. [RustReader](#rustreader) wraps it for
+the [CodeReader](equivalence.md#codereader) port. Lives in `adapters/rust`.
 
 - implements: LanguageBackend
 - depends on: Extraction
@@ -66,22 +80,28 @@ Lives in `adapters/rust`.
 ## RustReader
 
 <!-- parent:rfc:graph-specs-005-verb-coverage-report#3.2.2 anchor:"the doubled parse pays no cost" -->
-
-Concrete [CodeReader](equivalence.md#codereader) and [VerbReader](#verbreader) implementation
-for Rust source files. Thin adapter over [RustBackend](#rustbackend):
-pulls the [Extraction](#extraction), filters raw edges against the
-discovered [ConceptNode](#conceptnode) set, and assembles a
-[Graph](#graph) for the diff engine. Emits one [ConceptNode](#conceptnode)
-per top-level `pub struct`, `pub enum`, `pub trait`, `pub type`, plus v0.2
-signature normalisation via `adapter-rust::normalize` and v0.3 relationship
-edges from struct fields, impl blocks, and trait method signatures.
-`VerbReader::extract_pub_fns` uses a separate parallel walk (per graph-specs-005-verb-coverage-report#3.2
-dry-run rust-systems-A); `check` invokes it to feed the verb-
-anchoring pass with code-side `pub fn` declarations. Also implements
-[CodeFacts](equivalence.md#codefacts) (graph-specs-010-abstraction-level-equivalence R10-6), returning the
-graph's [ConceptNode](#conceptnode)s as the source-walk parity reference
-the cfdb-query [CfdbQueryReader](#cfdbqueryreader) ACL must match. Lives in
-`adapters/rust`.
+Concrete [CodeReader](equivalence.md#codereader), [VerbReader](equivalence.md#verbreader)
+and [CodeFacts](equivalence.md#codefacts) implementation for Rust source,
+constructed at the composition root with the [ParseCache](#parsecache) of
+the run (graph-specs-016-parse-once-reading-port#3.4) and holding nothing
+else: the walk is [RustLoader](#rustloader)'s, the parse happens once, and
+every capability reads the cache it holds. `extract` over a
+[CodeFileSet](equivalence.md#codefileset) pulls the
+[Extraction](equivalence.md#extraction) through [RustBackend](#rustbackend),
+filters raw edges against the discovered
+[ConceptNode](equivalence.md#conceptnode) set and assembles a
+[Graph](equivalence.md#graph) for the diff engine — one node per top-level
+`pub struct`, `pub enum`, `pub trait`, `pub type`, signatures normalized by
+`signature-norm` (graph-specs-016-parse-once-reading-port#3.5), relationship
+edges from struct fields, impl blocks and function signatures, trait objects
+and impl-trait parameters included (graph-specs-017-founding-graph-model#3.3).
+`extract_pub_fns` feeds the verb-anchoring pass from the same cache; the
+separate walk graph-specs-005-verb-coverage-report#3.2 once budgeted is
+collapsed into the one load (graph-specs-016-parse-once-reading-port#3.6).
+`concepts` keeps its root-taking contract and is served from the cache —
+the source-walk parity reference the cfdb-query
+[CfdbQueryReader](#cfdbqueryreader) ACL must match
+(graph-specs-010-abstraction-level-equivalence R10-6). Lives in `adapters/rust`.
 
 - implements: CodeReader
 - implements: VerbReader
