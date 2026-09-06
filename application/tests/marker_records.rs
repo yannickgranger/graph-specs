@@ -33,7 +33,7 @@ fn draft_implementation_reports_a_realized_marker_record() {
     cargo_toml(code.path());
     write(code.path(), "src/lib.rs", "pub struct Widget;\n");
 
-    let outcome = application::run_check(specs.path(), code.path()).unwrap();
+    let outcome = application::run_check(specs.path(), code.path(), None).unwrap();
 
     assert_eq!(
         outcome.realized.len(),
@@ -77,7 +77,7 @@ fn mixed_fixture_yields_one_pending_one_realized_and_exits_zero() {
     let code = TempDir::new().unwrap();
     write_mixed_fixture(specs.path(), code.path(), "pub struct Widget;\n");
 
-    let outcome = application::run_check(specs.path(), code.path()).unwrap();
+    let outcome = application::run_check(specs.path(), code.path(), None).unwrap();
     assert!(
         outcome.is_clean(),
         "marker records never fail the gate: {:?}",
@@ -119,7 +119,7 @@ fn a_real_divergence_under_a_marked_heading_still_reds_the_gate() {
     let code = TempDir::new().unwrap();
     write_mixed_fixture(specs.path(), code.path(), "pub enum Widget { A }\n");
 
-    let outcome = application::run_check(specs.path(), code.path()).unwrap();
+    let outcome = application::run_check(specs.path(), code.path(), None).unwrap();
     assert!(
         outcome
             .violations
@@ -148,7 +148,7 @@ fn a_misplaced_marker_leaves_the_anti_invention_check_armed() {
     cargo_toml(code.path());
     write(code.path(), "src/lib.rs", "");
 
-    let outcome = application::run_check(specs.path(), code.path()).unwrap();
+    let outcome = application::run_check(specs.path(), code.path(), None).unwrap();
     assert!(
         outcome
             .violations
@@ -172,7 +172,7 @@ fn a_pending_concepts_verb_anchor_imposes_no_obligation() {
     cargo_toml(code.path());
     write(code.path(), "src/lib.rs", "");
 
-    let outcome = application::run_check(specs.path(), code.path()).unwrap();
+    let outcome = application::run_check(specs.path(), code.path(), None).unwrap();
     assert!(
         outcome.is_clean(),
         "a pending concept's verb anchor imposes nothing: {:?}",
@@ -193,7 +193,7 @@ fn an_h1_only_draft_doc_reds_the_check() {
     cargo_toml(code.path());
     write(code.path(), "src/lib.rs", "");
 
-    let outcome = application::run_check(specs.path(), code.path()).unwrap();
+    let outcome = application::run_check(specs.path(), code.path(), None).unwrap();
     assert!(
         outcome.violations.iter().any(|v| matches!(
             v,
@@ -220,7 +220,7 @@ fn adding_a_marked_heading_greens_it_back_to_pending_only() {
     cargo_toml(code.path());
     write(code.path(), "src/lib.rs", "");
 
-    let outcome = application::run_check(specs.path(), code.path()).unwrap();
+    let outcome = application::run_check(specs.path(), code.path(), None).unwrap();
     assert!(
         outcome.is_clean(),
         "a marked heading satisfies its context: {:?}",
@@ -243,7 +243,7 @@ fn both_retirement_records_emit_end_to_end_and_the_tree_exits_clean() {
     cargo_toml(code.path());
     write(code.path(), "src/lib.rs", "pub struct Widget;\n");
 
-    let outcome = application::run_check(specs.path(), code.path()).unwrap();
+    let outcome = application::run_check(specs.path(), code.path(), None).unwrap();
 
     assert_eq!(
         outcome.retirement_incomplete.len(),
@@ -281,7 +281,7 @@ fn retirement_records_carry_the_v4_schema_version_on_the_wire() {
     cargo_toml(code.path());
     write(code.path(), "src/lib.rs", "pub struct Widget;\n");
 
-    let outcome = application::run_check(specs.path(), code.path()).unwrap();
+    let outcome = application::run_check(specs.path(), code.path(), None).unwrap();
     let mut buf = Vec::new();
     application::ndjson::write_ndjson(&outcome, &mut buf).unwrap();
     let out = String::from_utf8(buf).unwrap();
@@ -310,7 +310,7 @@ fn the_text_summary_renders_every_list_even_at_zero() {
     cargo_toml(code.path());
     write(code.path(), "src/lib.rs", "pub struct Widget;\n");
 
-    let outcome = application::run_check(specs.path(), code.path()).unwrap();
+    let outcome = application::run_check(specs.path(), code.path(), None).unwrap();
     let mut buf = Vec::new();
     application::text::format_summary(&outcome, &mut buf).unwrap();
 

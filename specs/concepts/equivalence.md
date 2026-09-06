@@ -339,8 +339,6 @@ relationship is classified, and the concept being referenced. Lives in
 - depends on: ContextPattern
 
 ## DeclaredSurface
-
-- status: draft (per graph-specs-011-php-ladder#3.2)
 <!-- parent:rfc:graph-specs-011-php-ladder#3.2 anchor:"whose qualified name begins with a declared" -->
 
 The concept surface of a code tree whose language affords no per-item
@@ -359,8 +357,12 @@ crate name, and no marked form distinguishes the two — that question is
 RFC-007's (graph-specs-011-php-ladder#6 item 2). Pure value, no IO. Lives
 in `domain`.
 
-- depends on: OwnedUnit
+- depends on: ContextDecl
+- returns: DeclaredSurface
+- verb: DeclaredSurface::from_contexts
 - verb: DeclaredSurface::admits
+- verb: DeclaredSurface::unit_of
+- verb: DeclaredSurface::is_empty
 
 ## ContextPattern
 

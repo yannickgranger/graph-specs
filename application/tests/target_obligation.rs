@@ -40,7 +40,7 @@ fn the_motivating_shape_reaches_zero_violations() {
     cargo_toml(code.path());
     write(code.path(), "src/lib.rs", "pub struct Assertion;\n");
 
-    let outcome = application::run_check(specs.path(), code.path()).unwrap();
+    let outcome = application::run_check(specs.path(), code.path(), None).unwrap();
 
     assert!(
         outcome.is_clean(),
@@ -66,7 +66,7 @@ fn the_same_shape_with_the_item_still_present_stays_armed() {
         "pub struct Assertion;\npub struct AssertionScope;\n",
     );
 
-    let outcome = application::run_check(specs.path(), code.path()).unwrap();
+    let outcome = application::run_check(specs.path(), code.path(), None).unwrap();
 
     assert_eq!(
         edge_findings(&outcome),
@@ -94,7 +94,7 @@ fn a_name_is_pointable_when_any_heading_carrying_it_is() {
     cargo_toml(code.path());
     write(code.path(), "src/lib.rs", "pub struct S;\npub struct T;\n");
 
-    let outcome = application::run_check(specs.path(), code.path()).unwrap();
+    let outcome = application::run_check(specs.path(), code.path(), None).unwrap();
 
     assert_eq!(
         edge_findings(&outcome),
@@ -125,7 +125,7 @@ fn a_name_is_unpointable_only_when_every_heading_carrying_it_is() {
     cargo_toml(code.path());
     write(code.path(), "src/lib.rs", "pub struct S;\n");
 
-    let outcome = application::run_check(specs.path(), code.path()).unwrap();
+    let outcome = application::run_check(specs.path(), code.path(), None).unwrap();
 
     assert_eq!(
         edge_findings(&outcome),
@@ -148,7 +148,7 @@ fn one_unpointable_heading_does_not_make_a_shared_name_unpointable() {
     cargo_toml(code.path());
     write(code.path(), "src/lib.rs", "pub struct S;\n");
 
-    let outcome = application::run_check(specs.path(), code.path()).unwrap();
+    let outcome = application::run_check(specs.path(), code.path(), None).unwrap();
 
     assert_eq!(
         edge_findings(&outcome),

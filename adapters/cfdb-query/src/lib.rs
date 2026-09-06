@@ -2,13 +2,15 @@ use std::path::{Path, PathBuf};
 
 use cfdb_core::fact::{Edge, Node, PropValue};
 use cfdb_core::schema::{Label, SchemaVersion};
-use domain::{ConceptNode, SignatureState, Source};
+use domain::{ConceptNode, DeclaredSurface, SignatureState, Source};
 use ports::{CodeFacts, ReaderError};
 use serde::Deserialize;
 
 mod anchor_resolver;
+mod php_edge_traversal;
 
 pub use anchor_resolver::CfdbAnchorResolver;
+pub use php_edge_traversal::PhpEdgeTraversal;
 
 #[derive(Debug, Deserialize)]
 struct KeyspaceFile {
@@ -16,7 +18,6 @@ struct KeyspaceFile {
     schema_version: SchemaVersion,
     nodes: Vec<Node>,
     #[serde(default)]
-    #[allow(dead_code)]
     edges: Vec<Edge>,
 }
 
@@ -33,9 +34,10 @@ const EXCLUDED_DIRS: &[&str] = &[
     "node_modules",
 ];
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct CfdbQueryReader {
     keyspace: PathBuf,
+    surface: DeclaredSurface,
 }
 
 impl CfdbQueryReader {
@@ -43,7 +45,14 @@ impl CfdbQueryReader {
     pub fn new(keyspace: impl Into<PathBuf>) -> Self {
         Self {
             keyspace: keyspace.into(),
+            surface: DeclaredSurface::default(),
         }
+    }
+
+    #[must_use]
+    pub fn with_surface(mut self, surface: DeclaredSurface) -> Self {
+        self.surface = surface;
+        self
     }
 }
 
@@ -59,6 +68,10 @@ impl CodeFacts for CfdbQueryReader {
                 line: e.line(),
                 message: e.to_string(),
             })?;
+
+        if PhpEdgeTraversal::declares_php(&file.nodes) {
+            return PhpEdgeTraversal::new(self.surface.clone()).concepts(&file.nodes, &file.edges);
+        }
 
         let mut out = Vec::new();
         for node in &file.nodes {

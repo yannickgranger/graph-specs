@@ -1,0 +1,77 @@
+use super::*;
+use crate::{OwnedUnit, Source};
+use std::path::PathBuf;
+
+fn context(units: &[&str]) -> ContextDecl {
+    ContextDecl::new(
+        "ctx".to_string(),
+        units.iter().map(|u| OwnedUnit((*u).to_string())).collect(),
+        Vec::new(),
+        Vec::new(),
+        Source::Spec {
+            path: PathBuf::from("specs/contexts/ctx.md"),
+            line: 1,
+        },
+    )
+}
+
+#[test]
+fn a_declared_prefix_admits_a_name_beneath_it() {
+    let surface = DeclaredSurface::from_contexts(&[context(&["App\\Catalogue"])]);
+    assert!(surface.admits("App\\Catalogue\\Domain\\Course"));
+    assert_eq!(
+        surface.unit_of("App\\Catalogue\\Domain\\Course"),
+        Some("App\\Catalogue")
+    );
+}
+
+#[test]
+fn a_prefix_binds_only_on_a_separator_boundary() {
+    let surface = DeclaredSurface::from_contexts(&[context(&["App\\Catalog"])]);
+    assert!(!surface.admits("App\\Catalogue\\Domain\\Course"));
+}
+
+#[test]
+fn a_name_outside_every_prefix_is_not_admitted() {
+    let surface = DeclaredSurface::from_contexts(&[context(&["App\\Catalogue"])]);
+    assert!(!surface.admits("App\\Marketing\\Flyer"));
+    assert_eq!(surface.unit_of("App\\Marketing\\Flyer"), None);
+}
+
+#[test]
+fn the_prefix_itself_is_admitted() {
+    let surface = DeclaredSurface::from_contexts(&[context(&["App\\Catalogue"])]);
+    assert!(surface.admits("App\\Catalogue"));
+}
+
+#[test]
+fn one_leading_backslash_is_immaterial_on_either_side() {
+    let declared = DeclaredSurface::from_contexts(&[context(&["\\App\\Catalogue"])]);
+    assert!(declared.admits("App\\Catalogue\\Course"));
+    let plain = DeclaredSurface::from_contexts(&[context(&["App\\Catalogue"])]);
+    assert!(plain.admits("\\App\\Catalogue\\Course"));
+}
+
+#[test]
+fn the_longest_declared_prefix_wins() {
+    let surface =
+        DeclaredSurface::from_contexts(&[context(&["App\\Catalogue", "App\\Catalogue\\Domain"])]);
+    assert_eq!(
+        surface.unit_of("App\\Catalogue\\Domain\\Course"),
+        Some("App\\Catalogue\\Domain")
+    );
+}
+
+#[test]
+fn a_rust_owned_unit_binds_on_its_own_separator() {
+    let surface = DeclaredSurface::from_contexts(&[context(&["domain"])]);
+    assert!(surface.admits("domain::Thing"));
+    assert!(!surface.admits("domainx::Thing"));
+}
+
+#[test]
+fn a_repository_declaring_no_context_has_an_empty_surface() {
+    let surface = DeclaredSurface::from_contexts(&[]);
+    assert!(surface.is_empty());
+    assert!(!surface.admits("App\\Catalogue\\Course"));
+}

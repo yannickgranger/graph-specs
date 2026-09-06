@@ -38,7 +38,7 @@ fn run_case(polarity: &str, code_present: bool) -> domain::CheckOutcome {
             ""
         },
     );
-    application::run_check(specs.path(), code.path()).unwrap()
+    application::run_check(specs.path(), code.path(), None).unwrap()
 }
 
 #[test]
@@ -121,7 +121,7 @@ fn an_unknown_polarity_value_is_malformed_and_never_a_silent_default() {
     cargo_toml(code.path());
     write(code.path(), "src/lib.rs", "");
 
-    let err = application::run_check(specs.path(), code.path())
+    let err = application::run_check(specs.path(), code.path(), None)
         .expect_err("a typo'd value must refuse, never fall back to declared");
     assert!(
         matches!(&err, ports::ReaderError::ParseFailed { message, .. } if message.contains("unknown polarity")),
@@ -168,7 +168,7 @@ fn a_verb_anchor_under_a_non_declared_heading_imposes_no_obligation() {
         );
         write(code.path(), "fixture/src/lib.rs", "");
 
-        let outcome = application::run_check(specs.path(), code.path()).unwrap();
+        let outcome = application::run_check(specs.path(), code.path(), None).unwrap();
         assert!(
             !outcome
                 .violations
@@ -195,7 +195,7 @@ fn a_dangling_impl_anchor_under_a_non_declared_heading_fires_nothing() {
         cargo_toml(code.path());
         write(code.path(), "src/lib.rs", "");
 
-        let outcome = application::run_check(specs.path(), code.path()).unwrap();
+        let outcome = application::run_check(specs.path(), code.path(), None).unwrap();
         assert!(
             outcome.is_clean(),
             "{polarity} heading's anchor cannot dangle: {:?}",
@@ -216,7 +216,7 @@ fn the_spec_state_marker_is_inert_under_a_non_declared_heading() {
     cargo_toml(code.path());
     write(code.path(), "src/lib.rs", "pub struct Member;\n");
 
-    let outcome = application::run_check(specs.path(), code.path()).unwrap();
+    let outcome = application::run_check(specs.path(), code.path(), None).unwrap();
     assert!(
         outcome.realized.is_empty(),
         "no realized record on an expelled name"
