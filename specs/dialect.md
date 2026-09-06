@@ -614,6 +614,8 @@ corresponding language's structural code graph. Drift between blocks for
 different languages is NOT a violation — that is intentional
 cross-language spec content, not drift.
 
+A ```php fence is parsed by the one PHP syntax model the ecosystem pins (tree-sitter-php, graph-specs-011-php-ladder#3.3) and normalized by `adapter-php::normalize` — the declaration's tokens re-printed with single spaces, comments, attributes and body dropped, a byte-equal target like the Rust normalizer's; the markdown reader reaches it through a normalizer port supplied at the composition root, never by depending on the adapter crate (graph-specs-004-multi-language-adapter-contract#3.6, amendment of 2026-09-06). A `php` fence that does not parse, or a section carrying more than one, is `Unparseable`, the fence tag naming the language.
+
 The markdown reader does not change for this section: no PHP or
 TypeScript adapter exists yet to consume a PHP or TypeScript fence. The
 dialect declares the contract ahead of the adapters so that RFC-005 and

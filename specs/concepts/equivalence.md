@@ -80,10 +80,7 @@ extension seams.
 
 The signature-level payload on a [ConceptNode](#conceptnode). `Absent`
 means the reader produced no signature (v0.1 concept-only mode).
-`Normalized` carries the byte-equal comparison target — the output of
-`adapter-rust::normalize` on a `syn::Item`. `Unparseable` surfaces a
-spec-side fenced `rust` block that failed to parse, or a section with
-more than one fenced `rust` block.
+`Normalized` carries the byte-equal comparison target — the output of the language's normalizer, `adapter-rust::normalize` on a `syn::Item` or `adapter-php::normalize` on a tree-sitter declaration. `Unparseable` surfaces a spec-side fenced block, `rust` or `php`, that failed to parse, or a section with more than one fenced block of that language, the fence tag naming the language (graph-specs-004-multi-language-adapter-contract#3.6).
 
 ## Polarity
 
