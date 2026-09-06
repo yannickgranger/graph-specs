@@ -137,7 +137,17 @@ open.
 
 Where a concept was found — either in a spec file or a code file. Used
 for error messages that point back at the file and line the violation
-came from.
+came from. The code variant carries, beside its location and line, the
+containment triple the cohesion pass reads — `module_path`, `unit`,
+`context` — as the NDJSON source object already does
+(`specs/ndjson-output.md`), so a code fact identifies itself by name and
+unit at the source and no side index keyed on a bare name stands between
+a record and its provenance (graph-specs-010-abstraction-level-equivalence#4
+invariant 9). For a fact read from a code-fact keyspace whose graph
+carries no file node, the location is the containing module's qualified
+name — the only coordinate the graph affords
+(graph-specs-011-php-ladder#3.2; cfdb-045-polyglot-relationship-edges#3.4)
+— and every message that prints it labels it a namespace, never a path.
 
 ## Violation
 
@@ -174,6 +184,21 @@ A declared relationship between two concepts (v0.3): `implements`,
 plus the raw textual form preserved for display in drift messages.
 
 - verb: tokenise_target
+
+### ConceptRef
+
+- status: draft (per graph-specs-010-abstraction-level-equivalence#4)
+<!-- parent:spec:Edge -->
+
+A concept-rung endpoint of an [Edge](#edge): the concept's name and its
+owning unit, together — the identity graph-specs-010-abstraction-level-equivalence#4
+invariant 9 fixes for the binding pass. An endpoint carrying a name
+alone cannot say which of two same-named concepts under two units it
+means, so a cross-context crossing is attributed to whichever won the
+name; carrying the unit makes the edge say which `Clock` it means.
+Pure value. Lives in `domain`.
+
+- depends on: OwnedUnit
 
 ## EdgeKind
 
