@@ -117,6 +117,72 @@ STUB
     fi
 )
 
+# Scenario 4 — BUMP_PAT absent is a refusal, never a fallback to the
+# Actions token: a PR opened with it raises no pull_request event, so no
+# lane ever runs on the bump.
+(
+    cd "$TMP"
+    rm -rf local
+    cp -a "$REPO_ROOT" "local"
+    # The fixture must not be able to reach the real forge. A worktree's
+    # .git is a FILE pointing at the real repository, so it is replaced
+    # with a standalone repo whose origin is a local path, and the API
+    # base is aimed at a closed port. With the guard removed this
+    # scenario runs the whole non-dry path; its safety cannot rest on a
+    # stub token being refused by a live forge.
+    rm -rf local/.git
+    git init -q local
+    git -C local remote add origin "file://$TMP/nowhere.git"
+    cd local
+    # HOME is redirected: cross-bump.sh writes a credential-bearing
+    # url.*.insteadOf into the GLOBAL git config, which would otherwise
+    # land in the real ~/.gitconfig and break https to the forge.
+    mkdir -p "$TMP/home"
+    set +e
+    out="$(HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.config" \
+        GITHUB_TOKEN=stub-actions-token \
+        API_BASE="http://127.0.0.1:1/api/v1" \
+        GITHUB_REPOSITORY=yg/graph-specs-rust \
+        COMPANION_REPO="companion" \
+        COMPANION_URL_BASE="file://$TMP" \
+        BASE_BRANCH=develop \
+        bash ci/cross-bump.sh 2>&1)"
+    rc=$?
+    set -e
+    if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q "BUMP_PAT is unset"; then
+        mark_pass "$?"
+        echo "PASS: scenario 4 — absent BUMP_PAT refuses (exit $rc)"
+    else
+        mark_fail "$?"
+        echo "FAIL: scenario 4 — expected a named refusal, got exit $rc:"
+        printf '%s\n' "$out" | sed 's/^/  /'
+    fi
+)
+
+# Scenario 5 — every call that CREATES something on the forge carries the
+# non-Actions token, every read keeps the Actions token. Asserted over the
+# scripts rather than by driving a real creation: the fixture tree's .git
+# points at this repository, so a live run would push a branch to origin.
+(
+    cd "$REPO_ROOT"
+    creating="$(grep -n -- '-X POST' ci/cross-bump.sh ci/cross-loop.sh || true)"
+    n="$(printf '%s\n' "$creating" | grep -c . || true)"
+    if [ "$n" -eq 0 ]; then
+        mark_fail "$?"
+        echo "FAIL: scenario 5 — no creating call found, so this scenario asserted nothing"
+    elif printf '%s\n' "$creating" | grep -q 'GITHUB_TOKEN'; then
+        mark_fail "$?"
+        echo "FAIL: scenario 5 — a creating call (-X POST) still carries the Actions token:"
+        printf '%s\n' "$creating" | grep 'GITHUB_TOKEN' | sed 's/^/  /'
+    elif [ "$(printf '%s\n' "$creating" | grep -c 'BUMP_PAT')" -ne "$n" ]; then
+        mark_fail "$?"
+        echo "FAIL: scenario 5 — $n creating call(s), only $(printf '%s\n' "$creating" | grep -c 'BUMP_PAT') carry BUMP_PAT"
+    else
+        mark_pass "$?"
+        echo "PASS: scenario 5 — all $n creating call(s) use the non-Actions token"
+    fi
+)
+
 echo
 pass=$(wc -l < "$PASS_FILE"); fail=$(wc -l < "$FAIL_FILE")
 echo "$pass passed, $fail failed"
