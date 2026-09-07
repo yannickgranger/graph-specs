@@ -631,3 +631,51 @@ fn a_unit_below_a_declared_prefix_resolves_to_the_declaring_context() {
     );
     assert_eq!(mismatches(&violations), Vec::new());
 }
+
+#[test]
+fn a_unit_below_a_declared_prefix_is_a_member_of_that_context() {
+    let spec = Graph::new(vec![spec_node_in("Clock", "modelling")], vec![]);
+    let code = Graph::new(
+        vec![code_node_with_provenance("Clock", "domain/enrolment/deep")],
+        vec![],
+    );
+    let contexts = vec![ctx("modelling", &["domain"], vec![], vec![])];
+
+    let violations = diff(ci(spec, contexts), code);
+
+    assert!(
+        !violations.iter().any(|v| matches!(
+            v,
+            Violation::Context(ContextViolation::MembershipUnknown { .. })
+        )),
+        "the Owns prefix `domain` covers the unit `domain/enrolment/deep`, so the item is a \
+         member of modelling — an equality match against the declared string makes it an orphan: \
+         {violations:?}"
+    );
+    assert!(
+        violations.is_empty(),
+        "and nothing else is reported either: {violations:?}"
+    );
+}
+
+#[test]
+fn a_unit_no_declared_prefix_covers_is_still_an_orphan() {
+    let spec = Graph::new(vec![spec_node_in("Clock", "modelling")], vec![]);
+    let code = Graph::new(
+        vec![code_node_with_provenance("Clock", "vendor/elsewhere")],
+        vec![],
+    );
+    let contexts = vec![ctx("modelling", &["domain"], vec![], vec![])];
+
+    let violations = diff(ci(spec, contexts), code);
+
+    assert!(
+        violations.iter().any(|v| matches!(
+            v,
+            Violation::Context(ContextViolation::MembershipUnknown { owned_unit, .. })
+                if owned_unit.0 == "vendor/elsewhere"
+        )),
+        "no declared prefix covers `vendor/elsewhere`, so the item is off the surface and the \
+         prefix rule must not swallow it: {violations:?}"
+    );
+}
