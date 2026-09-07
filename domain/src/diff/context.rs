@@ -1,6 +1,6 @@
 use crate::{
-    ConceptNode, ContextDecl, ContextViolation, DeclaredSurface, Edge, Graph, OwnedUnit, Source,
-    Violation,
+    ConceptNode, ContextDecl, ContextViolation, DeclaredSurface, Edge, Graph, OwnedUnit,
+    OwnershipAmbiguity, Source, Violation,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -12,7 +12,9 @@ pub(super) fn context_pass(spec_contexts: Vec<ContextDecl>, code: Graph, out: &m
     if spec_contexts.is_empty() {
         return;
     }
-    let membership = Membership::of(&spec_contexts);
+    let Ok(membership) = Membership::of(&spec_contexts) else {
+        return;
+    };
     let node_index = build_node_index(&code.nodes, &membership);
     let (imports, exports, context_sources) = index_contexts(spec_contexts);
 
@@ -33,31 +35,20 @@ pub(super) fn context_pass(spec_contexts: Vec<ContextDecl>, code: Graph, out: &m
 }
 
 struct Membership {
-    surface: Option<DeclaredSurface>,
-    declared: HashMap<String, String>,
+    surface: DeclaredSurface,
 }
 
 impl Membership {
-    fn of(contexts: &[ContextDecl]) -> Self {
-        Self {
-            surface: DeclaredSurface::from_contexts(contexts).ok(),
-            declared: contexts
-                .iter()
-                .flat_map(|ctx| {
-                    let name = ctx.name.as_str();
-                    ctx.owned_units
-                        .iter()
-                        .map(move |u| (u.0.clone(), name.to_owned()))
-                })
-                .collect(),
-        }
+    fn of(contexts: &[ContextDecl]) -> Result<Self, OwnershipAmbiguity> {
+        Ok(Self {
+            surface: DeclaredSurface::from_contexts(contexts)?,
+        })
     }
 
     fn context_of(&self, unit: &str) -> Option<String> {
-        self.surface.as_ref().map_or_else(
-            || self.declared.get(unit).cloned(),
-            |surface| surface.context_of(unit).map(std::borrow::ToOwned::to_owned),
-        )
+        self.surface
+            .context_of(unit)
+            .map(std::borrow::ToOwned::to_owned)
     }
 }
 
