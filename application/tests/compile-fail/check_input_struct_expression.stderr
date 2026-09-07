@@ -1,0 +1,10 @@
+error[E0639]: cannot create non-exhaustive struct using struct expression
+ --> tests/compile-fail/check_input_struct_expression.rs:2:13
+  |
+2 |       let _ = domain::CheckInput {
+  |  _____________^
+3 | |         graph: domain::Graph::default(),
+4 | |         contexts: Vec::new(),
+5 | |         ..Default::default()
+6 | |     };
+  | |_____^

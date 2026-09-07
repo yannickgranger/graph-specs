@@ -32,6 +32,7 @@ tracing = "0.1"
 assert_cmd = "2"
 predicates = "3"
 tempfile = "3"
+trybuild = "1"
 
 domain = { path = "domain" }
 ports = { path = "ports" }

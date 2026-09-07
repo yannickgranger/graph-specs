@@ -319,9 +319,12 @@ fn extract_pub_fns_self_dogfood_application_includes_run_check() {
         .and_then(|p| p.parent())
         .expect("workspace root");
     let app_dir = workspace.join("application");
-    if !app_dir.exists() {
-        return;
-    }
+    assert!(
+        app_dir.is_dir(),
+        "application/ is the tree this dogfood extracts from; a run that cannot find it refuses \
+         rather than passing quietly ({})",
+        app_dir.display()
+    );
     let fns = RustReader::new(cache_at(&app_dir))
         .extract_pub_fns(&app_dir)
         .expect("dogfood");
