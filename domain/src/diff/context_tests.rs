@@ -9,7 +9,9 @@ use crate::{
 use std::path::PathBuf;
 
 fn diff(spec: CheckInput, code: Graph) -> Vec<Violation> {
-    crate::diff(spec, code, None).violations
+    let surface = crate::DeclaredSurface::from_contexts(&spec.contexts)
+        .expect("the declarations under test declare one surface");
+    crate::diff(spec, code, &surface, None).violations
 }
 
 fn code_node(name: &str, unit: &str) -> ConceptNode {
@@ -678,4 +680,20 @@ fn a_unit_no_declared_prefix_covers_is_still_an_orphan() {
         "no declared prefix covers `vendor/elsewhere`, so the item is off the surface and the \
          prefix rule must not swallow it: {violations:?}"
     );
+}
+
+#[test]
+#[should_panic(expected = "declare one surface")]
+fn nested_prefixes_cannot_reach_the_diff() {
+    let spec = Graph::new(vec![spec_node_in("Clock", "outer")], vec![]);
+    let code = Graph::new(
+        vec![code_node_with_provenance("Clock", "domain/enrolment")],
+        vec![],
+    );
+    let contexts = vec![
+        ctx("outer", &["domain"], vec![], vec![]),
+        ctx("inner", &["domain/enrolment"], vec![], vec![]),
+    ];
+
+    let _ = diff(ci(spec, contexts), code);
 }

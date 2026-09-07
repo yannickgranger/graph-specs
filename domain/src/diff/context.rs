@@ -1,6 +1,6 @@
 use crate::{
-    ConceptNode, ContextDecl, ContextViolation, DeclaredSurface, Edge, Graph, OwnedUnit,
-    OwnershipAmbiguity, Source, Violation,
+    ConceptNode, ContextDecl, ContextViolation, DeclaredSurface, Edge, Graph, OwnedUnit, Source,
+    Violation,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -8,13 +8,16 @@ type ImportKey = (String, String, String);
 type ExportKey = (String, String);
 type NodeIndex = HashMap<String, (Option<String>, Option<String>)>;
 
-pub(super) fn context_pass(spec_contexts: Vec<ContextDecl>, code: Graph, out: &mut Vec<Violation>) {
+pub(super) fn context_pass(
+    spec_contexts: Vec<ContextDecl>,
+    code: Graph,
+    surface: &DeclaredSurface,
+    out: &mut Vec<Violation>,
+) {
     if spec_contexts.is_empty() {
         return;
     }
-    let Ok(membership) = Membership::of(&spec_contexts) else {
-        return;
-    };
+    let membership = Membership::over(surface);
     let node_index = build_node_index(&code.nodes, &membership);
     let (imports, exports, context_sources) = index_contexts(spec_contexts);
 
@@ -34,15 +37,13 @@ pub(super) fn context_pass(spec_contexts: Vec<ContextDecl>, code: Graph, out: &m
     );
 }
 
-struct Membership {
-    surface: DeclaredSurface,
+struct Membership<'a> {
+    surface: &'a DeclaredSurface,
 }
 
-impl Membership {
-    fn of(contexts: &[ContextDecl]) -> Result<Self, OwnershipAmbiguity> {
-        Ok(Self {
-            surface: DeclaredSurface::from_contexts(contexts)?,
-        })
+impl<'a> Membership<'a> {
+    const fn over(surface: &'a DeclaredSurface) -> Self {
+        Self { surface }
     }
 
     fn context_of(&self, unit: &str) -> Option<String> {

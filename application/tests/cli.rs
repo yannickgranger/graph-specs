@@ -623,7 +623,7 @@ fn run_v04_text(root: &Path) -> std::process::Output {
 #[test]
 fn injectbite_v04_membership_unknown_surfaces_in_text_and_ndjson() {
     let root = v04_fixture(
-        "## Stray\n",
+        "# alpha\n\n## Stray\n",
         &[("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n")],
         &[("beta-unit/src/lib.rs", "pub struct Stray;")],
     );
@@ -652,7 +652,7 @@ fn injectbite_v04_membership_unknown_surfaces_in_text_and_ndjson() {
 #[test]
 fn injectbite_v04_cross_edge_unauthorized_surfaces_in_text_and_ndjson() {
     let root = v04_fixture(
-        "## Foo\n## Impl\n",
+        "# alpha\n\n## Foo\n## Impl\n",
         &[
             ("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n"),
             ("beta", "# beta\n\n## Owns\n\n- beta-unit\n"),
@@ -692,7 +692,7 @@ fn injectbite_v04_cross_edge_unauthorized_surfaces_in_text_and_ndjson() {
 #[test]
 fn injectbite_v05_verb_match_produces_no_violations() {
     let root = v04_fixture(
-        "## ConceptA\n\n- verb: my_fn\n",
+        "# alpha\n\n## ConceptA\n\n- verb: my_fn\n",
         &[("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n")],
         &[
             (
@@ -715,7 +715,7 @@ fn injectbite_v05_verb_match_produces_no_violations() {
 #[test]
 fn injectbite_v05_verb_missing_in_code_surfaces_in_text() {
     let root = v04_fixture(
-        "## ConceptA\n\n- verb: absent_fn\n",
+        "# alpha\n\n## ConceptA\n\n- verb: absent_fn\n",
         &[("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n")],
         &[
             (
@@ -738,7 +738,7 @@ fn injectbite_v05_verb_missing_in_code_surfaces_in_text() {
 #[test]
 fn injectbite_v05_verb_missing_in_spec_surfaces_in_text() {
     let root = v04_fixture(
-        "## ConceptA\n\n- verb: claimed_fn\n",
+        "# alpha\n\n## ConceptA\n\n- verb: claimed_fn\n",
         &[("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n")],
         &[
             (
@@ -764,7 +764,7 @@ fn injectbite_v05_verb_missing_in_spec_surfaces_in_text() {
 #[test]
 fn injectbite_v05_verb_target_unknown_surfaces_in_text() {
     let root = v04_fixture(
-        "## ConceptA\n\n- verb: ghost_fn\n",
+        "# alpha\n\n## ConceptA\n\n- verb: ghost_fn\n",
         &[("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n")],
         &[
             (
@@ -788,7 +788,7 @@ fn injectbite_v05_verb_target_unknown_surfaces_in_text() {
 #[test]
 fn injectbite_v05_cross_verb_unauthorized_surfaces_in_text() {
     let root = v04_fixture(
-        "## ConceptA\n\n- verb: cross_fn\n",
+        "# alpha\n\n## ConceptA\n\n- verb: cross_fn\n",
         &[
             ("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n"),
             ("beta", "# beta\n\n## Owns\n\n- beta-unit\n"),
@@ -821,7 +821,7 @@ fn injectbite_v05_cross_verb_unauthorized_surfaces_in_text() {
 #[test]
 fn injectbite_v06_impl_method_verb_anchor_matches_impl_block() {
     let root = v04_fixture(
-        "## Foo\n\n- verb: Foo::bar\n",
+        "# alpha\n\n## Foo\n\n- verb: Foo::bar\n",
         &[("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n")],
         &[
             (
@@ -844,7 +844,7 @@ fn injectbite_v06_impl_method_verb_anchor_matches_impl_block() {
 #[test]
 fn v05_zero_verb_bullets_verb_pass_is_noop() {
     let root = v04_fixture(
-        "## ConceptA\n",
+        "# alpha\n\n## ConceptA\n",
         &[("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n")],
         &[
             (
@@ -867,7 +867,7 @@ fn v05_zero_verb_bullets_verb_pass_is_noop() {
 #[test]
 fn injectbite_v06_hybrid_opt_in_impl_method_vs_free_fn() {
     let root = v04_fixture(
-        "## Foo\n\n- verb: bar\n\n## Other\n",
+        "# alpha\n\n## Foo\n\n- verb: bar\n\n## Other\n",
         &[("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n")],
         &[
             (
@@ -904,7 +904,7 @@ fn injectbite_v06_hybrid_opt_in_impl_method_vs_free_fn() {
 #[test]
 fn injectbite_v04_cross_edge_undeclared_surfaces_in_text_and_ndjson() {
     let root = v04_fixture(
-        "## Foo\n## Impl\n",
+        "# alpha\n\n## Foo\n## Impl\n",
         &[
             ("alpha", "# alpha\n\n## Owns\n\n- alpha-unit\n"),
             (

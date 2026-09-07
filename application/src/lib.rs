@@ -2,9 +2,9 @@ use adapter_markdown::MarkdownReader;
 use adapter_php::PhpAttributeReader;
 use adapter_rust::{RustAnchorResolver, RustLoader, RustReader};
 use domain::{
-    diff, CheckInput, CheckOutcome, CohesionViolation, ConceptNode, ContextViolation,
-    DeclaredSurface, DiffSide, EdgeKind, Graph, OwnershipAmbiguity, ResolvedAnchor, SignatureState,
-    SourceWithSig, SpecTree, VerbDecl, VerbOwnership, Violation,
+    diff, AbstractionLevel, CheckInput, CheckOutcome, CohesionViolation, ConceptNode, ContextDecl,
+    ContextViolation, DeclaredSurface, DiffSide, EdgeKind, Graph, OwnershipAmbiguity,
+    ResolvedAnchor, SignatureState, SourceWithSig, SpecTree, VerbDecl, VerbOwnership, Violation,
 };
 use ports::{
     AnchorResolver, CodeFacts, CodeLoader, CodeReader, ConceptAnchorReader, ContextReader,
@@ -91,6 +91,68 @@ fn declared_contexts_per_document(
         .collect()
 }
 
+fn identifier_shaped(text: &str) -> bool {
+    let trimmed = text.trim();
+    !trimmed.is_empty()
+        && !trimmed.chars().any(char::is_whitespace)
+        && trimmed
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+}
+
+fn refuse_undeclared_document_context(
+    trees: &[SpecTree],
+    contexts: &[ContextDecl],
+) -> Result<(), ReaderError> {
+    if contexts.is_empty() {
+        return Ok(());
+    }
+    let declared: Vec<&str> = contexts.iter().map(|c| c.name.as_str()).collect();
+    for tree in trees {
+        let h1 = tree
+            .nodes
+            .iter()
+            .find(|n| n.level == AbstractionLevel::Context);
+        let Some(h1) = h1 else {
+            return Err(undeclared_document_context(&tree.file, 0, None, &declared));
+        };
+        if tree.context_id().is_some_and(|id| declared.contains(&id)) {
+            continue;
+        }
+        if identifier_shaped(&h1.text) {
+            continue;
+        }
+        return Err(undeclared_document_context(
+            &tree.file,
+            h1.line,
+            Some(h1.text.as_str()),
+            &declared,
+        ));
+    }
+    Ok(())
+}
+
+fn undeclared_document_context(
+    file: &Path,
+    line: usize,
+    h1: Option<&str>,
+    declared: &[&str],
+) -> ReaderError {
+    let named = h1.map_or_else(
+        || "the document carries no `#` heading".to_owned(),
+        |text| format!("its `#` heading reads `{text}`"),
+    );
+    ReaderError::ParseFailed {
+        path: file.to_path_buf(),
+        line,
+        message: format!(
+            "could not run: this tree declares the context(s) `{}`, and {} — a document's H1 is the whole of its declaration, so a heading under it would bind by name alone at zero findings rather than by name and unit (graph-specs-010-abstraction-level-equivalence#3.2, #4 invariant 9). Name the document's context, or give it an identifier-shaped H1 if it declares a context this tree does not own",
+            declared.join("`, `"),
+            named
+        ),
+    }
+}
+
 pub fn run_check(
     specs_dir: &Path,
     code_dir: &Path,
@@ -148,6 +210,7 @@ pub fn run_check(
 
     let trees = reader.extract_spec_trees(&spec_set)?;
     specs_graph.nodes = declared_contexts_per_document(specs_graph.nodes, &trees);
+    refuse_undeclared_document_context(&trees, &spec_contexts)?;
     let spec_cohesion: Vec<CohesionViolation> = trees
         .iter()
         .flat_map(SpecTree::cohesion_violations)
@@ -181,6 +244,7 @@ pub fn run_check(
             .with_spec_findings(spec_findings)
             .with_concept_anchors(resolved_anchors),
         code_graph,
+        &surface,
         answerable.as_deref(),
     ))
 }
@@ -1178,7 +1242,11 @@ mod tests {
     fn v04_layout_does_not_collide_on_shared_specs_root() {
         let specs = TempDir::new().unwrap();
         let code = TempDir::new().unwrap();
-        write(specs.path(), "concepts/core.md", "## Foo\n## Bar\n");
+        write(
+            specs.path(),
+            "concepts/core.md",
+            "# only\n\n## Foo\n## Bar\n",
+        );
         write(
             specs.path(),
             "contexts/only.md",

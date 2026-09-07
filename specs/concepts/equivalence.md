@@ -1177,6 +1177,17 @@ other and counts as its context's cohesion unit. Since graph-specs-013-spec-stat
 also no longer skips `status: draft` files — the doc-level structural
 check applies to them on the same terms as any other doc.
 
+The H1 is the whole of the document's declaration, and a tree that declares
+contexts reads it as one. A document with no H1, or with a descriptive H1
+that matches no declared context and is not identifier-shaped, is a reader
+error naming the document, its H1 and the declared names
+(graph-specs-010-abstraction-level-equivalence#3.2) — never a document whose
+headings bind by name alone at zero findings. An identifier-shaped H1 that
+matches no declared context declares a context owning no unit, so every
+heading under it reads missing in code: identity is the name and the unit,
+never the name alone (graph-specs-010-abstraction-level-equivalence#4
+invariant 9).
+
 ### HeadingNode
 
 <!-- parent:spec:SpecTree -->
