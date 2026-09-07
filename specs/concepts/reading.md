@@ -154,7 +154,6 @@ variants are deferred to the cfdb-query path. Returns an
 - implements: AnchorResolver
 - depends on: AnchorTarget
 - depends on: ReaderError
-- depends on: RustAnchorResolver
 - depends on: ParseCache
 - depends on: CodeFileSet
 
@@ -230,7 +229,6 @@ variants are **not** resolvable because cfdb (v0.5.0) emits no `variant`
 - implements: AnchorResolver
 - depends on: AnchorTarget
 - depends on: ReaderError
-- depends on: CfdbAnchorResolver
 
 ## ParseCache
 
