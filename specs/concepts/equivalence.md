@@ -657,7 +657,11 @@ Lives in `domain`.
 <!-- parent:rfc:graph-specs-009-draft-implementation-diagnostic#3.2 anchor:"pub draft_concepts: Vec<ConceptNode>" -->
 
 Input envelope to the v0.5 diff on the spec side — concept graph plus
-declared bounded-context map plus verb-anchoring data. Keeps
+declared surface — the [DeclaredSurface](#declaredsurface) built once from
+the contexts declaration, never the raw declaration list, so the diff
+receives no set it cannot resolve and an ambiguous declaration is refused
+where the surface is built (graph-specs-011-php-ladder#3.2) — plus
+verb-anchoring data. Keeps
 [Graph](#graph) focused on concepts and edges (SOLID SRP, per graph-specs-001-bounded-context-equivalence
 round-1 architect review); contexts and verb ownership are carried
 alongside. An empty `contexts` list reduces diff behavior to v0.3
@@ -672,6 +676,7 @@ by name.
 - depends on: Graph
 - depends on: ContextDecl
 - depends on: VerbOwnership
+- depends on: DeclaredSurface
 - depends on: CohesionViolation
 - depends on: ResolvedAnchor
 - depends on: Violation
@@ -1177,9 +1182,11 @@ other and counts as its context's cohesion unit. Since graph-specs-013-spec-stat
 also no longer skips `status: draft` files — the doc-level structural
 check applies to them on the same terms as any other doc.
 
-The H1 is the whole of the document's declaration, and a tree that declares
-contexts reads it as one. A document with no H1, or with a descriptive H1
-that matches no declared context and is not identifier-shaped, is a reader
+The H1 is the whole of the document's declaration, on every tree — one that
+declares its contexts under `specs/contexts/` and one that declares none,
+where the H1 is the only declaration there is. A document with no H1, or
+with a descriptive H1 that matches no declared context and is not
+identifier-shaped, is a reader
 error naming the document, its H1 and the declared names
 (graph-specs-010-abstraction-level-equivalence#3.2) — never a document whose
 headings bind by name alone at zero findings. An identifier-shaped H1 that
