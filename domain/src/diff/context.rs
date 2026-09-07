@@ -1,5 +1,6 @@
 use crate::{
-    ConceptNode, ContextDecl, ContextViolation, Edge, Graph, OwnedUnit, Source, Violation,
+    ConceptNode, ContextDecl, ContextViolation, DeclaredSurface, Edge, Graph, OwnedUnit, Source,
+    Violation,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -11,8 +12,8 @@ pub(super) fn context_pass(spec_contexts: Vec<ContextDecl>, code: Graph, out: &m
     if spec_contexts.is_empty() {
         return;
     }
-    let unit_to_context = build_unit_index(&spec_contexts);
-    let node_index = build_node_index(&code.nodes, &unit_to_context);
+    let membership = Membership::of(&spec_contexts);
+    let node_index = build_node_index(&code.nodes, &membership);
     let (imports, exports, context_sources) = index_contexts(spec_contexts);
 
     let Graph {
@@ -20,7 +21,7 @@ pub(super) fn context_pass(spec_contexts: Vec<ContextDecl>, code: Graph, out: &m
         edges: code_edges,
     } = code;
 
-    emit_membership_unknown(code_nodes, &unit_to_context, out);
+    emit_membership_unknown(code_nodes, &membership, out);
     emit_cross_context_edge_violations(
         code_edges,
         &node_index,
@@ -31,24 +32,41 @@ pub(super) fn context_pass(spec_contexts: Vec<ContextDecl>, code: Graph, out: &m
     );
 }
 
-fn build_unit_index(contexts: &[ContextDecl]) -> HashMap<String, String> {
-    contexts
-        .iter()
-        .flat_map(|ctx| {
-            let name = ctx.name.as_str();
-            ctx.owned_units
-                .iter()
-                .map(move |u| (u.0.clone(), name.to_owned()))
-        })
-        .collect()
+struct Membership {
+    surface: Option<DeclaredSurface>,
+    declared: HashMap<String, String>,
 }
 
-fn build_node_index(nodes: &[ConceptNode], unit_to_context: &HashMap<String, String>) -> NodeIndex {
+impl Membership {
+    fn of(contexts: &[ContextDecl]) -> Self {
+        Self {
+            surface: DeclaredSurface::from_contexts(contexts).ok(),
+            declared: contexts
+                .iter()
+                .flat_map(|ctx| {
+                    let name = ctx.name.as_str();
+                    ctx.owned_units
+                        .iter()
+                        .map(move |u| (u.0.clone(), name.to_owned()))
+                })
+                .collect(),
+        }
+    }
+
+    fn context_of(&self, unit: &str) -> Option<String> {
+        self.surface.as_ref().map_or_else(
+            || self.declared.get(unit).cloned(),
+            |surface| surface.context_of(unit).map(std::borrow::ToOwned::to_owned),
+        )
+    }
+}
+
+fn build_node_index(nodes: &[ConceptNode], membership: &Membership) -> NodeIndex {
     nodes
         .iter()
         .map(|node| {
             let unit = owning_unit_str(&node.source);
-            let context = unit.as_ref().and_then(|u| unit_to_context.get(u)).cloned();
+            let context = unit.as_ref().and_then(|u| membership.context_of(u));
             (node.name.clone(), (context, unit))
         })
         .collect()
@@ -101,14 +119,14 @@ fn absorb_one_context(
 
 fn emit_membership_unknown(
     nodes: Vec<ConceptNode>,
-    unit_to_context: &HashMap<String, String>,
+    membership: &Membership,
     out: &mut Vec<Violation>,
 ) {
     for node in nodes {
         let Some(unit_str) = owning_unit_str(&node.source) else {
             continue;
         };
-        if unit_to_context.contains_key(&unit_str) {
+        if membership.context_of(&unit_str).is_some() {
             continue;
         }
         out.push(Violation::Context(ContextViolation::MembershipUnknown {
