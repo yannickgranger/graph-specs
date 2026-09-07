@@ -105,11 +105,8 @@ pub fn run_check(
     let mut within_side = union_spec_graphs(&mut specs_graph, attribute_graph);
     let spec_contexts = reader.extract_contexts(&spec_set)?;
     let verb_anchors = reader.extract_verb_anchors(&spec_set)?;
-    let surface = match keyspace {
-        None => DeclaredSurface::default(),
-        Some(keyspace) => DeclaredSurface::from_contexts(&spec_contexts)
-            .map_err(|a| ambiguous_ownership(keyspace, &a))?,
-    };
+    let surface = DeclaredSurface::from_contexts(&spec_contexts)
+        .map_err(|a| ambiguous_ownership(keyspace.unwrap_or(specs_dir), &a))?;
     let code_graph = match keyspace {
         None => RustReader::new(cache.clone()).extract(&code_set)?,
         Some(keyspace) => {
