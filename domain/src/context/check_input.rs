@@ -7,7 +7,7 @@ use crate::{
 #[non_exhaustive]
 pub struct CheckInput {
     pub graph: Graph,
-    pub contexts: Vec<ContextDecl>,
+    pub(crate) contexts: Vec<ContextDecl>,
     surface: DeclaredSurface,
     pub verb_ownership: VerbOwnership,
     pub spec_cohesion: Vec<CohesionViolation>,
