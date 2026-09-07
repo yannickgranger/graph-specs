@@ -243,7 +243,8 @@ pub fn run_check(
         Some(keyspace) => Some(keyspace_answerable(code_dir, keyspace)?),
     };
     Ok(diff(
-        CheckInput::new(specs_graph, spec_contexts, surface, verb_ownership)
+        CheckInput::new(specs_graph, spec_contexts, verb_ownership)
+            .map_err(|a| ambiguous_ownership(keyspace.unwrap_or(specs_dir), &a))?
             .with_spec_cohesion(spec_cohesion)
             .with_spec_findings(spec_findings)
             .with_concept_anchors(resolved_anchors),

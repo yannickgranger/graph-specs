@@ -126,7 +126,7 @@ fn push_return_inner_as_depends_on(ty: &Type, owner: &str, path: &Path, out: &mu
     let inner = heads.into_iter().skip(1);
     let line_source = code_source(path, ty.span());
     for (head, raw) in inner {
-        if head.is_empty() {
+        if head.is_empty() || resolve_self(&head, owner) == owner {
             continue;
         }
         out.push(Edge {

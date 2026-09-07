@@ -22,22 +22,17 @@ pub fn run_report(specs: &Path, code: &Path, format: ReportFormat) -> Result<u8,
     let annotations = reader.extract_annotations(&spec_set)?;
     let specs_graph = reader.extract(&spec_set)?;
     let spec_contexts = reader.extract_contexts(&spec_set)?;
-    let surface = domain::DeclaredSurface::from_contexts(&spec_contexts).map_err(|a| {
-        ReaderError::ParseFailed {
-            path: specs.to_path_buf(),
-            line: 0,
-            message: format!(
-                "could not run the declared surface: context `{}` owns `{}` and context `{}` owns `{}`, which nests inside it",
-                a.outer_context, a.outer.0, a.inner_context, a.inner.0
-            ),
-        }
-    })?;
-    let check_input = CheckInput::new(
-        specs_graph,
-        spec_contexts,
-        surface,
-        VerbOwnership::default(),
-    );
+    let check_input =
+        CheckInput::new(specs_graph, spec_contexts, VerbOwnership::default()).map_err(|a| {
+            ReaderError::ParseFailed {
+                path: specs.to_path_buf(),
+                line: 0,
+                message: format!(
+                    "could not run the declared surface: context `{}` owns `{}` and context `{}` owns `{}`, which nests inside it",
+                    a.outer_context, a.outer.0, a.inner_context, a.inner.0
+                ),
+            }
+        })?;
     let report = report_verb_coverage(&check_input, &pub_fns, &annotations);
 
     let stdout = io::stdout();

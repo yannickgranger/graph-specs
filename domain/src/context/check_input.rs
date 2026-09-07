@@ -1,13 +1,14 @@
 use crate::{
-    CohesionViolation, ContextDecl, DeclaredSurface, Graph, ResolvedAnchor, VerbOwnership,
-    Violation,
+    CohesionViolation, ContextDecl, DeclaredSurface, Graph, OwnershipAmbiguity, ResolvedAnchor,
+    VerbOwnership, Violation,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub struct CheckInput {
     pub graph: Graph,
     pub contexts: Vec<ContextDecl>,
-    pub surface: DeclaredSurface,
+    surface: DeclaredSurface,
     pub verb_ownership: VerbOwnership,
     pub spec_cohesion: Vec<CohesionViolation>,
     pub concept_anchors: Vec<ResolvedAnchor>,
@@ -15,14 +16,13 @@ pub struct CheckInput {
 }
 
 impl CheckInput {
-    #[must_use]
-    pub const fn new(
+    pub fn new(
         graph: Graph,
         contexts: Vec<ContextDecl>,
-        surface: DeclaredSurface,
         verb_ownership: VerbOwnership,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, OwnershipAmbiguity> {
+        let surface = DeclaredSurface::from_contexts(&contexts)?;
+        Ok(Self {
             graph,
             contexts,
             surface,
@@ -30,16 +30,20 @@ impl CheckInput {
             spec_cohesion: Vec::new(),
             concept_anchors: Vec::new(),
             spec_findings: Vec::new(),
-        }
+        })
     }
 
     #[must_use]
-    pub const fn with_graph_and_contexts(
+    pub(crate) const fn surface(&self) -> &DeclaredSurface {
+        &self.surface
+    }
+
+    pub fn with_graph_and_contexts(
         graph: Graph,
         contexts: Vec<ContextDecl>,
-        surface: DeclaredSurface,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, OwnershipAmbiguity> {
+        let surface = DeclaredSurface::from_contexts(&contexts)?;
+        Ok(Self {
             graph,
             contexts,
             surface,
@@ -50,7 +54,7 @@ impl CheckInput {
             spec_cohesion: Vec::new(),
             concept_anchors: Vec::new(),
             spec_findings: Vec::new(),
-        }
+        })
     }
 
     #[must_use]
@@ -108,12 +112,8 @@ mod tests {
                 context: None,
             },
         }];
-        let ci = CheckInput::new(
-            g,
-            ctxs,
-            crate::DeclaredSurface::default(),
-            VerbOwnership::default(),
-        );
+        let ci = CheckInput::new(g, ctxs, VerbOwnership::default())
+            .expect("one context declares one surface");
         assert_eq!(ci.contexts.len(), 1);
         assert_eq!(ci.contexts[0].name, "x");
     }

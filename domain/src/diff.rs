@@ -50,14 +50,15 @@ fn snapshot_declared_contexts(
 
 #[must_use]
 pub fn diff(spec: CheckInput, code: Graph, answerable: Option<&[crate::EdgeKind]>) -> CheckOutcome {
+    let surface = spec.surface().clone();
     let CheckInput {
         graph: specs,
         contexts: spec_contexts,
-        surface,
         verb_ownership: spec_verb_ownership,
         spec_cohesion,
         concept_anchors,
         spec_findings,
+        ..
     } = spec;
     let Graph {
         nodes: spec_nodes,

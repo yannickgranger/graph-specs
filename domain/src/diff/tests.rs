@@ -10,12 +10,7 @@ use std::path::PathBuf;
 
 fn diff(specs: Graph, code: Graph) -> Vec<Violation> {
     super::diff(
-        CheckInput::new(
-            specs,
-            Vec::new(),
-            crate::DeclaredSurface::default(),
-            VerbOwnership::default(),
-        ),
+        CheckInput::new(specs, Vec::new(), VerbOwnership::default()).expect("declares one surface"),
         code,
         None,
     )
@@ -579,9 +574,9 @@ fn marked_heading_without_code_is_pending_not_missing_in_code() {
     let input = CheckInput::new(
         nodes(vec![spec_marked("Widget")]),
         Vec::new(),
-        crate::DeclaredSurface::default(),
         VerbOwnership::default(),
-    );
+    )
+    .expect("declares one surface");
     let outcome = super::diff(input, Graph::default(), None);
     assert!(
         outcome.violations.is_empty(),
@@ -599,9 +594,9 @@ fn marked_heading_with_code_is_realized_not_a_violation() {
     let input = CheckInput::new(
         nodes(vec![spec_marked("Widget")]),
         Vec::new(),
-        crate::DeclaredSurface::default(),
         VerbOwnership::default(),
-    );
+    )
+    .expect("declares one surface");
     let outcome = super::diff(input, nodes(vec![code("Widget")]), None);
     assert!(
         outcome.violations.is_empty(),
@@ -620,12 +615,8 @@ fn a_marker_never_parks_a_divergence() {
         n.marker = Marker::Draft;
         nodes(vec![n])
     };
-    let input = CheckInput::new(
-        specs,
-        Vec::new(),
-        crate::DeclaredSurface::default(),
-        VerbOwnership::default(),
-    );
+    let input =
+        CheckInput::new(specs, Vec::new(), VerbOwnership::default()).expect("declares one surface");
     let outcome = super::diff(
         input,
         nodes(vec![code_with_sig("Widget", "pub enum Widget {}")]),
@@ -646,12 +637,8 @@ fn a_marker_never_parks_a_divergence() {
 #[test]
 fn unmarked_trees_produce_no_marker_records() {
     let specs = nodes(vec![spec("Present"), spec("Absent")]);
-    let input = CheckInput::new(
-        specs,
-        Vec::new(),
-        crate::DeclaredSurface::default(),
-        VerbOwnership::default(),
-    );
+    let input =
+        CheckInput::new(specs, Vec::new(), VerbOwnership::default()).expect("declares one surface");
     let outcome = super::diff(input, nodes(vec![code("Present"), code("Orphan")]), None);
     assert!(outcome.pending.is_empty());
     assert!(outcome.realized.is_empty());
@@ -681,12 +668,8 @@ fn pending_concepts_edge_bullets_impose_no_obligation() {
             },
         }],
     );
-    let input = CheckInput::new(
-        specs,
-        Vec::new(),
-        crate::DeclaredSurface::default(),
-        VerbOwnership::default(),
-    );
+    let input =
+        CheckInput::new(specs, Vec::new(), VerbOwnership::default()).expect("declares one surface");
     let outcome = super::diff(input, nodes(vec![code("Gear")]), None);
     assert!(
         !outcome
@@ -701,12 +684,8 @@ fn pending_concepts_edge_bullets_impose_no_obligation() {
 
 #[test]
 fn orphan_without_a_heading_is_missing_in_specs() {
-    let input = CheckInput::new(
-        Graph::default(),
-        Vec::new(),
-        crate::DeclaredSurface::default(),
-        VerbOwnership::default(),
-    );
+    let input = CheckInput::new(Graph::default(), Vec::new(), VerbOwnership::default())
+        .expect("declares one surface");
     let v = super::diff(input, nodes(vec![code("Gadget")]), None).violations;
     assert_eq!(v.len(), 1);
     assert!(
@@ -745,17 +724,13 @@ fn resolved_anchor(concept: &str, target: &str, resolves: bool) -> ResolvedAncho
 fn anchored_concept_with_resolved_target_is_not_missing_in_code() {
     let specs = Graph::new(vec![spec("ValidateIntakeFull")], Vec::new());
     let v = super::diff(
-        CheckInput::new(
-            specs,
-            Vec::new(),
-            crate::DeclaredSurface::default(),
-            VerbOwnership::default(),
-        )
-        .with_concept_anchors(vec![resolved_anchor(
-            "ValidateIntakeFull",
-            "validate_intake",
-            true,
-        )]),
+        CheckInput::new(specs, Vec::new(), VerbOwnership::default())
+            .expect("declares one surface")
+            .with_concept_anchors(vec![resolved_anchor(
+                "ValidateIntakeFull",
+                "validate_intake",
+                true,
+            )]),
         Graph::default(),
         None,
     )
@@ -770,13 +745,9 @@ fn anchored_concept_with_resolved_target_is_not_missing_in_code() {
 fn anchored_concept_with_unresolved_target_is_dangling_not_missing() {
     let specs = Graph::new(vec![spec("ValidateIntakeFull")], Vec::new());
     let v = super::diff(
-        CheckInput::new(
-            specs,
-            Vec::new(),
-            crate::DeclaredSurface::default(),
-            VerbOwnership::default(),
-        )
-        .with_concept_anchors(vec![resolved_anchor("ValidateIntakeFull", "gone", false)]),
+        CheckInput::new(specs, Vec::new(), VerbOwnership::default())
+            .expect("declares one surface")
+            .with_concept_anchors(vec![resolved_anchor("ValidateIntakeFull", "gone", false)]),
         Graph::default(),
         None,
     )
@@ -802,12 +773,7 @@ fn anchored_concept_with_unresolved_target_is_dangling_not_missing() {
 fn unanchored_missing_concept_still_missing_in_code() {
     let specs = Graph::new(vec![spec("Orphan")], Vec::new());
     let v = super::diff(
-        CheckInput::new(
-            specs,
-            Vec::new(),
-            crate::DeclaredSurface::default(),
-            VerbOwnership::default(),
-        ),
+        CheckInput::new(specs, Vec::new(), VerbOwnership::default()).expect("declares one surface"),
         Graph::default(),
         None,
     )
@@ -841,12 +807,8 @@ fn polarity_presence_matrix() {
             Graph::default()
         };
         let outcome = super::diff(
-            CheckInput::new(
-                specs,
-                Vec::new(),
-                crate::DeclaredSurface::default(),
-                VerbOwnership::default(),
-            ),
+            CheckInput::new(specs, Vec::new(), VerbOwnership::default())
+                .expect("declares one surface"),
             code,
             None,
         );
@@ -868,12 +830,7 @@ fn polarity_presence_matrix() {
 fn illustrative_does_not_consume_the_code_node() {
     let specs = nodes(vec![spec_with_polarity("Member", Polarity::Illustrative)]);
     let outcome = super::diff(
-        CheckInput::new(
-            specs,
-            Vec::new(),
-            crate::DeclaredSurface::default(),
-            VerbOwnership::default(),
-        ),
+        CheckInput::new(specs, Vec::new(), VerbOwnership::default()).expect("declares one surface"),
         nodes(vec![code("Member")]),
         None,
     );
@@ -891,12 +848,7 @@ fn illustrative_does_not_consume_the_code_node() {
 fn forbidden_reintroduction_names_both_sites() {
     let specs = nodes(vec![spec_with_polarity("Member", Polarity::Forbidden)]);
     let outcome = super::diff(
-        CheckInput::new(
-            specs,
-            Vec::new(),
-            crate::DeclaredSurface::default(),
-            VerbOwnership::default(),
-        ),
+        CheckInput::new(specs, Vec::new(), VerbOwnership::default()).expect("declares one surface"),
         nodes(vec![code("Member")]),
         None,
     );
@@ -939,12 +891,8 @@ fn non_declared_polarity_is_terminal_over_the_spec_state_marker() {
                 Graph::default()
             };
             let outcome = super::diff(
-                CheckInput::new(
-                    nodes(vec![node]),
-                    Vec::new(),
-                    crate::DeclaredSurface::default(),
-                    VerbOwnership::default(),
-                ),
+                CheckInput::new(nodes(vec![node]), Vec::new(), VerbOwnership::default())
+                    .expect("declares one surface"),
                 code_graph,
                 None,
             );
@@ -973,12 +921,8 @@ fn declared_polarity_leaves_the_marker_dispatch_intact() {
     let mut node = spec_with_polarity("Widget", Polarity::Declared);
     node.marker = Marker::Draft;
     let outcome = super::diff(
-        CheckInput::new(
-            nodes(vec![node]),
-            Vec::new(),
-            crate::DeclaredSurface::default(),
-            VerbOwnership::default(),
-        ),
+        CheckInput::new(nodes(vec![node]), Vec::new(), VerbOwnership::default())
+            .expect("declares one surface"),
         Graph::default(),
         None,
     );
@@ -1004,12 +948,8 @@ fn a_non_declared_concepts_edge_bullets_impose_no_obligation() {
             }],
         );
         let outcome = super::diff(
-            CheckInput::new(
-                specs,
-                Vec::new(),
-                crate::DeclaredSurface::default(),
-                VerbOwnership::default(),
-            ),
+            CheckInput::new(specs, Vec::new(), VerbOwnership::default())
+                .expect("declares one surface"),
             nodes(vec![code("Member"), code("Gear")]),
             None,
         );
@@ -1029,13 +969,9 @@ fn a_dangling_anchor_under_a_non_declared_heading_fires_nothing() {
     for polarity in [Polarity::Forbidden, Polarity::Illustrative] {
         let specs = nodes(vec![spec_with_polarity("Member", polarity)]);
         let outcome = super::diff(
-            CheckInput::new(
-                specs,
-                Vec::new(),
-                crate::DeclaredSurface::default(),
-                VerbOwnership::default(),
-            )
-            .with_concept_anchors(vec![resolved_anchor("Member", "gone", false)]),
+            CheckInput::new(specs, Vec::new(), VerbOwnership::default())
+                .expect("declares one surface")
+                .with_concept_anchors(vec![resolved_anchor("Member", "gone", false)]),
             Graph::default(),
             None,
         );
@@ -1048,13 +984,9 @@ fn a_dangling_anchor_under_a_non_declared_heading_fires_nothing() {
 
     let specs = nodes(vec![spec("Member")]);
     let outcome = super::diff(
-        CheckInput::new(
-            specs,
-            Vec::new(),
-            crate::DeclaredSurface::default(),
-            VerbOwnership::default(),
-        )
-        .with_concept_anchors(vec![resolved_anchor("Member", "gone", false)]),
+        CheckInput::new(specs, Vec::new(), VerbOwnership::default())
+            .expect("declares one surface")
+            .with_concept_anchors(vec![resolved_anchor("Member", "gone", false)]),
         Graph::default(),
         None,
     );
@@ -1094,12 +1026,7 @@ fn violation_key_forbidden_reintroduced_returns_rank_15() {
 fn an_ungrounded_corpus_is_byte_identical() {
     let specs = nodes(vec![spec("Present"), spec("Absent")]);
     let outcome = super::diff(
-        CheckInput::new(
-            specs,
-            Vec::new(),
-            crate::DeclaredSurface::default(),
-            VerbOwnership::default(),
-        ),
+        CheckInput::new(specs, Vec::new(), VerbOwnership::default()).expect("declares one surface"),
         nodes(vec![code("Present"), code("Orphan")]),
         None,
     );
@@ -1124,12 +1051,8 @@ fn outcome_provenance_snapshots_the_code_triple_with_resolved_context() {
         },
     )];
     let outcome = super::diff(
-        CheckInput::new(
-            Graph::default(),
-            contexts,
-            crate::DeclaredSurface::default(),
-            VerbOwnership::default(),
-        ),
+        CheckInput::new(Graph::default(), contexts, VerbOwnership::default())
+            .expect("declares one surface"),
         nodes(vec![widget]),
         None,
     );
@@ -1162,12 +1085,8 @@ fn outcome_provenance_snapshots_the_code_triple_with_resolved_context() {
 #[test]
 fn outcome_provenance_skips_nodes_with_no_facts() {
     let outcome = super::diff(
-        CheckInput::new(
-            Graph::default(),
-            Vec::new(),
-            crate::DeclaredSurface::default(),
-            VerbOwnership::default(),
-        ),
+        CheckInput::new(Graph::default(), Vec::new(), VerbOwnership::default())
+            .expect("declares one surface"),
         nodes(vec![code("Bare")]),
         None,
     );
@@ -1195,9 +1114,9 @@ fn retired_heading_with_code_is_retirement_incomplete() {
     let input = CheckInput::new(
         nodes(vec![spec_retired("Widget")]),
         Vec::new(),
-        crate::DeclaredSurface::default(),
         VerbOwnership::default(),
-    );
+    )
+    .expect("declares one surface");
     let outcome = super::diff(input, nodes(vec![code("Widget")]), None);
     assert!(
         outcome.violations.is_empty(),
@@ -1220,9 +1139,9 @@ fn retired_heading_without_code_is_retirement_complete_not_missing_in_code() {
     let input = CheckInput::new(
         nodes(vec![spec_retired("Widget")]),
         Vec::new(),
-        crate::DeclaredSurface::default(),
         VerbOwnership::default(),
-    );
+    )
+    .expect("declares one surface");
     let outcome = super::diff(input, Graph::default(), None);
     assert!(
         outcome.violations.is_empty(),
@@ -1250,12 +1169,9 @@ fn rows_7_and_8_are_selected_by_the_same_backing_item_fact_as_rows_3_and_4() {
         for backed in [false, true] {
             let mut node = spec("Widget");
             node.marker = marker;
-            let mut input = CheckInput::new(
-                nodes(vec![node]),
-                Vec::new(),
-                crate::DeclaredSurface::default(),
-                VerbOwnership::default(),
-            );
+            let mut input =
+                CheckInput::new(nodes(vec![node]), Vec::new(), VerbOwnership::default())
+                    .expect("declares one surface");
             let code_graph = if spelling_by_name && backed {
                 nodes(vec![code("Widget")])
             } else {
@@ -1303,12 +1219,8 @@ fn a_retired_marker_never_parks_a_divergence() {
         n.marker = Marker::Retired;
         nodes(vec![n])
     };
-    let input = CheckInput::new(
-        specs,
-        Vec::new(),
-        crate::DeclaredSurface::default(),
-        VerbOwnership::default(),
-    );
+    let input =
+        CheckInput::new(specs, Vec::new(), VerbOwnership::default()).expect("declares one surface");
     let outcome = super::diff(
         input,
         nodes(vec![code_with_sig("Widget", "pub enum Widget {}")]),
@@ -1342,12 +1254,8 @@ fn non_declared_polarity_is_terminal_over_the_retired_value_too() {
                 Graph::default()
             };
             let outcome = super::diff(
-                CheckInput::new(
-                    nodes(vec![node]),
-                    Vec::new(),
-                    crate::DeclaredSurface::default(),
-                    VerbOwnership::default(),
-                ),
+                CheckInput::new(nodes(vec![node]), Vec::new(), VerbOwnership::default())
+                    .expect("declares one surface"),
                 code_graph,
                 None,
             );
@@ -1403,12 +1311,12 @@ fn row_8_verb_anchors_impose_no_obligation() {
             CheckInput::new(
                 nodes(vec![node, spec("Anchorage")]),
                 vec![ctx.clone()],
-                crate::DeclaredSurface::default(),
                 VerbOwnership {
                     decls: vec![],
                     anchors: vec![anchor.clone()],
                 },
-            ),
+            )
+            .expect("declares one surface"),
             Graph::new(vec![neighbour_code.clone()], vec![]),
             None,
         )
@@ -1444,12 +1352,7 @@ fn edge_into(target_state: ConceptNode, target_has_code: bool) -> (CheckInput, G
         code_nodes.push(code("Target"));
     }
     (
-        CheckInput::new(
-            specs,
-            Vec::new(),
-            crate::DeclaredSurface::default(),
-            VerbOwnership::default(),
-        ),
+        CheckInput::new(specs, Vec::new(), VerbOwnership::default()).expect("declares one surface"),
         Graph::new(code_nodes, Vec::new()),
     )
 }
@@ -1556,12 +1459,8 @@ fn edge_missing_in_spec_fires_in_every_cell_of_both_matrices() {
                 code_nodes.push(code("Target"));
             }
             let outcome = super::diff(
-                CheckInput::new(
-                    specs,
-                    Vec::new(),
-                    crate::DeclaredSurface::default(),
-                    VerbOwnership::default(),
-                ),
+                CheckInput::new(specs, Vec::new(), VerbOwnership::default())
+                    .expect("declares one surface"),
                 Graph::new(
                     code_nodes,
                     vec![code_edge("Source", EdgeKind::Implements, "Target")],
@@ -1600,9 +1499,9 @@ fn a_suppressed_target_yields_no_edge_target_unknown_and_a_mirage_still_does() {
                 vec![spec_edge("Source", EdgeKind::DependsOn, "Ghost")],
             ),
             Vec::new(),
-            crate::DeclaredSurface::default(),
             VerbOwnership::default(),
-        ),
+        )
+        .expect("declares one surface"),
         nodes(vec![code("Source")]),
         None,
     );
@@ -1661,12 +1560,12 @@ fn the_source_side_per_name_conversion_stays_permissive() {
         CheckInput::new(
             specs,
             vec![ctx],
-            crate::DeclaredSurface::default(),
             VerbOwnership {
                 decls: vec![],
                 anchors: vec![anchor],
             },
-        ),
+        )
+        .expect("declares one surface"),
         Graph::new(
             vec![ConceptNode::new(
                 "T".to_owned(),
