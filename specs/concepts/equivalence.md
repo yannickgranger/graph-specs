@@ -598,7 +598,6 @@ invariant 9; graph-specs-011-php-ladder#3.2: prefix matching over the
 qualified name is the discriminator, and the whole of it).
 
 - depends on: ContextDecl
-- depends on: DeclaredSurface
 - depends on: OwnershipAmbiguity
 - verb: DeclaredSurface::from_contexts
 - verb: DeclaredSurface::admits
@@ -677,6 +676,7 @@ by name.
 - depends on: ContextDecl
 - depends on: VerbOwnership
 - depends on: DeclaredSurface
+- depends on: OwnershipAmbiguity
 - depends on: CohesionViolation
 - depends on: ResolvedAnchor
 - depends on: Violation
@@ -1094,7 +1094,8 @@ shows `path:line` like every other violation. Marked `#[non_exhaustive]`.
 whose name resolves to an item under its own declared context binds that
 item and reports no mismatch, whatever same-named items stand under other
 units; a heading with no such item is compared with each same-named item
-outside its context, one record per item, `code_context` naming that
+outside its context that no heading of that item's own context binds, one
+record per such item, `code_context` naming that
 item's own resolved context — never the first of the name in graph order,
 never the nearest prefix (graph-specs-011-php-ladder#3.2 refuses a
 resolution by proximity across contexts). Two such items under two units
