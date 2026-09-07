@@ -1,5 +1,6 @@
 use crate::context::context_for_code_node;
 use crate::{resolve_declared_context, CohesionViolation, ContextDecl, Graph, Source, Violation};
+use std::collections::HashSet;
 
 pub(super) fn cohesion_pass(
     spec_cohesion: Vec<CohesionViolation>,
@@ -13,15 +14,26 @@ pub(super) fn cohesion_pass(
     if contexts.is_empty() {
         return;
     }
-    for (concept, h1_context, spec_source) in declared {
+    let declaring_context = |concept: &str, h1_context: &str| -> Option<String> {
         let upstream = contexts
             .iter()
             .find(|c| c.exports.iter().any(|e| e.concept == concept))
             .map(|c| c.name.as_str());
-        let Some(declared_ctx) = resolve_declared_context(Some(h1_context.as_str()), upstream)
-        else {
+        resolve_declared_context(Some(h1_context), upstream).map(str::to_owned)
+    };
+
+    let bound: HashSet<(String, String)> = declared
+        .iter()
+        .filter_map(|(concept, h1_context, _)| {
+            declaring_context(concept, h1_context).map(|ctx| (concept.clone(), ctx))
+        })
+        .collect();
+
+    for (concept, h1_context, spec_source) in declared {
+        let Some(declared_ctx) = declaring_context(&concept, &h1_context) else {
             continue;
         };
+        let declared_ctx = declared_ctx.as_str();
 
         let items: Vec<(&Source, Option<&str>)> = code
             .nodes
@@ -46,6 +58,9 @@ pub(super) fn cohesion_pass(
             let Some(code_ctx) = code_ctx else {
                 continue;
             };
+            if bound.contains(&(concept.clone(), code_ctx.to_owned())) {
+                continue;
+            }
             violations.push(Violation::Cohesion(
                 CohesionViolation::ConceptContextMismatch {
                     declared: declared_ctx.to_owned(),

@@ -9,9 +9,7 @@ use crate::{
 use std::path::PathBuf;
 
 fn diff(spec: CheckInput, code: Graph) -> Vec<Violation> {
-    let surface = crate::DeclaredSurface::from_contexts(&spec.contexts)
-        .expect("the declarations under test declare one surface");
-    crate::diff(spec, code, &surface, None).violations
+    crate::diff(spec, code, None).violations
 }
 
 fn code_node(name: &str, unit: &str) -> ConceptNode {
@@ -85,6 +83,7 @@ fn im(from: &str, pattern: ContextPattern, concept: &str) -> ContextImport {
 
 fn ci(graph: Graph, contexts: Vec<ContextDecl>) -> CheckInput {
     CheckInput::new(graph, contexts, VerbOwnership::default())
+        .expect("the declarations under test declare one surface")
 }
 
 #[test]
@@ -683,17 +682,56 @@ fn a_unit_no_declared_prefix_covers_is_still_an_orphan() {
 }
 
 #[test]
-#[should_panic(expected = "declare one surface")]
-fn nested_prefixes_cannot_reach_the_diff() {
+fn nested_prefixes_cannot_build_a_check_input() {
     let spec = Graph::new(vec![spec_node_in("Clock", "outer")], vec![]);
-    let code = Graph::new(
-        vec![code_node_with_provenance("Clock", "domain/enrolment")],
-        vec![],
-    );
     let contexts = vec![
         ctx("outer", &["domain"], vec![], vec![]),
         ctx("inner", &["domain/enrolment"], vec![], vec![]),
     ];
 
-    let _ = diff(ci(spec, contexts), code);
+    let refused = CheckInput::new(spec, contexts, VerbOwnership::default());
+
+    let ambiguity = refused.expect_err(
+        "two contexts nesting their prefixes declare no surface, so the input the diff reads \
+         cannot be built from them",
+    );
+    assert_eq!(ambiguity.outer.0, "domain");
+    assert_eq!(ambiguity.outer_context, "outer");
+    assert_eq!(ambiguity.inner.0, "domain/enrolment");
+    assert_eq!(ambiguity.inner_context, "inner");
+}
+
+#[test]
+fn a_heading_whose_item_is_absent_reads_missing_not_a_mismatch() {
+    let spec = Graph::new(
+        vec![
+            spec_node_in("UnknownCourse", "scheduling"),
+            spec_node_in("UnknownCourse", "enrolment"),
+        ],
+        vec![],
+    );
+    let code = Graph::new(
+        vec![code_node_with_provenance("UnknownCourse", "enrolment")],
+        vec![],
+    );
+    let contexts = vec![
+        ctx("scheduling", &["scheduling"], vec![], vec![]),
+        ctx("enrolment", &["enrolment"], vec![], vec![]),
+    ];
+
+    let violations = diff(ci(spec, contexts), code);
+
+    assert_eq!(
+        mismatches(&violations),
+        Vec::new(),
+        "enrolment's own heading binds the enrolment item, so scheduling's heading is not \
+         compared with it: {violations:?}"
+    );
+    assert!(
+        violations
+            .iter()
+            .any(|v| matches!(v, Violation::MissingInCode { name, .. } if name == "UnknownCourse")),
+        "scheduling's heading reads missing in code, which is what an absent item is: \
+         {violations:?}"
+    );
 }

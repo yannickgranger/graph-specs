@@ -39,7 +39,7 @@ fn empty_specs_and_empty_code_pass() {
 fn matching_specs_and_code_pass() {
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
-    write_file(specs.path(), "core.md", "## Foo\n## Bar\n");
+    write_file(specs.path(), "core.md", "# core\n\n## Foo\n## Bar\n");
     write_file(
         code.path(),
         "src/lib.rs",
@@ -63,7 +63,7 @@ fn matching_specs_and_code_pass() {
 fn spec_only_concept_exits_1_with_missing_in_code() {
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
-    write_file(specs.path(), "core.md", "## Foo\n## Orphan\n");
+    write_file(specs.path(), "core.md", "# core\n\n## Foo\n## Orphan\n");
     write_file(code.path(), "src/lib.rs", "pub struct Foo;");
 
     bin()
@@ -87,7 +87,7 @@ fn anchored_pub_crate_concept_passes() {
     write_file(
         specs.path(),
         "concepts/intake.md",
-        "## ValidateIntakeFull\n\n- impl: validate_intake\n",
+        "# intake\n\n## ValidateIntakeFull\n\n- impl: validate_intake\n",
     );
     write_file(
         code.path(),
@@ -114,7 +114,7 @@ fn dangling_anchor_exits_1() {
     write_file(
         specs.path(),
         "concepts/intake.md",
-        "## ValidateIntakeFull\n\n- impl: nonexistent_fn\n",
+        "# intake\n\n## ValidateIntakeFull\n\n- impl: nonexistent_fn\n",
     );
     write_file(code.path(), "src/lib.rs", "pub fn other() {}");
 
@@ -141,7 +141,7 @@ fn injectbite_rename_field_in_spec_only() {
     write_file(
         specs.path(),
         "core.md",
-        "## OrderId\n\n```rust\npub struct OrderId { pub uuid: Uuid }\n```\n",
+        "# core\n\n## OrderId\n\n```rust\npub struct OrderId { pub uuid: Uuid }\n```\n",
     );
     write_file(
         code.path(),
@@ -171,7 +171,7 @@ fn injectbite_add_variant_in_code_only() {
     write_file(
         specs.path(),
         "core.md",
-        "## Status\n\n```rust\npub enum Status { Open }\n```\n",
+        "# core\n\n## Status\n\n```rust\npub enum Status { Open }\n```\n",
     );
     write_file(
         code.path(),
@@ -200,7 +200,7 @@ fn injectbite_change_generic_bound_in_spec_only() {
     write_file(
         specs.path(),
         "core.md",
-        "## Holder\n\n```rust\npub struct Holder<T: Copy>(pub T);\n```\n",
+        "# core\n\n## Holder\n\n```rust\npub struct Holder<T: Copy>(pub T);\n```\n",
     );
     write_file(
         code.path(),
@@ -228,7 +228,7 @@ fn matching_signatures_yield_no_violations() {
     write_file(
         specs.path(),
         "core.md",
-        "## OrderId\n\n```rust\npub struct OrderId(pub u32);\n```\n",
+        "# core\n\n## OrderId\n\n```rust\npub struct OrderId(pub u32);\n```\n",
     );
     write_file(code.path(), "src/lib.rs", "pub struct OrderId(pub u32);");
 
@@ -252,7 +252,7 @@ fn unparseable_spec_rust_block_exits_2() {
     write_file(
         specs.path(),
         "core.md",
-        "## OrderId\n\n```rust\npub struct OrderId(\n```\n",
+        "# core\n\n## OrderId\n\n```rust\npub struct OrderId(\n```\n",
     );
     write_file(code.path(), "src/lib.rs", "pub struct OrderId(pub u32);");
 
@@ -273,7 +273,7 @@ fn unparseable_spec_rust_block_exits_2() {
 fn concept_only_spec_does_not_emit_signature_violation() {
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
-    write_file(specs.path(), "core.md", "## OrderId\n");
+    write_file(specs.path(), "core.md", "# core\n\n## OrderId\n");
     write_file(code.path(), "src/lib.rs", "pub struct OrderId(pub u32);");
 
     bin()
@@ -296,7 +296,7 @@ fn injectbite_spec_implements_without_code_impl_emits_edge_missing_in_code() {
     write_file(
         specs.path(),
         "core.md",
-        "## Reader\n\n## MarkdownReader\n\n- implements: Reader\n",
+        "# core\n\n## Reader\n\n## MarkdownReader\n\n- implements: Reader\n",
     );
     write_file(
         code.path(),
@@ -326,7 +326,7 @@ fn injectbite_code_impl_without_spec_bullet_emits_edge_missing_in_spec() {
     write_file(
         specs.path(),
         "core.md",
-        "## Reader\n\n## Writer\n\n## MarkdownReader\n\n- implements: Reader\n",
+        "# core\n\n## Reader\n\n## Writer\n\n## MarkdownReader\n\n- implements: Reader\n",
     );
     write_file(
         code.path(),
@@ -356,7 +356,7 @@ fn injectbite_spec_edge_target_unknown_concept_emits_target_unknown() {
     write_file(
         specs.path(),
         "core.md",
-        "## MarkdownReader\n\n- implements: NotAConcept\n",
+        "# core\n\n## MarkdownReader\n\n- implements: NotAConcept\n",
     );
     write_file(code.path(), "src/lib.rs", "pub struct MarkdownReader;");
 
@@ -382,7 +382,7 @@ fn injectbite_field_rename_pair_emits_missing_in_code_and_spec() {
     write_file(
         specs.path(),
         "core.md",
-        "## Graph\n\n## Node\n\n## Container\n\n- depends on: Graph\n",
+        "# core\n\n## Graph\n\n## Node\n\n## Container\n\n- depends on: Graph\n",
     );
     write_file(
         code.path(),
@@ -415,7 +415,7 @@ fn v03_matching_edges_produce_no_violations() {
     write_file(
         specs.path(),
         "core.md",
-        "## Reader\n\n## MarkdownReader\n\n- implements: Reader\n",
+        "# core\n\n## Reader\n\n## MarkdownReader\n\n- implements: Reader\n",
     );
     write_file(
         code.path(),
@@ -440,7 +440,7 @@ fn v03_matching_edges_produce_no_violations() {
 fn code_only_concept_exits_1_with_missing_in_specs() {
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
-    write_file(specs.path(), "core.md", "## Foo\n");
+    write_file(specs.path(), "core.md", "# core\n\n## Foo\n");
     write_file(
         code.path(),
         "src/lib.rs",
@@ -488,7 +488,7 @@ fn parse_ndjson(stdout: &[u8]) -> Vec<serde_json::Value> {
 fn ndjson_on_clean_tree_emits_empty_stdout_and_exit_zero() {
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
-    write_file(specs.path(), "core.md", "## Foo\n");
+    write_file(specs.path(), "core.md", "# core\n\n## Foo\n");
     write_file(code.path(), "src/lib.rs", "pub struct Foo;");
 
     let out = run_ndjson(specs.path(), code.path());
@@ -504,7 +504,7 @@ fn ndjson_on_clean_tree_emits_empty_stdout_and_exit_zero() {
 fn ndjson_missing_in_code_emits_one_record_exit_one() {
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
-    write_file(specs.path(), "core.md", "## OnlySpec\n");
+    write_file(specs.path(), "core.md", "# core\n\n## OnlySpec\n");
     write_file(code.path(), "src/lib.rs", "");
 
     let out = run_ndjson(specs.path(), code.path());
@@ -521,7 +521,6 @@ fn ndjson_missing_in_code_emits_one_record_exit_one() {
 fn ndjson_missing_in_specs_emits_one_record_exit_one() {
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
-    write_file(specs.path(), "core.md", "");
     write_file(code.path(), "src/lib.rs", "pub struct OnlyCode;");
 
     let out = run_ndjson(specs.path(), code.path());
@@ -537,7 +536,11 @@ fn ndjson_missing_in_specs_emits_one_record_exit_one() {
 fn ndjson_signature_unparseable_exits_two() {
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
-    write_file(specs.path(), "core.md", "## Foo\n\n```rust\nfn foo(\n```\n");
+    write_file(
+        specs.path(),
+        "core.md",
+        "# core\n\n## Foo\n\n```rust\nfn foo(\n```\n",
+    );
     write_file(code.path(), "src/lib.rs", "pub struct Foo;");
 
     let out = run_ndjson(specs.path(), code.path());
@@ -555,7 +558,7 @@ fn ndjson_signature_unparseable_exits_two() {
 fn ndjson_multiple_violations_newline_delimited_each_parseable() {
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
-    write_file(specs.path(), "core.md", "## SpecOnly\n");
+    write_file(specs.path(), "core.md", "# core\n\n## SpecOnly\n");
     write_file(code.path(), "src/lib.rs", "pub struct CodeOnly;");
 
     let out = run_ndjson(specs.path(), code.path());
@@ -574,7 +577,7 @@ fn ndjson_multiple_violations_newline_delimited_each_parseable() {
 fn ndjson_text_format_unchanged_by_flag_absence() {
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
-    write_file(specs.path(), "core.md", "## Foo\n");
+    write_file(specs.path(), "core.md", "# core\n\n## Foo\n");
     write_file(code.path(), "src/lib.rs", "pub struct Foo;");
 
     bin()
@@ -1017,7 +1020,7 @@ fn concept_context_mismatch_exits_non_zero_end_to_end() {
 fn clean_tree_summary_names_all_three_counts() {
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
-    write_file(specs.path(), "core.md", "## Foo\n");
+    write_file(specs.path(), "core.md", "# core\n\n## Foo\n");
     write_file(code.path(), "src/lib.rs", "pub struct Foo;");
 
     bin()
@@ -1042,7 +1045,7 @@ fn marker_records_are_enumerated_and_do_not_move_the_exit_code() {
     write_file(
         specs.path(),
         "core.md",
-        "## Widget\n\n- status: draft\n\n## Digest\n\n- status: draft\n",
+        "# core\n\n## Widget\n\n- status: draft\n\n## Digest\n\n- status: draft\n",
     );
     write_file(code.path(), "src/lib.rs", "pub struct Widget;");
 
@@ -1080,7 +1083,11 @@ fn marker_records_are_enumerated_and_do_not_move_the_exit_code() {
 fn ndjson_marker_records_carry_the_marker_discriminator() {
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
-    write_file(specs.path(), "core.md", "## Digest\n\n- status: draft\n");
+    write_file(
+        specs.path(),
+        "core.md",
+        "# core\n\n## Digest\n\n- status: draft\n",
+    );
     write_file(code.path(), "src/lib.rs", "");
 
     let out = run_ndjson(specs.path(), code.path());

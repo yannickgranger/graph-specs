@@ -23,7 +23,7 @@ fn the_attribute_channel_and_the_markdown_spec_disagreeing_raises_the_within_sid
     write(
         specs.path(),
         "concepts/orders.md",
-        "## OrderService\n\n```rust\nfn place(&self) {}\n```\n",
+        "# orders\n\n## OrderService\n\n```rust\nfn place(&self) {}\n```\n",
     );
     cargo_toml(code.path());
     write(code.path(), "src/lib.rs", "pub struct OrderService;\n");
@@ -80,7 +80,7 @@ fn an_attribute_agreeing_with_the_markdown_spec_raises_nothing() {
     write(
         specs.path(),
         "concepts/orders.md",
-        "## OrderService\n\n```rust\nfn place(&self) {}\n```\n",
+        "# orders\n\n## OrderService\n\n```rust\nfn place(&self) {}\n```\n",
     );
     cargo_toml(code.path());
     write(code.path(), "src/lib.rs", "pub struct OrderService;\n");
