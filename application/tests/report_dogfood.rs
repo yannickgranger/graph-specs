@@ -14,9 +14,20 @@ fn bin() -> Command {
 fn dogfood_report_exits_zero() {
     let root = workspace_root();
     let specs = root.join("specs");
-    if !specs.exists() {
-        return;
-    }
+    assert!(
+        specs.is_dir(),
+        "specs/ is the input this dogfood reads; a run that cannot find it refuses rather than \
+         passing quietly ({})",
+        specs.display()
+    );
+    assert!(
+        std::fs::read_dir(&specs)
+            .expect("read specs/")
+            .flatten()
+            .next()
+            .is_some(),
+        "specs/ is empty, so a report over it says nothing"
+    );
 
     bin()
         .args([
@@ -60,9 +71,20 @@ fn report_records() -> Vec<serde_json::Value> {
 fn dogfood_report_ndjson_contains_run_check() {
     let root = workspace_root();
     let specs = root.join("specs");
-    if !specs.exists() {
-        return;
-    }
+    assert!(
+        specs.is_dir(),
+        "specs/ is the input this dogfood reads; a run that cannot find it refuses rather than \
+         passing quietly ({})",
+        specs.display()
+    );
+    assert!(
+        std::fs::read_dir(&specs)
+            .expect("read specs/")
+            .flatten()
+            .next()
+            .is_some(),
+        "specs/ is empty, so a report over it says nothing"
+    );
 
     let out = bin()
         .args([

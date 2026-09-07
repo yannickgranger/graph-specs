@@ -34,6 +34,7 @@ path = "src/lib.rs"
 assert_cmd = { workspace = true }
 predicates = { workspace = true }
 tempfile = { workspace = true }
+trybuild = { workspace = true }
 
 [lints]
 workspace = true

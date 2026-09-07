@@ -1,0 +1,15 @@
+error[E0616]: field `contexts` of struct `CheckInput` is private
+ --> tests/compile-fail/check_input_field_mutation.rs:8:11
+  |
+8 |     input.contexts.push(unimplemented!());
+  |           ^^^^^^^^ private field
+
+warning: unreachable call
+ --> tests/compile-fail/check_input_field_mutation.rs:8:20
+  |
+8 |     input.contexts.push(unimplemented!());
+  |                    ^^^^ ---------------- any code following this expression is unreachable
+  |                    |
+  |                    unreachable call
+  |
+  = note: `#[warn(unreachable_code)]` (part of `#[warn(unused)]`) on by default
