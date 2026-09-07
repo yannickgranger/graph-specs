@@ -8,10 +8,10 @@ use crate::{
 };
 use std::path::PathBuf;
 
-fn diff(spec: CheckInput, code: Graph) -> Vec<Violation> {
-    let surface = crate::DeclaredSurface::from_contexts(&spec.contexts)
+fn diff(mut spec: CheckInput, code: Graph) -> Vec<Violation> {
+    spec.surface = crate::DeclaredSurface::from_contexts(&spec.contexts)
         .expect("the declarations under test declare one surface");
-    crate::diff(spec, code, &surface, None).violations
+    crate::diff(spec, code, None).violations
 }
 
 fn code_node(name: &str, unit: &str) -> ConceptNode {
@@ -84,7 +84,12 @@ fn im(from: &str, pattern: ContextPattern, concept: &str) -> ContextImport {
 }
 
 fn ci(graph: Graph, contexts: Vec<ContextDecl>) -> CheckInput {
-    CheckInput::new(graph, contexts, VerbOwnership::default())
+    CheckInput::new(
+        graph,
+        contexts,
+        crate::DeclaredSurface::default(),
+        VerbOwnership::default(),
+    )
 }
 
 #[test]

@@ -32,7 +32,7 @@ fn tree(spec: &str, php_attribute: &str) -> (TempDir, TempDir) {
 #[test]
 fn a_php_fence_and_an_attribute_that_disagree_raise_the_within_side_record() {
     let (specs, code) = tree(
-        "## OrderService\n\n```php\nclass OrderService { public function place(): void {} }\n```\n",
+        "# orders\n\n## OrderService\n\n```php\nclass OrderService { public function place(): void {} }\n```\n",
         "#[Spec(signature: \"class OrderService { public function place(Order $o): Receipt {} }\")]",
     );
     let outcome = application::run_check(specs.path(), code.path(), None).unwrap();
@@ -51,7 +51,7 @@ fn a_php_fence_normalizes_to_the_declaration_without_its_body_or_comments() {
     write(
         specs.path(),
         "concepts/orders.md",
-        "## OrderService\n\n```php\n// a comment the normalizer drops\n#[Attr]\nfinal class OrderService implements Enrolable { public function place(): void {} }\n```\n",
+        "# orders\n\n## OrderService\n\n```php\n// a comment the normalizer drops\n#[Attr]\nfinal class OrderService implements Enrolable { public function place(): void {} }\n```\n",
     );
     cargo_toml(code.path());
     write(code.path(), "src/lib.rs", "pub struct OrderService;\n");
@@ -77,7 +77,7 @@ fn a_php_fence_that_does_not_parse_is_unparseable_with_the_fence_tag_naming_the_
     write(
         specs.path(),
         "concepts/orders.md",
-        "## OrderService\n\n```php\nclass OrderService {\n```\n",
+        "# orders\n\n## OrderService\n\n```php\nclass OrderService {\n```\n",
     );
     cargo_toml(code.path());
     write(code.path(), "src/lib.rs", "pub struct OrderService;\n");
@@ -108,7 +108,7 @@ fn two_php_fences_in_one_section_are_unparseable() {
     write(
         specs.path(),
         "concepts/orders.md",
-        "## OrderService\n\n```php\nclass OrderService {}\n```\n\n```php\nclass OrderService {}\n```\n",
+        "# orders\n\n## OrderService\n\n```php\nclass OrderService {}\n```\n\n```php\nclass OrderService {}\n```\n",
     );
     cargo_toml(code.path());
     write(code.path(), "src/lib.rs", "pub struct OrderService;\n");

@@ -1,9 +1,13 @@
-use crate::{CohesionViolation, ContextDecl, Graph, ResolvedAnchor, VerbOwnership, Violation};
+use crate::{
+    CohesionViolation, ContextDecl, DeclaredSurface, Graph, ResolvedAnchor, VerbOwnership,
+    Violation,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CheckInput {
     pub graph: Graph,
     pub contexts: Vec<ContextDecl>,
+    pub surface: DeclaredSurface,
     pub verb_ownership: VerbOwnership,
     pub spec_cohesion: Vec<CohesionViolation>,
     pub concept_anchors: Vec<ResolvedAnchor>,
@@ -15,11 +19,13 @@ impl CheckInput {
     pub const fn new(
         graph: Graph,
         contexts: Vec<ContextDecl>,
+        surface: DeclaredSurface,
         verb_ownership: VerbOwnership,
     ) -> Self {
         Self {
             graph,
             contexts,
+            surface,
             verb_ownership,
             spec_cohesion: Vec::new(),
             concept_anchors: Vec::new(),
@@ -28,10 +34,15 @@ impl CheckInput {
     }
 
     #[must_use]
-    pub const fn with_graph_and_contexts(graph: Graph, contexts: Vec<ContextDecl>) -> Self {
+    pub const fn with_graph_and_contexts(
+        graph: Graph,
+        contexts: Vec<ContextDecl>,
+        surface: DeclaredSurface,
+    ) -> Self {
         Self {
             graph,
             contexts,
+            surface,
             verb_ownership: VerbOwnership {
                 decls: Vec::new(),
                 anchors: Vec::new(),
@@ -97,7 +108,12 @@ mod tests {
                 context: None,
             },
         }];
-        let ci = CheckInput::new(g, ctxs, VerbOwnership::default());
+        let ci = CheckInput::new(
+            g,
+            ctxs,
+            crate::DeclaredSurface::default(),
+            VerbOwnership::default(),
+        );
         assert_eq!(ci.contexts.len(), 1);
         assert_eq!(ci.contexts[0].name, "x");
     }

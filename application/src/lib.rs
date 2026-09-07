@@ -104,9 +104,6 @@ fn refuse_undeclared_document_context(
     trees: &[SpecTree],
     contexts: &[ContextDecl],
 ) -> Result<(), ReaderError> {
-    if contexts.is_empty() {
-        return Ok(());
-    }
     let declared: Vec<&str> = contexts.iter().map(|c| c.name.as_str()).collect();
     for tree in trees {
         let h1 = tree
@@ -142,13 +139,20 @@ fn undeclared_document_context(
         || "the document carries no `#` heading".to_owned(),
         |text| format!("its `#` heading reads `{text}`"),
     );
+    let tree_declares = if declared.is_empty() {
+        "this tree declares no contexts, so a document's H1 is the only declaration there is"
+            .to_owned()
+    } else {
+        format!(
+            "this tree declares the context(s) `{}`",
+            declared.join("`, `")
+        )
+    };
     ReaderError::ParseFailed {
         path: file.to_path_buf(),
         line,
         message: format!(
-            "could not run: this tree declares the context(s) `{}`, and {} — a document's H1 is the whole of its declaration, so a heading under it would bind by name alone at zero findings rather than by name and unit (graph-specs-010-abstraction-level-equivalence#3.2, #4 invariant 9). Name the document's context, or give it an identifier-shaped H1 if it declares a context this tree does not own",
-            declared.join("`, `"),
-            named
+            "could not run: {tree_declares}, and {named} — a document's H1 is the whole of its declaration, so a heading under it would bind by name alone at zero findings rather than by name and unit (graph-specs-010-abstraction-level-equivalence#3.2, #4 invariant 9). Give the document an identifier-shaped H1 naming the context it describes"
         ),
     }
 }
@@ -239,12 +243,11 @@ pub fn run_check(
         Some(keyspace) => Some(keyspace_answerable(code_dir, keyspace)?),
     };
     Ok(diff(
-        CheckInput::new(specs_graph, spec_contexts, verb_ownership)
+        CheckInput::new(specs_graph, spec_contexts, surface, verb_ownership)
             .with_spec_cohesion(spec_cohesion)
             .with_spec_findings(spec_findings)
             .with_concept_anchors(resolved_anchors),
         code_graph,
-        &surface,
         answerable.as_deref(),
     ))
 }
@@ -1180,7 +1183,7 @@ mod tests {
         write(
             specs.path(),
             "concepts/intake.md",
-            "## ValidateIntakeFull\n\n- impl: validate_intake\n",
+            "# core\n\n## ValidateIntakeFull\n\n- impl: validate_intake\n",
         );
         write(
             code.path(),
@@ -1203,7 +1206,7 @@ mod tests {
         write(
             specs.path(),
             "concepts/intake.md",
-            "## ValidateIntakeFull\n\n- impl: nonexistent_fn\n",
+            "# core\n\n## ValidateIntakeFull\n\n- impl: nonexistent_fn\n",
         );
         write(code.path(), "src/lib.rs", "pub fn other() {}");
         let v = run_check(specs.path(), code.path(), None)
@@ -1227,7 +1230,7 @@ mod tests {
     fn matching_tree_yields_no_violations() {
         let specs = TempDir::new().unwrap();
         let code = TempDir::new().unwrap();
-        write(specs.path(), "a.md", "## Foo\n## Bar\n");
+        write(specs.path(), "a.md", "# core\n\n## Foo\n## Bar\n");
         write(
             code.path(),
             "src/lib.rs",

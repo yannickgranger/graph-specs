@@ -69,7 +69,12 @@ fn verb_coverage_context_resolved_from_owned_unit() {
         vec![],
         spec_src(1),
     );
-    let input = CheckInput::new(Graph::default(), vec![ctx], VerbOwnership::default());
+    let input = CheckInput::new(
+        Graph::default(),
+        vec![ctx],
+        crate::DeclaredSurface::default(),
+        VerbOwnership::default(),
+    );
     let pub_fns = vec![make_fn("run_check", Some("application"))];
     let out = report_verb_coverage(&input, &pub_fns, &[]);
     assert_eq!(
@@ -83,7 +88,12 @@ fn verb_coverage_cited_when_spec_has_matching_concept() {
     use crate::{ConceptNode, SignatureState};
     let node = ConceptNode::new("run_check".to_owned(), spec_src(5), SignatureState::Absent);
     let graph = Graph::new(vec![node], vec![]);
-    let input = CheckInput::new(graph, vec![], VerbOwnership::default());
+    let input = CheckInput::new(
+        graph,
+        vec![],
+        crate::DeclaredSurface::default(),
+        VerbOwnership::default(),
+    );
     let pub_fns = vec![make_fn("run_check", None)];
     let out = report_verb_coverage(&input, &pub_fns, &[]);
     assert!(out.verb_coverage[0].cited);
@@ -155,6 +165,7 @@ fn homonym_sanctioned_published_language() {
     let input = CheckInput::new(
         Graph::default(),
         vec![ctx_a, ctx_b],
+        crate::DeclaredSurface::default(),
         VerbOwnership::default(),
     );
     let pub_fns = vec![
@@ -194,6 +205,7 @@ fn homonym_unsanctioned_no_declaration() {
     let input = CheckInput::new(
         Graph::default(),
         vec![ctx_a, ctx_b],
+        crate::DeclaredSurface::default(),
         VerbOwnership::default(),
     );
     let pub_fns = vec![
@@ -235,6 +247,7 @@ fn homonym_asymmetric_export_import_disagreement() {
     let input = CheckInput::new(
         Graph::default(),
         vec![ctx_a, ctx_b],
+        crate::DeclaredSurface::default(),
         VerbOwnership::default(),
     );
     let pub_fns = vec![
@@ -271,7 +284,12 @@ fn single_context_fn_is_not_a_homonym() {
         vec![],
         spec_src(1),
     );
-    let input = CheckInput::new(Graph::default(), vec![ctx], VerbOwnership::default());
+    let input = CheckInput::new(
+        Graph::default(),
+        vec![ctx],
+        crate::DeclaredSurface::default(),
+        VerbOwnership::default(),
+    );
     let pub_fns = vec![make_fn("only_here", Some("solo_crate"))];
     let out = report_verb_coverage(&input, &pub_fns, &[]);
     assert!(out.homonyms.is_empty());

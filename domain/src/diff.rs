@@ -49,15 +49,11 @@ fn snapshot_declared_contexts(
 }
 
 #[must_use]
-pub fn diff(
-    spec: CheckInput,
-    code: Graph,
-    surface: &crate::DeclaredSurface,
-    answerable: Option<&[crate::EdgeKind]>,
-) -> CheckOutcome {
+pub fn diff(spec: CheckInput, code: Graph, answerable: Option<&[crate::EdgeKind]>) -> CheckOutcome {
     let CheckInput {
         graph: specs,
         contexts: spec_contexts,
+        surface,
         verb_ownership: spec_verb_ownership,
         spec_cohesion,
         concept_anchors,
@@ -146,7 +142,7 @@ pub fn diff(
         &mut violations,
     );
 
-    context::context_pass(spec_contexts, code_for_context, surface, &mut violations);
+    context::context_pass(spec_contexts, code_for_context, &surface, &mut violations);
 
     violations.sort_by(|a, b| {
         let (ka, da) = violation_key(a);

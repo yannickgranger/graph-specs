@@ -28,7 +28,7 @@ fn draft_implementation_reports_a_realized_marker_record() {
     write(
         specs.path(),
         "concepts/widget.md",
-        "---\nstatus: draft\n---\n\n## Widget\n",
+        "---\nstatus: draft\n---\n\n# widget\n\n## Widget\n",
     );
     cargo_toml(code.path());
     write(code.path(), "src/lib.rs", "pub struct Widget;\n");
@@ -60,12 +60,12 @@ fn write_mixed_fixture(specs: &Path, code: &Path, widget_decl: &str) {
     write(
         specs,
         "concepts/legacy.md",
-        "---\nstatus: draft\n---\n\n## Reconciler\n",
+        "---\nstatus: draft\n---\n\n# legacy\n\n## Reconciler\n",
     );
     write(
         specs,
         "concepts/core.md",
-        "## Widget\n\n- status: draft\n\n```rust\npub struct Widget;\n```\n\n## Digest\n\n- status: draft\n\nNot built yet.\n",
+        "# core\n\n## Widget\n\n- status: draft\n\n```rust\npub struct Widget;\n```\n\n## Digest\n\n- status: draft\n\nNot built yet.\n",
     );
     cargo_toml(code);
     write(code, "src/lib.rs", widget_decl);
@@ -143,7 +143,7 @@ fn a_misplaced_marker_leaves_the_anti_invention_check_armed() {
     write(
         specs.path(),
         "concepts/core.md",
-        "## Widget\n\nSome prose first.\n\n- status: draft\n",
+        "# core\n\n## Widget\n\nSome prose first.\n\n- status: draft\n",
     );
     cargo_toml(code.path());
     write(code.path(), "src/lib.rs", "");
@@ -167,7 +167,7 @@ fn a_pending_concepts_verb_anchor_imposes_no_obligation() {
     write(
         specs.path(),
         "concepts/core.md",
-        "## Reconciler\n\n- status: draft\n- verb: reconcile\n",
+        "# core\n\n## Reconciler\n\n- status: draft\n- verb: reconcile\n",
     );
     cargo_toml(code.path());
     write(code.path(), "src/lib.rs", "");
@@ -238,7 +238,7 @@ fn both_retirement_records_emit_end_to_end_and_the_tree_exits_clean() {
     write(
         specs.path(),
         "concepts/widget.md",
-        "## Widget\n\n- status: retired\n\n## Gadget\n\n- status: retired\n",
+        "# widget\n\n## Widget\n\n- status: retired\n\n## Gadget\n\n- status: retired\n",
     );
     cargo_toml(code.path());
     write(code.path(), "src/lib.rs", "pub struct Widget;\n");
@@ -276,7 +276,7 @@ fn retirement_records_carry_the_current_schema_version_on_the_wire() {
     write(
         specs.path(),
         "concepts/widget.md",
-        "## Widget\n\n- status: retired\n\n## Gadget\n\n- status: retired\n",
+        "# widget\n\n## Widget\n\n- status: retired\n\n## Gadget\n\n- status: retired\n",
     );
     cargo_toml(code.path());
     write(code.path(), "src/lib.rs", "pub struct Widget;\n");
@@ -309,7 +309,11 @@ fn retirement_records_carry_the_current_schema_version_on_the_wire() {
 fn the_text_summary_renders_every_list_even_at_zero() {
     let specs = TempDir::new().unwrap();
     let code = TempDir::new().unwrap();
-    write(specs.path(), "concepts/widget.md", "## Widget\n");
+    write(
+        specs.path(),
+        "concepts/widget.md",
+        "# widget\n\n## Widget\n",
+    );
     cargo_toml(code.path());
     write(code.path(), "src/lib.rs", "pub struct Widget;\n");
 

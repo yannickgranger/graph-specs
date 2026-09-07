@@ -20,6 +20,6 @@
 [companion]
 repo      = "yg/cfdb"
 branch    = "develop"
-sha       = "401cffa75dc8809f5cfdb37f52ce30e4fd6e7908"
-bumped_at = "2026-08-31T06:30:50Z"
-bumped_by = "cron — cross-bump (Mon 06:30 UTC)"
+sha       = "31feea8638c45069f7da1174209323cbb8385d47"
+bumped_at = "2026-09-07T00:00:00Z"
+bumped_by = "graph-specs-010 #3.2 — the H1 declares the document on every tree"

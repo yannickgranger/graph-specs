@@ -26,7 +26,9 @@ fn run_case(polarity: &str, code_present: bool) -> domain::CheckOutcome {
     write(
         specs.path(),
         "concepts/topology.md",
-        &format!("## Member\n<!-- parent:spec:Unit polarity:{polarity} -->\n\nProse.\n"),
+        &format!(
+            "# topology\n\n## Member\n<!-- parent:spec:Unit polarity:{polarity} -->\n\nProse.\n"
+        ),
     );
     cargo_toml(code.path());
     write(
@@ -116,7 +118,7 @@ fn an_unknown_polarity_value_is_malformed_and_never_a_silent_default() {
     write(
         specs.path(),
         "concepts/topology.md",
-        "## Member\n<!-- parent:spec:Unit polarity:frobidden -->\n\nProse.\n",
+        "# topology\n\n## Member\n<!-- parent:spec:Unit polarity:frobidden -->\n\nProse.\n",
     );
     cargo_toml(code.path());
     write(code.path(), "src/lib.rs", "");
@@ -190,7 +192,7 @@ fn a_dangling_impl_anchor_under_a_non_declared_heading_fires_nothing() {
             specs.path(),
             "concepts/topology.md",
             &format!(
-                "## Member\n<!-- parent:spec:Unit polarity:{polarity} -->\n\n- impl: gone_fn\n"
+                "# topology\n\n## Member\n<!-- parent:spec:Unit polarity:{polarity} -->\n\n- impl: gone_fn\n"
             ),
         );
         cargo_toml(code.path());
@@ -212,7 +214,7 @@ fn the_spec_state_marker_is_inert_under_a_non_declared_heading() {
     write(
         specs.path(),
         "concepts/topology.md",
-        "---\nstatus: draft\n---\n\n## Member\n<!-- parent:spec:Unit polarity:forbidden -->\n\nProse.\n",
+        "---\nstatus: draft\n---\n\n# topology\n\n## Member\n<!-- parent:spec:Unit polarity:forbidden -->\n\nProse.\n",
     );
     cargo_toml(code.path());
     write(code.path(), "src/lib.rs", "pub struct Member;\n");
