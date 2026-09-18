@@ -75,6 +75,12 @@ pub(super) fn context_violation_to_record(v: &ContextViolation) -> Value {
             "target": target,
             "code_source": code_source_to_json(code_source),
         }),
+        other => declaration_record(other),
+    }
+}
+
+fn declaration_record(v: &ContextViolation) -> Value {
+    match v {
         ContextViolation::CrossVerbUnauthorized {
             concept,
             qname,
@@ -88,6 +94,19 @@ pub(super) fn context_violation_to_record(v: &ContextViolation) -> Value {
             "qname": qname,
             "owning_context": owning_context,
             "target_context": target_context,
+            "spec_source": source_to_json(spec_source),
+        }),
+        ContextViolation::ImportUnrealised {
+            concept,
+            owning_context,
+            from_context,
+            spec_source,
+        } => json!({
+            "schema_version": SchemaVersion::CURRENT.as_str(),
+            "violation": "context_import_unrealised",
+            "concept": concept,
+            "owning_context": owning_context,
+            "from_context": from_context,
             "spec_source": source_to_json(spec_source),
         }),
         _ => json!({

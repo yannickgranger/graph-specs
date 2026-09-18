@@ -207,6 +207,7 @@ pub enum EdgeKind {
     Implements,
     DependsOn,
     Returns,
+    Uses,
 }
 
 impl EdgeKind {
@@ -216,6 +217,7 @@ impl EdgeKind {
             Self::Implements => "IMPLEMENTS",
             Self::DependsOn => "DEPENDS_ON",
             Self::Returns => "RETURNS",
+            Self::Uses => "USES",
         }
     }
 }

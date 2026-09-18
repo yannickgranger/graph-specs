@@ -43,6 +43,12 @@ pub enum ContextViolation {
         target_context: String,
         spec_source: Source,
     },
+    ImportUnrealised {
+        concept: String,
+        owning_context: String,
+        from_context: String,
+        spec_source: Source,
+    },
 }
 
 impl ContextViolation {
@@ -54,7 +60,8 @@ impl ContextViolation {
             | Self::CrossEdgeUnauthorized { concept, .. }
             | Self::CrossEdgeUndeclared { concept, .. }
             | Self::CrossEdgeOffSurface { concept, .. }
-            | Self::CrossVerbUnauthorized { concept, .. } => concept.as_str(),
+            | Self::CrossVerbUnauthorized { concept, .. }
+            | Self::ImportUnrealised { concept, .. } => concept.as_str(),
         }
     }
 }

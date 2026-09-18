@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
 
 use cfdb_core::fact::{Edge, Node, PropValue};
@@ -26,6 +26,8 @@ const KNOWN_CONSTRUCTS: &[&str] = &[
 ];
 
 const IN_MODULE: &str = "IN_MODULE";
+const IMPORT: &str = "Import";
+const CALLS: &str = "CALLS";
 const IN_CRATE: &str = "IN_CRATE";
 
 #[derive(Debug, Clone)]
@@ -142,37 +144,140 @@ impl PhpEdgeTraversal {
             ) else {
                 continue;
             };
-            let module = containers
-                .get(edge.src.as_str())
-                .map_or(src_unit, |m| *m)
-                .to_owned();
-            out.push(domain::Edge {
-                source_concept: ConceptRef::resolved(
-                    src_name.to_owned(),
-                    None,
-                    Some(OwnedUnit(src_unit.to_owned())),
-                ),
-                kind: EdgeKind::Implements,
-                target: ConceptRef::resolved(
-                    dst_name.to_owned(),
-                    None,
-                    dst_unit.map(|u| OwnedUnit(u.to_owned())),
-                ),
-                raw_target: dst_name.to_owned(),
-                source: Source::Code {
-                    language: domain::CodeLanguage::Php,
-                    path: PathBuf::from(&module),
-                    line: 0,
-                    provenance: Provenance {
-                        module_path: Some(module.clone()),
-                        unit: Some(src_unit.to_owned()),
-                        context: None,
-                    },
-                    location: LocationKind::Namespace,
-                },
-            });
+            let module = containers.get(edge.src.as_str()).map_or(src_unit, |m| *m);
+            out.push(php_edge(
+                (src_name, src_unit),
+                EdgeKind::Implements,
+                (dst_name, dst_unit),
+                module,
+                0,
+            ));
         }
+        out.extend(self.crossings(nodes, edges, &containers));
         Ok(out)
+    }
+
+    fn crossings(
+        &self,
+        nodes: &[Node],
+        edges: &[Edge],
+        containers: &HashMap<&str, &str>,
+    ) -> Vec<domain::Edge> {
+        let mut classes: HashMap<&str, (&str, &str, &str)> = HashMap::new();
+        let mut in_file: HashMap<&str, Vec<&str>> = HashMap::new();
+        let mut qname_of: HashMap<&str, &str> = HashMap::new();
+        for node in nodes {
+            if node.label.as_str() != Label::ITEM {
+                continue;
+            }
+            let Some(qname) = prop(node, "qname") else {
+                continue;
+            };
+            qname_of.insert(node.id.as_str(), qname);
+            if !prop(node, "php_construct").is_some_and(|c| CONCEPT_RUNG.contains(&c)) {
+                continue;
+            }
+            let (Some(name), Some(unit)) = (prop(node, "name"), self.surface.unit_of(qname)) else {
+                continue;
+            };
+            classes.insert(qname, (node.id.as_str(), name, unit));
+            if let Some(file) = prop(node, "file") {
+                in_file.entry(file).or_default().push(qname);
+            }
+        }
+        let owner = |qname: &str| -> Option<String> {
+            let class = qname.split_once("::").map_or(qname, |(class, _)| class);
+            classes.contains_key(class).then(|| class.to_owned())
+        };
+
+        let mut pairs: BTreeSet<(String, String, usize)> = BTreeSet::new();
+        for node in nodes {
+            if node.label.as_str() != IMPORT {
+                continue;
+            }
+            let (Some(fqn), Some(file)) = (prop(node, "fqn"), prop(node, "file")) else {
+                continue;
+            };
+            let target = fqn.trim_start_matches('\\');
+            if !classes.contains_key(target) {
+                continue;
+            }
+            for source in in_file.get(file).into_iter().flatten() {
+                pairs.insert((
+                    (*source).to_owned(),
+                    target.to_owned(),
+                    prop_usize(node, "line"),
+                ));
+            }
+        }
+        for edge in edges {
+            if edge.label.as_str() != CALLS {
+                continue;
+            }
+            let (Some(src), Some(dst)) = (
+                qname_of.get(edge.src.as_str()).and_then(|q| owner(q)),
+                qname_of.get(edge.dst.as_str()).and_then(|q| owner(q)),
+            ) else {
+                continue;
+            };
+            pairs.insert((src, dst, 0));
+        }
+
+        let mut seen: BTreeSet<(&str, &str)> = BTreeSet::new();
+        let mut out = Vec::new();
+        for (src, dst, line) in &pairs {
+            let (Some(&(src_id, src_name, src_unit)), Some(&(_, dst_name, dst_unit))) =
+                (classes.get(src.as_str()), classes.get(dst.as_str()))
+            else {
+                continue;
+            };
+            if src_unit == dst_unit || !seen.insert((src.as_str(), dst.as_str())) {
+                continue;
+            }
+            let module = containers.get(src_id).map_or(src_unit, |m| *m);
+            out.push(php_edge(
+                (src_name, src_unit),
+                EdgeKind::Uses,
+                (dst_name, Some(dst_unit)),
+                module,
+                *line,
+            ));
+        }
+        out
+    }
+}
+
+fn php_edge(
+    (src_name, src_unit): (&str, &str),
+    kind: EdgeKind,
+    (dst_name, dst_unit): (&str, Option<&str>),
+    module: &str,
+    line: usize,
+) -> domain::Edge {
+    domain::Edge {
+        source_concept: ConceptRef::resolved(
+            src_name.to_owned(),
+            None,
+            Some(OwnedUnit(src_unit.to_owned())),
+        ),
+        kind,
+        target: ConceptRef::resolved(
+            dst_name.to_owned(),
+            None,
+            dst_unit.map(|u| OwnedUnit(u.to_owned())),
+        ),
+        raw_target: dst_name.to_owned(),
+        source: Source::Code {
+            language: domain::CodeLanguage::Php,
+            path: PathBuf::from(module),
+            line,
+            provenance: Provenance {
+                module_path: Some(module.to_owned()),
+                unit: Some(src_unit.to_owned()),
+                context: None,
+            },
+            location: LocationKind::Namespace,
+        },
     }
 }
 

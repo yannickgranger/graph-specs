@@ -825,3 +825,24 @@ fn spec_kind_source_never_carries_the_triple() {
     assert_eq!(keys, ["format", "kind", "line", "path"], "{source:?}");
     assert_eq!(source["format"], "markdown");
 }
+
+#[test]
+fn an_unrealised_import_serializes_to_the_record_the_contract_documents() {
+    let want = documented_record("\"violation\":\"context_import_unrealised\"");
+    let v = Violation::Context(domain::ContextViolation::ImportUnrealised {
+        concept: "Clock".into(),
+        owning_context: "enrolment".into(),
+        from_context: "scheduling".into(),
+        spec_source: Source::Spec {
+            format: domain::SpecFormat::Markdown,
+            path: PathBuf::from("specs/contexts/enrolment.md"),
+            line: 1,
+            context: None,
+        },
+    });
+    assert_eq!(
+        record(&render_one(v)),
+        want,
+        "the finding and the contract's example"
+    );
+}

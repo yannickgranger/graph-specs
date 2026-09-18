@@ -304,3 +304,96 @@ fn an_item_with_no_containment_edge_keeps_the_declared_prefix_fallback() {
     assert_eq!(names(&nodes), vec!["Told"]);
     assert_eq!(nodes[0].module_path(), Some("App\\A"));
 }
+
+const CROSSING_KEYSPACE: &str = r#"{"schema_version":{"major":0,"minor":8,"patch":0},"nodes":[
+{"id":"module:App\\A\\Application","label":"Module","props":{"name":"App\\A\\Application"}},
+{"id":"module:App\\B\\Domain","label":"Module","props":{"name":"App\\B\\Domain"}},
+{"id":"item:App\\A\\Application\\X","label":"Item","props":{"kind":"trait","line":7,"name":"X",
+ "php_construct":"class_declaration","qname":"App\\A\\Application\\X","file":"src/A/Application/X.php"}},
+{"id":"item:App\\A\\Application\\X::run","label":"Item","props":{"kind":"fn","line":9,"name":"run",
+ "php_construct":"method_declaration","qname":"App\\A\\Application\\X::run","file":"src/A/Application/X.php"}},
+{"id":"item:App\\A\\Application\\Z","label":"Item","props":{"kind":"trait","line":3,"name":"Z",
+ "php_construct":"class_declaration","qname":"App\\A\\Application\\Z","file":"src/A/Application/Z.php"}},
+{"id":"item:App\\B\\Domain\\Y","label":"Item","props":{"kind":"trait","line":3,"name":"Y",
+ "php_construct":"interface_declaration","qname":"App\\B\\Domain\\Y","file":"src/B/Domain/Y.php"}},
+{"id":"item:App\\B\\Domain\\W","label":"Item","props":{"kind":"trait","line":3,"name":"W",
+ "php_construct":"class_declaration","qname":"App\\B\\Domain\\W","file":"src/B/Domain/W.php"}},
+{"id":"item:App\\B\\Domain\\W::__construct","label":"Item","props":{"kind":"fn","line":5,"name":"__construct",
+ "php_construct":"method_declaration","qname":"App\\B\\Domain\\W::__construct","file":"src/B/Domain/W.php"}},
+{"id":"item:App\\B\\helper","label":"Item","props":{"kind":"fn","line":3,"name":"helper",
+ "php_construct":"function_definition","qname":"App\\B\\helper","file":"src/B/functions.php"}},
+{"id":"file:src/A/Application/X.php","label":"File","props":{"path":"src/A/Application/X.php"}},
+{"id":"import:y","label":"Import","props":{"fqn":"App\\B\\Domain\\Y","file":"src/A/Application/X.php","line":5}},
+{"id":"import:z","label":"Import","props":{"fqn":"App\\A\\Application\\Z","file":"src/A/Application/X.php","line":4}},
+{"id":"import:vendor","label":"Import","props":{"fqn":"\\Vendor\\Clock","file":"src/A/Application/X.php","line":3}}
+],"edges":[
+{"src":"item:App\\A\\Application\\X","dst":"module:App\\A\\Application","label":"IN_MODULE"},
+{"src":"item:App\\A\\Application\\Z","dst":"module:App\\A\\Application","label":"IN_MODULE"},
+{"src":"item:App\\B\\Domain\\Y","dst":"module:App\\B\\Domain","label":"IN_MODULE"},
+{"src":"item:App\\B\\Domain\\W","dst":"module:App\\B\\Domain","label":"IN_MODULE"},
+{"src":"file:src/A/Application/X.php","dst":"import:y","label":"HAS_IMPORT"},
+{"src":"file:src/A/Application/X.php","dst":"import:z","label":"HAS_IMPORT"},
+{"src":"file:src/A/Application/X.php","dst":"import:vendor","label":"HAS_IMPORT"},
+{"src":"item:App\\A\\Application\\X::run","dst":"item:App\\B\\Domain\\W::__construct","label":"CALLS"},
+{"src":"item:App\\A\\Application\\X::run","dst":"item:App\\B\\helper","label":"CALLS"}
+]}"#;
+
+fn crossing_reader(units: &[&str]) -> (tempfile::TempDir, CfdbQueryReader) {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("keyspace.json");
+    std::fs::write(&path, CROSSING_KEYSPACE).expect("write keyspace");
+    let reader = CfdbQueryReader::new(&path).with_surface(surface(units));
+    (dir, reader)
+}
+
+fn uses(units: &[&str]) -> Vec<(String, String, String, String, usize)> {
+    let (_dir, reader) = crossing_reader(units);
+    let mut out: Vec<_> = reader
+        .relationships(Path::new("/ws"))
+        .expect("read keyspace")
+        .into_iter()
+        .filter(|e| e.kind == EdgeKind::Uses)
+        .map(|e| {
+            let line = match &e.source {
+                Source::Code { line, .. } => *line,
+                Source::Spec { .. } => usize::MAX,
+            };
+            (
+                e.source_concept.name,
+                e.source_concept.unit.map(|u| u.0).unwrap_or_default(),
+                e.target.name,
+                e.target.unit.map(|u| u.0).unwrap_or_default(),
+                line,
+            )
+        })
+        .collect();
+    out.sort();
+    out
+}
+
+#[test]
+fn a_use_line_and_a_resolved_construction_across_units_are_each_one_uses_edge() {
+    assert_eq!(
+        uses(&["App\\A", "App\\B"]),
+        vec![
+            ("X".into(), "App\\A".into(), "W".into(), "App\\B".into(), 0),
+            ("X".into(), "App\\A".into(), "Y".into(), "App\\B".into(), 5),
+        ]
+    );
+}
+
+#[test]
+fn a_crossing_whose_far_end_no_prefix_owns_is_not_a_uses_edge() {
+    assert_eq!(uses(&["App\\A"]), vec![]);
+}
+
+#[test]
+fn a_php_keyspace_answers_implements_and_uses() {
+    let (_dir, reader) = crossing_reader(&["App\\A", "App\\B"]);
+    assert_eq!(
+        reader
+            .answerable_relationships(Path::new("/ws"))
+            .expect("read keyspace"),
+        vec![EdgeKind::Implements, EdgeKind::Uses]
+    );
+}

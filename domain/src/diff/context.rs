@@ -1,6 +1,6 @@
 use crate::{
-    ConceptNode, ContextDecl, ContextViolation, DeclaredSurface, Edge, Graph, OwnedUnit, Source,
-    Violation,
+    ConceptNode, ContextDecl, ContextViolation, DeclaredSurface, Edge, EdgeKind, Graph, OwnedUnit,
+    Source, Violation,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -12,6 +12,7 @@ pub(super) fn context_pass(
     spec_contexts: Vec<ContextDecl>,
     code: Graph,
     surface: &DeclaredSurface,
+    answerable: Option<&[EdgeKind]>,
     out: &mut Vec<Violation>,
 ) {
     if spec_contexts.is_empty() {
@@ -27,14 +28,39 @@ pub(super) fn context_pass(
     } = code;
 
     emit_membership_unknown(code_nodes, &membership, out);
-    emit_cross_context_edge_violations(
+    let realised = emit_cross_context_edge_violations(
         code_edges,
         &node_index,
+        &membership,
         &imports,
         &exports,
         &context_sources,
         out,
     );
+    if answerable.is_some_and(|kinds| kinds.contains(&EdgeKind::Uses)) {
+        emit_import_unrealised(&imports, &realised, &context_sources, out);
+    }
+}
+
+fn emit_import_unrealised(
+    imports: &HashSet<ImportKey>,
+    realised: &HashSet<ImportKey>,
+    context_sources: &HashMap<String, Source>,
+    out: &mut Vec<Violation>,
+) {
+    let mut unrealised: Vec<&ImportKey> = imports.difference(realised).collect();
+    unrealised.sort();
+    for (owning_context, from_context, concept) in unrealised {
+        let Some(spec_source) = context_sources.get(owning_context) else {
+            continue;
+        };
+        out.push(Violation::Context(ContextViolation::ImportUnrealised {
+            concept: concept.clone(),
+            owning_context: owning_context.clone(),
+            from_context: from_context.clone(),
+            spec_source: spec_source.clone(),
+        }));
+    }
 }
 
 struct Membership<'a> {
@@ -64,7 +90,11 @@ fn build_node_index(nodes: &[ConceptNode], membership: &Membership) -> NodeIndex
         .collect()
 }
 
-fn resolve_endpoint(reference: &mut crate::ConceptRef, index: &NodeIndex) {
+fn resolve_endpoint(reference: &mut crate::ConceptRef, index: &NodeIndex, membership: &Membership) {
+    if let Some(unit) = &reference.unit {
+        reference.context = membership.context_of(&unit.0);
+        return;
+    }
     if let Some((context, unit)) = index.get(reference.name.as_str()) {
         reference.context.clone_from(context);
         reference.unit = unit.clone().map(OwnedUnit);
@@ -132,14 +162,16 @@ fn emit_membership_unknown(
 fn emit_cross_context_edge_violations(
     code_edges: Vec<Edge>,
     node_index: &NodeIndex,
+    membership: &Membership,
     imports: &HashSet<ImportKey>,
     exports: &HashSet<ExportKey>,
     context_sources: &HashMap<String, Source>,
     out: &mut Vec<Violation>,
-) {
+) -> HashSet<ImportKey> {
+    let mut realised = HashSet::new();
     for mut edge in code_edges {
-        resolve_endpoint(&mut edge.source_concept, node_index);
-        resolve_endpoint(&mut edge.target, node_index);
+        resolve_endpoint(&mut edge.source_concept, node_index, membership);
+        resolve_endpoint(&mut edge.target, node_index, membership);
         if !node_index.contains_key(edge.source_concept.name.as_str()) {
             continue;
         }
@@ -162,6 +194,11 @@ fn emit_cross_context_edge_violations(
         if source_ctx == target_ctx {
             continue;
         }
+        realised.insert((
+            source_ctx.clone(),
+            target_ctx.clone(),
+            edge.target.name.clone(),
+        ));
         let Some(spec_source) = context_sources.get(&source_ctx) else {
             continue;
         };
@@ -176,6 +213,7 @@ fn emit_cross_context_edge_violations(
             out.push(v);
         }
     }
+    realised
 }
 
 fn classify_cross_edge(

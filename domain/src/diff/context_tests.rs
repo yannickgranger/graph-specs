@@ -735,3 +735,195 @@ fn a_heading_whose_item_is_absent_reads_missing_not_a_mismatch() {
          {violations:?}"
     );
 }
+
+const CROSSINGS_ANSWERED: &[EdgeKind] = &[EdgeKind::Implements, EdgeKind::Uses];
+
+fn unit_edge(src: (&str, &str), kind: EdgeKind, dst: (&str, &str)) -> Edge {
+    Edge {
+        source_concept: ConceptRef::resolved(
+            src.0.to_string(),
+            None,
+            Some(OwnedUnit(src.1.to_string())),
+        ),
+        kind,
+        target: ConceptRef::resolved(dst.0.to_string(), None, Some(OwnedUnit(dst.1.to_string()))),
+        raw_target: dst.0.to_string(),
+        source: Source::Code {
+            language: crate::CodeLanguage::Php,
+            path: PathBuf::from(src.1),
+            line: 0,
+            provenance: Provenance::empty(),
+            location: LocationKind::Namespace,
+        },
+    }
+}
+
+fn two_clocks(edges: Vec<Edge>) -> Graph {
+    Graph::new(
+        vec![
+            code_node_with_provenance("Booking", "App\\Enrolment"),
+            code_node_with_provenance("Clock", "App\\Enrolment"),
+            code_node_with_provenance("Clock", "App\\Scheduling"),
+        ],
+        edges,
+    )
+}
+
+fn enrolment_and_scheduling(imports: Vec<ContextImport>) -> Vec<ContextDecl> {
+    vec![
+        ctx("enrolment", &["App\\Enrolment"], vec![], imports),
+        ctx(
+            "scheduling",
+            &["App\\Scheduling"],
+            vec![ex("Clock", ContextPattern::PublishedLanguage)],
+            vec![],
+        ),
+    ]
+}
+
+fn context_records(v: &[Violation]) -> Vec<&ContextViolation> {
+    v.iter()
+        .filter_map(|v| match v {
+            Violation::Context(c) => Some(c),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn an_edge_carrying_its_units_is_placed_by_them_not_by_a_homonym() {
+    let code = two_clocks(vec![unit_edge(
+        ("Booking", "App\\Enrolment"),
+        EdgeKind::Uses,
+        ("Clock", "App\\Enrolment"),
+    )]);
+    let v = crate::diff(
+        ci(Graph::default(), enrolment_and_scheduling(vec![])),
+        code,
+        Some(CROSSINGS_ANSWERED),
+    )
+    .violations;
+    assert!(
+        context_records(&v).is_empty(),
+        "Booking uses the Clock of its own context, so nothing crosses: {v:?}"
+    );
+}
+
+#[test]
+fn an_edge_to_the_foreign_homonym_crosses_and_names_the_foreign_context() {
+    let code = two_clocks(vec![unit_edge(
+        ("Booking", "App\\Enrolment"),
+        EdgeKind::Uses,
+        ("Clock", "App\\Scheduling"),
+    )]);
+    let v = crate::diff(
+        ci(Graph::default(), enrolment_and_scheduling(vec![])),
+        code,
+        Some(CROSSINGS_ANSWERED),
+    )
+    .violations;
+    assert_eq!(
+        context_records(&v),
+        vec![&ContextViolation::CrossEdgeUnauthorized {
+            concept: "Booking".to_string(),
+            owning_context: "enrolment".to_string(),
+            edge_kind: EdgeKind::Uses,
+            target: "Clock".to_string(),
+            target_context: "scheduling".to_string(),
+            spec_source: spec_src(),
+        }]
+    );
+}
+
+#[test]
+fn a_declared_import_no_crossing_uses_is_unrealised() {
+    let code = two_clocks(vec![]);
+    let v = crate::diff(
+        ci(
+            Graph::default(),
+            enrolment_and_scheduling(vec![im(
+                "scheduling",
+                ContextPattern::PublishedLanguage,
+                "Clock",
+            )]),
+        ),
+        code,
+        Some(CROSSINGS_ANSWERED),
+    )
+    .violations;
+    assert_eq!(
+        context_records(&v),
+        vec![&ContextViolation::ImportUnrealised {
+            concept: "Clock".to_string(),
+            owning_context: "enrolment".to_string(),
+            from_context: "scheduling".to_string(),
+            spec_source: spec_src(),
+        }]
+    );
+}
+
+#[test]
+fn a_declared_import_a_crossing_uses_is_silent() {
+    let code = two_clocks(vec![unit_edge(
+        ("Booking", "App\\Enrolment"),
+        EdgeKind::Uses,
+        ("Clock", "App\\Scheduling"),
+    )]);
+    let v = crate::diff(
+        ci(
+            Graph::default(),
+            enrolment_and_scheduling(vec![im(
+                "scheduling",
+                ContextPattern::PublishedLanguage,
+                "Clock",
+            )]),
+        ),
+        code,
+        Some(CROSSINGS_ANSWERED),
+    )
+    .violations;
+    assert!(context_records(&v).is_empty(), "{v:?}");
+}
+
+#[test]
+fn an_import_is_not_judged_unrealised_by_a_producer_that_does_not_answer_crossings() {
+    let imports = vec![im("scheduling", ContextPattern::PublishedLanguage, "Clock")];
+    for answerable in [
+        None,
+        Some(&[EdgeKind::Implements, EdgeKind::DependsOn, EdgeKind::Returns][..]),
+    ] {
+        let v = crate::diff(
+            ci(Graph::default(), enrolment_and_scheduling(imports.clone())),
+            two_clocks(vec![]),
+            answerable,
+        )
+        .violations;
+        assert!(
+            context_records(&v).is_empty(),
+            "with {answerable:?} a missing edge is not evidence of a stale import: {v:?}"
+        );
+    }
+}
+
+#[test]
+fn a_uses_edge_is_read_by_the_context_pass_and_owes_no_relationship_bullet() {
+    let mut bullet = code_edge("Booking", EdgeKind::Implements, "Clock");
+    bullet.source = spec_src();
+    let spec = Graph::new(vec![spec_node_in("Booking", "enrolment")], vec![bullet]);
+    let code = two_clocks(vec![unit_edge(
+        ("Booking", "App\\Enrolment"),
+        EdgeKind::Uses,
+        ("Clock", "App\\Enrolment"),
+    )]);
+    let v = crate::diff(
+        ci(spec, enrolment_and_scheduling(vec![])),
+        code,
+        Some(CROSSINGS_ANSWERED),
+    )
+    .violations;
+    assert!(
+        !v.iter()
+            .any(|v| matches!(v, Violation::EdgeMissingInSpec { .. })),
+        "{v:?}"
+    );
+}

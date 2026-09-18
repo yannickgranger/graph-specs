@@ -224,7 +224,7 @@ A v0.3 edge targets a concept in another context that is NOT listed in the ownin
 | Extra field | Type | Meaning |
 |---|---|---|
 | `owning_context` | string | the declared context of the edge's source concept |
-| `edge_kind` | string | `"IMPLEMENTS"` / `"DEPENDS_ON"` / `"RETURNS"` |
+| `edge_kind` | string | `"IMPLEMENTS"` / `"DEPENDS_ON"` / `"RETURNS"` / `"USES"` |
 | `target` | string | the concept the edge points at |
 | `target_context` | string | the declared context of the target concept |
 | `spec_source` | source object (kind=spec) | location of the `Imports` section that failed to authorize the edge |
@@ -238,6 +238,25 @@ A v0.3 edge crosses a context boundary, IS listed in the importing context's `Im
 ```
 
 Same field shape as `cross_context_edge_unauthorized`. The difference is the cause: `unauthorized` means "you didn't ask"; `undeclared` means "you asked but they don't publish that."
+
+### `context_import_unrealised`
+
+A context declares an `Imports` line that no crossing in the code uses: no edge runs from an item the importing context owns to the imported concept in the named context. It is reported only when the input's producer answers `USES`, because only then is a missing edge evidence that the import is stale rather than a crossing the producer cannot see; on the source walk and on a Rust keyspace this record never appears.
+
+```json
+{"schema_version":"5","violation":"context_import_unrealised","concept":"Clock","owning_context":"enrolment","from_context":"scheduling","spec_source":{"kind":"spec","path":"specs/contexts/enrolment.md","line":1,"format":"markdown"}}
+```
+
+| Extra field | Type | Meaning |
+|---|---|---|
+| `concept` | string | the imported concept |
+| `owning_context` | string | the context declaring the import |
+| `from_context` | string | the context the import names as supplier |
+| `spec_source` | source object (kind=spec) | the importing context's declaration |
+
+**Remediation:** delete the import line, or restore the crossing it declared.
+
+**Schema evolution.** Additive — a new `violation` discriminator rides the current `schema_version` (see §Schema evolution).
 
 ### `malformed_anchor_bullet` (v0.8)
 
@@ -275,7 +294,7 @@ A spec heading declares a `- depends on:` or `- returns:` bullet, and the code i
 | `target` | string | the concept the bullet points at |
 | `spec_source` | source object (kind=spec) | the bullet's own site |
 
-On a PHP keyspace the answerable set is `IMPLEMENTS` alone: cfdb's PHP producer emits no field-type or return-type edge, so `DEPENDS_ON` and `RETURNS` bullets are unanswerable there. On the source walk every kind is answerable and this record never appears.
+On a PHP keyspace the answerable set is `IMPLEMENTS` and `USES`: cfdb's PHP producer emits no field-type or return-type edge, so `DEPENDS_ON` and `RETURNS` bullets are unanswerable there. `USES` is a crossing between two declared prefixes that a `use` line or a resolved `CALLS` (a `new` or a static call) names, lifted to the classes at both ends; no bullet declares it, so the relationship pass never compares it and the context pass alone reads it. On the source walk every kind is answerable and this record never appears.
 
 **Remediation:** none available in the specs — the fact does not exist in the input. Either check the repository against an input whose producer emits that relationship, or accept the bullet as undecidable for this input.
 
@@ -343,7 +362,7 @@ A relationship edge the code side carries whose far end is an item no declared p
 | Extra field | Type | Meaning |
 |---|---|---|
 | `owning_context` | string or absent | the context owning the near end, absent when no declared prefix owns it either |
-| `edge_kind` | string | `IMPLEMENTS`, `DEPENDS_ON` or `RETURNS` |
+| `edge_kind` | string | `IMPLEMENTS`, `DEPENDS_ON`, `RETURNS` or `USES` |
 | `target` | string | the far end's concept name |
 | `code_source` | source object (kind=code) | the near end's site; for a keyspace fact `path` is a namespace, never a file path |
 
@@ -611,6 +630,7 @@ Adding a **new top-level discriminator key** (as v4 did with `marker`) is on its
 Version history:
 - `"1"` — v0.1–v0.3 (concept / signature / edge variants).
 - `"2"` — v0.4 added the bounded-context variants (`context_membership_unknown`, `cross_context_edge_*`, `cross_verb_unauthorized`).
+- `"5"` — `context_import_unrealised` added additively and `edge_kind` widened with `USES` (no bump; the version is listed here because both arrived during `"5"`).
 - `"4"` — v0.8 added `cross_edge_off_surface`, `surface_admits_nothing`, `edge_unanswerable` and `malformed_anchor_bullet` additively (no bump; the version is listed here because the variant arrived during `"4"`).
 - `"3"` — RFC-010 added the abstraction-ladder `Cohesion` variants (`context_without_cohesion_unit`, `sub_concept_orphan`, `concept_context_mismatch`). Consumers dispatch on `"3"`; the qbot-core `compare-spec-change` lockstep arm is tracked at #135. Like `ContextViolation`, `CohesionViolation` is `#[non_exhaustive]` — an unknown future cohesion variant emits `"violation":"unknown_cohesion_violation"` as a tripwire.
 
