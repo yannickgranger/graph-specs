@@ -1266,13 +1266,26 @@ mod tests {
 
     #[cfg(feature = "codefacts")]
     fn crossing_check(a_imports: &str, b_exports: &str, with_use_line: bool) -> Vec<Violation> {
+        crossing_check_with(a_imports, b_exports, with_use_line, "", false)
+    }
+
+    #[cfg(feature = "codefacts")]
+    fn crossing_check_with(
+        a_imports: &str,
+        b_exports: &str,
+        with_use_line: bool,
+        a_tests: &str,
+        with_tester: bool,
+    ) -> Vec<Violation> {
         let specs = TempDir::new().unwrap();
         let dir = TempDir::new().unwrap();
         let code = TempDir::new().unwrap();
         write(
             specs.path(),
             "contexts/a.md",
-            &format!("# a\n\n## Owns\n\n- App\\A\n\n## Exports\n\n## Imports\n\n{a_imports}"),
+            &format!(
+                "# a\n\n## Owns\n\n- App\\A\n\n## Exports\n\n## Imports\n\n{a_imports}\n## Tests\n\n{a_tests}"
+            ),
         );
         write(
             specs.path(),
@@ -1286,6 +1299,13 @@ mod tests {
         } else {
             ""
         };
+        let tester = if with_tester {
+            r#",{"id":"item:App\\Tests\\A\\XTest","label":"Item","props":{"kind":"trait","line":9,"name":"XTest",
+             "php_construct":"class_declaration","qname":"App\\Tests\\A\\XTest","file":"tests/A/XTest.php"}},
+            {"id":"import:t","label":"Import","props":{"fqn":"App\\B\\Domain\\Y","file":"tests/A/XTest.php","line":6}}"#
+        } else {
+            ""
+        };
         let keyspace = dir.path().join("consumer.json");
         std::fs::write(
             &keyspace,
@@ -1294,7 +1314,7 @@ mod tests {
             {{"id":"item:App\\A\\Application\\X","label":"Item","props":{{"kind":"trait","line":7,"name":"X",
              "php_construct":"class_declaration","qname":"App\\A\\Application\\X","file":"src/A/Application/X.php"}}}},
             {{"id":"item:App\\B\\Domain\\Y","label":"Item","props":{{"kind":"trait","line":3,"name":"Y",
-             "php_construct":"class_declaration","qname":"App\\B\\Domain\\Y","file":"src/B/Domain/Y.php"}}}}{import}
+             "php_construct":"class_declaration","qname":"App\\B\\Domain\\Y","file":"src/B/Domain/Y.php"}}}}{import}{tester}
             ],"edges":[]}}"#
             ),
         )
@@ -1382,10 +1402,35 @@ mod tests {
         assert!(
             matches!(
                 records.as_slice(),
-                [domain::ContextViolation::ImportUnrealised { concept, owning_context, from_context, .. }]
+                [domain::ContextViolation::ImportUnrealised { concept, owning_context, from_context, spec_source: domain::Source::Spec { path, line, .. } }]
                     if concept == "Y" && owning_context == "a" && from_context == "b"
+                        && path.ends_with("contexts/a.md") && *line == 11
             ),
             "{violations:?}"
         );
+    }
+
+    #[cfg(feature = "codefacts")]
+    #[test]
+    fn a_declared_import_used_only_under_a_declared_test_prefix_is_realised() {
+        let imports = "- Y from b (PublishedLanguage)\n";
+        let exports = "- Y (PublishedLanguage)\n";
+        let undeclared = crossing_check_with(imports, exports, false, "", true);
+        assert!(
+            matches!(
+                context_records(&undeclared).as_slice(),
+                [domain::ContextViolation::ImportUnrealised { .. }]
+            ),
+            "without a Tests line the tester is off every prefix: {undeclared:?}"
+        );
+        let declared = crossing_check_with(imports, exports, false, "- App\\Tests\\A\n", true);
+        assert!(context_records(&declared).is_empty(), "{declared:?}");
+    }
+
+    #[cfg(feature = "codefacts")]
+    #[test]
+    fn a_test_crossing_to_an_unimported_type_is_not_refused() {
+        let violations = crossing_check_with("", "", false, "- App\\Tests\\A\n", true);
+        assert!(context_records(&violations).is_empty(), "{violations:?}");
     }
 }

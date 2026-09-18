@@ -241,10 +241,10 @@ Same field shape as `cross_context_edge_unauthorized`. The difference is the cau
 
 ### `context_import_unrealised`
 
-A context declares an `Imports` line that no crossing in the code uses: no edge runs from an item the importing context owns to the imported concept in the named context. It is reported only when the input's producer answers `USES`, because only then is a missing edge evidence that the import is stale rather than a crossing the producer cannot see; on the source walk and on a Rust keyspace this record never appears.
+A context declares an `Imports` line that no crossing in the code uses: no edge runs from an item the importing context owns, or from a class under one of its declared `## Tests` prefixes, to the imported concept in the named context. A crossing from a test prefix only ever realises an import; it is never reported as unauthorized or undeclared. It is reported only when the input's producer answers `USES`, because only then is a missing edge evidence that the import is stale rather than a crossing the producer cannot see; on the source walk and on a Rust keyspace this record never appears.
 
 ```json
-{"schema_version":"5","violation":"context_import_unrealised","concept":"Clock","owning_context":"enrolment","from_context":"scheduling","spec_source":{"kind":"spec","path":"specs/contexts/enrolment.md","line":1,"format":"markdown"}}
+{"schema_version":"5","violation":"context_import_unrealised","concept":"Clock","owning_context":"enrolment","from_context":"scheduling","spec_source":{"kind":"spec","path":"specs/contexts/enrolment.md","line":14,"format":"markdown"}}
 ```
 
 | Extra field | Type | Meaning |
@@ -252,7 +252,7 @@ A context declares an `Imports` line that no crossing in the code uses: no edge 
 | `concept` | string | the imported concept |
 | `owning_context` | string | the context declaring the import |
 | `from_context` | string | the context the import names as supplier |
-| `spec_source` | source object (kind=spec) | the importing context's declaration |
+| `spec_source` | source object (kind=spec) | the `Imports` bullet's own line in the importing context's file |
 
 **Remediation:** delete the import line, or restore the crossing it declared.
 

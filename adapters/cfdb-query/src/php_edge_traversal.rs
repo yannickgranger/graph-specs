@@ -164,6 +164,7 @@ impl PhpEdgeTraversal {
         containers: &HashMap<&str, &str>,
     ) -> Vec<domain::Edge> {
         let mut classes: HashMap<&str, (&str, &str, &str)> = HashMap::new();
+        let mut testers: HashMap<&str, (&str, &str, &str)> = HashMap::new();
         let mut in_file: HashMap<&str, Vec<&str>> = HashMap::new();
         let mut qname_of: HashMap<&str, &str> = HashMap::new();
         for node in nodes {
@@ -177,17 +178,23 @@ impl PhpEdgeTraversal {
             if !prop(node, "php_construct").is_some_and(|c| CONCEPT_RUNG.contains(&c)) {
                 continue;
             }
-            let (Some(name), Some(unit)) = (prop(node, "name"), self.surface.unit_of(qname)) else {
+            let Some(name) = prop(node, "name") else {
                 continue;
             };
-            classes.insert(qname, (node.id.as_str(), name, unit));
+            if let Some(unit) = self.surface.unit_of(qname) {
+                classes.insert(qname, (node.id.as_str(), name, unit));
+            } else if let Some(unit) = self.surface.test_unit_of(qname) {
+                testers.insert(qname, (node.id.as_str(), name, unit));
+            } else {
+                continue;
+            }
             if let Some(file) = prop(node, "file") {
                 in_file.entry(file).or_default().push(qname);
             }
         }
         let owner = |qname: &str| -> Option<String> {
             let class = qname.split_once("::").map_or(qname, |(class, _)| class);
-            classes.contains_key(class).then(|| class.to_owned())
+            (classes.contains_key(class) || testers.contains_key(class)).then(|| class.to_owned())
         };
 
         let mut pairs: BTreeSet<(String, String, usize)> = BTreeSet::new();
@@ -226,8 +233,11 @@ impl PhpEdgeTraversal {
         let mut seen: BTreeSet<(&str, &str)> = BTreeSet::new();
         let mut out = Vec::new();
         for (src, dst, line) in &pairs {
+            let source = classes
+                .get(src.as_str())
+                .or_else(|| testers.get(src.as_str()));
             let (Some(&(src_id, src_name, src_unit)), Some(&(_, dst_name, dst_unit))) =
-                (classes.get(src.as_str()), classes.get(dst.as_str()))
+                (source, classes.get(dst.as_str()))
             else {
                 continue;
             };

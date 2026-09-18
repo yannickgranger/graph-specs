@@ -836,7 +836,7 @@ fn an_unrealised_import_serializes_to_the_record_the_contract_documents() {
         spec_source: Source::Spec {
             format: domain::SpecFormat::Markdown,
             path: PathBuf::from("specs/contexts/enrolment.md"),
-            line: 1,
+            line: 14,
             context: None,
         },
     });

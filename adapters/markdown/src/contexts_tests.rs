@@ -243,3 +243,14 @@ mod walker {
         assert_eq!(out.len(), 2);
     }
 }
+
+#[test]
+fn parses_tests_section_apart_from_owns() {
+    let src = "# enrolment\n\n## Owns\n\n- App\\Enrolment\n\n## Tests\n\n- App\\Tests\\Enrolment\n";
+    let decl = parse(src).expect("parse");
+    assert_eq!(decl.owned_units, vec![OwnedUnit("App\\Enrolment".into())]);
+    assert_eq!(
+        decl.test_units,
+        vec![OwnedUnit("App\\Tests\\Enrolment".into())]
+    );
+}

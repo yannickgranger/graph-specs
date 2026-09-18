@@ -528,7 +528,9 @@ Carries the context name, its [OwnedUnit](#ownedunit) set, its exports
 (published concepts), its imports (sanctioned cross-context references),
 and the source location the declaration came from. Exports and imports
 both reference [ContextPattern](#contextpattern) for the DDD mapping
-pattern that applies. Lives in `domain`.
+pattern that applies. An optional `## Tests` section lists the prefixes
+under which the context's tests live: a crossing from there realises a
+declared import and is never itself judged. Lives in `domain`.
 
 - depends on: OwnedUnit
 - depends on: ContextExport
@@ -537,6 +539,7 @@ pattern that applies. Lives in `domain`.
 - returns: ContextDecl
 - verb: detect_import_cycle
 - verb: ContextDecl::new
+- verb: ContextDecl::with_test_units
 
 ### OwnedUnit
 
@@ -597,12 +600,20 @@ name in graph order (graph-specs-010-abstraction-level-equivalence#4
 invariant 9; graph-specs-011-php-ladder#3.2: prefix matching over the
 qualified name is the discriminator, and the whole of it).
 
+A context's declared test prefixes are kept apart from its owned units:
+an item under a test prefix is never on the surface, and the surface
+names the test unit and the context of such an item so that its crossings
+can realise that context's imports. An item an owned prefix admits is
+never a tester.
+
 - depends on: ContextDecl
 - depends on: OwnershipAmbiguity
 - verb: DeclaredSurface::from_contexts
 - verb: DeclaredSurface::admits
 - verb: DeclaredSurface::unit_of
 - verb: DeclaredSurface::context_of
+- verb: DeclaredSurface::test_unit_of
+- verb: DeclaredSurface::test_context_of
 - verb: DeclaredSurface::is_empty
 
 ### OwnershipAmbiguity

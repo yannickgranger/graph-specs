@@ -78,6 +78,7 @@ fn im(from: &str, pattern: ContextPattern, concept: &str) -> ContextImport {
         from_context: from.to_string(),
         pattern,
         concept: concept.to_string(),
+        line: 0,
     }
 }
 
@@ -926,4 +927,51 @@ fn a_uses_edge_is_read_by_the_context_pass_and_owes_no_relationship_bullet() {
             .any(|v| matches!(v, Violation::EdgeMissingInSpec { .. })),
         "{v:?}"
     );
+}
+
+fn with_tests(mut contexts: Vec<ContextDecl>) -> Vec<ContextDecl> {
+    contexts[0] = contexts[0]
+        .clone()
+        .with_test_units(vec![OwnedUnit("App\\Tests\\Enrolment".to_string())]);
+    contexts
+}
+
+#[test]
+fn a_crossing_from_a_declared_test_prefix_realises_the_import() {
+    let code = two_clocks(vec![unit_edge(
+        ("ClockTest", "App\\Tests\\Enrolment"),
+        EdgeKind::Uses,
+        ("Clock", "App\\Scheduling"),
+    )]);
+    let contexts = with_tests(enrolment_and_scheduling(vec![im(
+        "scheduling",
+        ContextPattern::PublishedLanguage,
+        "Clock",
+    )]));
+    let v = crate::diff(
+        ci(Graph::default(), contexts),
+        code,
+        Some(CROSSINGS_ANSWERED),
+    )
+    .violations;
+    assert!(context_records(&v).is_empty(), "{v:?}");
+}
+
+#[test]
+fn a_crossing_from_a_declared_test_prefix_is_never_judged() {
+    let code = two_clocks(vec![unit_edge(
+        ("ClockTest", "App\\Tests\\Enrolment"),
+        EdgeKind::Uses,
+        ("Clock", "App\\Scheduling"),
+    )]);
+    let v = crate::diff(
+        ci(
+            Graph::default(),
+            with_tests(enrolment_and_scheduling(vec![])),
+        ),
+        code,
+        Some(CROSSINGS_ANSWERED),
+    )
+    .violations;
+    assert!(context_records(&v).is_empty(), "{v:?}");
 }

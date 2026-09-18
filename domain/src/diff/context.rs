@@ -20,6 +20,7 @@ pub(super) fn context_pass(
     }
     let membership = Membership::over(surface);
     let node_index = build_node_index(&code.nodes, &membership);
+    let import_sites = import_sites(&spec_contexts);
     let (imports, exports, context_sources) = index_contexts(spec_contexts);
 
     let Graph {
@@ -38,22 +39,45 @@ pub(super) fn context_pass(
         out,
     );
     if answerable.is_some_and(|kinds| kinds.contains(&EdgeKind::Uses)) {
-        emit_import_unrealised(&imports, &realised, &context_sources, out);
+        emit_import_unrealised(&imports, &realised, &import_sites, out);
     }
+}
+
+fn import_sites(contexts: &[ContextDecl]) -> HashMap<ImportKey, Source> {
+    let mut sites = HashMap::new();
+    for ctx in contexts {
+        for im in &ctx.imports {
+            let mut site = ctx.source.clone();
+            if let Source::Spec { line, .. } = &mut site {
+                if im.line > 0 {
+                    *line = im.line;
+                }
+            }
+            sites
+                .entry((
+                    ctx.name.clone(),
+                    im.from_context.clone(),
+                    im.concept.clone(),
+                ))
+                .or_insert(site);
+        }
+    }
+    sites
 }
 
 fn emit_import_unrealised(
     imports: &HashSet<ImportKey>,
     realised: &HashSet<ImportKey>,
-    context_sources: &HashMap<String, Source>,
+    import_sites: &HashMap<ImportKey, Source>,
     out: &mut Vec<Violation>,
 ) {
     let mut unrealised: Vec<&ImportKey> = imports.difference(realised).collect();
     unrealised.sort();
-    for (owning_context, from_context, concept) in unrealised {
-        let Some(spec_source) = context_sources.get(owning_context) else {
+    for key in unrealised {
+        let Some(spec_source) = import_sites.get(key) else {
             continue;
         };
+        let (owning_context, from_context, concept) = key;
         out.push(Violation::Context(ContextViolation::ImportUnrealised {
             concept: concept.clone(),
             owning_context: owning_context.clone(),
@@ -70,6 +94,12 @@ struct Membership<'a> {
 impl<'a> Membership<'a> {
     const fn over(surface: &'a DeclaredSurface) -> Self {
         Self { surface }
+    }
+
+    fn test_context_of(&self, unit: &str) -> Option<String> {
+        self.surface
+            .test_context_of(unit)
+            .map(std::borrow::ToOwned::to_owned)
     }
 
     fn context_of(&self, unit: &str) -> Option<String> {
@@ -170,8 +200,21 @@ fn emit_cross_context_edge_violations(
 ) -> HashSet<ImportKey> {
     let mut realised = HashSet::new();
     for mut edge in code_edges {
-        resolve_endpoint(&mut edge.source_concept, node_index, membership);
         resolve_endpoint(&mut edge.target, node_index, membership);
+        if let Some(tester) = edge
+            .source_concept
+            .unit
+            .as_ref()
+            .and_then(|u| membership.test_context_of(&u.0))
+        {
+            if let Some(target_ctx) = edge.target.context.clone() {
+                if tester != target_ctx {
+                    realised.insert((tester, target_ctx, edge.target.name.clone()));
+                }
+            }
+            continue;
+        }
+        resolve_endpoint(&mut edge.source_concept, node_index, membership);
         if !node_index.contains_key(edge.source_concept.name.as_str()) {
             continue;
         }

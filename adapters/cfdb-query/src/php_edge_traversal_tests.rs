@@ -397,3 +397,63 @@ fn a_php_keyspace_answers_implements_and_uses() {
         vec![EdgeKind::Implements, EdgeKind::Uses]
     );
 }
+
+fn tested_surface() -> DeclaredSurface {
+    DeclaredSurface::from_contexts(&[ContextDecl::new(
+        "a".to_string(),
+        vec![
+            OwnedUnit("App\\A".to_string()),
+            OwnedUnit("App\\B".to_string()),
+        ],
+        Vec::new(),
+        Vec::new(),
+        Source::Spec {
+            format: domain::SpecFormat::Markdown,
+            path: PathBuf::from("specs/contexts/a.md"),
+            line: 1,
+            context: None,
+        },
+    )
+    .with_test_units(vec![OwnedUnit("App\\Tests\\A".to_string())])])
+    .expect("no nested prefixes across contexts")
+}
+
+const TESTER: &str = r#",{"id":"item:App\\Tests\\A\\XTest","label":"Item","props":{"kind":"trait","line":9,"name":"XTest",
+ "php_construct":"class_declaration","qname":"App\\Tests\\A\\XTest","file":"tests/A/XTest.php"}},
+{"id":"import:t","label":"Import","props":{"fqn":"App\\B\\Domain\\Y","file":"tests/A/XTest.php","line":6}}
+],"edges":["#;
+
+fn tester_uses(surface: DeclaredSurface) -> Vec<(String, String, String)> {
+    let keyspace = CROSSING_KEYSPACE.replacen("\n],\"edges\":[", TESTER, 1);
+    assert!(keyspace.contains("XTest.php"), "the tester was planted");
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("keyspace.json");
+    std::fs::write(&path, keyspace).expect("write keyspace");
+    CfdbQueryReader::new(&path)
+        .with_surface(surface)
+        .relationships(Path::new("/ws"))
+        .expect("read keyspace")
+        .into_iter()
+        .filter(|e| e.kind == EdgeKind::Uses && e.source_concept.name == "XTest")
+        .map(|e| {
+            (
+                e.source_concept.unit.map(|u| u.0).unwrap_or_default(),
+                e.target.name,
+                e.target.unit.map(|u| u.0).unwrap_or_default(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn a_class_under_a_declared_test_prefix_crosses_from_its_test_unit() {
+    assert_eq!(
+        tester_uses(tested_surface()),
+        vec![("App\\Tests\\A".into(), "Y".into(), "App\\B".into())]
+    );
+}
+
+#[test]
+fn a_class_under_no_declared_prefix_crosses_nothing() {
+    assert_eq!(tester_uses(surface(&["App\\A", "App\\B"])), vec![]);
+}
