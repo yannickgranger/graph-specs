@@ -241,7 +241,7 @@ Same field shape as `cross_context_edge_unauthorized`. The difference is the cau
 
 ### `context_import_unrealised`
 
-A context declares an `Imports` line that no crossing in the code uses: no edge runs from an item the importing context owns, or from a class under one of its declared `## Tests` prefixes, to the imported concept in the named context. A crossing from a test prefix only ever realises an import; it is never reported as unauthorized or undeclared. It is reported only when the input's producer answers `USES`, because only then is a missing edge evidence that the import is stale rather than a crossing the producer cannot see; on the source walk and on a Rust keyspace this record never appears.
+A context declares an `Imports` line that no crossing in the code uses: no edge runs from an item the importing context owns, or from a class under one of its declared `## Tests` prefixes, to the imported concept in the named context. A crossing from a test prefix, whatever its edge kind (a `use`, a construction, a static call, a declared parameter or field type, or a return type), only ever realises an import; it is never reported as unauthorized or undeclared. It is reported only when the input's producer answers `USES`, because only then is a missing edge evidence that the import is stale rather than a crossing the producer cannot see; on the source walk and on a Rust keyspace this record never appears.
 
 ```json
 {"schema_version":"5","violation":"context_import_unrealised","concept":"Clock","owning_context":"enrolment","from_context":"scheduling","spec_source":{"kind":"spec","path":"specs/contexts/enrolment.md","line":14,"format":"markdown"}}
@@ -630,9 +630,9 @@ Adding a **new top-level discriminator key** (as v4 did with `marker`) is on its
 Version history:
 - `"1"` — v0.1–v0.3 (concept / signature / edge variants).
 - `"2"` — v0.4 added the bounded-context variants (`context_membership_unknown`, `cross_context_edge_*`, `cross_verb_unauthorized`).
-- `"5"` — `context_import_unrealised` added additively and `edge_kind` widened with `USES` (no bump; the version is listed here because both arrived during `"5"`).
-- `"4"` — v0.8 added `cross_edge_off_surface`, `surface_admits_nothing`, `edge_unanswerable` and `malformed_anchor_bullet` additively (no bump; the version is listed here because the variant arrived during `"4"`).
 - `"3"` — RFC-010 added the abstraction-ladder `Cohesion` variants (`context_without_cohesion_unit`, `sub_concept_orphan`, `concept_context_mismatch`). Consumers dispatch on `"3"`; the qbot-core `compare-spec-change` lockstep arm is tracked at #135. Like `ContextViolation`, `CohesionViolation` is `#[non_exhaustive]` — an unknown future cohesion variant emits `"violation":"unknown_cohesion_violation"` as a tripwire.
+- `"4"` — v0.8 added `cross_edge_off_surface`, `surface_admits_nothing`, `edge_unanswerable` and `malformed_anchor_bullet` additively (no bump; the version is listed here because the variant arrived during `"4"`).
+- `"5"` — `context_import_unrealised` added additively and `edge_kind` widened with `USES` (no bump; the version is listed here because both arrived during `"5"`).
 
 ## Determinism
 

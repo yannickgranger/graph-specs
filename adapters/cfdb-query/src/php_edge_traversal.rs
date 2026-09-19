@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 
 use cfdb_core::fact::{Edge, Node, PropValue};
@@ -231,7 +231,7 @@ impl PhpEdgeTraversal {
             (classes.contains_key(class) || testers.contains_key(class)).then(|| class.to_owned())
         };
 
-        let mut pairs: BTreeSet<(String, String, u8, usize)> = BTreeSet::new();
+        let mut pairs: BTreeMap<(String, String, u8), usize> = BTreeMap::new();
         for node in nodes {
             if node.label.as_str() != IMPORT {
                 continue;
@@ -244,12 +244,11 @@ impl PhpEdgeTraversal {
                 continue;
             }
             for source in in_file.get(file).into_iter().flatten() {
-                pairs.insert((
-                    (*source).to_owned(),
-                    target.to_owned(),
-                    USES_RANK,
+                keep_first_site(
+                    &mut pairs,
+                    ((*source).to_owned(), target.to_owned(), USES_RANK),
                     prop_usize(node, "line"),
-                ));
+                );
             }
         }
         for edge in edges {
@@ -266,13 +265,12 @@ impl PhpEdgeTraversal {
                 continue;
             };
             if src != dst {
-                pairs.insert((src, dst, rank, 0));
+                keep_first_site(&mut pairs, (src, dst, rank), 0);
             }
         }
 
-        let mut seen: BTreeSet<(&str, &str, &str)> = BTreeSet::new();
         let mut out = Vec::new();
-        for (src, dst, rank, line) in &pairs {
+        for ((src, dst, rank), line) in &pairs {
             let source = classes
                 .get(src.as_str())
                 .or_else(|| testers.get(src.as_str()));
@@ -289,9 +287,6 @@ impl PhpEdgeTraversal {
             if kind == EdgeKind::Uses && src_unit == dst_unit {
                 continue;
             }
-            if !seen.insert((src.as_str(), dst.as_str(), kind.as_label())) {
-                continue;
-            }
             let module = containers.get(src_id).map_or(src_unit, |m| *m);
             out.push(php_edge(
                 (src_name, src_unit),
@@ -302,6 +297,17 @@ impl PhpEdgeTraversal {
             ));
         }
         out
+    }
+}
+
+fn keep_first_site(
+    pairs: &mut BTreeMap<(String, String, u8), usize>,
+    key: (String, String, u8),
+    line: usize,
+) {
+    let site = pairs.entry(key).or_insert(line);
+    if *site == 0 || (line > 0 && line < *site) {
+        *site = line;
     }
 }
 

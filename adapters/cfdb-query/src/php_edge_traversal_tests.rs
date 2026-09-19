@@ -513,3 +513,74 @@ fn a_php_keyspace_carrying_declared_slots_answers_every_relationship_kind() {
         ]
     );
 }
+
+const CONSTRUCTED_TOO: &str = r#",{"id":"item:App\\B\\Domain\\Y::__construct","label":"Item","props":{"kind":"fn","line":4,"name":"__construct",
+ "php_construct":"method_declaration","qname":"App\\B\\Domain\\Y::__construct","file":"src/B/Domain/Y.php"}},
+{"id":"param:App\\Tests\\A\\XTest::testIt:0","label":"Param","props":{"index":0,"name":"y","parent_qname":"App\\Tests\\A\\XTest::testIt"}},
+{"id":"item:App\\Tests\\A\\XTest","label":"Item","props":{"kind":"trait","line":9,"name":"XTest",
+ "php_construct":"class_declaration","qname":"App\\Tests\\A\\XTest","file":"tests/A/XTest.php"}},
+{"id":"item:App\\Tests\\A\\XTest::testIt","label":"Item","props":{"kind":"fn","line":11,"name":"testIt",
+ "php_construct":"method_declaration","qname":"App\\Tests\\A\\XTest::testIt","file":"tests/A/XTest.php"}}
+],"edges":[
+{"src":"item:App\\A\\Application\\X::run","dst":"item:App\\B\\Domain\\Y::__construct","label":"CALLS"},
+{"src":"param:App\\Tests\\A\\XTest::testIt:0","dst":"item:App\\B\\Domain\\Y","label":"TYPE_OF"},"#;
+
+fn constructed_edges(
+    surface: DeclaredSurface,
+) -> Vec<(String, String, &'static str, String, usize)> {
+    let keyspace = CROSSING_KEYSPACE.replacen("\n],\"edges\":[", CONSTRUCTED_TOO, 1);
+    assert!(
+        keyspace.contains("Y::__construct\",\"label\":\"CALLS\""),
+        "the construction was planted"
+    );
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("keyspace.json");
+    std::fs::write(&path, keyspace).expect("write keyspace");
+    let mut out: Vec<_> = CfdbQueryReader::new(&path)
+        .with_surface(surface)
+        .relationships(Path::new("/ws"))
+        .expect("read keyspace")
+        .into_iter()
+        .filter(|e| e.target.name == "Y" && e.kind != EdgeKind::Implements)
+        .map(|e| {
+            let line = match &e.source {
+                Source::Code { line, .. } => *line,
+                Source::Spec { .. } => usize::MAX,
+            };
+            (
+                e.source_concept.name,
+                e.source_concept.unit.map(|u| u.0).unwrap_or_default(),
+                e.kind.as_label(),
+                e.target.name,
+                line,
+            )
+        })
+        .collect();
+    out.sort();
+    out
+}
+
+#[test]
+fn a_use_line_and_a_construction_of_one_class_keep_the_use_line() {
+    assert_eq!(
+        constructed_edges(surface(&["App\\A", "App\\B"])),
+        vec![("X".into(), "App\\A".into(), "USES", "Y".into(), 5)]
+    );
+}
+
+#[test]
+fn a_parameter_type_under_a_declared_test_prefix_crosses_from_its_test_unit() {
+    assert_eq!(
+        constructed_edges(tested_surface()),
+        vec![
+            ("X".into(), "App\\A".into(), "USES", "Y".into(), 5),
+            (
+                "XTest".into(),
+                "App\\Tests\\A".into(),
+                "DEPENDS_ON",
+                "Y".into(),
+                0
+            ),
+        ]
+    );
+}

@@ -975,3 +975,34 @@ fn a_crossing_from_a_declared_test_prefix_is_never_judged() {
     .violations;
     assert!(context_records(&v).is_empty(), "{v:?}");
 }
+
+#[test]
+fn a_declared_type_from_a_test_prefix_realises_the_import_and_is_never_judged() {
+    let code = two_clocks(vec![unit_edge(
+        ("ClockTest", "App\\Tests\\Enrolment"),
+        EdgeKind::DependsOn,
+        ("Clock", "App\\Scheduling"),
+    )]);
+    let imported = with_tests(enrolment_and_scheduling(vec![im(
+        "scheduling",
+        ContextPattern::PublishedLanguage,
+        "Clock",
+    )]));
+    let v = crate::diff(
+        ci(Graph::default(), imported),
+        code.clone(),
+        Some(CROSSINGS_ANSWERED),
+    )
+    .violations;
+    assert!(context_records(&v).is_empty(), "{v:?}");
+    let v = crate::diff(
+        ci(
+            Graph::default(),
+            with_tests(enrolment_and_scheduling(vec![])),
+        ),
+        code,
+        Some(CROSSINGS_ANSWERED),
+    )
+    .violations;
+    assert!(context_records(&v).is_empty(), "{v:?}");
+}
