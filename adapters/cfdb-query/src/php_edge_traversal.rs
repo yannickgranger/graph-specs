@@ -23,6 +23,7 @@ const KNOWN_CONSTRUCTS: &[&str] = &[
     "trait_declaration",
     "method_declaration",
     "function_definition",
+    "const_declaration",
 ];
 
 const IN_MODULE: &str = "IN_MODULE";
@@ -30,6 +31,9 @@ const IMPORT: &str = "Import";
 const CALLS: &str = "CALLS";
 const TYPE_OF: &str = "TYPE_OF";
 const RETURNS: &str = "RETURNS";
+const EXTENDS: &str = "EXTENDS";
+const HAS_ATTRIBUTE: &str = "HAS_ATTRIBUTE";
+const ATTRIBUTE: &str = "Attribute";
 const USES_RANK: u8 = 0;
 const DEPENDS_ON_RANK: u8 = 1;
 const RETURNS_RANK: u8 = 2;
@@ -176,6 +180,12 @@ impl PhpEdgeTraversal {
         let mut in_file: HashMap<&str, Vec<&str>> = HashMap::new();
         let mut qname_of: HashMap<&str, &str> = HashMap::new();
         for node in nodes {
+            if node.label.as_str() == ATTRIBUTE {
+                if let Some(fqn) = prop(node, "fqn") {
+                    qname_of.insert(node.id.as_str(), fqn.trim_start_matches('\\'));
+                }
+                continue;
+            }
             if DECLARED_SLOTS.contains(&node.label.as_str()) {
                 if let Some(parent) = prop(node, "parent_qname") {
                     qname_of.insert(node.id.as_str(), parent);
@@ -253,7 +263,7 @@ impl PhpEdgeTraversal {
         }
         for edge in edges {
             let rank = match edge.label.as_str() {
-                CALLS => USES_RANK,
+                CALLS | EXTENDS | HAS_ATTRIBUTE => USES_RANK,
                 TYPE_OF => DEPENDS_ON_RANK,
                 RETURNS => RETURNS_RANK,
                 _ => continue,

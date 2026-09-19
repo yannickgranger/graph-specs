@@ -584,3 +584,86 @@ fn a_parameter_type_under_a_declared_test_prefix_crosses_from_its_test_unit() {
         ]
     );
 }
+
+#[test]
+fn a_constant_is_below_the_rung_and_not_refused() {
+    let json = r#"{"schema_version":{"major":0,"minor":8,"patch":0},"nodes":[
+      {"id":"item:App\\A\\Told","label":"Item","props":{"kind":"trait","name":"Told",
+       "php_construct":"class_declaration","qname":"App\\A\\Told"}},
+      {"id":"item:App\\A\\Told::EURO","label":"Item","props":{"kind":"const","name":"EURO",
+       "php_construct":"const_declaration","qname":"App\\A\\Told::EURO","value_text":"'EUR'"}}],"edges":[]}"#;
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("keyspace.json");
+    std::fs::write(&path, json).expect("write keyspace");
+    let nodes = CfdbQueryReader::new(&path)
+        .with_surface(surface(&["App\\A"]))
+        .concepts(Path::new("/ws"))
+        .expect("read keyspace");
+    assert_eq!(names(&nodes), vec!["Told"]);
+}
+
+const EXTENDED_AND_ATTRIBUTED: &str = r#",{"id":"item:App\\A\\Application\\V","label":"Item","props":{"kind":"trait","line":3,"name":"V",
+ "php_construct":"class_declaration","qname":"App\\A\\Application\\V","file":"src/A/Application/V.php"}},
+{"id":"item:App\\B\\Domain\\U","label":"Item","props":{"kind":"trait","line":3,"name":"U",
+ "php_construct":"class_declaration","qname":"App\\B\\Domain\\U","file":"src/B/Domain/U.php"}},
+{"id":"item:App\\B\\Domain\\T","label":"Item","props":{"kind":"trait","line":3,"name":"T",
+ "php_construct":"class_declaration","qname":"App\\B\\Domain\\T","file":"src/B/Domain/T.php"}},
+{"id":"param:App\\A\\Application\\X::run:0","label":"Param","props":{"index":0,"name":"t","parent_qname":"App\\A\\Application\\X::run"}},
+{"id":"attr:item:App\\A\\Application\\V#0","label":"Attribute","props":{"written":"\\App\\B\\Domain\\T","fqn":"App\\B\\Domain\\T","file":"src/A/Application/V.php","line":2}},
+{"id":"attr:param:App\\A\\Application\\X::run:0#0","label":"Attribute","props":{"written":"T","fqn":"App\\B\\Domain\\T","file":"src/A/Application/X.php","line":9}},
+{"id":"attr:item:App\\A\\Application\\Z#0","label":"Attribute","props":{"written":"Route","fqn":"Vendor\\Route","file":"src/A/Application/Z.php","line":2}}
+],"edges":[
+{"src":"item:App\\A\\Application\\V","dst":"item:App\\B\\Domain\\U","label":"EXTENDS"},
+{"src":"item:App\\A\\Application\\V","dst":"attr:item:App\\A\\Application\\V#0","label":"HAS_ATTRIBUTE"},
+{"src":"param:App\\A\\Application\\X::run:0","dst":"attr:param:App\\A\\Application\\X::run:0#0","label":"HAS_ATTRIBUTE"},
+{"src":"item:App\\A\\Application\\Z","dst":"attr:item:App\\A\\Application\\Z#0","label":"HAS_ATTRIBUTE"},"#;
+
+fn extended_and_attributed(units: &[&str]) -> Vec<(String, String, String, String)> {
+    let keyspace = CROSSING_KEYSPACE.replacen("\n],\"edges\":[", EXTENDED_AND_ATTRIBUTED, 1);
+    assert!(
+        keyspace.contains("\"EXTENDS\"") && keyspace.contains("\"HAS_ATTRIBUTE\""),
+        "the supertype and the attributes were planted"
+    );
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("keyspace.json");
+    std::fs::write(&path, keyspace).expect("write keyspace");
+    let mut out: Vec<_> = CfdbQueryReader::new(&path)
+        .with_surface(surface(units))
+        .relationships(Path::new("/ws"))
+        .expect("read keyspace")
+        .into_iter()
+        .filter(|e| e.kind == EdgeKind::Uses && matches!(e.target.name.as_str(), "T" | "U"))
+        .map(|e| {
+            (
+                e.source_concept.name,
+                e.source_concept.unit.map(|u| u.0).unwrap_or_default(),
+                e.target.name,
+                e.target.unit.map(|u| u.0).unwrap_or_default(),
+            )
+        })
+        .collect();
+    out.sort();
+    out
+}
+
+#[test]
+fn an_extended_class_across_units_is_one_uses_edge() {
+    assert!(extended_and_attributed(&["App\\A", "App\\B"]).contains(&(
+        "V".into(),
+        "App\\A".into(),
+        "U".into(),
+        "App\\B".into()
+    )));
+}
+
+#[test]
+fn an_attribute_naming_a_class_across_units_is_one_uses_edge_of_its_owning_class() {
+    let edges = extended_and_attributed(&["App\\A", "App\\B"]);
+    assert!(edges.contains(&("V".into(), "App\\A".into(), "T".into(), "App\\B".into())));
+    assert!(edges.contains(&("X".into(), "App\\A".into(), "T".into(), "App\\B".into())));
+}
+
+#[test]
+fn a_supertype_or_an_attribute_whose_far_end_no_prefix_owns_is_not_a_uses_edge() {
+    assert_eq!(extended_and_attributed(&["App\\A"]), vec![]);
+}
