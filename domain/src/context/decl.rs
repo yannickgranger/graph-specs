@@ -10,6 +10,7 @@ pub struct ContextDecl {
     pub owned_units: Vec<OwnedUnit>,
     pub exports: Vec<ContextExport>,
     pub imports: Vec<ContextImport>,
+    pub test_units: Vec<OwnedUnit>,
     pub source: Source,
 }
 
@@ -27,8 +28,15 @@ impl ContextDecl {
             owned_units,
             exports,
             imports,
+            test_units: Vec::new(),
             source,
         }
+    }
+
+    #[must_use]
+    pub fn with_test_units(mut self, test_units: Vec<OwnedUnit>) -> Self {
+        self.test_units = test_units;
+        self
     }
 }
 
@@ -43,6 +51,7 @@ pub struct ContextImport {
     pub from_context: String,
     pub pattern: ContextPattern,
     pub concept: String,
+    pub line: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -132,6 +141,7 @@ mod tests {
                 pattern: ContextPattern::PublishedLanguage,
             }],
             imports: vec![],
+            test_units: vec![],
             source: Source::Spec {
                 format: crate::SpecFormat::Markdown,
                 path: std::path::PathBuf::from("specs/concepts/reader.md"),

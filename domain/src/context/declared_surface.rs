@@ -3,6 +3,7 @@ use super::decl::{ContextDecl, OwnedUnit};
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DeclaredSurface {
     units: Vec<(String, String)>,
+    tests: Vec<(String, String)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -33,7 +34,40 @@ impl DeclaredSurface {
             .map(|(unit, context)| (unit, context.to_owned()))
             .collect();
         units.dedup();
-        Ok(Self { units })
+        let mut tests: Vec<(String, String)> = contexts
+            .iter()
+            .flat_map(|ctx| {
+                ctx.test_units
+                    .iter()
+                    .map(move |unit| (normalize(&unit.0), ctx.name.clone()))
+            })
+            .filter(|(unit, _)| !unit.is_empty())
+            .collect();
+        tests.sort();
+        tests.dedup();
+        Ok(Self { units, tests })
+    }
+
+    #[must_use]
+    pub fn test_unit_of(&self, qname: &str) -> Option<&str> {
+        if self.admits(qname) {
+            return None;
+        }
+        let qname = normalize(qname);
+        self.tests
+            .iter()
+            .filter(|(unit, _)| covers(unit, &qname))
+            .max_by_key(|(unit, _)| unit.len())
+            .map(|(unit, _)| unit.as_str())
+    }
+
+    #[must_use]
+    pub fn test_context_of(&self, unit: &str) -> Option<&str> {
+        let unit = normalize(unit);
+        self.tests
+            .iter()
+            .find(|(declared, _)| declared.eq_ignore_ascii_case(&unit))
+            .map(|(_, context)| context.as_str())
     }
 
     #[must_use]

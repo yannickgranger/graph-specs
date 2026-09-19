@@ -166,3 +166,32 @@ fn two_contexts_owning_unrelated_prefixes_are_not_ambiguous() {
     ])
     .expect("sibling prefixes are not nested");
 }
+
+#[test]
+fn a_declared_test_prefix_names_its_unit_and_context_and_admits_nothing() {
+    let surface = DeclaredSurface::from_contexts(&[context(&["App\\Enrolment"])
+        .with_test_units(vec![OwnedUnit("App\\Tests\\Enrolment".to_string())])])
+    .expect("no nested prefixes across contexts");
+    let tester = "App\\Tests\\Enrolment\\Domain\\BookingTest";
+    assert!(!surface.admits(tester));
+    assert_eq!(surface.test_unit_of(tester), Some("App\\Tests\\Enrolment"));
+    assert_eq!(
+        surface.test_context_of("App\\Tests\\Enrolment"),
+        Some("ctx")
+    );
+    assert_eq!(
+        surface.test_unit_of("App\\Enrolment\\Domain\\Booking"),
+        None
+    );
+    assert_eq!(surface.test_unit_of("App\\Tests\\Payment\\RailTest"), None);
+}
+
+#[test]
+fn an_item_on_the_surface_is_never_a_tester_even_under_a_test_prefix() {
+    let surface = DeclaredSurface::from_contexts(&[
+        context(&["App"]).with_test_units(vec![OwnedUnit("App\\Tests".to_string())])
+    ])
+    .expect("no nested prefixes across contexts");
+    assert!(surface.admits("App\\Tests\\BookingTest"));
+    assert_eq!(surface.test_unit_of("App\\Tests\\BookingTest"), None);
+}

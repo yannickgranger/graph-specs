@@ -352,6 +352,18 @@ fn format_context_violation(v: &ContextViolation, out: &mut impl Write) -> std::
                 "cross-context verb unauthorized: {concept} ({owning_context}) claims `{qname}` which belongs to {target_context} ({at})"
             )
         }
+        ContextViolation::ImportUnrealised {
+            concept,
+            owning_context,
+            from_context,
+            spec_source,
+        } => {
+            let at = located(spec_source);
+            writeln!(
+                out,
+                "import unrealised: {owning_context} imports {concept} from {from_context} and no crossing in the code uses it, at {at}"
+            )
+        }
         _ => writeln!(out, "unknown context violation for {}", v.concept()),
     }
 }
@@ -436,6 +448,21 @@ mod tests {
             "got: {out}"
         );
         assert!(out.contains("specs/contexts/reading.md:12"));
+    }
+
+    #[test]
+    fn import_unrealised_text() {
+        let v = Violation::Context(ContextViolation::ImportUnrealised {
+            concept: "Clock".into(),
+            owning_context: "enrolment".into(),
+            from_context: "scheduling".into(),
+            spec_source: spec_src(),
+        });
+        let out = render(&v);
+        assert!(
+            out.starts_with("import unrealised: enrolment imports Clock from scheduling and no crossing in the code uses it, at specs/contexts/reading.md:12"),
+            "got: {out}"
+        );
     }
 
     #[test]

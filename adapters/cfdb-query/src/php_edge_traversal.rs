@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 
 use cfdb_core::fact::{Edge, Node, PropValue};
@@ -26,6 +26,14 @@ const KNOWN_CONSTRUCTS: &[&str] = &[
 ];
 
 const IN_MODULE: &str = "IN_MODULE";
+const IMPORT: &str = "Import";
+const CALLS: &str = "CALLS";
+const TYPE_OF: &str = "TYPE_OF";
+const RETURNS: &str = "RETURNS";
+const USES_RANK: u8 = 0;
+const DEPENDS_ON_RANK: u8 = 1;
+const RETURNS_RANK: u8 = 2;
+const DECLARED_SLOTS: &[&str] = &["Param", "Field"];
 const IN_CRATE: &str = "IN_CRATE";
 
 #[derive(Debug, Clone)]
@@ -44,6 +52,13 @@ impl PhpEdgeTraversal {
         nodes
             .iter()
             .any(|node| prop(node, "php_construct").is_some())
+    }
+
+    #[must_use]
+    pub fn declares_slots(nodes: &[Node]) -> bool {
+        nodes
+            .iter()
+            .any(|node| DECLARED_SLOTS.contains(&node.label.as_str()))
     }
 
     #[must_use]
@@ -142,37 +157,200 @@ impl PhpEdgeTraversal {
             ) else {
                 continue;
             };
-            let module = containers
-                .get(edge.src.as_str())
-                .map_or(src_unit, |m| *m)
-                .to_owned();
-            out.push(domain::Edge {
-                source_concept: ConceptRef::resolved(
-                    src_name.to_owned(),
-                    None,
-                    Some(OwnedUnit(src_unit.to_owned())),
-                ),
-                kind: EdgeKind::Implements,
-                target: ConceptRef::resolved(
-                    dst_name.to_owned(),
-                    None,
-                    dst_unit.map(|u| OwnedUnit(u.to_owned())),
-                ),
-                raw_target: dst_name.to_owned(),
-                source: Source::Code {
-                    language: domain::CodeLanguage::Php,
-                    path: PathBuf::from(&module),
-                    line: 0,
-                    provenance: Provenance {
-                        module_path: Some(module.clone()),
-                        unit: Some(src_unit.to_owned()),
-                        context: None,
-                    },
-                    location: LocationKind::Namespace,
-                },
-            });
+            let module = containers.get(edge.src.as_str()).map_or(src_unit, |m| *m);
+            out.push(php_edge(
+                (src_name, src_unit),
+                EdgeKind::Implements,
+                (dst_name, dst_unit),
+                module,
+                0,
+            ));
         }
+        out.extend(self.crossings(nodes, edges, &containers));
         Ok(out)
+    }
+
+    fn crossing_index<'a>(&'a self, nodes: &'a [Node]) -> CrossingIndex<'a> {
+        let mut classes: HashMap<&str, (&str, &str, &str)> = HashMap::new();
+        let mut testers: HashMap<&str, (&str, &str, &str)> = HashMap::new();
+        let mut in_file: HashMap<&str, Vec<&str>> = HashMap::new();
+        let mut qname_of: HashMap<&str, &str> = HashMap::new();
+        for node in nodes {
+            if DECLARED_SLOTS.contains(&node.label.as_str()) {
+                if let Some(parent) = prop(node, "parent_qname") {
+                    qname_of.insert(node.id.as_str(), parent);
+                }
+                continue;
+            }
+            if node.label.as_str() != Label::ITEM {
+                continue;
+            }
+            let Some(qname) = prop(node, "qname") else {
+                continue;
+            };
+            qname_of.insert(node.id.as_str(), qname);
+            if !prop(node, "php_construct").is_some_and(|c| CONCEPT_RUNG.contains(&c)) {
+                continue;
+            }
+            let Some(name) = prop(node, "name") else {
+                continue;
+            };
+            if let Some(unit) = self.surface.unit_of(qname) {
+                classes.insert(qname, (node.id.as_str(), name, unit));
+            } else if let Some(unit) = self.surface.test_unit_of(qname) {
+                testers.insert(qname, (node.id.as_str(), name, unit));
+            } else {
+                continue;
+            }
+            if let Some(file) = prop(node, "file") {
+                in_file.entry(file).or_default().push(qname);
+            }
+        }
+        CrossingIndex {
+            classes,
+            testers,
+            in_file,
+            qname_of,
+        }
+    }
+
+    fn crossings(
+        &self,
+        nodes: &[Node],
+        edges: &[Edge],
+        containers: &HashMap<&str, &str>,
+    ) -> Vec<domain::Edge> {
+        let CrossingIndex {
+            classes,
+            testers,
+            in_file,
+            qname_of,
+        } = self.crossing_index(nodes);
+        let owner = |qname: &str| -> Option<String> {
+            let class = qname.split_once("::").map_or(qname, |(class, _)| class);
+            (classes.contains_key(class) || testers.contains_key(class)).then(|| class.to_owned())
+        };
+
+        let mut pairs: BTreeMap<(String, String, u8), usize> = BTreeMap::new();
+        for node in nodes {
+            if node.label.as_str() != IMPORT {
+                continue;
+            }
+            let (Some(fqn), Some(file)) = (prop(node, "fqn"), prop(node, "file")) else {
+                continue;
+            };
+            let target = fqn.trim_start_matches('\\');
+            if !classes.contains_key(target) {
+                continue;
+            }
+            for source in in_file.get(file).into_iter().flatten() {
+                keep_first_site(
+                    &mut pairs,
+                    ((*source).to_owned(), target.to_owned(), USES_RANK),
+                    prop_usize(node, "line"),
+                );
+            }
+        }
+        for edge in edges {
+            let rank = match edge.label.as_str() {
+                CALLS => USES_RANK,
+                TYPE_OF => DEPENDS_ON_RANK,
+                RETURNS => RETURNS_RANK,
+                _ => continue,
+            };
+            let (Some(src), Some(dst)) = (
+                qname_of.get(edge.src.as_str()).and_then(|q| owner(q)),
+                qname_of.get(edge.dst.as_str()).and_then(|q| owner(q)),
+            ) else {
+                continue;
+            };
+            if src != dst {
+                keep_first_site(&mut pairs, (src, dst, rank), 0);
+            }
+        }
+
+        let mut out = Vec::new();
+        for ((src, dst, rank), line) in &pairs {
+            let source = classes
+                .get(src.as_str())
+                .or_else(|| testers.get(src.as_str()));
+            let (Some(&(src_id, src_name, src_unit)), Some(&(_, dst_name, dst_unit))) =
+                (source, classes.get(dst.as_str()))
+            else {
+                continue;
+            };
+            let kind = match *rank {
+                DEPENDS_ON_RANK => EdgeKind::DependsOn,
+                RETURNS_RANK => EdgeKind::Returns,
+                _ => EdgeKind::Uses,
+            };
+            if kind == EdgeKind::Uses && src_unit == dst_unit {
+                continue;
+            }
+            let module = containers.get(src_id).map_or(src_unit, |m| *m);
+            out.push(php_edge(
+                (src_name, src_unit),
+                kind,
+                (dst_name, Some(dst_unit)),
+                module,
+                *line,
+            ));
+        }
+        out
+    }
+}
+
+fn keep_first_site(
+    pairs: &mut BTreeMap<(String, String, u8), usize>,
+    key: (String, String, u8),
+    line: usize,
+) {
+    let site = pairs.entry(key).or_insert(line);
+    if *site == 0 || (line > 0 && line < *site) {
+        *site = line;
+    }
+}
+
+type ClassEntry<'a> = (&'a str, &'a str, &'a str);
+
+struct CrossingIndex<'a> {
+    classes: HashMap<&'a str, ClassEntry<'a>>,
+    testers: HashMap<&'a str, ClassEntry<'a>>,
+    in_file: HashMap<&'a str, Vec<&'a str>>,
+    qname_of: HashMap<&'a str, &'a str>,
+}
+
+fn php_edge(
+    (src_name, src_unit): (&str, &str),
+    kind: EdgeKind,
+    (dst_name, dst_unit): (&str, Option<&str>),
+    module: &str,
+    line: usize,
+) -> domain::Edge {
+    domain::Edge {
+        source_concept: ConceptRef::resolved(
+            src_name.to_owned(),
+            None,
+            Some(OwnedUnit(src_unit.to_owned())),
+        ),
+        kind,
+        target: ConceptRef::resolved(
+            dst_name.to_owned(),
+            None,
+            dst_unit.map(|u| OwnedUnit(u.to_owned())),
+        ),
+        raw_target: dst_name.to_owned(),
+        source: Source::Code {
+            language: domain::CodeLanguage::Php,
+            path: PathBuf::from(module),
+            line,
+            provenance: Provenance {
+                module_path: Some(module.to_owned()),
+                unit: Some(src_unit.to_owned()),
+                context: None,
+            },
+            location: LocationKind::Namespace,
+        },
     }
 }
 

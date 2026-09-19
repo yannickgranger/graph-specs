@@ -143,7 +143,13 @@ pub fn diff(spec: CheckInput, code: Graph, answerable: Option<&[crate::EdgeKind]
         &mut violations,
     );
 
-    context::context_pass(spec_contexts, code_for_context, &surface, &mut violations);
+    context::context_pass(
+        spec_contexts,
+        code_for_context,
+        &surface,
+        answerable,
+        &mut violations,
+    );
 
     violations.sort_by(|a, b| {
         let (ka, da) = violation_key(a);

@@ -408,7 +408,13 @@ impl CodeFacts for CfdbQueryReader {
     fn answerable_relationships(&self, _root: &Path) -> Result<Vec<EdgeKind>, ReaderError> {
         let file = self.load()?;
         match discriminate(&self.keyspace, &file.nodes)? {
-            Producer::Php => Ok(vec![EdgeKind::Implements]),
+            Producer::Php if PhpEdgeTraversal::declares_slots(&file.nodes) => Ok(vec![
+                EdgeKind::Implements,
+                EdgeKind::DependsOn,
+                EdgeKind::Returns,
+                EdgeKind::Uses,
+            ]),
+            Producer::Php => Ok(vec![EdgeKind::Implements, EdgeKind::Uses]),
             Producer::Rust => Ok(vec![
                 EdgeKind::Implements,
                 EdgeKind::DependsOn,

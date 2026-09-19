@@ -17,6 +17,7 @@ enum Section {
     Owns,
     Exports,
     Imports,
+    Tests,
     Other,
 }
 
@@ -25,6 +26,7 @@ struct State<'a> {
     line_starts: Vec<usize>,
     ctx_name: Option<(String, usize)>,
     owned_units: Vec<OwnedUnit>,
+    test_units: Vec<OwnedUnit>,
     exports: Vec<ContextExport>,
     imports: Vec<ContextImport>,
     section: Section,
@@ -43,6 +45,7 @@ impl<'a> State<'a> {
             line_starts: compute_line_starts(source),
             ctx_name: None,
             owned_units: Vec::new(),
+            test_units: Vec::new(),
             exports: Vec::new(),
             imports: Vec::new(),
             section: Section::None,
@@ -86,7 +89,8 @@ pub fn parse_context_file(path: &Path, source: &str) -> Result<ContextDecl, Read
             line: h1_line,
             context: None,
         },
-    ))
+    )
+    .with_test_units(st.test_units))
 }
 
 fn handle_event(st: &mut State, event: Event, range: std::ops::Range<usize>) {
@@ -161,6 +165,7 @@ fn finish_item(st: &mut State, line: usize) {
     }
     match st.section {
         Section::Owns => st.owned_units.push(OwnedUnit(trimmed.to_string())),
+        Section::Tests => st.test_units.push(OwnedUnit(trimmed.to_string())),
         Section::Exports => match parse_export(trimmed, st.path, line) {
             Ok(e) => st.exports.push(e),
             Err(err) => st.error = Some(err),
@@ -179,6 +184,7 @@ fn classify_section(heading: &str) -> Section {
         "Owns" => Section::Owns,
         "Exports" => Section::Exports,
         "Imports" => Section::Imports,
+        "Tests" => Section::Tests,
         _ => Section::Other,
     }
 }
@@ -217,6 +223,7 @@ fn parse_import(text: &str, path: &Path, line: usize) -> Result<ContextImport, R
         from_context: from_context.to_string(),
         pattern,
         concept: concept.to_string(),
+        line,
     })
 }
 

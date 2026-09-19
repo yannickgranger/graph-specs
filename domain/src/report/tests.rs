@@ -226,6 +226,7 @@ fn homonym_asymmetric_export_import_disagreement() {
             from_context: "ctx_b".to_owned(),
             pattern: ContextPattern::Conformist,
             concept: "Baz".to_owned(),
+            line: 0,
         }],
         spec_src(1),
     );

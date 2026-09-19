@@ -11,7 +11,11 @@ pub(super) fn edge_diff(
     out: &mut Vec<Violation>,
 ) {
     let spec_by_concept = group_by_matched_concept(spec_edges, matched_concepts);
-    let mut code_by_concept = group_by_matched_concept(code_edges, matched_concepts);
+    let declarable: Vec<Edge> = code_edges
+        .into_iter()
+        .filter(|e| e.kind != EdgeKind::Uses)
+        .collect();
+    let mut code_by_concept = group_by_matched_concept(declarable, matched_concepts);
 
     for (concept, spec_for_concept) in spec_by_concept {
         let code_for_concept = code_by_concept.remove(&concept).unwrap_or_default();

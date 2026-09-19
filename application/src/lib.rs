@@ -1263,4 +1263,235 @@ mod tests {
         );
         assert!(run_check(specs.path(), code.path(), None).is_ok());
     }
+
+    #[cfg(feature = "codefacts")]
+    fn crossing_check(a_imports: &str, b_exports: &str, with_use_line: bool) -> Vec<Violation> {
+        crossing_check_with(a_imports, b_exports, with_use_line, "", false)
+    }
+
+    #[cfg(feature = "codefacts")]
+    fn crossing_check_with(
+        a_imports: &str,
+        b_exports: &str,
+        with_use_line: bool,
+        a_tests: &str,
+        with_tester: bool,
+    ) -> Vec<Violation> {
+        let specs = TempDir::new().unwrap();
+        let dir = TempDir::new().unwrap();
+        let code = TempDir::new().unwrap();
+        write(
+            specs.path(),
+            "contexts/a.md",
+            &format!(
+                "# a\n\n## Owns\n\n- App\\A\n\n## Exports\n\n## Imports\n\n{a_imports}\n## Tests\n\n{a_tests}"
+            ),
+        );
+        write(
+            specs.path(),
+            "contexts/b.md",
+            &format!("# b\n\n## Owns\n\n- App\\B\n\n## Exports\n\n{b_exports}\n## Imports\n"),
+        );
+        write(specs.path(), "concepts/a.md", "# a\n\n## X\n");
+        write(specs.path(), "concepts/b.md", "# b\n\n## Y\n");
+        let import = if with_use_line {
+            r#",{"id":"import:y","label":"Import","props":{"fqn":"App\\B\\Domain\\Y","file":"src/A/Application/X.php","line":5}}"#
+        } else {
+            ""
+        };
+        let tester = if with_tester {
+            r#",{"id":"item:App\\Tests\\A\\XTest","label":"Item","props":{"kind":"trait","line":9,"name":"XTest",
+             "php_construct":"class_declaration","qname":"App\\Tests\\A\\XTest","file":"tests/A/XTest.php"}},
+            {"id":"import:t","label":"Import","props":{"fqn":"App\\B\\Domain\\Y","file":"tests/A/XTest.php","line":6}}"#
+        } else {
+            ""
+        };
+        let keyspace = dir.path().join("consumer.json");
+        std::fs::write(
+            &keyspace,
+            format!(
+                r#"{{"schema_version":{{"major":0,"minor":8,"patch":0}},"nodes":[
+            {{"id":"item:App\\A\\Application\\X","label":"Item","props":{{"kind":"trait","line":7,"name":"X",
+             "php_construct":"class_declaration","qname":"App\\A\\Application\\X","file":"src/A/Application/X.php"}}}},
+            {{"id":"item:App\\B\\Domain\\Y","label":"Item","props":{{"kind":"trait","line":3,"name":"Y",
+             "php_construct":"class_declaration","qname":"App\\B\\Domain\\Y","file":"src/B/Domain/Y.php"}}}}{import}{tester}
+            ],"edges":[]}}"#
+            ),
+        )
+        .unwrap();
+        run_check(specs.path(), code.path(), Some(&keyspace))
+            .unwrap()
+            .violations
+    }
+
+    #[cfg(feature = "codefacts")]
+    fn context_records(violations: &[Violation]) -> Vec<&domain::ContextViolation> {
+        violations
+            .iter()
+            .filter_map(|v| match v {
+                Violation::Context(c) => Some(c),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[cfg(feature = "codefacts")]
+    #[test]
+    fn a_php_use_of_an_imported_type_the_supplier_does_not_export_is_one_undeclared_crossing() {
+        let violations = crossing_check("- Y from b (PublishedLanguage)\n", "", true);
+        let records = context_records(&violations);
+        assert_eq!(records.len(), 1, "{violations:?}");
+        let domain::ContextViolation::CrossEdgeUndeclared {
+            concept,
+            owning_context,
+            edge_kind,
+            target,
+            target_context,
+            ..
+        } = records[0]
+        else {
+            panic!("expected one cross_context_edge_undeclared: {violations:?}");
+        };
+        assert_eq!(
+            (
+                concept.as_str(),
+                owning_context.as_str(),
+                *edge_kind,
+                target.as_str(),
+                target_context.as_str()
+            ),
+            ("X", "a", EdgeKind::Uses, "Y", "b")
+        );
+    }
+
+    #[cfg(feature = "codefacts")]
+    #[test]
+    fn a_php_use_of_an_unimported_type_is_one_unauthorized_crossing() {
+        let violations = crossing_check("", "- Y (PublishedLanguage)\n", true);
+        let records = context_records(&violations);
+        assert!(
+            matches!(
+                records.as_slice(),
+                [domain::ContextViolation::CrossEdgeUnauthorized { concept, target, .. }]
+                    if concept == "X" && target == "Y"
+            ),
+            "{violations:?}"
+        );
+    }
+
+    #[cfg(feature = "codefacts")]
+    #[test]
+    fn a_php_use_of_a_type_exported_and_imported_is_silent() {
+        let violations = crossing_check(
+            "- Y from b (PublishedLanguage)\n",
+            "- Y (PublishedLanguage)\n",
+            true,
+        );
+        assert!(context_records(&violations).is_empty(), "{violations:?}");
+    }
+
+    #[cfg(feature = "codefacts")]
+    #[test]
+    fn a_declared_import_no_php_crossing_uses_is_reported_unrealised() {
+        let violations = crossing_check(
+            "- Y from b (PublishedLanguage)\n",
+            "- Y (PublishedLanguage)\n",
+            false,
+        );
+        let records = context_records(&violations);
+        assert!(
+            matches!(
+                records.as_slice(),
+                [domain::ContextViolation::ImportUnrealised { concept, owning_context, from_context, spec_source: domain::Source::Spec { path, line, .. } }]
+                    if concept == "Y" && owning_context == "a" && from_context == "b"
+                        && path.ends_with("contexts/a.md") && *line == 11
+            ),
+            "{violations:?}"
+        );
+    }
+
+    #[cfg(feature = "codefacts")]
+    #[test]
+    fn a_declared_import_used_only_under_a_declared_test_prefix_is_realised() {
+        let imports = "- Y from b (PublishedLanguage)\n";
+        let exports = "- Y (PublishedLanguage)\n";
+        let undeclared = crossing_check_with(imports, exports, false, "", true);
+        assert!(
+            matches!(
+                context_records(&undeclared).as_slice(),
+                [domain::ContextViolation::ImportUnrealised { .. }]
+            ),
+            "without a Tests line the tester is off every prefix: {undeclared:?}"
+        );
+        let declared = crossing_check_with(imports, exports, false, "- App\\Tests\\A\n", true);
+        assert!(context_records(&declared).is_empty(), "{declared:?}");
+    }
+
+    #[cfg(feature = "codefacts")]
+    #[test]
+    fn a_test_crossing_to_an_unimported_type_is_not_refused() {
+        let violations = crossing_check_with("", "", false, "- App\\Tests\\A\n", true);
+        assert!(context_records(&violations).is_empty(), "{violations:?}");
+    }
+
+    #[cfg(feature = "codefacts")]
+    #[test]
+    fn a_php_parameter_type_answers_a_depends_on_bullet_and_crosses_contexts() {
+        let specs = TempDir::new().unwrap();
+        let dir = TempDir::new().unwrap();
+        let code = TempDir::new().unwrap();
+        write(
+            specs.path(),
+            "contexts/a.md",
+            "# a\n\n## Owns\n\n- App\\A\n\n## Exports\n\n## Imports\n",
+        );
+        write(
+            specs.path(),
+            "contexts/b.md",
+            "# b\n\n## Owns\n\n- App\\B\n\n## Exports\n\n- Y (PublishedLanguage)\n\n## Imports\n",
+        );
+        write(
+            specs.path(),
+            "concepts/a.md",
+            "# a\n\n## X\n\n- depends on: Y\n",
+        );
+        write(specs.path(), "concepts/b.md", "# b\n\n## Y\n");
+        let keyspace = dir.path().join("consumer.json");
+        std::fs::write(
+            &keyspace,
+            r#"{"schema_version":{"major":0,"minor":8,"patch":0},"nodes":[
+            {"id":"item:App\\A\\Application\\X","label":"Item","props":{"kind":"trait","line":7,"name":"X",
+             "php_construct":"class_declaration","qname":"App\\A\\Application\\X","file":"src/A/Application/X.php"}},
+            {"id":"item:App\\A\\Application\\X::run","label":"Item","props":{"kind":"fn","line":9,"name":"run",
+             "php_construct":"method_declaration","qname":"App\\A\\Application\\X::run","file":"src/A/Application/X.php"}},
+            {"id":"param:App\\A\\Application\\X::run:0","label":"Param","props":{"index":0,"name":"y",
+             "parent_qname":"App\\A\\Application\\X::run","type_normalized":"\\App\\B\\Domain\\Y"}},
+            {"id":"item:App\\B\\Domain\\Y","label":"Item","props":{"kind":"trait","line":3,"name":"Y",
+             "php_construct":"class_declaration","qname":"App\\B\\Domain\\Y","file":"src/B/Domain/Y.php"}}
+            ],"edges":[
+            {"src":"param:App\\A\\Application\\X::run:0","dst":"item:App\\B\\Domain\\Y","label":"TYPE_OF"}
+            ]}"#,
+        )
+        .unwrap();
+
+        let violations = run_check(specs.path(), code.path(), Some(&keyspace))
+            .unwrap()
+            .violations;
+        assert!(
+            !violations.iter().any(|v| matches!(
+                v,
+                Violation::EdgeUnanswerable { .. } | Violation::EdgeMissingInCode { .. }
+            )),
+            "the parameter type answers the bullet: {violations:?}"
+        );
+        let records = context_records(&violations);
+        assert!(
+            matches!(
+                records.as_slice(),
+                [domain::ContextViolation::CrossEdgeUnauthorized { concept, edge_kind, target, .. }]
+                    if concept == "X" && *edge_kind == EdgeKind::DependsOn && target == "Y"
+            ),
+            "a fully-qualified parameter type with no use line still crosses: {violations:?}"
+        );
+    }
 }

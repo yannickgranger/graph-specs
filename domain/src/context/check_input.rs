@@ -105,6 +105,7 @@ mod tests {
             owned_units: vec![],
             exports: vec![],
             imports: vec![],
+            test_units: vec![],
             source: Source::Spec {
                 format: crate::SpecFormat::Markdown,
                 path: std::path::PathBuf::from("specs/concepts/reader.md"),
