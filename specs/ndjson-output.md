@@ -294,7 +294,7 @@ A spec heading declares a `- depends on:` or `- returns:` bullet, and the code i
 | `target` | string | the concept the bullet points at |
 | `spec_source` | source object (kind=spec) | the bullet's own site |
 
-On a PHP keyspace the answerable set is `IMPLEMENTS` and `USES`: cfdb's PHP producer emits no field-type or return-type edge, so `DEPENDS_ON` and `RETURNS` bullets are unanswerable there. `USES` is a crossing between two declared prefixes that a `use` line or a resolved `CALLS` (a `new` or a static call) names, lifted to the classes at both ends; no bullet declares it, so the relationship pass never compares it and the context pass alone reads it. On the source walk every kind is answerable and this record never appears.
+On a PHP keyspace the answerable set is `IMPLEMENTS` and `USES`, plus `DEPENDS_ON` and `RETURNS` when the keyspace carries `:Param` or `:Field` nodes (cfdb-062's declared types): a parameter or property type is a `DEPENDS_ON` of the owning class and a return type a `RETURNS`, one edge per in-workspace arm. A keyspace from a producer that emits no declared slot leaves `DEPENDS_ON` and `RETURNS` bullets unanswerable. `USES` is a crossing between two declared prefixes that a `use` line or a resolved `CALLS` (a `new` or a static call) names, lifted to the classes at both ends; no bullet declares it, so the relationship pass never compares it and the context pass alone reads it. On the source walk every kind is answerable and this record never appears.
 
 **Remediation:** none available in the specs — the fact does not exist in the input. Either check the repository against an input whose producer emits that relationship, or accept the bullet as undecidable for this input.
 

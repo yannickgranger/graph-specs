@@ -1433,4 +1433,65 @@ mod tests {
         let violations = crossing_check_with("", "", false, "- App\\Tests\\A\n", true);
         assert!(context_records(&violations).is_empty(), "{violations:?}");
     }
+
+    #[cfg(feature = "codefacts")]
+    #[test]
+    fn a_php_parameter_type_answers_a_depends_on_bullet_and_crosses_contexts() {
+        let specs = TempDir::new().unwrap();
+        let dir = TempDir::new().unwrap();
+        let code = TempDir::new().unwrap();
+        write(
+            specs.path(),
+            "contexts/a.md",
+            "# a\n\n## Owns\n\n- App\\A\n\n## Exports\n\n## Imports\n",
+        );
+        write(
+            specs.path(),
+            "contexts/b.md",
+            "# b\n\n## Owns\n\n- App\\B\n\n## Exports\n\n- Y (PublishedLanguage)\n\n## Imports\n",
+        );
+        write(
+            specs.path(),
+            "concepts/a.md",
+            "# a\n\n## X\n\n- depends on: Y\n",
+        );
+        write(specs.path(), "concepts/b.md", "# b\n\n## Y\n");
+        let keyspace = dir.path().join("consumer.json");
+        std::fs::write(
+            &keyspace,
+            r#"{"schema_version":{"major":0,"minor":8,"patch":0},"nodes":[
+            {"id":"item:App\\A\\Application\\X","label":"Item","props":{"kind":"trait","line":7,"name":"X",
+             "php_construct":"class_declaration","qname":"App\\A\\Application\\X","file":"src/A/Application/X.php"}},
+            {"id":"item:App\\A\\Application\\X::run","label":"Item","props":{"kind":"fn","line":9,"name":"run",
+             "php_construct":"method_declaration","qname":"App\\A\\Application\\X::run","file":"src/A/Application/X.php"}},
+            {"id":"param:App\\A\\Application\\X::run:0","label":"Param","props":{"index":0,"name":"y",
+             "parent_qname":"App\\A\\Application\\X::run","type_normalized":"\\App\\B\\Domain\\Y"}},
+            {"id":"item:App\\B\\Domain\\Y","label":"Item","props":{"kind":"trait","line":3,"name":"Y",
+             "php_construct":"class_declaration","qname":"App\\B\\Domain\\Y","file":"src/B/Domain/Y.php"}}
+            ],"edges":[
+            {"src":"param:App\\A\\Application\\X::run:0","dst":"item:App\\B\\Domain\\Y","label":"TYPE_OF"}
+            ]}"#,
+        )
+        .unwrap();
+
+        let violations = run_check(specs.path(), code.path(), Some(&keyspace))
+            .unwrap()
+            .violations;
+        assert!(
+            !violations.iter().any(|v| matches!(
+                v,
+                Violation::EdgeUnanswerable { .. } | Violation::EdgeMissingInCode { .. }
+            )),
+            "the parameter type answers the bullet: {violations:?}"
+        );
+        let records = context_records(&violations);
+        assert!(
+            matches!(
+                records.as_slice(),
+                [domain::ContextViolation::CrossEdgeUnauthorized { concept, edge_kind, target, .. }]
+                    if concept == "X" && *edge_kind == EdgeKind::DependsOn && target == "Y"
+            ),
+            "a fully-qualified parameter type with no use line still crosses: {violations:?}"
+        );
+    }
 }

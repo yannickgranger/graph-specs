@@ -28,6 +28,12 @@ const KNOWN_CONSTRUCTS: &[&str] = &[
 const IN_MODULE: &str = "IN_MODULE";
 const IMPORT: &str = "Import";
 const CALLS: &str = "CALLS";
+const TYPE_OF: &str = "TYPE_OF";
+const RETURNS: &str = "RETURNS";
+const USES_RANK: u8 = 0;
+const DEPENDS_ON_RANK: u8 = 1;
+const RETURNS_RANK: u8 = 2;
+const DECLARED_SLOTS: &[&str] = &["Param", "Field"];
 const IN_CRATE: &str = "IN_CRATE";
 
 #[derive(Debug, Clone)]
@@ -46,6 +52,13 @@ impl PhpEdgeTraversal {
         nodes
             .iter()
             .any(|node| prop(node, "php_construct").is_some())
+    }
+
+    #[must_use]
+    pub fn declares_slots(nodes: &[Node]) -> bool {
+        nodes
+            .iter()
+            .any(|node| DECLARED_SLOTS.contains(&node.label.as_str()))
     }
 
     #[must_use]
@@ -157,17 +170,18 @@ impl PhpEdgeTraversal {
         Ok(out)
     }
 
-    fn crossings(
-        &self,
-        nodes: &[Node],
-        edges: &[Edge],
-        containers: &HashMap<&str, &str>,
-    ) -> Vec<domain::Edge> {
+    fn crossing_index<'a>(&'a self, nodes: &'a [Node]) -> CrossingIndex<'a> {
         let mut classes: HashMap<&str, (&str, &str, &str)> = HashMap::new();
         let mut testers: HashMap<&str, (&str, &str, &str)> = HashMap::new();
         let mut in_file: HashMap<&str, Vec<&str>> = HashMap::new();
         let mut qname_of: HashMap<&str, &str> = HashMap::new();
         for node in nodes {
+            if DECLARED_SLOTS.contains(&node.label.as_str()) {
+                if let Some(parent) = prop(node, "parent_qname") {
+                    qname_of.insert(node.id.as_str(), parent);
+                }
+                continue;
+            }
             if node.label.as_str() != Label::ITEM {
                 continue;
             }
@@ -192,12 +206,32 @@ impl PhpEdgeTraversal {
                 in_file.entry(file).or_default().push(qname);
             }
         }
+        CrossingIndex {
+            classes,
+            testers,
+            in_file,
+            qname_of,
+        }
+    }
+
+    fn crossings(
+        &self,
+        nodes: &[Node],
+        edges: &[Edge],
+        containers: &HashMap<&str, &str>,
+    ) -> Vec<domain::Edge> {
+        let CrossingIndex {
+            classes,
+            testers,
+            in_file,
+            qname_of,
+        } = self.crossing_index(nodes);
         let owner = |qname: &str| -> Option<String> {
             let class = qname.split_once("::").map_or(qname, |(class, _)| class);
             (classes.contains_key(class) || testers.contains_key(class)).then(|| class.to_owned())
         };
 
-        let mut pairs: BTreeSet<(String, String, usize)> = BTreeSet::new();
+        let mut pairs: BTreeSet<(String, String, u8, usize)> = BTreeSet::new();
         for node in nodes {
             if node.label.as_str() != IMPORT {
                 continue;
@@ -213,26 +247,32 @@ impl PhpEdgeTraversal {
                 pairs.insert((
                     (*source).to_owned(),
                     target.to_owned(),
+                    USES_RANK,
                     prop_usize(node, "line"),
                 ));
             }
         }
         for edge in edges {
-            if edge.label.as_str() != CALLS {
-                continue;
-            }
+            let rank = match edge.label.as_str() {
+                CALLS => USES_RANK,
+                TYPE_OF => DEPENDS_ON_RANK,
+                RETURNS => RETURNS_RANK,
+                _ => continue,
+            };
             let (Some(src), Some(dst)) = (
                 qname_of.get(edge.src.as_str()).and_then(|q| owner(q)),
                 qname_of.get(edge.dst.as_str()).and_then(|q| owner(q)),
             ) else {
                 continue;
             };
-            pairs.insert((src, dst, 0));
+            if src != dst {
+                pairs.insert((src, dst, rank, 0));
+            }
         }
 
-        let mut seen: BTreeSet<(&str, &str)> = BTreeSet::new();
+        let mut seen: BTreeSet<(&str, &str, &str)> = BTreeSet::new();
         let mut out = Vec::new();
-        for (src, dst, line) in &pairs {
+        for (src, dst, rank, line) in &pairs {
             let source = classes
                 .get(src.as_str())
                 .or_else(|| testers.get(src.as_str()));
@@ -241,13 +281,21 @@ impl PhpEdgeTraversal {
             else {
                 continue;
             };
-            if src_unit == dst_unit || !seen.insert((src.as_str(), dst.as_str())) {
+            let kind = match *rank {
+                DEPENDS_ON_RANK => EdgeKind::DependsOn,
+                RETURNS_RANK => EdgeKind::Returns,
+                _ => EdgeKind::Uses,
+            };
+            if kind == EdgeKind::Uses && src_unit == dst_unit {
+                continue;
+            }
+            if !seen.insert((src.as_str(), dst.as_str(), kind.as_label())) {
                 continue;
             }
             let module = containers.get(src_id).map_or(src_unit, |m| *m);
             out.push(php_edge(
                 (src_name, src_unit),
-                EdgeKind::Uses,
+                kind,
                 (dst_name, Some(dst_unit)),
                 module,
                 *line,
@@ -255,6 +303,15 @@ impl PhpEdgeTraversal {
         }
         out
     }
+}
+
+type ClassEntry<'a> = (&'a str, &'a str, &'a str);
+
+struct CrossingIndex<'a> {
+    classes: HashMap<&'a str, ClassEntry<'a>>,
+    testers: HashMap<&'a str, ClassEntry<'a>>,
+    in_file: HashMap<&'a str, Vec<&'a str>>,
+    qname_of: HashMap<&'a str, &'a str>,
 }
 
 fn php_edge(

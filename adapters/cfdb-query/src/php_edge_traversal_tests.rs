@@ -388,7 +388,7 @@ fn a_crossing_whose_far_end_no_prefix_owns_is_not_a_uses_edge() {
 }
 
 #[test]
-fn a_php_keyspace_answers_implements_and_uses() {
+fn a_php_keyspace_without_declared_slots_answers_implements_and_uses() {
     let (_dir, reader) = crossing_reader(&["App\\A", "App\\B"]);
     assert_eq!(
         reader
@@ -456,4 +456,60 @@ fn a_class_under_a_declared_test_prefix_crosses_from_its_test_unit() {
 #[test]
 fn a_class_under_no_declared_prefix_crosses_nothing() {
     assert_eq!(tester_uses(surface(&["App\\A", "App\\B"])), vec![]);
+}
+
+const SLOTS: &str = r#",{"id":"param:App\\A\\Application\\X::run:0","label":"Param","props":{"index":0,"name":"y","parent_qname":"App\\A\\Application\\X::run","type_normalized":"?App\\B\\Domain\\Y"}},
+{"id":"field:App\\A\\Application\\X::z","label":"Field","props":{"index":0,"name":"z","parent_qname":"App\\A\\Application\\X","type_normalized":"App\\A\\Application\\Z"}},
+{"id":"field:App\\A\\Application\\X::me","label":"Field","props":{"index":1,"name":"me","parent_qname":"App\\A\\Application\\X","type_normalized":"App\\A\\Application\\X"}}
+],"edges":[
+{"src":"param:App\\A\\Application\\X::run:0","dst":"item:App\\B\\Domain\\Y","label":"TYPE_OF"},
+{"src":"field:App\\A\\Application\\X::z","dst":"item:App\\A\\Application\\Z","label":"TYPE_OF"},
+{"src":"field:App\\A\\Application\\X::me","dst":"item:App\\A\\Application\\X","label":"TYPE_OF"},
+{"src":"item:App\\A\\Application\\X::run","dst":"item:App\\B\\Domain\\W","label":"RETURNS"},"#;
+
+fn slotted_reader() -> (tempfile::TempDir, CfdbQueryReader) {
+    let keyspace = CROSSING_KEYSPACE.replacen("\n],\"edges\":[", SLOTS, 1);
+    assert!(keyspace.contains("\"TYPE_OF\""), "the slots were planted");
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("keyspace.json");
+    std::fs::write(&path, keyspace).expect("write keyspace");
+    let reader = CfdbQueryReader::new(&path).with_surface(surface(&["App\\A", "App\\B"]));
+    (dir, reader)
+}
+
+#[test]
+fn a_declared_param_field_or_return_type_is_a_relationship_of_the_owning_class() {
+    let (_dir, reader) = slotted_reader();
+    let mut declared: Vec<(String, &str, String)> = reader
+        .relationships(Path::new("/ws"))
+        .expect("read keyspace")
+        .into_iter()
+        .filter(|e| matches!(e.kind, EdgeKind::DependsOn | EdgeKind::Returns))
+        .map(|e| (e.source_concept.name, e.kind.as_label(), e.target.name))
+        .collect();
+    declared.sort();
+    assert_eq!(
+        declared,
+        vec![
+            ("X".into(), "DEPENDS_ON", "Y".into()),
+            ("X".into(), "DEPENDS_ON", "Z".into()),
+            ("X".into(), "RETURNS", "W".into()),
+        ]
+    );
+}
+
+#[test]
+fn a_php_keyspace_carrying_declared_slots_answers_every_relationship_kind() {
+    let (_dir, reader) = slotted_reader();
+    assert_eq!(
+        reader
+            .answerable_relationships(Path::new("/ws"))
+            .expect("read keyspace"),
+        vec![
+            EdgeKind::Implements,
+            EdgeKind::DependsOn,
+            EdgeKind::Returns,
+            EdgeKind::Uses
+        ]
+    );
 }
