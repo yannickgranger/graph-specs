@@ -33,6 +33,7 @@ const TYPE_OF: &str = "TYPE_OF";
 const RETURNS: &str = "RETURNS";
 const EXTENDS: &str = "EXTENDS";
 const HAS_ATTRIBUTE: &str = "HAS_ATTRIBUTE";
+const REFERS_TO: &str = "REFERS_TO";
 const ATTRIBUTE: &str = "Attribute";
 const USES_RANK: u8 = 0;
 const DEPENDS_ON_RANK: u8 = 1;
@@ -263,7 +264,7 @@ impl PhpEdgeTraversal {
         }
         for edge in edges {
             let rank = match edge.label.as_str() {
-                CALLS | EXTENDS | HAS_ATTRIBUTE => USES_RANK,
+                CALLS | EXTENDS | HAS_ATTRIBUTE | REFERS_TO => USES_RANK,
                 TYPE_OF => DEPENDS_ON_RANK,
                 RETURNS => RETURNS_RANK,
                 _ => continue,

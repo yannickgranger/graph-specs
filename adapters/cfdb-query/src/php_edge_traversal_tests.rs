@@ -667,3 +667,49 @@ fn an_attribute_naming_a_class_across_units_is_one_uses_edge_of_its_owning_class
 fn a_supertype_or_an_attribute_whose_far_end_no_prefix_owns_is_not_a_uses_edge() {
     assert_eq!(extended_and_attributed(&["App\\A"]), vec![]);
 }
+
+const REFERRED: &str = r#",{"id":"item:App\\B\\Domain\\R","label":"Item","props":{"kind":"trait","line":3,"name":"R",
+ "php_construct":"class_declaration","qname":"App\\B\\Domain\\R","file":"src/B/Domain/R.php"}}
+],"edges":[
+{"src":"item:App\\A\\Application\\X::run","dst":"item:App\\B\\Domain\\R","label":"REFERS_TO","props":{"how":"instanceof","line":12,"resolver":"tree-sitter-php"}},"#;
+
+fn referred(units: &[&str]) -> Vec<(String, String, String, String)> {
+    let keyspace = CROSSING_KEYSPACE.replacen("\n],\"edges\":[", REFERRED, 1);
+    assert!(
+        keyspace.contains("\"REFERS_TO\""),
+        "the reference was planted"
+    );
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("keyspace.json");
+    std::fs::write(&path, keyspace).expect("write keyspace");
+    let mut out: Vec<_> = CfdbQueryReader::new(&path)
+        .with_surface(surface(units))
+        .relationships(Path::new("/ws"))
+        .expect("read keyspace")
+        .into_iter()
+        .filter(|e| e.kind == EdgeKind::Uses && e.target.name == "R")
+        .map(|e| {
+            (
+                e.source_concept.name,
+                e.source_concept.unit.map(|u| u.0).unwrap_or_default(),
+                e.target.name,
+                e.target.unit.map(|u| u.0).unwrap_or_default(),
+            )
+        })
+        .collect();
+    out.sort();
+    out
+}
+
+#[test]
+fn a_class_a_body_names_across_units_is_one_uses_edge_of_its_owning_class() {
+    assert_eq!(
+        referred(&["App\\A", "App\\B"]),
+        vec![("X".into(), "App\\A".into(), "R".into(), "App\\B".into())]
+    );
+}
+
+#[test]
+fn a_class_a_body_names_whose_far_end_no_prefix_owns_is_not_a_uses_edge() {
+    assert_eq!(referred(&["App\\A"]), vec![]);
+}
