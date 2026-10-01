@@ -1150,3 +1150,47 @@ fn a_crossing_whose_source_is_an_installed_context_is_not_refused_here() {
         "an edge leaving an installed context is that package's own crossing, declared and refused in its own repository; this workspace reads the package as a target and an export surface alone: {v:?}"
     );
 }
+
+#[test]
+fn a_crossing_onto_a_foreign_class_the_package_does_not_export_is_refused() {
+    let contexts = vec![
+        ctx(
+            "catalogue",
+            &["App\\Catalogue"],
+            vec![],
+            vec![im("contracts", ContextPattern::PublishedLanguage, "Secret")],
+        ),
+        ctx(
+            "contracts",
+            &["App\\Contracts"],
+            vec![ex("CourseId", ContextPattern::PublishedLanguage)],
+            vec![],
+        )
+        .as_foreign(),
+    ];
+    let code = Graph::new(
+        vec![
+            code_node_with_provenance("Course", "App\\Catalogue"),
+            code_node_with_provenance("Secret", "App\\Contracts"),
+        ],
+        vec![unit_edge(
+            ("Course", "App\\Catalogue"),
+            EdgeKind::Uses,
+            ("Secret", "App\\Contracts"),
+        )],
+    );
+    let v = crate::diff(
+        ci(Graph::default(), contexts),
+        code,
+        Some(CROSSINGS_ANSWERED),
+    )
+    .violations;
+    assert!(
+        context_records(&v).iter().any(|c| matches!(
+            c,
+            ContextViolation::CrossEdgeUndeclared { target, target_context, .. }
+                if target == "Secret" && target_context == "contracts"
+        )),
+        "a foreign context is a surface of what it publishes and not a licence to reach anything it owns: the import is declared, the class is not exported, and the crossing is refused: {v:?}"
+    );
+}
