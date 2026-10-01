@@ -97,3 +97,59 @@ fn a_php_file_without_the_attribute_yields_nothing() {
         "{graph:?}"
     );
 }
+
+const ATTRIBUTED: &str = "<?php\nnamespace App\\Catalogue;\n\n#[Spec(implements: \"Enrolable\")]\nfinal class Course implements Enrolable {}\n";
+
+#[test]
+fn a_generated_tree_under_var_is_not_read_as_source() {
+    let dir = tree(&[
+        ("src/Course.php", ATTRIBUTED),
+        ("var/phpstan/Cached.php", ATTRIBUTED),
+        ("var/cache/dev/ContainerXyz/Dumped.php", ATTRIBUTED),
+    ]);
+    let graph = graph_at(dir.path()).unwrap();
+    assert_eq!(
+        graph.nodes.len(),
+        1,
+        "a built project writes `.php` under var/ — a phpstan cache, a dumped container — and it is machine-written, not the source a spec is compared against: {:?}",
+        graph.nodes
+    );
+}
+
+#[test]
+fn a_file_under_var_that_is_not_utf_8_no_longer_stops_the_walk() {
+    let dir = tempfile::TempDir::new().unwrap();
+    std::fs::create_dir_all(dir.path().join("src")).unwrap();
+    std::fs::create_dir_all(dir.path().join("var/phpstan")).unwrap();
+    std::fs::write(dir.path().join("src/Course.php"), ATTRIBUTED).unwrap();
+    std::fs::write(
+        dir.path().join("var/phpstan/stale.php"),
+        b"<?php\n\xff\xfe\n".as_slice(),
+    )
+    .unwrap();
+
+    let graph = graph_at(dir.path()).expect(
+        "a stale cache under var/ is never opened, so its bytes cannot decide whether the check runs",
+    );
+    assert_eq!(graph.nodes.len(), 1, "{:?}", graph.nodes);
+}
+
+#[test]
+fn a_file_that_is_not_utf_8_inside_a_walked_tree_is_still_a_could_not_run_naming_it() {
+    let dir = tempfile::TempDir::new().unwrap();
+    std::fs::create_dir_all(dir.path().join("src")).unwrap();
+    std::fs::write(dir.path().join("src/Course.php"), ATTRIBUTED).unwrap();
+    std::fs::write(
+        dir.path().join("src/Broken.php"),
+        b"<?php\n\xff\xfe\n".as_slice(),
+    )
+    .unwrap();
+
+    let err = graph_at(dir.path())
+        .expect_err("source the project owns that cannot be decoded is a could-not-run");
+    let rendered = format!("{err}");
+    assert!(
+        rendered.contains("Broken.php") && rendered.contains("valid UTF-8"),
+        "the refusal names the file that could not be decoded, so the reader has something to chase: {rendered}"
+    );
+}

@@ -301,7 +301,8 @@ fn visit(dir: &Path, out: &mut Vec<(PathBuf, String)>) -> Result<(), ReaderError
         let name = entry.file_name();
         let name = name.to_string_lossy();
         if path.is_dir() {
-            if name == "vendor" || name == "node_modules" || name.starts_with('.') {
+            if name == "vendor" || name == "node_modules" || name == "var" || name.starts_with('.')
+            {
                 continue;
             }
             visit(&path, out)?;
