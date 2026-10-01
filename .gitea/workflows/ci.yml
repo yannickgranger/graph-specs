@@ -438,6 +438,79 @@ jobs:
           exit $FAILED
 
   # ----------------------------------------------------------------
+  # 9. PHP foreign context — the cross-package import, end to end.
+  #    A context declaring `## Imports` of a type an installed package
+  #    holds realises only when both instruments agree: cfdb indexes the
+  #    installed packages that declare a context (cfdb#754) and this
+  #    reader loads their own specs as a foreign context (#302). Neither
+  #    `dogfood` nor `cfdb-check` reaches that path — graph-specs is not
+  #    a Composer workspace, so its own tree has no install tree to read.
+  #    `ci/php-foreign-context.sh` drives a synthetic workspace through
+  #    the pinned cfdb and this PR's graph-specs, both ways.
+  #    cfdb is installed WITH `lang-php` here and under its own cached
+  #    name: `cfdb-check` installs the same rev without that feature, and
+  #    one cache entry stamped by rev alone would let the two jobs
+  #    overwrite each other's binary at every run.
+  # ----------------------------------------------------------------
+  php-foreign-context:
+    name: PHP foreign context (cfdb + reader, both ways)
+    runs-on: rust
+    container:
+      image: docker.io/library/rust:1.93
+    steps:
+      - name: Setup
+        run: |
+          set -e
+          apt-get update && apt-get install -y --no-install-recommends git ca-certificates python3
+          mkdir -p /cache/cargo/registry /cache/cargo/git /cache/cargo/bin ~/.cargo
+          ln -sf /cache/cargo/registry ~/.cargo/registry
+          ln -sf /cache/cargo/git ~/.cargo/git
+
+      - name: Clone
+        env:
+          GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          SERVER_HOST=$(echo "${GITHUB_SERVER_URL}" | sed -E 's|https?://||')
+          git config --global "url.https://oauth2:${GITEA_TOKEN}@${SERVER_HOST}/.insteadOf" "${GITHUB_SERVER_URL}/"
+          git clone --depth=1 --branch="$BRANCH" "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" repo
+
+      - name: Install sccache
+        run: |
+          if [ ! -f "/cache/cargo/bin/sccache" ]; then
+            SCCACHE_VERSION="v0.8.2"
+            curl -fsSL "https://github.com/mozilla/sccache/releases/download/${SCCACHE_VERSION}/sccache-${SCCACHE_VERSION}-x86_64-unknown-linux-musl.tar.gz" | \
+              tar xzf - --strip-components=1 -C /cache/cargo/bin/ "sccache-${SCCACHE_VERSION}-x86_64-unknown-linux-musl/sccache"
+            chmod +x /cache/cargo/bin/sccache
+          fi
+          echo "PATH=/cache/cargo/bin:${PATH}" >> "$GITHUB_ENV"
+          if /cache/cargo/bin/sccache --start-server 2>&1; then
+            echo "RUSTC_WRAPPER=/cache/cargo/bin/sccache" >> "$GITHUB_ENV"
+          fi
+
+      - name: Install cfdb with lang-php (pinned rev, own cache entry)
+        run: |
+          CFDB_REV=$(cat repo/.cfdb/cfdb.rev)
+          CFDB_STAMP=/cache/cargo/bin/.cfdb-lang-php.rev
+          if [ ! -x /cache/cargo/bin/cfdb-lang-php ] || [ "$(cat $CFDB_STAMP 2>/dev/null)" != "$CFDB_REV" ]; then
+            cargo install --git "${GITHUB_SERVER_URL}/yg/cfdb.git" --rev "$CFDB_REV" --locked --force \
+              --features lang-php --root /cache/cargo/cfdb-php cfdb-cli --bin cfdb
+            install -m 755 /cache/cargo/cfdb-php/bin/cfdb /cache/cargo/bin/cfdb-lang-php
+            echo "$CFDB_REV" > "$CFDB_STAMP"
+          fi
+          /cache/cargo/bin/cfdb-lang-php --version
+
+      - name: Build this PR's graph-specs
+        run: |
+          cd repo
+          cargo build --release -p application --features codefacts
+
+      - name: The foreign-context path, both ways
+        run: |
+          cd repo
+          CFDB_BIN=/cache/cargo/bin/cfdb-lang-php ./ci/php-foreign-context.sh
+
+  # ----------------------------------------------------------------
   # 9. Cross-dogfood — RFC-002 §3.2.
   #    Runs THIS PR's graph-specs binary against the cfdb tree at the
   #    SHA pinned in `.cfdb/cross-fixture.toml`. Zero-false-positive
