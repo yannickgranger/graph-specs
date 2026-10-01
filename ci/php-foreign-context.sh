@@ -8,12 +8,24 @@ FIXTURE="$SCRIPT_DIR/fixtures/php-foreign-context"
 CFDB_BIN="${CFDB_BIN:-cfdb}"
 GS_BIN="${GS_BIN:-$REPO_ROOT/target/release/graph-specs}"
 
-for bin in "$CFDB_BIN" "$GS_BIN"; do
-    command -v "$bin" >/dev/null 2>&1 || [ -x "$bin" ] || {
+resolved() {
+    local bin="$1"
+    if [ -x "$bin" ]; then
+        ( cd "$(dirname "$bin")" && printf '%s/%s\n' "$(pwd)" "$(basename "$bin")" )
+    else
+        command -v "$bin" 2>/dev/null
+    fi
+}
+
+for name in CFDB_BIN GS_BIN; do
+    eval "bin=\$$name"
+    abs="$(resolved "$bin" || true)"
+    [ -n "$abs" ] && [ -x "$abs" ] || {
         echo "php-foreign-context: $bin not found or not executable" >&2
         echo "  hint: CFDB_BIN=<pinned cfdb> GS_BIN=<this tree's graph-specs> $0" >&2
         exit 2
     }
+    eval "$name=\$abs"
 done
 
 [ -d "$FIXTURE" ] || {

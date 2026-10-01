@@ -103,6 +103,7 @@ const ATTRIBUTED: &str = "<?php\nnamespace App\\Catalogue;\n\n#[Spec(implements:
 #[test]
 fn a_generated_tree_under_var_is_not_read_as_source() {
     let dir = tree(&[
+        ("composer.json", MANIFEST),
         ("src/Course.php", ATTRIBUTED),
         ("var/phpstan/Cached.php", ATTRIBUTED),
         ("var/cache/dev/ContainerXyz/Dumped.php", ATTRIBUTED),
@@ -121,6 +122,7 @@ fn a_file_under_var_that_is_not_utf_8_no_longer_stops_the_walk() {
     let dir = tempfile::TempDir::new().unwrap();
     std::fs::create_dir_all(dir.path().join("src")).unwrap();
     std::fs::create_dir_all(dir.path().join("var/phpstan")).unwrap();
+    std::fs::write(dir.path().join("composer.json"), MANIFEST).unwrap();
     std::fs::write(dir.path().join("src/Course.php"), ATTRIBUTED).unwrap();
     std::fs::write(
         dir.path().join("var/phpstan/stale.php"),
@@ -151,5 +153,113 @@ fn a_file_that_is_not_utf_8_inside_a_walked_tree_is_still_a_could_not_run_naming
     assert!(
         rendered.contains("Broken.php") && rendered.contains("valid UTF-8"),
         "the refusal names the file that could not be decoded, so the reader has something to chase: {rendered}"
+    );
+}
+
+const MANIFEST: &str = r#"{"name":"acme/site","autoload":{"psr-4":{"App\\":"src/"}}}"#;
+
+#[test]
+fn a_manifest_declares_what_is_source_and_a_class_outside_its_roots_yields_no_fact() {
+    let dir = tree(&[
+        ("composer.json", MANIFEST),
+        ("src/Course.php", ATTRIBUTED),
+        ("tools/Generated.php", ATTRIBUTED),
+        ("build/cache/Dumped.php", ATTRIBUTED),
+    ]);
+
+    let graph = graph_at(dir.path()).unwrap();
+
+    assert_eq!(
+        graph.nodes.len(),
+        1,
+        "composer's own declaration decides what is source, so a directory no autoload entry names is not read whatever it is called — which is what makes a deny-list of generated directory names unnecessary: {:?}",
+        graph.nodes
+    );
+}
+
+#[test]
+fn a_tree_with_no_manifest_is_walked_whole_which_is_the_rust_repository_case() {
+    let dir = tree(&[("anywhere/Course.php", ATTRIBUTED)]);
+
+    let graph = graph_at(dir.path()).unwrap();
+
+    assert_eq!(
+        graph.nodes.len(),
+        1,
+        "this reader also runs on repositories that are not Composer projects at all, where there is no declaration to read and nothing to refuse: {:?}",
+        graph.nodes
+    );
+}
+
+#[test]
+fn a_manifest_declaring_no_root_walks_nothing_rather_than_everything() {
+    let dir = tree(&[
+        ("composer.json", r#"{"name":"acme/site"}"#),
+        ("src/Course.php", ATTRIBUTED),
+    ]);
+
+    let graph = graph_at(dir.path()).unwrap();
+
+    assert!(
+        graph.nodes.is_empty(),
+        "a project that declares no autoload root declares no source; falling back to the whole tree there would make the absence of a declaration mean the opposite of what it says: {:?}",
+        graph.nodes
+    );
+}
+
+#[test]
+fn an_unreadable_manifest_refuses_rather_than_falling_back_to_the_whole_tree() {
+    let dir = tree(&[
+        ("composer.json", "{ this is not json"),
+        ("src/Course.php", ATTRIBUTED),
+    ]);
+
+    let err = graph_at(dir.path())
+        .expect_err("what the project declares as source has no answer, which is a could-not-run");
+
+    assert!(
+        matches!(err, ports::ReaderError::ParseFailed { .. }),
+        "falling back to the whole tree on an unparseable manifest would read a built project's generated code as source and call the run clean: {err:?}"
+    );
+}
+
+#[test]
+fn a_declared_root_that_is_one_file_is_read_as_that_file() {
+    let dir = tree(&[
+        (
+            "composer.json",
+            r#"{"name":"acme/site","autoload":{"classmap":["tests/Contract.php"]}}"#,
+        ),
+        ("tests/Contract.php", ATTRIBUTED),
+        ("tests/Other.php", ATTRIBUTED),
+    ]);
+
+    let graph = graph_at(dir.path()).unwrap();
+
+    assert_eq!(
+        graph.nodes.len(),
+        1,
+        "a classmap entry naming one file declares that file and not its directory, which is how a project admits a single contract test without admitting the suite around it: {:?}",
+        graph.nodes
+    );
+}
+
+#[test]
+fn two_declared_roots_that_nest_read_each_file_once() {
+    let dir = tree(&[
+        (
+            "composer.json",
+            r#"{"name":"acme/site","autoload":{"psr-4":{"App\\Tests\\":"tests/"}},"autoload-dev":{"psr-4":{"App\\Tests\\Quality\\":"tests/Quality/"}}}"#,
+        ),
+        ("tests/Quality/Course.php", ATTRIBUTED),
+    ]);
+
+    let graph = graph_at(dir.path()).unwrap();
+
+    assert_eq!(
+        graph.nodes.len(),
+        1,
+        "a real manifest declares nested roots — a suite root and a sub-suite root — and a file reached through both is one file, not two concepts contending for one name: {:?}",
+        graph.nodes
     );
 }
