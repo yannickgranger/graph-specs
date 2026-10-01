@@ -1,4 +1,7 @@
+mod build_info;
+
 use application::report::ReportFormat;
+use build_info::{stated_rev, VERSION_LINE};
 use clap::{Parser, Subcommand, ValueEnum};
 use domain::{CheckOutcome, Violation};
 use std::path::PathBuf;
@@ -7,7 +10,7 @@ use std::process::ExitCode;
 #[derive(Debug, Parser)]
 #[command(
     name = "graph-specs",
-    version,
+    version = VERSION_LINE,
     about = "Graph-based equivalence checker between markdown specifications and source code",
     long_about = None
 )]
@@ -105,6 +108,7 @@ fn run_check_command(
     keyspace: Option<&std::path::Path>,
     format: Format,
 ) -> ExitCode {
+    eprintln!("graph-specs: {}", stated_rev());
     eprintln!(
         "graph-specs: code input read as {}",
         keyspace.map_or_else(
