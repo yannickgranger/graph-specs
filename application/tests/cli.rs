@@ -1157,3 +1157,46 @@ fn ndjson_without_contexts_omits_context_field() {
         .as_object()
         .is_some_and(|s| !s.contains_key("context")));
 }
+
+#[test]
+fn the_version_output_carries_the_crate_version_and_a_rev_field() {
+    let out = bin().arg("--version").assert().success();
+    let stdout =
+        String::from_utf8(out.get_output().stdout.clone()).expect("utf-8 --version output");
+    let line = stdout.trim();
+
+    let Some((name_and_version, rev)) = line.split_once(" (rev ") else {
+        panic!("a lane greps this line for the build it is talking to, so the shape `graph-specs <version> (rev <sha>)` is the contract: {line}");
+    };
+    assert!(
+        name_and_version.starts_with("graph-specs ")
+            && name_and_version
+                .trim_start_matches("graph-specs ")
+                .starts_with(char::is_numeric),
+        "the crate version must still be there — the rev is added beside it, not instead of it: {line}"
+    );
+    let rev = rev.trim_end_matches(')');
+    assert!(
+        rev == "unknown" || (rev.len() == 40 && rev.chars().all(|c| c.is_ascii_hexdigit())),
+        "the rev field is a full sha or the stated absence `unknown`, never an empty fragment: {line}"
+    );
+}
+
+#[test]
+fn the_check_banner_states_which_build_answered() {
+    let specs = TempDir::new().unwrap();
+    let code = TempDir::new().unwrap();
+
+    bin()
+        .args([
+            "check",
+            "--specs",
+            specs.path().to_str().unwrap(),
+            "--code",
+            code.path().to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("graph-specs: graph-specs "))
+        .stderr(predicate::str::contains(" (rev "));
+}
