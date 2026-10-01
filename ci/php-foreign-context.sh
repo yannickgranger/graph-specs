@@ -1,21 +1,4 @@
 #!/usr/bin/env bash
-# php-foreign-context.sh — the foreign-context path, end to end, on real binaries.
-#
-# A Composer workspace declaring `## Imports` of a type an installed package
-# holds is realised only when both instruments agree: cfdb indexes the installed
-# packages that declare a context (cfdb#754), and the reader loads their own
-# specs as a foreign context (graph-specs#302). This script runs the pinned cfdb
-# over a synthetic workspace and then this tree's graph-specs over the keyspace,
-# both ways, asserting the printed verdict and not the exit status alone.
-#
-# Case 1 (as committed): the import is declared, the crossing is realised,
-#   0 violations, exit 0.
-# Case 2 (the `## Imports` line removed): the crossing stands undeclared and is
-#   refused by name. A green run here would mean the realisation channel had
-#   stopped answering, which is the regression this gate exists to catch.
-#
-# Each case is the other's control: case 1 proves the path answers, case 2 proves
-# the answer is the declaration and not a gate that passes on everything.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

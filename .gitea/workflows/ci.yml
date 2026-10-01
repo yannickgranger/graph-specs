@@ -437,21 +437,6 @@ jobs:
           done
           exit $FAILED
 
-  # ----------------------------------------------------------------
-  # 9. PHP foreign context — the cross-package import, end to end.
-  #    A context declaring `## Imports` of a type an installed package
-  #    holds realises only when both instruments agree: cfdb indexes the
-  #    installed packages that declare a context (cfdb#754) and this
-  #    reader loads their own specs as a foreign context (#302). Neither
-  #    `dogfood` nor `cfdb-check` reaches that path — graph-specs is not
-  #    a Composer workspace, so its own tree has no install tree to read.
-  #    `ci/php-foreign-context.sh` drives a synthetic workspace through
-  #    the pinned cfdb and this PR's graph-specs, both ways.
-  #    cfdb is installed WITH `lang-php` here and under its own cached
-  #    name: `cfdb-check` installs the same rev without that feature, and
-  #    one cache entry stamped by rev alone would let the two jobs
-  #    overwrite each other's binary at every run.
-  # ----------------------------------------------------------------
   php-foreign-context:
     name: PHP foreign context (cfdb + reader, both ways)
     runs-on: rust
