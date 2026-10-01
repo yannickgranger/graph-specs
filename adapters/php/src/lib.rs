@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use tree_sitter::{Node, Parser};
 
 mod installed;
+mod manifest;
 
 pub use installed::declaring_a_context;
 
@@ -287,9 +288,33 @@ fn arguments(attribute: Node, src: &[u8]) -> Vec<(String, String, usize)> {
 
 fn walk(root: &Path) -> Result<Vec<(PathBuf, String)>, ReaderError> {
     let mut out = Vec::new();
-    visit(root, &mut out)?;
+    match manifest::declared_roots(root)? {
+        Some(roots) => {
+            for declared in roots {
+                let path = root.join(declared);
+                if path.is_dir() {
+                    visit(&path, &mut out)?;
+                } else if path.is_file() && is_php(&path) {
+                    out.push((path.clone(), read_source(&path)?));
+                }
+            }
+        }
+        None => visit(root, &mut out)?,
+    }
     out.sort_by(|a, b| a.0.cmp(&b.0));
+    out.dedup_by(|a, b| a.0 == b.0);
     Ok(out)
+}
+
+fn is_php(path: &Path) -> bool {
+    path.extension().and_then(|e| e.to_str()) == Some("php")
+}
+
+fn read_source(path: &Path) -> Result<String, ReaderError> {
+    std::fs::read_to_string(path).map_err(|e| ReaderError::IoFailed {
+        path: path.to_path_buf(),
+        cause: e.to_string(),
+    })
 }
 
 fn visit(dir: &Path, out: &mut Vec<(PathBuf, String)>) -> Result<(), ReaderError> {
@@ -301,16 +326,12 @@ fn visit(dir: &Path, out: &mut Vec<(PathBuf, String)>) -> Result<(), ReaderError
         let name = entry.file_name();
         let name = name.to_string_lossy();
         if path.is_dir() {
-            if name == "vendor" || name == "node_modules" || name == "var" || name.starts_with('.')
-            {
+            if name == "vendor" || name == "node_modules" || name.starts_with('.') {
                 continue;
             }
             visit(&path, out)?;
-        } else if path.extension().and_then(|e| e.to_str()) == Some("php") {
-            let source = std::fs::read_to_string(&path).map_err(|e| ReaderError::IoFailed {
-                path: path.clone(),
-                cause: e.to_string(),
-            })?;
+        } else if is_php(&path) {
+            let source = read_source(&path)?;
             out.push((path, source));
         }
     }

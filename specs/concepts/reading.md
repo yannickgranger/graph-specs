@@ -266,7 +266,22 @@ Its parser backend is tree-sitter with the `tree-sitter-php` grammar the
 cfdb PHP producer already pins, so one PHP syntax model runs in the
 ecosystem; it is a leaf adapter and takes no dependency on any other
 adapter (graph-specs-016-parse-once-reading-port#1). Lives in
-`adapters/php`. An attribute key outside the set the contract fixes —
+`adapters/php`. Its walk reads what Composer declares: where `--code`
+carries a `composer.json`, the `.php` files under the roots its `autoload`
+and `autoload-dev` blocks name — psr-4, psr-0, classmap, files — and
+nothing else, a named file declaring that file alone and a root reached
+through two entries read once; where it carries none, the whole tree, which
+is the Rust-repository case this reader must not start refusing. A manifest
+declaring no root declares no source and the walk reads nothing, rather
+than reading everything and making the absence of a declaration mean its
+opposite; a manifest that cannot be parsed is a
+[ReaderError](equivalence.md#readererror), never a fall back to the whole
+tree. `vendor` and `node_modules` stay unread wherever they sit, since a
+declared root may legitimately sit above them, and no generated directory
+is named by this reader: a project writing machine-written `.php` under
+`var/`, `build/` or any other name is outside the walk because its
+manifest does not declare it (issue #310, replacing the deny-list of
+#308). An attribute key outside the set the contract fixes —
 `implements`, `extends`, `signature`
 (graph-specs-004-multi-language-adapter-contract#3.5) — is a
 [Violation](equivalence.md#violation) naming the key and the concept, never

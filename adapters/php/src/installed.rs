@@ -2,12 +2,11 @@ use std::path::{Path, PathBuf};
 
 use ports::ReaderError;
 
-const DEFAULT_VENDOR_DIR: &str = "vendor";
 const CONTEXTS_DIR: &str = "specs/contexts";
 const SPECS_DIR: &str = "specs";
 
 pub fn declaring_a_context(workspace_root: &Path) -> Result<Vec<PathBuf>, ReaderError> {
-    let vendor = workspace_root.join(vendor_dir(workspace_root)?);
+    let vendor = workspace_root.join(crate::manifest::vendor_dir(workspace_root)?);
     if !vendor.is_dir() {
         return Ok(Vec::new());
     }
@@ -21,42 +20,6 @@ pub fn declaring_a_context(workspace_root: &Path) -> Result<Vec<PathBuf>, Reader
         }
     }
     Ok(out)
-}
-
-fn vendor_dir(workspace_root: &Path) -> Result<String, ReaderError> {
-    let manifest_path = workspace_root.join("composer.json");
-    let manifest = match std::fs::read_to_string(&manifest_path) {
-        Ok(manifest) => manifest,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            return Ok(DEFAULT_VENDOR_DIR.to_owned())
-        }
-        Err(e) => {
-            return Err(ReaderError::IoFailed {
-                path: manifest_path,
-                cause: e.to_string(),
-            })
-        }
-    };
-    let manifest: serde_json::Value =
-        serde_json::from_str(&manifest).map_err(|e| ReaderError::ParseFailed {
-            path: manifest_path,
-            line: 0,
-            message: format!(
-                "composer.json is not readable JSON, so where the workspace installs its packages has no answer: {e}"
-            ),
-        })?;
-    Ok(configured_vendor_dir(&manifest))
-}
-
-fn configured_vendor_dir(manifest: &serde_json::Value) -> String {
-    manifest
-        .get("config")
-        .and_then(|config| config.get("vendor-dir"))
-        .and_then(serde_json::Value::as_str)
-        .map(|raw| raw.trim().trim_start_matches("./").trim_matches('/'))
-        .filter(|raw| !raw.is_empty())
-        .unwrap_or(DEFAULT_VENDOR_DIR)
-        .to_owned()
 }
 
 fn declares_a_context(root: &Path) -> Result<bool, ReaderError> {
