@@ -530,7 +530,17 @@ and the source location the declaration came from. Exports and imports
 both reference [ContextPattern](#contextpattern) for the DDD mapping
 pattern that applies. An optional `## Tests` section lists the prefixes
 under which the context's tests live: a crossing from there realises a
-declared import and is never itself judged. Lives in `domain`.
+declared import and is never itself judged. A declaration read from an
+installed package rather than from the walked tree is `foreign`
+(cfdb#754, graph-specs#302): its owned units and its exports enter the
+[DeclaredSurface](#declaredsurface) and the export index, so a crossing
+of the walked tree onto a concept it owns resolves and is checked against
+what that package publishes; its own imports enter neither the import
+index nor the import sites, and it is never a crossing source, because a
+package's crossings are declared and refused in its own repository and a
+consumer reading them would refuse a line it has no standing to read.
+A declaration defaults to not foreign, which is the stricter reading.
+Lives in `domain`.
 
 - depends on: OwnedUnit
 - depends on: ContextExport
@@ -540,6 +550,7 @@ declared import and is never itself judged. Lives in `domain`.
 - verb: detect_import_cycle
 - verb: ContextDecl::new
 - verb: ContextDecl::with_test_units
+- verb: ContextDecl::as_foreign
 
 ### OwnedUnit
 

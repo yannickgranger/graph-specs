@@ -112,6 +112,7 @@ mod tests {
                 line: 12,
                 context: None,
             },
+            foreign: false,
         }];
         let ci = CheckInput::new(g, ctxs, VerbOwnership::default())
             .expect("one context declares one surface");

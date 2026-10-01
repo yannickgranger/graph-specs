@@ -21,7 +21,7 @@ pub(super) fn context_pass(
     let membership = Membership::over(surface);
     let node_index = build_node_index(&code.nodes, &membership);
     let import_sites = import_sites(&spec_contexts);
-    let (imports, exports, context_sources) = index_contexts(spec_contexts);
+    let index = ContextIndex::over(spec_contexts);
 
     let Graph {
         nodes: code_nodes,
@@ -29,23 +29,16 @@ pub(super) fn context_pass(
     } = code;
 
     emit_membership_unknown(code_nodes, &membership, out);
-    let realised = emit_cross_context_edge_violations(
-        code_edges,
-        &node_index,
-        &membership,
-        &imports,
-        &exports,
-        &context_sources,
-        out,
-    );
+    let realised =
+        emit_cross_context_edge_violations(code_edges, &node_index, &membership, &index, out);
     if answerable.is_some_and(|kinds| kinds.contains(&EdgeKind::Uses)) {
-        emit_import_unrealised(&imports, &realised, &import_sites, out);
+        emit_import_unrealised(&index.imports, &realised, &import_sites, out);
     }
 }
 
 fn import_sites(contexts: &[ContextDecl]) -> HashMap<ImportKey, Source> {
     let mut sites = HashMap::new();
-    for ctx in contexts {
+    for ctx in contexts.iter().filter(|ctx| !ctx.foreign) {
         for im in &ctx.imports {
             let mut site = ctx.source.clone();
             if let Source::Spec { line, .. } = &mut site {
@@ -131,42 +124,45 @@ fn resolve_endpoint(reference: &mut crate::ConceptRef, index: &NodeIndex, member
     }
 }
 
-fn index_contexts(
-    contexts: Vec<ContextDecl>,
-) -> (
-    HashSet<ImportKey>,
-    HashSet<ExportKey>,
-    HashMap<String, Source>,
-) {
-    let mut imports = HashSet::new();
-    let mut exports = HashSet::new();
-    let mut sources = HashMap::new();
-    for ctx in contexts {
-        absorb_one_context(ctx, &mut imports, &mut exports, &mut sources);
-    }
-    (imports, exports, sources)
+#[derive(Default)]
+struct ContextIndex {
+    imports: HashSet<ImportKey>,
+    exports: HashSet<ExportKey>,
+    sources: HashMap<String, Source>,
+    foreign: HashSet<String>,
 }
 
-fn absorb_one_context(
-    ctx: ContextDecl,
-    imports: &mut HashSet<ImportKey>,
-    exports: &mut HashSet<ExportKey>,
-    sources: &mut HashMap<String, Source>,
-) {
-    let ContextDecl {
-        name,
-        imports: im_vec,
-        exports: ex_vec,
-        source,
-        ..
-    } = ctx;
-    imports.extend(
-        im_vec
-            .into_iter()
-            .map(|im| (name.clone(), im.from_context, im.concept)),
-    );
-    exports.extend(ex_vec.into_iter().map(|ex| (name.clone(), ex.concept)));
-    sources.insert(name, source);
+impl ContextIndex {
+    fn over(contexts: Vec<ContextDecl>) -> Self {
+        let mut index = Self::default();
+        for ctx in contexts {
+            index.absorb(ctx);
+        }
+        index
+    }
+
+    fn absorb(&mut self, ctx: ContextDecl) {
+        let ContextDecl {
+            name,
+            imports,
+            exports,
+            source,
+            foreign,
+            ..
+        } = ctx;
+        if foreign {
+            self.foreign.insert(name.clone());
+        } else {
+            self.imports.extend(
+                imports
+                    .into_iter()
+                    .map(|im| (name.clone(), im.from_context, im.concept)),
+            );
+        }
+        self.exports
+            .extend(exports.into_iter().map(|ex| (name.clone(), ex.concept)));
+        self.sources.insert(name, source);
+    }
 }
 
 fn emit_membership_unknown(
@@ -193,9 +189,7 @@ fn emit_cross_context_edge_violations(
     code_edges: Vec<Edge>,
     node_index: &NodeIndex,
     membership: &Membership,
-    imports: &HashSet<ImportKey>,
-    exports: &HashSet<ExportKey>,
-    context_sources: &HashMap<String, Source>,
+    index: &ContextIndex,
     out: &mut Vec<Violation>,
 ) -> HashSet<ImportKey> {
     let mut realised = HashSet::new();
@@ -234,7 +228,7 @@ fn emit_cross_context_edge_violations(
         ) else {
             continue;
         };
-        if source_ctx == target_ctx {
+        if source_ctx == target_ctx || index.foreign.contains(&source_ctx) {
             continue;
         }
         realised.insert((
@@ -242,15 +236,15 @@ fn emit_cross_context_edge_violations(
             target_ctx.clone(),
             edge.target.name.clone(),
         ));
-        let Some(spec_source) = context_sources.get(&source_ctx) else {
+        let Some(spec_source) = index.sources.get(&source_ctx) else {
             continue;
         };
         if let Some(v) = classify_cross_edge(
             &edge,
             &source_ctx,
             &target_ctx,
-            imports,
-            exports,
+            &index.imports,
+            &index.exports,
             spec_source,
         ) {
             out.push(v);

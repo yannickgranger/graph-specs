@@ -5,6 +5,10 @@ use ports::{ReaderError, SpecFileSet, SpecReader};
 use std::path::{Path, PathBuf};
 use tree_sitter::{Node, Parser};
 
+mod installed;
+
+pub use installed::declaring_a_context;
+
 pub const ACCEPTED_KEYS: [&str; 3] = ["implements", "extends", "signature"];
 
 const ATTRIBUTE: &str = "Spec";

@@ -8,6 +8,7 @@ repository.workspace = true
 [dependencies]
 domain = { path = "../../domain" }
 ports = { path = "../../ports" }
+serde_json = { workspace = true }
 tree-sitter = "0.23"
 tree-sitter-php = "0.23"
 
