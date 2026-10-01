@@ -91,6 +91,16 @@ fn declared_contexts_per_document(
         .collect()
 }
 
+fn installed_spec_sets(
+    reader: &MarkdownReader,
+    code_dir: &Path,
+) -> Result<Vec<ports::SpecFileSet>, ReaderError> {
+    adapter_php::declaring_a_context(code_dir)?
+        .into_iter()
+        .map(|specs_root| reader.load(&specs_root))
+        .collect()
+}
+
 fn identifier_shaped(text: &str) -> bool {
     let trimmed = text.trim();
     !trimmed.is_empty()
@@ -169,8 +179,20 @@ pub fn run_check(
     let attribute_graph =
         PhpAttributeReader::new().extract(&PhpAttributeReader::new().load(code_dir)?)?;
     let mut within_side = union_spec_graphs(&mut specs_graph, attribute_graph);
-    let spec_contexts = reader.extract_contexts(&spec_set)?;
+    let mut spec_contexts = reader.extract_contexts(&spec_set)?;
     let verb_anchors = reader.extract_verb_anchors(&spec_set)?;
+    let foreign_sets = installed_spec_sets(&reader, code_dir)?;
+    let mut foreign_trees = Vec::new();
+    for set in &foreign_sets {
+        specs_graph.nodes.extend(reader.extract(set)?.nodes);
+        spec_contexts.extend(
+            reader
+                .extract_contexts(set)?
+                .into_iter()
+                .map(ContextDecl::as_foreign),
+        );
+        foreign_trees.extend(reader.extract_spec_trees(set)?);
+    }
     let surface = DeclaredSurface::from_contexts(&spec_contexts)
         .map_err(|a| ambiguous_ownership(keyspace.unwrap_or(specs_dir), &a))?;
     let code_graph = match keyspace {
@@ -213,12 +235,13 @@ pub fn run_check(
     spec_findings.append(&mut within_side);
 
     let trees = reader.extract_spec_trees(&spec_set)?;
-    specs_graph.nodes = declared_contexts_per_document(specs_graph.nodes, &trees);
-    refuse_undeclared_document_context(&trees, &spec_contexts)?;
     let spec_cohesion: Vec<CohesionViolation> = trees
         .iter()
         .flat_map(SpecTree::cohesion_violations)
         .collect();
+    let trees: Vec<SpecTree> = trees.into_iter().chain(foreign_trees).collect();
+    specs_graph.nodes = declared_contexts_per_document(specs_graph.nodes, &trees);
+    refuse_undeclared_document_context(&trees, &spec_contexts)?;
 
     let verb_ownership = VerbOwnership {
         decls: pub_fn_decls.into_iter().map(VerbDecl::from).collect(),

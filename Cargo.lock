@@ -37,6 +37,7 @@ version = "0.7.0"
 dependencies = [
  "domain",
  "ports",
+ "serde_json",
  "tempfile",
  "tree-sitter",
  "tree-sitter-php",

@@ -1006,3 +1006,191 @@ fn a_declared_type_from_a_test_prefix_realises_the_import_and_is_never_judged() 
     .violations;
     assert!(context_records(&v).is_empty(), "{v:?}");
 }
+
+fn catalogue_and_installed_contracts(
+    imports: Vec<ContextImport>,
+    contracts_imports: Vec<ContextImport>,
+) -> Vec<ContextDecl> {
+    vec![
+        ctx("catalogue", &["App\\Catalogue"], vec![], imports),
+        ctx(
+            "contracts",
+            &["App\\Contracts"],
+            vec![ex("CourseId", ContextPattern::PublishedLanguage)],
+            contracts_imports,
+        )
+        .as_foreign(),
+    ]
+}
+
+fn catalogue_over_contracts(edges: Vec<Edge>) -> Graph {
+    Graph::new(
+        vec![
+            code_node_with_provenance("Course", "App\\Catalogue"),
+            code_node_with_provenance("CourseId", "App\\Contracts"),
+        ],
+        edges,
+    )
+}
+
+#[test]
+fn an_installed_context_exports_realise_the_workspace_import_that_names_them() {
+    let code = catalogue_over_contracts(vec![unit_edge(
+        ("Course", "App\\Catalogue"),
+        EdgeKind::Uses,
+        ("CourseId", "App\\Contracts"),
+    )]);
+    let v = crate::diff(
+        ci(
+            Graph::default(),
+            catalogue_and_installed_contracts(
+                vec![im(
+                    "contracts",
+                    ContextPattern::PublishedLanguage,
+                    "CourseId",
+                )],
+                vec![],
+            ),
+        ),
+        code,
+        Some(CROSSINGS_ANSWERED),
+    )
+    .violations;
+    assert!(
+        context_records(&v).is_empty(),
+        "the installed package declares the context that owns CourseId and exports it, so the workspace's declared import is realised and the crossing authorized: {v:?}"
+    );
+}
+
+#[test]
+fn an_installed_context_own_imports_are_not_audited_in_the_consuming_workspace() {
+    let code = catalogue_over_contracts(vec![unit_edge(
+        ("Course", "App\\Catalogue"),
+        EdgeKind::Uses,
+        ("CourseId", "App\\Contracts"),
+    )]);
+    let v = crate::diff(
+        ci(
+            Graph::default(),
+            catalogue_and_installed_contracts(
+                vec![im(
+                    "contracts",
+                    ContextPattern::PublishedLanguage,
+                    "CourseId",
+                )],
+                vec![im("billing", ContextPattern::PublishedLanguage, "Invoice")],
+            ),
+        ),
+        code,
+        Some(CROSSINGS_ANSWERED),
+    )
+    .violations;
+    assert!(
+        context_records(&v).is_empty(),
+        "the installed package's own `## Imports` is refused in its own repository, against its own code; a consumer that has not installed `billing` would refuse a line it has no standing to read: {v:?}"
+    );
+}
+
+#[test]
+fn the_same_unrealised_import_on_a_workspace_context_is_still_refused() {
+    let mut contexts = catalogue_and_installed_contracts(
+        vec![im(
+            "contracts",
+            ContextPattern::PublishedLanguage,
+            "CourseId",
+        )],
+        vec![im("billing", ContextPattern::PublishedLanguage, "Invoice")],
+    );
+    contexts[1].foreign = false;
+    let code = catalogue_over_contracts(vec![unit_edge(
+        ("Course", "App\\Catalogue"),
+        EdgeKind::Uses,
+        ("CourseId", "App\\Contracts"),
+    )]);
+    let v = crate::diff(
+        ci(Graph::default(), contexts),
+        code,
+        Some(CROSSINGS_ANSWERED),
+    )
+    .violations;
+    assert!(
+        context_records(&v).iter().any(|c| matches!(
+            c,
+            ContextViolation::ImportUnrealised { concept, owning_context, .. }
+                if concept == "Invoice" && owning_context == "contracts"
+        )),
+        "the exemption is the foreign flag and nothing else: the identical line on a context of this tree is still refused unrealised: {v:?}"
+    );
+}
+
+#[test]
+fn a_crossing_whose_source_is_an_installed_context_is_not_refused_here() {
+    let code = Graph::new(
+        vec![
+            code_node_with_provenance("Course", "App\\Catalogue"),
+            code_node_with_provenance("CourseId", "App\\Contracts"),
+        ],
+        vec![unit_edge(
+            ("CourseId", "App\\Contracts"),
+            EdgeKind::Uses,
+            ("Course", "App\\Catalogue"),
+        )],
+    );
+    let v = crate::diff(
+        ci(
+            Graph::default(),
+            catalogue_and_installed_contracts(vec![], vec![]),
+        ),
+        code,
+        Some(CROSSINGS_ANSWERED),
+    )
+    .violations;
+    assert!(
+        context_records(&v).is_empty(),
+        "an edge leaving an installed context is that package's own crossing, declared and refused in its own repository; this workspace reads the package as a target and an export surface alone: {v:?}"
+    );
+}
+
+#[test]
+fn a_crossing_onto_a_foreign_class_the_package_does_not_export_is_refused() {
+    let contexts = vec![
+        ctx(
+            "catalogue",
+            &["App\\Catalogue"],
+            vec![],
+            vec![im("contracts", ContextPattern::PublishedLanguage, "Secret")],
+        ),
+        ctx(
+            "contracts",
+            &["App\\Contracts"],
+            vec![ex("CourseId", ContextPattern::PublishedLanguage)],
+            vec![],
+        )
+        .as_foreign(),
+    ];
+    let code = Graph::new(
+        vec![
+            code_node_with_provenance("Course", "App\\Catalogue"),
+            code_node_with_provenance("Secret", "App\\Contracts"),
+        ],
+        vec![unit_edge(
+            ("Course", "App\\Catalogue"),
+            EdgeKind::Uses,
+            ("Secret", "App\\Contracts"),
+        )],
+    );
+    let v = crate::diff(
+        ci(Graph::default(), contexts),
+        code,
+        Some(CROSSINGS_ANSWERED),
+    )
+    .violations;
+    assert!(
+        context_records(&v).iter().any(|c| matches!(
+            c,
+            ContextViolation::CrossEdgeUndeclared { target, target_context, .. }
+                if target == "Secret" && target_context == "contracts"
+        )),
+        "a foreign context is a surface of what it publishes and not a licence to reach anything it owns: the import is declared, the class is not exported, and the crossing is refused: {v:?}"
+    );
+}

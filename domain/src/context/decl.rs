@@ -12,6 +12,7 @@ pub struct ContextDecl {
     pub imports: Vec<ContextImport>,
     pub test_units: Vec<OwnedUnit>,
     pub source: Source,
+    pub foreign: bool,
 }
 
 impl ContextDecl {
@@ -30,12 +31,19 @@ impl ContextDecl {
             imports,
             test_units: Vec::new(),
             source,
+            foreign: false,
         }
     }
 
     #[must_use]
     pub fn with_test_units(mut self, test_units: Vec<OwnedUnit>) -> Self {
         self.test_units = test_units;
+        self
+    }
+
+    #[must_use]
+    pub const fn as_foreign(mut self) -> Self {
+        self.foreign = true;
         self
     }
 }
@@ -110,6 +118,27 @@ mod tests {
     }
 
     #[test]
+    fn a_context_is_the_reader_own_until_it_is_declared_foreign() {
+        let decl = ContextDecl::new(
+            "contracts".to_string(),
+            vec![OwnedUnit("App\\Contracts".to_string())],
+            vec![],
+            vec![],
+            Source::Spec {
+                format: crate::SpecFormat::Markdown,
+                path: std::path::PathBuf::from("specs/contexts/contracts.md"),
+                line: 1,
+                context: None,
+            },
+        );
+        assert!(
+            !decl.foreign,
+            "a context read from the walked tree is the reader's own, so the flag defaults to the stricter reading"
+        );
+        assert!(decl.as_foreign().foreign);
+    }
+
+    #[test]
     fn context_pattern_as_label_stable() {
         assert_eq!(ContextPattern::SharedKernel.as_label(), "SharedKernel");
         assert_eq!(
@@ -148,6 +177,7 @@ mod tests {
                 line: 12,
                 context: None,
             },
+            foreign: false,
         };
         assert_eq!(decl.name, "equivalence");
         assert_eq!(decl.owned_units.len(), 2);
